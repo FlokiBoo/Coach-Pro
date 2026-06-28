@@ -3,31 +3,49 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
-
-// Format date YYYY-MM-DD -> "Lun. 24 juin"
-function formatDate(d) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', {
-    weekday: 'short', day: 'numeric', month: 'long'
-  })
-}
+import AthletesSidebar from '@/app/components/AthletesSidebar'
 
 function today() {
   const n = new Date()
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
+function formatDateLong(d) {
+  return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', {
+    weekday: 'long', day: 'numeric', month: 'long'
+  })
+}
+
+function initials(name) {
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+}
+
 export default function Home() {
   const [athletes, setAthletes] = useState([])
+  const [completedSessions, setCompletedSessions] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [newName, setNewName] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    supabase.from('athletes').select('*').order('created_at').then(({ data }) => {
-      setAthletes(data || [])
+    async function load() {
+      const [{ data: aths }, { data: sessions }] = await Promise.all([
+        supabase.from('athletes').select('*').order('created_at'),
+        supabase
+          .from('sessions')
+          .select('id, date, title, athlete_id, athletes(id, name), exercises(id, name, sets, reps, kg, athlete_logs(sets_done, reps_done, kg_done))')
+          .order('date', { ascending: false })
+          .limit(40)
+      ])
+      setAthletes(aths || [])
+      const done = (sessions || []).filter(s =>
+        s.exercises?.some(e => e.athlete_logs?.length > 0)
+      )
+      setCompletedSessions(done)
       setLoading(false)
-    })
+    }
+    load()
   }, [])
 
   const createAthlete = async () => {
@@ -41,8 +59,6 @@ export default function Home() {
     setSaving(false)
   }
 
-  const initials = (name) => name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
-
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100svh', color: 'var(--text3)' }}>
       Chargement…
@@ -50,105 +66,135 @@ export default function Home() {
   )
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)' }}>
+    <div className="coach-layout" style={{ background: 'var(--bg2)' }}>
+      <AthletesSidebar athleteId={null} date={today()} />
+      <div className="coach-main">
 
-      {/* Header */}
-      <div style={{
-        padding: '20px 16px 14px', background: 'var(--bg)',
-        borderBottom: '1px solid var(--border)',
-        display: 'flex', alignItems: 'center', gap: 12,
-        position: 'sticky', top: 0, zIndex: 10
-      }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>CoachPro</div>
-          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>
-            {athletes.length} sportif{athletes.length !== 1 ? 's' : ''}
+        {/* Header */}
+        <div style={{
+          padding: '20px 16px 14px', background: 'var(--bg)',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', gap: 12,
+          position: 'sticky', top: 0, zIndex: 10
+        }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>CoachPro</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>
+              {athletes.length} sportif{athletes.length !== 1 ? 's' : ''}
+            </div>
           </div>
-        </div>
-        <button
-          onClick={() => setShowForm(v => !v)}
-          style={{
+          <a href="https://tracker-nutrition.netlify.app/coach.html" target="_blank" rel="noreferrer" style={{
+            background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)',
+            borderRadius: 20, padding: '8px 14px', fontSize: 12, fontWeight: 600, textDecoration: 'none', flexShrink: 0
+          }}>🥗 Nutrition</a>
+          <button onClick={() => setShowForm(v => !v)} style={{
             background: 'var(--green)', color: '#fff', border: 'none',
             borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
-          }}
-        >+ Sportif</button>
-      </div>
+          }}>+ Sportif</button>
+        </div>
 
-      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-        {/* Formulaire ajout */}
-        {showForm && (
-          <div style={{
-            background: 'var(--bg)', border: '1px solid var(--border)',
-            borderRadius: 'var(--rl)', padding: 14,
-            display: 'flex', gap: 8
-          }}>
-            <input
-              autoFocus
-              placeholder="Prénom Nom du sportif"
-              value={newName}
-              onChange={e => setNewName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && createAthlete()}
-              style={{
-                flex: 1, padding: '10px 12px',
-                border: '1px solid var(--border2)', borderRadius: 'var(--r)',
-                fontSize: 14, outline: 'none', background: 'var(--bg2)'
-              }}
-            />
-            <button
-              onClick={createAthlete}
-              disabled={saving}
-              style={{
+          {/* Formulaire ajout */}
+          {showForm && (
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', gap: 8 }}>
+              <input
+                autoFocus
+                placeholder="Prénom Nom du sportif"
+                value={newName}
+                onChange={e => setNewName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && createAthlete()}
+                style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)' }}
+              />
+              <button onClick={createAthlete} disabled={saving} style={{
                 background: 'var(--green)', color: '#fff', border: 'none',
-                borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 14,
-                fontWeight: 600, cursor: 'pointer'
-              }}
-            >{saving ? '…' : 'Créer'}</button>
-          </div>
-        )}
-
-        {/* Liste des sportifs */}
-        {athletes.map(a => (
-          <Link
-            key={a.id}
-            href={`/programme/${a.id}/${today()}`}
-            style={{
-              background: 'var(--bg)', border: '1px solid var(--border)',
-              borderRadius: 'var(--rl)', padding: '14px 16px',
-              display: 'flex', alignItems: 'center', gap: 14,
-              textDecoration: 'none', color: 'inherit'
-            }}
-          >
-            <div style={{
-              width: 44, height: 44, borderRadius: '50%',
-              background: 'var(--green-light)', color: 'var(--green)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: 15, fontWeight: 800, flexShrink: 0
-            }}>
-              {initials(a.name)}
+                borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer'
+              }}>{saving ? '…' : 'Créer'}</button>
             </div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{a.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
-                Programme du {formatDate(today())}
+          )}
+
+          {/* Titre feed */}
+          {!athletes.length && !showForm ? (
+            <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
+              <div style={{ fontSize: 36, marginBottom: 12 }}>🏋️</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun sportif</div>
+              <div style={{ fontSize: 13 }}>Clique sur « + Sportif » pour commencer</div>
+            </div>
+          ) : (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Séances validées
               </div>
-            </div>
-            <span style={{ color: 'var(--text3)', fontSize: 20 }}>›</span>
-          </Link>
-        ))}
 
-        {!athletes.length && !showForm && (
-          <div style={{
-            textAlign: 'center', color: 'var(--text3)',
-            padding: '60px 20px', border: '1px dashed var(--border2)',
-            borderRadius: 'var(--rl)', background: 'var(--bg)'
-          }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>🏋️</div>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun sportif</div>
-            <div style={{ fontSize: 13 }}>Clique sur « + Sportif » pour commencer</div>
-          </div>
-        )}
+              {completedSessions === null ? (
+                <div style={{ color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>Chargement…</div>
+              ) : completedSessions.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
+                  <div style={{ fontSize: 13 }}>Aucune séance validée pour l'instant.</div>
+                </div>
+              ) : completedSessions.map(s => (
+                <SessionCard key={s.id} session={s} />
+              ))}
+            </>
+          )}
+        </div>
       </div>
     </div>
+  )
+}
+
+function SessionCard({ session }) {
+  const exosDone = (session.exercises || []).filter(e => e.athlete_logs?.length > 0)
+  const athleteName = session.athletes?.name || '—'
+
+  return (
+    <Link href={`/semaine/${session.athlete_id}/${session.date}`} style={{
+      display: 'block', background: 'var(--bg)', border: '1px solid var(--border)',
+      borderRadius: 'var(--rl)', padding: '14px 16px', textDecoration: 'none', color: 'inherit'
+    }}>
+      {/* Header : avatar + nom + date */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+          background: 'var(--green-light)', color: 'var(--green)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 12, fontWeight: 800
+        }}>
+          {athleteName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{athleteName}</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', textTransform: 'capitalize' }}>
+            {formatDateLong(session.date)}
+          </div>
+        </div>
+        <div style={{ fontSize: 12, fontWeight: 700, background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px', flexShrink: 0 }}>
+          ✓ {exosDone.length} exercice{exosDone.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {/* Titre séance */}
+      {session.title && (
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginBottom: 8 }}>
+          {session.title}
+        </div>
+      )}
+
+      {/* Exercices réalisés */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {exosDone.map(e => {
+          const log = e.athlete_logs[0]
+          const prescribed = [e.sets && `${e.sets} séries`, e.reps && `${e.reps} reps`, e.kg && `${e.kg} kg`].filter(Boolean).join(' · ')
+          const done = [log.sets_done && `${log.sets_done}×`, log.reps_done, log.kg_done && `${log.kg_done} kg`].filter(Boolean).join(' ')
+          return (
+            <div key={e.id} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 12 }}>
+              <span style={{ fontWeight: 600, color: 'var(--text)' }}>{e.name}</span>
+              {done && <span style={{ color: '#166534', fontWeight: 700 }}>→ {done}</span>}
+              {prescribed && <span style={{ color: 'var(--text3)' }}>({prescribed})</span>}
+            </div>
+          )
+        })}
+      </div>
+    </Link>
   )
 }

@@ -29,3 +29,36 @@ input, textarea, button, select {
   --r: 8px;
   --rl: 12px;
 }
+
+/* Layout coach desktop */
+.coach-layout {
+  display: flex;
+  min-height: 100svh;
+}
+.coach-sidebar {
+  display: none;
+}
+.coach-main {
+  flex: 1;
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100svh;
+}
+@media (min-width: 900px) {
+  .coach-main {
+    max-width: 540px;
+    margin: 0;
+  }
+  .coach-sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 220px;
+    flex-shrink: 0;
+    border-right: 1px solid var(--border);
+    background: var(--bg);
+    position: sticky;
+    top: 0;
+    height: 100svh;
+    overflow-y: auto;
+  }
+}
