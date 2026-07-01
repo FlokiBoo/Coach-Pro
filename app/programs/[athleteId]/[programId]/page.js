@@ -42,10 +42,12 @@ export default function ProgramEditorPage({ params }) {
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
 
+  const isTemplate = athleteId === 'templates'
+
   useEffect(() => {
     async function load() {
       const [{ data: a }, { data: prog }, { data: sess }] = await Promise.all([
-        supabase.from('athletes').select('*').eq('id', athleteId).single(),
+        isTemplate ? Promise.resolve({ data: null }) : supabase.from('athletes').select('*').eq('id', athleteId).single(),
         supabase.from('programs').select('*').eq('id', programId).single(),
         supabase.from('program_sessions')
           .select('*, program_exercises(*)')
@@ -171,7 +173,7 @@ export default function ProgramEditorPage({ params }) {
         {/* Header */}
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Link href={`/programs/${athleteId}`} style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none' }}>←</Link>
+            <Link href={isTemplate ? '/programs' : `/programs/${athleteId}`} style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none' }}>←</Link>
             <div style={{ flex: 1, minWidth: 0 }}>
               <input
                 value={program?.title || ''}
@@ -179,7 +181,9 @@ export default function ProgramEditorPage({ params }) {
                 style={{ fontWeight: 800, fontSize: 16, border: 'none', outline: 'none', background: 'transparent', width: '100%', color: 'var(--text)' }}
                 placeholder="Nom du programme"
               />
-              <div style={{ fontSize: 11, color: 'var(--text3)' }}>{athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                {isTemplate ? '📋 Modèle' : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
+              </div>
             </div>
             <button onClick={save} disabled={saving} style={{ background: saved ? '#166534' : 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'background .3s', flexShrink: 0 }}>
               {saving ? '…' : saved ? '✓ Enregistré' : 'Enregistrer'}

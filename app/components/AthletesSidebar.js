@@ -38,7 +38,7 @@ export default function AthletesSidebar({ athleteId, date }) {
   useEffect(() => {
     async function load() {
       const { data: aths } = await supabase
-        .from('athletes').select('*').order('created_at')
+        .from('athletes').select('*').neq('archived', true).order('created_at')
       if (!aths?.length) { setAthletes([]); return }
       setAthletes(aths)
 
@@ -124,7 +124,7 @@ export default function AthletesSidebar({ athleteId, date }) {
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>👥 Clients</Link>
-        <Link href={athleteId ? `/programs/${athleteId}` : '/'} onClick={() => setOpen(false)} style={{
+        <Link href="/programs" onClick={() => setOpen(false)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',

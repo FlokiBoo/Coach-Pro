@@ -31,7 +31,7 @@ export default function Home() {
   useEffect(() => {
     async function load() {
       const [{ data: aths }, { data: sessions }] = await Promise.all([
-        supabase.from('athletes').select('*').order('created_at'),
+        supabase.from('athletes').select('*').neq('archived', true).order('created_at'),
         supabase
           .from('sessions')
           .select('id, date, title, athlete_id, athletes(id, name), exercises(id, name, sets, reps, kg, athlete_logs(sets_done, reps_done, kg_done))')

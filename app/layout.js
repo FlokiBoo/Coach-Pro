@@ -1,4 +1,5 @@
 import "./globals.css";
+import ServiceWorkerRegistration from "@/app/components/ServiceWorkerRegistration";
 
 export const metadata = {
   title: "CoachPro",
@@ -18,7 +19,10 @@ export default function RootLayout({ children }) {
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon.svg" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <ServiceWorkerRegistration />
+      </body>
     </html>
   );
 }
