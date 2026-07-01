@@ -31,8 +31,9 @@ function formatDateShort(d) {
 
 export default function AthletesSidebar({ athleteId, date }) {
   const [athletes, setAthletes] = useState([])
-  const [wellness, setWellness] = useState({})   // { [athlete_id]: row }
-  const [done, setDone] = useState(new Set())    // athlete_ids qui ont fait leur séance
+  const [wellness, setWellness] = useState({})
+  const [done, setDone] = useState(new Set())
+  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -80,13 +81,54 @@ export default function AthletesSidebar({ athleteId, date }) {
   }, [date])
 
   return (
-    <div className="coach-sidebar">
+    <>
+      {/* Bouton hamburger — mobile uniquement */}
+      <button
+        onClick={() => setOpen(true)}
+        className="sidebar-toggle"
+        style={{
+          position: 'fixed', bottom: 20, left: 16, zIndex: 200,
+          background: 'var(--green)', color: '#fff', border: 'none',
+          borderRadius: '50%', width: 48, height: 48,
+          fontSize: 20, cursor: 'pointer', boxShadow: '0 2px 12px rgba(0,0,0,0.2)',
+          alignItems: 'center', justifyContent: 'center',
+        }}
+        aria-label="Ouvrir la liste des sportifs"
+      >☰</button>
+
+      {/* Backdrop */}
+      {open && (
+        <div
+          onClick={() => setOpen(false)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 299 }}
+        />
+      )}
+
+    <div className={`coach-sidebar${open ? ' coach-sidebar--open' : ''}`}>
       {/* Header sidebar */}
-      <div style={{ padding: '16px 12px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 2 }}>CoachPro</div>
-        <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'capitalize' }}>
-          {formatDateShort(date)}
+      <div style={{ padding: '16px 12px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 2 }}>CoachPro</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'capitalize' }}>
+            {formatDateShort(date)}
+          </div>
         </div>
+        <button onClick={() => setOpen(false)} className="sidebar-close"
+          style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 4 }}>✕</button>
+      </div>
+
+      {/* Navigation principale */}
+      <div style={{ padding: '8px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Link href="/" onClick={() => setOpen(false)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent',
+        }}>👥 Clients</Link>
+        <Link href={athleteId ? `/programs/${athleteId}` : '/'} onClick={() => setOpen(false)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent',
+        }}>📋 Programme</Link>
       </div>
 
       {/* Liste sportifs */}
@@ -164,5 +206,6 @@ export default function AthletesSidebar({ athleteId, date }) {
         </Link>
       </div>
     </div>
+    </>
   )
 }

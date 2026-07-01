@@ -38,6 +38,30 @@ input, textarea, button, select {
 .coach-sidebar {
   display: none;
 }
+.coach-sidebar--open {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 260px;
+  height: 100svh;
+  background: var(--bg);
+  z-index: 300;
+  overflow-y: auto;
+  box-shadow: 4px 0 24px rgba(0,0,0,0.15);
+  animation: slideIn .2s ease;
+}
+.sidebar-toggle {
+  display: flex;
+}
+.sidebar-close {
+  display: block;
+}
+@keyframes slideIn {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
 .coach-main {
   flex: 1;
   max-width: 480px;
@@ -49,7 +73,7 @@ input, textarea, button, select {
     max-width: 540px;
     margin: 0;
   }
-  .coach-sidebar {
+  .coach-sidebar, .coach-sidebar--open {
     display: flex;
     flex-direction: column;
     width: 220px;
@@ -60,5 +84,13 @@ input, textarea, button, select {
     top: 0;
     height: 100svh;
     overflow-y: auto;
+    box-shadow: none;
+    animation: none;
+  }
+  .sidebar-toggle {
+    display: none !important;
+  }
+  .sidebar-close {
+    display: none !important;
   }
 }
