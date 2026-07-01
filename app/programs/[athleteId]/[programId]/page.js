@@ -54,12 +54,14 @@ export default function ProgramEditorPage({ params }) {
       ])
       setAthlete(a)
       setProgram(prog)
-      setSessions((sess || []).map(s => ({
+      const loaded = (sess || []).map(s => ({
         ...s,
         exercises: [...(s.program_exercises || [])]
           .sort((a, b) => a.order_index - b.order_index)
           .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', note: e.note ?? '', video_url: e.video_url || '' }))
-      })))
+      }))
+      setSessions(loaded)
+      if (loaded.length === 1) setOpenId(loaded[0].id)
       setLoading(false)
     }
     load()

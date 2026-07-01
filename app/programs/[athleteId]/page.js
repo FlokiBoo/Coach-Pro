@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, use } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -12,6 +13,7 @@ function today() {
 
 export default function ProgramsPage({ params }) {
   const { athleteId } = use(params)
+  const router = useRouter()
   const [athlete, setAthlete] = useState(null)
   const [programs, setPrograms] = useState([])
   const [newTitle, setNewTitle] = useState('')
@@ -42,14 +44,15 @@ export default function ProgramsPage({ params }) {
       .insert({ athlete_id: athleteId, title: newTitle.trim() })
       .select().single()
     if (data) {
-      setPrograms(prev => [{ ...data, program_sessions: [] }, ...prev])
-      setNewTitle('')
-      setShowForm(false)
+      // Créer automatiquement la Séance 1
+      await supabase.from('program_sessions')
+        .insert({ program_id: data.id, order_index: 0, title: 'Séance 1' })
+      router.push(`/programs/${athleteId}/${data.id}`)
     } else {
       console.error('Erreur création programme:', error)
       alert('Erreur : ' + (error?.message || 'impossible de créer le programme'))
+      setCreating(false)
     }
-    setCreating(false)
   }
 
   const deleteProgram = async (id) => {
