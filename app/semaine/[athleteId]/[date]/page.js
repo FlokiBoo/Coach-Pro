@@ -11,6 +11,16 @@ function today() {
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
+function calcAge(birthDate) {
+  if (!birthDate) return null
+  const birth = new Date(birthDate)
+  const now = new Date()
+  let age = now.getFullYear() - birth.getFullYear()
+  const m = now.getMonth() - birth.getMonth()
+  if (m < 0 || (m === 0 && now.getDate() < birth.getDate())) age--
+  return age
+}
+
 export default function AthletePage({ params }) {
   const { athleteId } = use(params)
   const router = useRouter()
@@ -19,25 +29,33 @@ export default function AthletePage({ params }) {
   const [wellness, setWellness] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showDanger, setShowDanger] = useState(false)
-  const [inviteEmail, setInviteEmail] = useState('')
+  const [editingProfile, setEditingProfile] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [inviteMsg, setInviteMsg] = useState('')
+
+  const [form, setForm] = useState({
+    name: '', email: '', birth_date: '', weight: '', height: ''
+  })
 
   useEffect(() => {
     async function load() {
       const todayStr = today()
       const [{ data: ath }, { data: progs }, { data: w }] = await Promise.all([
         supabase.from('athletes').select('*').eq('id', athleteId).single(),
-        supabase.from('programs')
-          .select('*, program_sessions(id)')
-          .eq('athlete_id', athleteId)
-          .order('created_at', { ascending: false }),
+        supabase.from('programs').select('*, program_sessions(id)').eq('athlete_id', athleteId).order('created_at', { ascending: false }),
         supabase.from('wellness').select('*').eq('athlete_id', athleteId).eq('date', todayStr).single()
       ])
       setAthlete(ath)
       setPrograms(progs || [])
       setWellness(w)
-      if (ath?.email) setInviteEmail(ath.email)
+      if (ath) setForm({
+        name: ath.name || '',
+        email: ath.email || '',
+        birth_date: ath.birth_date || '',
+        weight: ath.weight || '',
+        height: ath.height || '',
+      })
       setLoading(false)
     }
     load()
@@ -49,30 +67,39 @@ export default function AthletePage({ params }) {
     if (data) setAthlete(data)
   }
 
-  const archiveAthlete = async () => {
-    if (!confirm(`Archiver ${athlete?.name} ? Il n'apparaîtra plus dans la liste, mais ses données sont conservées.`)) return
-    await supabase.from('athletes').update({ archived: true }).eq('id', athleteId)
-    router.push('/')
+  const saveProfile = async () => {
+    setSaving(true)
+    const { data } = await supabase.from('athletes').update({
+      name: form.name.trim(),
+      email: form.email.trim() || null,
+      birth_date: form.birth_date || null,
+      weight: form.weight ? parseFloat(form.weight) : null,
+      height: form.height ? parseInt(form.height) : null,
+    }).eq('id', athleteId).select().single()
+    if (data) setAthlete(data)
+    setSaving(false)
+    setEditingProfile(false)
   }
 
   const inviteClient = async () => {
-    if (!inviteEmail.trim()) return
+    if (!form.email.trim() && !athlete?.email) return
+    const email = form.email.trim() || athlete.email
     setInviting(true)
     setInviteMsg('')
     const res = await fetch('/api/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: inviteEmail.trim(),
-        athleteId,
-        athleteName: athlete?.name,
-        redirectTo: window.location.origin
-      })
+      body: JSON.stringify({ email, athleteId, athleteName: athlete?.name, redirectTo: window.location.origin })
     })
     const json = await res.json()
-    if (json.error) setInviteMsg('Erreur : ' + json.error)
-    else setInviteMsg('Invitation envoyée !')
+    setInviteMsg(json.error ? 'Erreur : ' + json.error : 'Invitation envoyée à ' + email + ' !')
     setInviting(false)
+  }
+
+  const archiveAthlete = async () => {
+    if (!confirm(`Archiver ${athlete?.name} ?`)) return
+    await supabase.from('athletes').update({ archived: true }).eq('id', athleteId)
+    router.push('/')
   }
 
   const deleteAthlete = async () => {
@@ -97,6 +124,8 @@ export default function AthletePage({ params }) {
     if (s >= 4) return '#f59e0b'
     return '#ef4444'
   }
+
+  const age = calcAge(athlete?.birth_date)
 
   return (
     <div className="coach-layout" style={{ background: 'var(--bg2)' }}>
@@ -129,6 +158,112 @@ export default function AthletePage({ params }) {
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
+          {/* Profil client */}
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>👤 Profil</div>
+              <button
+                onClick={() => { setEditingProfile(v => !v); setInviteMsg('') }}
+                style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              >
+                {editingProfile ? 'Annuler' : 'Modifier'}
+              </button>
+            </div>
+
+            {editingProfile ? (
+              <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <Field label="Nom complet">
+                  <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={inputStyle} />
+                </Field>
+                <Field label="Date de naissance">
+                  <input type="date" value={form.birth_date} onChange={e => setForm(f => ({ ...f, birth_date: e.target.value }))} style={inputStyle} />
+                </Field>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <Field label="Poids (kg)" style={{ flex: 1 }}>
+                    <input type="number" step="0.1" placeholder="70.5" value={form.weight} onChange={e => setForm(f => ({ ...f, weight: e.target.value }))} style={inputStyle} />
+                  </Field>
+                  <Field label="Taille (cm)" style={{ flex: 1 }}>
+                    <input type="number" placeholder="175" value={form.height} onChange={e => setForm(f => ({ ...f, height: e.target.value }))} style={inputStyle} />
+                  </Field>
+                </div>
+
+                {/* Email + invitation */}
+                <Field label={
+                  <span>
+                    Email
+                    {athlete?.auth_user_id && <span style={{ marginLeft: 6, color: 'var(--green)', fontSize: 11, fontWeight: 700 }}>✓ Compte actif</span>}
+                  </span>
+                }>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input type="email" placeholder="client@mail.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
+                    {!athlete?.auth_user_id && (
+                      <button
+                        onClick={inviteClient}
+                        disabled={inviting || (!form.email.trim() && !athlete?.email)}
+                        style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+                      >
+                        {inviting ? '…' : '✉️ Inviter'}
+                      </button>
+                    )}
+                  </div>
+                </Field>
+
+                {inviteMsg && (
+                  <div style={{ fontSize: 12, color: inviteMsg.startsWith('Erreur') ? '#DC2626' : '#166534', fontWeight: 600 }}>
+                    {inviteMsg}
+                  </div>
+                )}
+
+                <button onClick={saveProfile} disabled={saving} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)', padding: '12px', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginTop: 4 }}>
+                  {saving ? 'Enregistrement…' : 'Enregistrer'}
+                </button>
+              </div>
+            ) : (
+              <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Avatar + nom */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, flexShrink: 0 }}>
+                    {athlete?.name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 16 }}>{athlete?.name}</div>
+                    {athlete?.email && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{athlete.email}</div>}
+                  </div>
+                  {athlete?.auth_user_id && (
+                    <div style={{ marginLeft: 'auto', background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700 }}>✓ Compte</div>
+                  )}
+                </div>
+
+                {/* Stats */}
+                {(age || athlete?.weight || athlete?.height) && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
+                    {age !== null && <Stat label="Âge" value={`${age} ans`} />}
+                    {athlete?.birth_date && <Stat label="Naissance" value={new Date(athlete.birth_date).toLocaleDateString('fr-FR')} />}
+                    {athlete?.weight && <Stat label="Poids" value={`${athlete.weight} kg`} />}
+                    {athlete?.height && <Stat label="Taille" value={`${athlete.height} cm`} />}
+                  </div>
+                )}
+
+                {/* Invite si pas de compte et email connu */}
+                {!athlete?.auth_user_id && athlete?.email && (
+                  <div style={{ marginTop: 4 }}>
+                    <button onClick={inviteClient} disabled={inviting} style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                      {inviting ? '…' : `✉️ Envoyer l'invitation à ${athlete.email}`}
+                    </button>
+                    {inviteMsg && <div style={{ marginTop: 6, fontSize: 12, color: inviteMsg.startsWith('Erreur') ? '#DC2626' : '#166534', fontWeight: 600 }}>{inviteMsg}</div>}
+                  </div>
+                )}
+
+                {/* Pas encore de profil */}
+                {!age && !athlete?.weight && !athlete?.height && !athlete?.email && (
+                  <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>
+                    Clique sur "Modifier" pour renseigner le profil
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Lien de partage */}
           {athlete?.token ? (
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '12px 14px' }}>
@@ -151,35 +286,6 @@ export default function AthletePage({ params }) {
               </button>
             </div>
           )}
-
-          {/* Invitation client */}
-          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '12px 14px' }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
-              ✉️ Accès client
-              {athlete?.auth_user_id && <span style={{ marginLeft: 8, color: 'var(--green)', fontSize: 11 }}>✓ Compte actif</span>}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="email"
-                placeholder="Email du client"
-                value={inviteEmail}
-                onChange={e => setInviteEmail(e.target.value)}
-                style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
-              />
-              <button
-                onClick={inviteClient}
-                disabled={inviting || !inviteEmail.trim()}
-                style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
-              >
-                {inviting ? '…' : 'Inviter'}
-              </button>
-            </div>
-            {inviteMsg && (
-              <div style={{ marginTop: 8, fontSize: 12, color: inviteMsg.startsWith('Erreur') ? '#DC2626' : '#166534', fontWeight: 600 }}>
-                {inviteMsg}
-              </div>
-            )}
-          </div>
 
           {/* Bien-être du jour */}
           {wellness ? (
@@ -226,6 +332,30 @@ export default function AthletePage({ params }) {
 
         </div>
       </div>
+    </div>
+  )
+}
+
+const inputStyle = {
+  width: '100%', boxSizing: 'border-box',
+  padding: '9px 11px', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+  fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)'
+}
+
+function Field({ label, children, style }) {
+  return (
+    <div style={style}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>{label}</div>
+      {children}
+    </div>
+  )
+}
+
+function Stat({ label, value }) {
+  return (
+    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{value}</div>
     </div>
   )
 }
