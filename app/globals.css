@@ -33,10 +33,17 @@ input, textarea, button, select {
 /* Layout coach desktop */
 .coach-layout {
   display: flex;
+  width: 100%;
+  min-height: 100svh;
+}
+.coach-main {
+  flex: 1;
+  min-width: 0;
   min-height: 100svh;
 }
 .coach-sidebar {
   display: none;
+  flex-shrink: 0;
 }
 .coach-sidebar--open {
   display: flex;
