@@ -8,7 +8,8 @@ export default function LoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState('login') // 'login' | 'signup'
+  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'reset'
+  const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -18,6 +19,16 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     setSuccess('')
+
+    if (mode === 'reset') {
+      const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/auth/callback`
+      })
+      if (err) { setError(err.message); setLoading(false); return }
+      setSuccess('Email envoyé ! Vérifie ta boîte mail pour réinitialiser ton mot de passe.')
+      setLoading(false)
+      return
+    }
 
     if (mode === 'signup') {
       const { error: err } = await supabase.auth.signUp({ email, password })
@@ -74,18 +85,28 @@ export default function LoginPage() {
               fontSize: 15, outline: 'none', background: 'var(--bg2)', color: 'var(--text)'
             }}
           />
-          <input
-            type="password"
-            placeholder="Mot de passe"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            required
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            style={{
-              padding: '12px 14px', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
-              fontSize: 15, outline: 'none', background: 'var(--bg2)', color: 'var(--text)'
-            }}
-          />
+          {mode !== 'reset' && <div style={{ position: 'relative' }}>
+            <input
+              type={showPwd ? 'text' : 'password'}
+              placeholder="Mot de passe"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              required
+              autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                padding: '12px 44px 12px 14px', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+                fontSize: 15, outline: 'none', background: 'var(--bg2)', color: 'var(--text)'
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPwd(v => !v)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text3)', padding: 4 }}
+            >
+              {showPwd ? '🙈' : '👁'}
+            </button>
+          </div>}
 
           {error && (
             <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--r)', padding: '10px 12px' }}>
@@ -98,6 +119,15 @@ export default function LoginPage() {
             </div>
           )}
 
+          {mode === 'login' && (
+            <div style={{ textAlign: 'right' }}>
+              <button type="button" onClick={() => { setMode('reset'); setError(''); setSuccess('') }}
+                style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
+                Mot de passe oublié ?
+              </button>
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -106,8 +136,15 @@ export default function LoginPage() {
               padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginTop: 4
             }}
           >
-            {loading ? '…' : mode === 'login' ? 'Se connecter' : 'Créer le compte'}
+            {loading ? '…' : mode === 'login' ? 'Se connecter' : mode === 'signup' ? 'Créer le compte' : 'Envoyer le lien'}
           </button>
+
+          {mode === 'reset' && (
+            <button type="button" onClick={() => { setMode('login'); setError(''); setSuccess('') }}
+              style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', textAlign: 'center' }}>
+              ← Retour à la connexion
+            </button>
+          )}
         </form>
 
         <div style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'var(--text3)' }}>
