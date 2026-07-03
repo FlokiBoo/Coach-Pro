@@ -84,6 +84,20 @@ function AthleteView({ params }) {
     load()
   }, [athlete])
 
+  const unvalidate = async (sessId, progSessions) => {
+    if (!athlete) return
+    setValidating(true)
+    await supabase.from('program_completions')
+      .delete()
+      .eq('athlete_id', athlete.id)
+      .eq('program_session_id', sessId)
+    const newSet = new Set([...completions])
+    newSet.delete(sessId)
+    setCompletions(newSet)
+    setOpenSessionId(sessId)
+    setValidating(false)
+  }
+
   const validate = async (sessId, progSessions) => {
     if (!athlete) return
     setValidating(true)
@@ -167,10 +181,15 @@ function AthleteView({ params }) {
         {programs.map(prog => {
           const done = prog.sessions.filter(s => completions.has(s.id)).length
           const total = prog.sessions.length
-          const allDone = done === total
+          const allDone = done === total && total > 0
           const nextSession = prog.sessions.find(s => !completions.has(s.id))
           const nextIdx = prog.sessions.indexOf(nextSession)
-          const isOpen = nextSession && openSessionId === nextSession.id
+          const prevSession = nextSession
+            ? prog.sessions[nextIdx - 1] || null
+            : prog.sessions[prog.sessions.length - 1]
+          const prevIdx = prevSession ? prog.sessions.indexOf(prevSession) : -1
+          const isOpenNext = nextSession && openSessionId === nextSession.id
+          const isOpenPrev = prevSession && openSessionId === prevSession.id
 
           return (
             <div key={prog.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -186,92 +205,48 @@ function AthleteView({ params }) {
                 <div style={{ height: '100%', background: 'var(--green)', borderRadius: 10, width: `${total ? Math.round((done / total) * 100) : 0}%`, transition: 'width .4s' }} />
               </div>
 
-              {allDone ? (
+              {/* Séance à faire */}
+              {nextSession && (
+                <SessionCard
+                  session={nextSession}
+                  idx={nextIdx}
+                  isOpen={isOpenNext}
+                  isCompleted={false}
+                  onToggle={() => setOpenSessionId(isOpenNext ? null : nextSession.id)}
+                  onValidate={() => validate(nextSession.id, prog.sessions)}
+                  onUnvalidate={null}
+                  validating={validating}
+                />
+              )}
+
+              {/* Programme terminé */}
+              {allDone && (
                 <div style={{ background: '#DCFCE7', border: '1px solid #BBF7D0', borderRadius: 'var(--rl)', padding: '12px 14px', textAlign: 'center', color: '#166534', fontWeight: 700, fontSize: 14 }}>
                   ✓ Programme terminé !
                 </div>
-              ) : (
-                <div style={{ background: 'var(--bg)', border: `1.5px solid ${isOpen ? 'var(--green)' : 'var(--border)'}`, borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+              )}
 
-                  {/* Ligne titre séance — clic pour déplier */}
-                  <div
-                    onClick={() => setOpenSessionId(isOpen ? null : nextSession.id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', cursor: 'pointer', borderBottom: isOpen ? '1px solid var(--border)' : 'none' }}
+              {/* Séance précédente */}
+              {prevSession && (
+                <div>
+                  <button
+                    onClick={() => setOpenSessionId(isOpenPrev ? null : prevSession.id)}
+                    style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}
                   >
-                    <div style={{
-                      width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-                      background: isOpen ? 'var(--green)' : 'var(--green-light)',
-                      color: isOpen ? '#fff' : 'var(--green)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800
-                    }}>
-                      {nextIdx + 1}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>
-                        {nextSession.title || `Séance ${nextIdx + 1}`}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-                        {nextSession.exercises.filter(e => e.name).length} exercice{nextSession.exercises.filter(e => e.name).length !== 1 ? 's' : ''}
-                      </div>
-                    </div>
-                    {isOpen && (
-                      <button
-                        onClick={e => { e.stopPropagation(); validate(nextSession.id, prog.sessions) }}
-                        disabled={validating}
-                        style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
-                      >
-                        ✓ Validé
-                      </button>
-                    )}
-                    <span style={{ fontSize: 18, color: isOpen ? 'var(--green)' : 'var(--text3)' }}>{isOpen ? '▲' : '▼'}</span>
-                  </div>
-
-                  {/* Contenu dépliable */}
-                  {isOpen && (
-                    <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {nextSession.activation && (
-                        <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-                          <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>⚡ Activation</div>
-                          <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{nextSession.activation}</div>
-                        </div>
-                      )}
-                      {nextSession.coach_notes && (
-                        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, color: 'var(--text2)', fontStyle: 'italic', lineHeight: 1.6, borderLeft: '3px solid var(--green)' }}>
-                          {nextSession.coach_notes}
-                        </div>
-                      )}
-
-                      {nextSession.exercises.filter(e => e.name).map((exo, ei) => {
-                        const labels = computeLabels(nextSession.exercises)
-                        const label = labels[exo.id] || String.fromCharCode(65 + ei)
-                        return (
-                          <div key={exo.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '12px 14px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: (exo.sets || exo.reps || exo.kg || exo.note) ? 8 : 0 }}>
-                              <div style={{ minWidth: 24, height: 24, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, padding: '0 4px', flexShrink: 0 }}>{label}</div>
-                              <span style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>{exo.name}</span>
-                              {exo.video_url && (
-                                <a href={exo.video_url} target="_blank" rel="noreferrer" style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, textDecoration: 'none', fontWeight: 700, flexShrink: 0 }}>▶</a>
-                              )}
-                            </div>
-                            {(exo.sets || exo.reps || exo.kg) && (
-                              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: exo.note ? 6 : 0 }}>
-                                {exo.sets && <Pill value={exo.sets} label="séries" />}
-                                {exo.reps && <Pill value={exo.reps} label="reps" />}
-                                {exo.kg && <Pill value={`${exo.kg} kg`} />}
-                              </div>
-                            )}
-                            {exo.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>{exo.note}</div>}
-                          </div>
-                        )
-                      })}
-
-                      <button
-                        onClick={() => validate(nextSession.id, prog.sessions)}
-                        disabled={validating}
-                        style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)', padding: '15px', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%', marginTop: 4 }}
-                      >
-                        {validating ? 'Validation…' : '✓ Séance terminée'}
-                      </button>
+                    {isOpenPrev ? '▲' : '▼'} Séance précédente ({prevIdx + 1})
+                  </button>
+                  {isOpenPrev && (
+                    <div style={{ marginTop: 4 }}>
+                      <SessionCard
+                        session={prevSession}
+                        idx={prevIdx}
+                        isOpen={true}
+                        isCompleted={true}
+                        onToggle={() => setOpenSessionId(null)}
+                        onValidate={null}
+                        onUnvalidate={() => unvalidate(prevSession.id, prog.sessions)}
+                        validating={validating}
+                      />
                     </div>
                   )}
                 </div>
@@ -280,6 +255,90 @@ function AthleteView({ params }) {
           )
         })}
       </div>
+    </div>
+  )
+}
+
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, validating }) {
+  const exos = session.exercises.filter(e => e.name)
+  const labels = computeLabels(session.exercises)
+  return (
+    <div style={{ background: 'var(--bg)', border: `1.5px solid ${isOpen ? (isCompleted ? 'var(--border2)' : 'var(--green)') : 'var(--border)'}`, borderRadius: 'var(--rl)', overflow: 'hidden', opacity: isCompleted ? 0.85 : 1 }}>
+      <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', cursor: 'pointer', borderBottom: isOpen ? '1px solid var(--border)' : 'none' }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+          background: isCompleted ? '#DCFCE7' : (isOpen ? 'var(--green)' : 'var(--green-light)'),
+          color: isCompleted ? '#166534' : (isOpen ? '#fff' : 'var(--green)'),
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800
+        }}>
+          {isCompleted ? '✓' : idx + 1}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>
+            {session.title || `Séance ${idx + 1}`}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+            {exos.length} exercice{exos.length !== 1 ? 's' : ''}{isCompleted ? ' · déjà validée' : ''}
+          </div>
+        </div>
+        {isOpen && !isCompleted && onValidate && (
+          <button onClick={e => { e.stopPropagation(); onValidate() }} disabled={validating}
+            style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+            ✓ Validé
+          </button>
+        )}
+        <span style={{ fontSize: 18, color: 'var(--text3)' }}>{isOpen ? '▲' : '▼'}</span>
+      </div>
+
+      {isOpen && (
+        <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {session.activation && (
+            <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>⚡ Activation</div>
+              <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{session.activation}</div>
+            </div>
+          )}
+          {session.coach_notes && (
+            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, color: 'var(--text2)', fontStyle: 'italic', lineHeight: 1.6, borderLeft: '3px solid var(--green)' }}>
+              {session.coach_notes}
+            </div>
+          )}
+          {exos.map((exo, ei) => (
+            <div key={exo.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '12px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: (exo.sets || exo.reps || exo.kg || exo.note) ? 8 : 0 }}>
+                <div style={{ minWidth: 24, height: 24, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, padding: '0 4px', flexShrink: 0 }}>
+                  {labels[exo.id] || String.fromCharCode(65 + ei)}
+                </div>
+                <span style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>{exo.name}</span>
+                {exo.video_url && (
+                  <a href={exo.video_url} target="_blank" rel="noreferrer" style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, textDecoration: 'none', fontWeight: 700, flexShrink: 0 }}>▶</a>
+                )}
+              </div>
+              {(exo.sets || exo.reps || exo.kg) && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: exo.note ? 6 : 0 }}>
+                  {exo.sets && <Pill value={exo.sets} label="séries" />}
+                  {exo.reps && <Pill value={exo.reps} label="reps" />}
+                  {exo.kg && <Pill value={`${exo.kg} kg`} />}
+                </div>
+              )}
+              {exo.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>{exo.note}</div>}
+            </div>
+          ))}
+
+          {!isCompleted && onValidate && (
+            <button onClick={onValidate} disabled={validating}
+              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)', padding: '15px', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%', marginTop: 4 }}>
+              {validating ? 'Validation…' : '✓ Séance terminée'}
+            </button>
+          )}
+          {isCompleted && onUnvalidate && (
+            <button onClick={onUnvalidate} disabled={validating}
+              style={{ background: 'var(--bg2)', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 'var(--rl)', padding: '12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%', marginTop: 4 }}>
+              {validating ? '…' : '↩ Annuler la validation'}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
