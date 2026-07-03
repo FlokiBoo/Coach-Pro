@@ -47,6 +47,7 @@ function AthleteView({ params }) {
   const [completions, setCompletions] = useState(new Set())
   const [openSessionId, setOpenSessionId] = useState(null)
   const [validating, setValidating] = useState(false)
+  const [exerciseLogs, setExerciseLogs] = useState({}) // { exerciseId: { sets_done, reps_done, note } }
 
   useEffect(() => {
     supabase.from('athletes').select('*').eq('token', token).single().then(({ data }) => setAthlete(data))
@@ -55,13 +56,17 @@ function AthleteView({ params }) {
   useEffect(() => {
     if (!athlete) return
     async function load() {
-      const [{ data: progs }, { data: comps }] = await Promise.all([
+      const [{ data: progs }, { data: comps }, { data: logs }] = await Promise.all([
         supabase.from('programs')
           .select('*, program_sessions(*, program_exercises(*))')
           .eq('athlete_id', athlete.id)
           .order('created_at', { ascending: false }),
-        supabase.from('program_completions').select('program_session_id').eq('athlete_id', athlete.id)
+        supabase.from('program_completions').select('program_session_id').eq('athlete_id', athlete.id),
+        supabase.from('program_exercise_logs').select('*').eq('athlete_id', athlete.id)
       ])
+      const logsMap = {}
+      ;(logs || []).forEach(l => { logsMap[l.program_exercise_id] = l })
+      setExerciseLogs(logsMap)
       const completionSet = new Set((comps || []).map(c => c.program_session_id))
       setCompletions(completionSet)
 
@@ -127,6 +132,17 @@ function AthleteView({ params }) {
         })
       }
     }
+  }
+
+  const saveExerciseLog = async (exerciseId, field, value) => {
+    if (!athlete) return
+    const existing = exerciseLogs[exerciseId] || {}
+    const updated = { ...existing, [field]: value }
+    setExerciseLogs(prev => ({ ...prev, [exerciseId]: updated }))
+    await supabase.from('program_exercise_logs').upsert(
+      { athlete_id: athlete.id, program_exercise_id: exerciseId, ...updated },
+      { onConflict: 'athlete_id,program_exercise_id' }
+    )
   }
 
   function getSupabaseConfig() {
@@ -218,6 +234,8 @@ function AthleteView({ params }) {
                   onValidate={() => validate(nextSession.id, prog.sessions)}
                   onUnvalidate={null}
                   validating={validating}
+                  exerciseLogs={exerciseLogs}
+                  onSaveLog={saveExerciseLog}
                 />
               )}
 
@@ -248,6 +266,8 @@ function AthleteView({ params }) {
                         onValidate={null}
                         onUnvalidate={() => unvalidate(prevSession.id, prog.sessions)}
                         validating={validating}
+                        exerciseLogs={exerciseLogs}
+                        onSaveLog={saveExerciseLog}
                       />
                     </div>
                   )}
@@ -261,7 +281,7 @@ function AthleteView({ params }) {
   )
 }
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, validating }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, validating, exerciseLogs = {}, onSaveLog }) {
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   return (
@@ -324,6 +344,45 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                 </div>
               )}
               {exo.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>{exo.note}</div>}
+
+              {/* Log client */}
+              {onSaveLog && (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ma séance</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Séries</div>
+                      <input
+                        type="text"
+                        placeholder={exo.sets || '—'}
+                        defaultValue={exerciseLogs[exo.id]?.sets_done || ''}
+                        onBlur={e => onSaveLog(exo.id, 'sets_done', e.target.value)}
+                        style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Reps</div>
+                      <input
+                        type="text"
+                        placeholder={exo.reps || '—'}
+                        defaultValue={exerciseLogs[exo.id]?.reps_done || ''}
+                        onBlur={e => onSaveLog(exo.id, 'reps_done', e.target.value)}
+                        style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Note</div>
+                    <textarea
+                      placeholder="Comment c'était ?"
+                      defaultValue={exerciseLogs[exo.id]?.note || ''}
+                      onBlur={e => onSaveLog(exo.id, 'note', e.target.value)}
+                      rows={2}
+                      style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', resize: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           ))}
 
