@@ -1,0 +1,150 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+
+const ACTIVITIES = [
+  { type: 'velo', label: 'Vélo', emoji: '🚴' },
+  { type: 'run', label: 'Run', emoji: '🏃' },
+  { type: 'natation', label: 'Natation', emoji: '🏊' },
+]
+
+function formatDuration(min) {
+  if (!min) return ''
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  if (h === 0) return `${m}min`
+  if (m === 0) return `${h}h`
+  return `${h}h${String(m).padStart(2, '0')}`
+}
+
+export default function ActivityBlock({ athleteId, date }) {
+  const [logs, setLogs] = useState({}) // { type: { km, duration_minutes } }
+  const [editing, setEditing] = useState(null) // type en cours d'édition
+  const [form, setForm] = useState({ km: '', duration_minutes: '' })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!athleteId || !date) return
+    supabase.from('activity_logs')
+      .select('*')
+      .eq('athlete_id', athleteId)
+      .eq('date', date)
+      .then(({ data }) => {
+        const map = {}
+        ;(data || []).forEach(l => { map[l.type] = l })
+        setLogs(map)
+      })
+  }, [athleteId, date])
+
+  const startEdit = (type) => {
+    const existing = logs[type]
+    setForm({
+      km: existing?.km ?? '',
+      duration_minutes: existing?.duration_minutes ?? '',
+    })
+    setEditing(type)
+  }
+
+  const save = async () => {
+    if (!editing) return
+    setSaving(true)
+    const km = form.km !== '' ? parseFloat(form.km) : null
+    const duration_minutes = form.duration_minutes !== '' ? parseInt(form.duration_minutes) : null
+
+    const { data } = await supabase.from('activity_logs').upsert(
+      { athlete_id: athleteId, date, type: editing, km, duration_minutes },
+      { onConflict: 'athlete_id,date,type' }
+    ).select().single()
+
+    if (data) setLogs(prev => ({ ...prev, [editing]: data }))
+    setEditing(null)
+    setSaving(false)
+  }
+
+  return (
+    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+          Activité du jour
+        </div>
+      </div>
+
+      {ACTIVITIES.map((act, i) => {
+        const log = logs[act.type]
+        const hasData = log?.km || log?.duration_minutes
+        const isEditing = editing === act.type
+
+        return (
+          <div key={act.type} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+
+            {/* Ligne principale */}
+            <div
+              onClick={() => !isEditing && startEdit(act.type)}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', cursor: isEditing ? 'default' : 'pointer' }}
+            >
+              <span style={{ fontSize: 22, flexShrink: 0 }}>{act.emoji}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 14 }}>{act.label}</div>
+                {hasData && !isEditing && (
+                  <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2, display: 'flex', gap: 8 }}>
+                    {log.km && <span style={{ fontWeight: 600, color: 'var(--green)' }}>{log.km} km</span>}
+                    {log.duration_minutes && <span>{formatDuration(log.duration_minutes)}</span>}
+                  </div>
+                )}
+                {!hasData && !isEditing && (
+                  <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Toucher pour ajouter</div>
+                )}
+              </div>
+              {!isEditing && (
+                <span style={{ fontSize: 16, color: 'var(--text3)' }}>{hasData ? '✏️' : '+'}</span>
+              )}
+            </div>
+
+            {/* Formulaire inline */}
+            {isEditing && (
+              <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Distance (km)</div>
+                    <input
+                      autoFocus
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      placeholder="0.0"
+                      value={form.km}
+                      onChange={e => setForm(f => ({ ...f, km: e.target.value }))}
+                      onKeyDown={e => e.key === 'Enter' && save()}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 16, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', fontWeight: 700 }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Durée (min)</div>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="45"
+                      value={form.duration_minutes}
+                      onChange={e => setForm(f => ({ ...f, duration_minutes: e.target.value }))}
+                      onKeyDown={e => e.key === 'Enter' && save()}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 16, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', fontWeight: 700 }}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setEditing(null)} style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text3)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    Annuler
+                  </button>
+                  <button onClick={save} disabled={saving} style={{ flex: 2, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                    {saving ? '…' : 'Enregistrer'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}

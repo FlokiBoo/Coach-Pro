@@ -4,6 +4,7 @@ import { useState, useEffect, use, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import WellnessBlock from '@/app/components/WellnessBlock'
+import ActivityBlock from '@/app/components/ActivityBlock'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -170,6 +171,7 @@ function AthleteView({ params }) {
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         <WellnessBlock athleteId={athlete.id} date={today()} mode="athlete" />
+        <ActivityBlock athleteId={athlete.id} date={today()} />
 
         {programs.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
