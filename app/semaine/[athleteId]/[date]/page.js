@@ -254,6 +254,27 @@ export default function AthletePage({ params }) {
                   </div>
                 )}
 
+                {/* Lien personnel */}
+                {athlete?.token && (
+                  <div style={{ marginTop: 4, background: 'var(--bg2)', borderRadius: 'var(--r)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>Lien personnel</div>
+                      <div style={{ fontSize: 12, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {typeof window !== 'undefined' ? `${window.location.origin}/s/${athlete.token}` : `/s/${athlete.token}`}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/s/${athlete.token}`
+                        navigator.clipboard.writeText(url)
+                      }}
+                      style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
+                    >
+                      Copier
+                    </button>
+                  </div>
+                )}
+
                 {/* Pas encore de profil */}
                 {!age && !athlete?.weight && !athlete?.height && !athlete?.email && (
                   <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>

@@ -4,8 +4,13 @@ import { NextResponse } from 'next/server'
 export async function middleware(request) {
   const { pathname } = request.nextUrl
 
-  // Routes publiques
-  if (pathname.startsWith('/login') || pathname.startsWith('/auth') || pathname.startsWith('/update-password')) {
+  // Routes publiques (dont la vue sportif — accès par lien personnel)
+  if (
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/update-password') ||
+    pathname.startsWith('/s/')
+  ) {
     return NextResponse.next()
   }
 
@@ -32,6 +37,24 @@ export async function middleware(request) {
 
   if (!user) {
     return NextResponse.redirect(new URL('/login', request.url))
+  }
+
+  // Si c'est un compte client (pas le coach), le cantonner à son espace
+  const athleteToken = user.app_metadata?.athlete_token
+  const needsPassword = user.app_metadata?.needs_password
+
+  if (athleteToken) {
+    // Forcer la création de mot de passe à la première connexion
+    if (needsPassword) {
+      if (!pathname.startsWith('/definir-mot-de-passe')) {
+        return NextResponse.redirect(new URL('/definir-mot-de-passe', request.url))
+      }
+      return response
+    }
+    // Ensuite, cantonner à son espace uniquement
+    if (!pathname.startsWith(`/s/${athleteToken}`)) {
+      return NextResponse.redirect(new URL(`/s/${athleteToken}`, request.url))
+    }
   }
 
   return response

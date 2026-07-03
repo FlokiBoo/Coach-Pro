@@ -38,16 +38,27 @@ export default function AthleteViewWrapper({ params }) {
   )
 }
 
+function offsetDate(date, days) {
+  const d = new Date(date + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-')
+}
+
+function formatDateFr(date) {
+  return new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+
 function AthleteView({ params }) {
   const { token } = use(params)
   const searchParams = useSearchParams()
   const isCoachView = searchParams.get('coach') === '1'
   const [athlete, setAthlete] = useState(null)
-  const [programs, setPrograms] = useState([]) // chaque prog a .sessions (triées, avec .exercises)
+  const [programs, setPrograms] = useState([])
   const [completions, setCompletions] = useState(new Set())
   const [openSessionId, setOpenSessionId] = useState(null)
   const [validating, setValidating] = useState(false)
-  const [exerciseLogs, setExerciseLogs] = useState({}) // { exerciseId: { sets_done, reps_done, note } }
+  const [exerciseLogs, setExerciseLogs] = useState({})
+  const [viewDate, setViewDate] = useState(today())
 
   useEffect(() => {
     supabase.from('athletes').select('*').eq('token', token).single().then(({ data }) => setAthlete(data))
@@ -169,13 +180,6 @@ function AthleteView({ params }) {
             target="_blank" rel="noreferrer"
             style={{ background: '#F0FDF4', border: '1px solid #B8EAD8', color: 'var(--green)', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}
           >🥗 Nutrition</a>
-          {!isCoachView && (
-            <button
-              onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }}
-              title="Déconnexion"
-              style={{ background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text3)', borderRadius: 20, padding: '7px 10px', fontSize: 14, cursor: 'pointer', flexShrink: 0 }}
-            >⎋</button>
-          )}
         </div>
         {isCoachView && (
           <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600 }}>
@@ -186,8 +190,31 @@ function AthleteView({ params }) {
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        <WellnessBlock athleteId={athlete.id} date={today()} mode="athlete" />
-        <ActivityBlock athleteId={athlete.id} date={today()} />
+        {/* Navigation date bien-être / activité */}
+        <div style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', border: '1px solid var(--border)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={() => setViewDate(d => offsetDate(d, -1))}
+            style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text2)', padding: '2px 6px', borderRadius: 6, lineHeight: 1 }}
+          >←</button>
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: 13, fontWeight: 800, textTransform: 'capitalize', color: 'var(--text)' }}>
+              {viewDate === today() ? "Aujourd'hui" : formatDateFr(viewDate)}
+            </div>
+            {viewDate !== today() && (
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
+                {new Date(viewDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => setViewDate(d => offsetDate(d, 1))}
+            disabled={viewDate >= today()}
+            style={{ background: 'none', border: 'none', fontSize: 20, cursor: viewDate >= today() ? 'default' : 'pointer', color: viewDate >= today() ? 'var(--border2)' : 'var(--text2)', padding: '2px 6px', borderRadius: 6, lineHeight: 1 }}
+          >→</button>
+        </div>
+
+        <WellnessBlock athleteId={athlete.id} date={viewDate} mode="athlete" />
+        <ActivityBlock athleteId={athlete.id} date={viewDate} />
 
         {programs.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
@@ -281,6 +308,12 @@ function AthleteView({ params }) {
   )
 }
 
+const logInputStyle = {
+  width: '100%', padding: '7px 9px', border: '1px solid var(--border2)',
+  borderRadius: 'var(--r)', fontSize: 14, fontWeight: 700, outline: 'none',
+  background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
+}
+
 function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, validating, exerciseLogs = {}, onSaveLog }) {
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
@@ -349,32 +382,40 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
               {onSaveLog && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ma séance</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Séries</div>
-                      <input
-                        type="text"
-                        placeholder={exo.sets || '—'}
-                        defaultValue={exerciseLogs[exo.id]?.sets_done || ''}
-                        onBlur={e => onSaveLog(exo.id, 'sets_done', e.target.value)}
-                        style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box' }}
-                      />
+                  {(exo.sets || exo.reps || exo.kg) && (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {exo.sets && (
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Séries</div>
+                          <input type="text" placeholder={exo.sets}
+                            defaultValue={exerciseLogs[exo.id]?.sets_done || ''}
+                            onBlur={e => onSaveLog(exo.id, 'sets_done', e.target.value)}
+                            style={logInputStyle} />
+                        </div>
+                      )}
+                      {exo.reps && (
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Reps</div>
+                          <input type="text" placeholder={exo.reps}
+                            defaultValue={exerciseLogs[exo.id]?.reps_done || ''}
+                            onBlur={e => onSaveLog(exo.id, 'reps_done', e.target.value)}
+                            style={logInputStyle} />
+                        </div>
+                      )}
+                      {exo.kg && (
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Charge (kg)</div>
+                          <input type="text" placeholder={`${exo.kg} kg`}
+                            defaultValue={exerciseLogs[exo.id]?.kg_done || ''}
+                            onBlur={e => onSaveLog(exo.id, 'kg_done', e.target.value)}
+                            style={logInputStyle} />
+                        </div>
+                      )}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Reps</div>
-                      <input
-                        type="text"
-                        placeholder={exo.reps || '—'}
-                        defaultValue={exerciseLogs[exo.id]?.reps_done || ''}
-                        onBlur={e => onSaveLog(exo.id, 'reps_done', e.target.value)}
-                        style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box' }}
-                      />
-                    </div>
-                  </div>
+                  )}
                   <div>
                     <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Note</div>
-                    <textarea
-                      placeholder="Comment c'était ?"
+                    <textarea placeholder="Comment c'était ?"
                       defaultValue={exerciseLogs[exo.id]?.note || ''}
                       onBlur={e => onSaveLog(exo.id, 'note', e.target.value)}
                       rows={2}
