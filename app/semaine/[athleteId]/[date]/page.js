@@ -264,29 +264,6 @@ export default function AthletePage({ params }) {
             )}
           </div>
 
-          {/* Lien de partage */}
-          {athlete?.token ? (
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '12px 14px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>🔗 Lien client</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 12, color: 'var(--green)', flex: 1, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {typeof window !== 'undefined' ? window.location.origin : ''}/s/{athlete.token}
-                </span>
-                <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/s/${athlete.token}`)}
-                  style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                  Copier
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 13, color: 'var(--text3)', flex: 1 }}>Aucun lien de partage</span>
-              <button onClick={generateToken} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                Générer le lien
-              </button>
-            </div>
-          )}
-
           {/* Bien-être du jour */}
           {wellness ? (
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '12px 14px' }}>
