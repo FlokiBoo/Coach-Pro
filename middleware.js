@@ -5,7 +5,7 @@ export async function middleware(request) {
   const { pathname } = request.nextUrl
 
   // Routes publiques
-  if (pathname.startsWith('/login') || pathname.startsWith('/auth')) {
+  if (pathname.startsWith('/login') || pathname.startsWith('/auth') || pathname.startsWith('/update-password')) {
     return NextResponse.next()
   }
 
