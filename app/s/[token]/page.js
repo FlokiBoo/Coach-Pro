@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, use, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import WellnessBlock from '@/app/components/WellnessBlock'
 
@@ -28,8 +29,18 @@ function today() {
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
-export default function AthleteView({ params }) {
+export default function AthleteViewWrapper({ params }) {
+  return (
+    <Suspense>
+      <AthleteView params={params} />
+    </Suspense>
+  )
+}
+
+function AthleteView({ params }) {
   const { token } = use(params)
+  const searchParams = useSearchParams()
+  const isCoachView = searchParams.get('coach') === '1'
   const [athlete, setAthlete] = useState(null)
   const [programs, setPrograms] = useState([]) // chaque prog a .sessions (triées, avec .exercises)
   const [completions, setCompletions] = useState(new Set())
@@ -128,6 +139,11 @@ export default function AthleteView({ params }) {
             style={{ background: '#F0FDF4', border: '1px solid #B8EAD8', color: 'var(--green)', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}
           >🥗 Nutrition</a>
         </div>
+        {isCoachView && (
+          <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600 }}>
+            ← Vue coach
+          </a>
+        )}
       </div>
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>

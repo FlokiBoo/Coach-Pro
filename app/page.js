@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -21,12 +22,15 @@ function initials(name) {
 }
 
 export default function Home() {
+  const router = useRouter()
   const [athletes, setAthletes] = useState([])
   const [completedSessions, setCompletedSessions] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [newName, setNewName] = useState('')
   const [saving, setSaving] = useState(false)
+  const [coachToken, setCoachToken] = useState(null)
+  const [generatingToken, setGeneratingToken] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -38,7 +42,21 @@ export default function Home() {
           .order('date', { ascending: false })
           .limit(40)
       ])
-      setAthletes(aths || [])
+      const athList = aths || []
+      setAthletes(athList)
+
+      // Le premier athlète = le coach. On auto-génère un token s'il n'en a pas.
+      if (athList.length > 0) {
+        const coach = athList[0]
+        if (coach.token) {
+          setCoachToken(coach.token)
+        } else {
+          const token = crypto.randomUUID()
+          const { data } = await supabase.from('athletes').update({ token }).eq('id', coach.id).select().single()
+          if (data) setCoachToken(data.token)
+        }
+      }
+
       const done = (sessions || []).filter(s =>
         s.exercises?.some(e => e.athlete_logs?.length > 0)
       )
@@ -83,6 +101,20 @@ export default function Home() {
               {athletes.length} sportif{athletes.length !== 1 ? 's' : ''}
             </div>
           </div>
+          {/* Toggle Vue Sportif */}
+          {coachToken && (
+            <button
+              onClick={() => router.push(`/s/${coachToken}?coach=1`)}
+              style={{
+                background: 'var(--green-light)', color: 'var(--green)',
+                border: '1.5px solid #B8EAD8', borderRadius: 20,
+                padding: '8px 14px', fontSize: 12, fontWeight: 700,
+                cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5
+              }}
+            >
+              👤 Vue sportif
+            </button>
+          )}
           <a href="https://tracker-nutrition.netlify.app/coach.html" target="_blank" rel="noreferrer" style={{
             background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)',
             borderRadius: 20, padding: '8px 14px', fontSize: 12, fontWeight: 600, textDecoration: 'none', flexShrink: 0
