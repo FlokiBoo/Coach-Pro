@@ -30,27 +30,24 @@ input, textarea, button, select {
   --rl: 12px;
 }
 
-/* Layout coach desktop */
+/* ── Layout coach ── */
 .coach-layout {
   display: flex;
   width: 100%;
   min-height: 100svh;
 }
-.coach-main {
-  flex: 1;
-  min-width: 0;
-  min-height: 100svh;
-}
+
+/* Sidebar masquée par défaut (mobile) */
 .coach-sidebar {
   display: none;
-  flex-shrink: 0;
 }
+
+/* Sidebar ouverte en overlay mobile */
 .coach-sidebar--open {
   display: flex;
   flex-direction: column;
   position: fixed;
-  top: 0;
-  left: 0;
+  top: 0; left: 0;
   width: 260px;
   height: 100svh;
   background: var(--bg);
@@ -59,28 +56,27 @@ input, textarea, button, select {
   box-shadow: 4px 0 24px rgba(0,0,0,0.15);
   animation: slideIn .2s ease;
 }
-.sidebar-toggle {
-  display: flex;
-}
-.sidebar-close {
-  display: block;
-}
+
 @keyframes slideIn {
   from { transform: translateX(-100%); }
   to   { transform: translateX(0); }
 }
+
+/* Contenu principal */
 .coach-main {
   flex: 1;
-  max-width: 480px;
-  margin: 0 auto;
+  min-width: 0;
   min-height: 100svh;
 }
+
+/* Bouton hamburger visible sur mobile */
+.sidebar-toggle { display: flex; }
+.sidebar-close  { display: block; }
+
+/* ── Desktop (≥ 900px) ── */
 @media (min-width: 900px) {
-  .coach-main {
-    max-width: none;
-    margin: 0;
-  }
-  .coach-sidebar, .coach-sidebar--open {
+  .coach-sidebar,
+  .coach-sidebar--open {
     display: flex;
     flex-direction: column;
     width: 220px;
@@ -94,10 +90,7 @@ input, textarea, button, select {
     box-shadow: none;
     animation: none;
   }
-  .sidebar-toggle {
-    display: none !important;
-  }
-  .sidebar-close {
-    display: none !important;
-  }
+
+  .sidebar-toggle { display: none !important; }
+  .sidebar-close  { display: none !important; }
 }
