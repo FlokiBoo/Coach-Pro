@@ -128,10 +128,10 @@ export default function Home() {
             background: 'var(--green)', color: '#fff', border: 'none',
             borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
           }}>+ Sportif</button>
-          <button onClick={logout} title="Déconnexion" style={{
+          <button onClick={logout} style={{
             background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text3)',
-            borderRadius: 20, padding: '8px 10px', fontSize: 14, cursor: 'pointer', flexShrink: 0
-          }}>⎋</button>
+            borderRadius: 20, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0
+          }}>Déconnexion</button>
         </div>
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
