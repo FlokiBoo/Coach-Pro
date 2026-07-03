@@ -70,7 +70,7 @@ input, textarea, button, select {
 }
 @media (min-width: 900px) {
   .coach-main {
-    max-width: 540px;
+    max-width: none;
     margin: 0;
   }
   .coach-sidebar, .coach-sidebar--open {

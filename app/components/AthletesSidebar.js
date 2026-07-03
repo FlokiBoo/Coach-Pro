@@ -4,6 +4,11 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
+async function logout() {
+  await supabase.auth.signOut()
+  window.location.href = '/login'
+}
+
 const METRICS = [
   { key: 'sommeil',     emoji: '🌙', inverse: false },
   { key: 'stress',      emoji: '😰', inverse: true  },
@@ -199,9 +204,15 @@ export default function AthletesSidebar({ athleteId, date }) {
         })}
       </div>
 
-      {/* Lien retour accueil */}
-      <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
-        <Link href="/" style={{ fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600 }}>
+      {/* Bas de sidebar : déconnexion + accueil */}
+      <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <button
+          onClick={logout}
+          style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left' }}
+        >
+          ⎋ Déconnexion
+        </button>
+        <Link href="/" style={{ fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600, padding: '2px 0' }}>
           ← Accueil
         </Link>
       </div>
