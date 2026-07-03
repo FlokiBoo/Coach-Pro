@@ -19,6 +19,9 @@ export default function AthletePage({ params }) {
   const [wellness, setWellness] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showDanger, setShowDanger] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [inviteMsg, setInviteMsg] = useState('')
 
   useEffect(() => {
     async function load() {
@@ -34,6 +37,7 @@ export default function AthletePage({ params }) {
       setAthlete(ath)
       setPrograms(progs || [])
       setWellness(w)
+      if (ath?.email) setInviteEmail(ath.email)
       setLoading(false)
     }
     load()
@@ -49,6 +53,26 @@ export default function AthletePage({ params }) {
     if (!confirm(`Archiver ${athlete?.name} ? Il n'apparaîtra plus dans la liste, mais ses données sont conservées.`)) return
     await supabase.from('athletes').update({ archived: true }).eq('id', athleteId)
     router.push('/')
+  }
+
+  const inviteClient = async () => {
+    if (!inviteEmail.trim()) return
+    setInviting(true)
+    setInviteMsg('')
+    const res = await fetch('/api/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: inviteEmail.trim(),
+        athleteId,
+        athleteName: athlete?.name,
+        redirectTo: window.location.origin
+      })
+    })
+    const json = await res.json()
+    if (json.error) setInviteMsg('Erreur : ' + json.error)
+    else setInviteMsg('Invitation envoyée !')
+    setInviting(false)
   }
 
   const deleteAthlete = async () => {
@@ -127,6 +151,35 @@ export default function AthletePage({ params }) {
               </button>
             </div>
           )}
+
+          {/* Invitation client */}
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '12px 14px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
+              ✉️ Accès client
+              {athlete?.auth_user_id && <span style={{ marginLeft: 8, color: 'var(--green)', fontSize: 11 }}>✓ Compte actif</span>}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="email"
+                placeholder="Email du client"
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+                style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
+              />
+              <button
+                onClick={inviteClient}
+                disabled={inviting || !inviteEmail.trim()}
+                style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
+              >
+                {inviting ? '…' : 'Inviter'}
+              </button>
+            </div>
+            {inviteMsg && (
+              <div style={{ marginTop: 8, fontSize: 12, color: inviteMsg.startsWith('Erreur') ? '#DC2626' : '#166534', fontWeight: 600 }}>
+                {inviteMsg}
+              </div>
+            )}
+          </div>
 
           {/* Bien-être du jour */}
           {wellness ? (

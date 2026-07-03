@@ -138,6 +138,13 @@ function AthleteView({ params }) {
             target="_blank" rel="noreferrer"
             style={{ background: '#F0FDF4', border: '1px solid #B8EAD8', color: 'var(--green)', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}
           >🥗 Nutrition</a>
+          {!isCoachView && (
+            <button
+              onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }}
+              title="Déconnexion"
+              style={{ background: 'var(--bg2)', border: '1px solid var(--border)', color: 'var(--text3)', borderRadius: 20, padding: '7px 10px', fontSize: 14, cursor: 'pointer', flexShrink: 0 }}
+            >⎋</button>
+          )}
         </div>
         {isCoachView && (
           <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600 }}>
