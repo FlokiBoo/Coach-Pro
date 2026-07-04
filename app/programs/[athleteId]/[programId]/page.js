@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect, use, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -31,12 +32,18 @@ function computeLabels(exercises) {
   return labels
 }
 
-export default function ProgramEditorPage({ params }) {
+export default function ProgramEditorPageWrapper({ params }) {
+  return <Suspense><ProgramEditorPage params={params} /></Suspense>
+}
+
+function ProgramEditorPage({ params }) {
   const { athleteId, programId } = use(params)
+  const searchParams = useSearchParams()
+  const openFromUrl = searchParams.get('open')
   const [athlete, setAthlete] = useState(null)
   const [program, setProgram] = useState(null)
-  const [sessions, setSessions] = useState([]) // [{ id, order_index, title, activation, coach_notes, exercises: [...] }]
-  const [openId, setOpenId] = useState(null)
+  const [sessions, setSessions] = useState([])
+  const [openId, setOpenId] = useState(openFromUrl)
   const [suggestions, setSuggestions] = useState({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)

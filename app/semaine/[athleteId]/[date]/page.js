@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
+import MicrocyclesBlock from '@/app/components/MicrocyclesBlock'
 
 function today() {
   const n = new Date()
@@ -284,6 +285,8 @@ export default function AthletePage({ params }) {
               </div>
             )}
           </div>
+
+          <MicrocyclesBlock athleteId={athleteId} />
 
           {/* Bien-être du jour */}
           {wellness ? (
