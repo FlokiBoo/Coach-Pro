@@ -20,6 +20,7 @@ function formatDuration(min) {
 
 export default function ActivityBlock({ athleteId, date }) {
   const [logs, setLogs] = useState({})
+  const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ km: '', duration_minutes: '', difficulty: '' })
   const [saving, setSaving] = useState(false)
@@ -64,15 +65,28 @@ export default function ActivityBlock({ athleteId, date }) {
     setSaving(false)
   }
 
+  const hasAnyData = Object.values(logs).some(l => l?.km || l?.duration_minutes || l?.difficulty)
+
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-          Activité du jour
+      <div
+        onClick={() => setOpen(v => !v)}
+        style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', cursor: 'pointer', borderBottom: open ? '1px solid var(--border)' : 'none' }}
+      >
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1 }}>
+          🏃 Cardio du jour
         </div>
+        {hasAnyData && !open && (
+          <div style={{ display: 'flex', gap: 6, marginRight: 8 }}>
+            {ACTIVITIES.map(act => logs[act.type]?.km || logs[act.type]?.duration_minutes ? (
+              <span key={act.type} style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600 }}>{act.emoji}</span>
+            ) : null)}
+          </div>
+        )}
+        <span style={{ fontSize: 12, color: 'var(--text3)' }}>{open ? '▲' : '▼'}</span>
       </div>
 
-      {ACTIVITIES.map((act, i) => {
+      {open && ACTIVITIES.map((act, i) => {
         const log = logs[act.type]
         const hasData = log?.km || log?.duration_minutes || log?.difficulty
         const isEditing = editing === act.type
@@ -176,3 +190,4 @@ export default function ActivityBlock({ athleteId, date }) {
     </div>
   )
 }
+
