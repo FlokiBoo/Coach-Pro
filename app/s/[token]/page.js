@@ -115,11 +115,11 @@ function AthleteView({ params }) {
     setValidating(false)
   }
 
-  const validate = async (sessId, progSessions) => {
+  const validate = async (sessId, progSessions, feedback = {}) => {
     if (!athlete) return
     setValidating(true)
     await supabase.from('program_completions').upsert(
-      { athlete_id: athlete.id, program_session_id: sessId },
+      { athlete_id: athlete.id, program_session_id: sessId, ...feedback },
       { onConflict: 'athlete_id,program_session_id' }
     )
     const newSet = new Set([...completions, sessId])
@@ -258,7 +258,7 @@ function AthleteView({ params }) {
                   isOpen={isOpenNext}
                   isCompleted={false}
                   onToggle={() => setOpenSessionId(isOpenNext ? null : nextSession.id)}
-                  onValidate={() => validate(nextSession.id, prog.sessions)}
+                  onValidate={(fb) => validate(nextSession.id, prog.sessions, fb)}
                   onUnvalidate={null}
                   validating={validating}
                   exerciseLogs={exerciseLogs}
@@ -428,10 +428,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
           ))}
 
           {!isCompleted && onValidate && (
-            <button onClick={onValidate} disabled={validating}
-              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)', padding: '15px', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%', marginTop: 4 }}>
-              {validating ? 'Validation…' : '✓ Séance terminée'}
-            </button>
+            <SessionFeedback onValidate={onValidate} validating={validating} />
           )}
           {isCompleted && onUnvalidate && (
             <button onClick={onUnvalidate} disabled={validating}
@@ -441,6 +438,67 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+function RatingRow({ label, value, onChange }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>{label}</div>
+      <div style={{ display: 'flex', gap: 4 }}>
+        {[1,2,3,4,5,6,7,8,9,10].map(n => (
+          <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
+            style={{
+              flex: 1, padding: '9px 0', border: '1px solid',
+              borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              borderColor: value === n ? 'transparent' : 'var(--border2)',
+              background: value === n ? (n >= 8 ? '#ef4444' : n >= 5 ? '#f59e0b' : '#22c55e') : 'var(--bg2)',
+              color: value === n ? '#fff' : 'var(--text2)',
+            }}
+          >{n}</button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SessionFeedback({ onValidate, validating }) {
+  const [pleasure, setPleasure] = useState(null)
+  const [difficulty, setDifficulty] = useState(null)
+  const [duration, setDuration] = useState('')
+
+  const canSubmit = pleasure !== null && difficulty !== null
+
+  return (
+    <div style={{ marginTop: 8, background: 'var(--bg2)', borderRadius: 'var(--rl)', border: '1px solid var(--border)', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>Bilan de séance</div>
+
+      <RatingRow label="Plaisir" value={pleasure} onChange={setPleasure} />
+      <RatingRow label="Difficulté" value={difficulty} onChange={setDifficulty} />
+
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Durée (minutes)</div>
+        <input
+          type="number" min="1" placeholder="ex: 60"
+          value={duration}
+          onChange={e => setDuration(e.target.value)}
+          style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+        />
+      </div>
+
+      <button
+        onClick={() => onValidate({ pleasure, difficulty, duration_minutes: duration ? parseInt(duration) : null })}
+        disabled={validating || !canSubmit}
+        style={{
+          background: canSubmit ? 'var(--green)' : 'var(--border2)',
+          color: '#fff', border: 'none', borderRadius: 'var(--rl)',
+          padding: '15px', fontSize: 15, fontWeight: 700,
+          cursor: canSubmit ? 'pointer' : 'default', width: '100%',
+        }}
+      >
+        {validating ? 'Validation…' : canSubmit ? '✓ Valider la séance' : 'Note le plaisir et la difficulté'}
+      </button>
     </div>
   )
 }
