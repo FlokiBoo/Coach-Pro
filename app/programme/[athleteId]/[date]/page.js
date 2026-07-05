@@ -4,6 +4,7 @@ import React, { useState, useEffect, use } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import WellnessBlock from '@/app/components/WellnessBlock'
+import ActivityBlock from '@/app/components/ActivityBlock'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 
 function formatDate(d) {
@@ -535,6 +536,9 @@ export default function ProgrammePage({ params }) {
 
         {/* Bien-être */}
         <WellnessBlock athleteId={athleteId} date={date} mode="coach" athleteName={athlete.name} />
+
+        {/* Activité du jour */}
+        <ActivityBlock athleteId={athleteId} date={date} />
 
         {/* Titre */}
         <input placeholder="Titre de la séance (ex: Force — Bas du corps)" value={title}
