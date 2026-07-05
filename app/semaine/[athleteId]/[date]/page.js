@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import MicrocyclesBlock from '@/app/components/MicrocyclesBlock'
+import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
+import ProgressBlock from '@/app/components/ProgressBlock'
 
 function today() {
   const n = new Date()
@@ -306,6 +308,10 @@ export default function AthletePage({ params }) {
               </div>
             </div>
           </div>
+
+          {/* ── STATS SEMAINE / MOIS ── */}
+          <WeeklyStatsBlock athleteId={athleteId} />
+          <ProgressBlock athleteId={athleteId} />
 
           {/* ── AUJOURD'HUI ── */}
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
