@@ -50,7 +50,8 @@ export default function MovementsPage() {
       youtube_url: newForm.youtube_url.trim() || null,
     }).select().single()
     if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
-    if (data) setMovements(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name, 'fr')))
+    if (!data) { alert('Mouvement non créé — exécute "ALTER TABLE movements DISABLE ROW LEVEL SECURITY;" dans Supabase'); setSaving(false); return }
+    setMovements(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name, 'fr')))
     setNewForm(emptyForm())
     setShowCreate(false)
     setSaving(false)
