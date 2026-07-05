@@ -126,6 +126,8 @@ function ProgramEditorPage({ params }) {
   const [suggestions, setSuggestions] = useState({})
   const [videoInputKey, setVideoInputKey] = useState(null)
   const [videoInputVal, setVideoInputVal] = useState('')
+  const [actVideoSearch, setActVideoSearch] = useState({})
+  const [actVideoSuggs, setActVideoSuggs] = useState({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -148,7 +150,8 @@ function ProgramEditorPage({ params }) {
         ...s,
         exercises: [...(s.program_exercises || [])]
           .sort((a, b) => a.order_index - b.order_index)
-          .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', rest: e.rest ?? '', note: e.note ?? '', video_url: e.video_url || '', superset_group: e.superset_group || null }))
+          .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', rest: e.rest ?? '', note: e.note ?? '', video_url: e.video_url || '', superset_group: e.superset_group || null })),
+        activation_videos: s.activation_videos || [],
       }))
       setSessions(loaded)
       if (loaded.length === 1) setOpenId(loaded[0].id)
@@ -190,6 +193,31 @@ function ProgramEditorPage({ params }) {
     const { data: mov } = await supabase.from('movements').select('youtube_url').eq('name', name).single()
     if (mov?.youtube_url) updateExo(sessId, key, 'video_url', mov.youtube_url)
   }
+
+  const searchActVideo = async (sessId, val) => {
+    setActVideoSearch(prev => ({ ...prev, [sessId]: val }))
+    if (val.trim().length < 2) { setActVideoSuggs(prev => ({ ...prev, [sessId]: [] })); return }
+    const { data } = await supabase.from('movements').select('name, youtube_url').ilike('name', `%${val.trim()}%`).limit(8)
+    setActVideoSuggs(prev => ({ ...prev, [sessId]: data || [] }))
+  }
+
+  const addActVideo = (sessId, mov) => {
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, activation_videos: [...(s.activation_videos || []), { name: mov.name, video_url: mov.youtube_url || '' }]
+    }))
+    setActVideoSearch(prev => ({ ...prev, [sessId]: '' }))
+    setActVideoSuggs(prev => ({ ...prev, [sessId]: [] }))
+  }
+
+  const removeActVideo = (sessId, idx) =>
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, activation_videos: (s.activation_videos || []).filter((_, i) => i !== idx)
+    }))
+
+  const updateActVideoUrl = (sessId, idx, url) =>
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, activation_videos: (s.activation_videos || []).map((v, i) => i === idx ? { ...v, video_url: url } : v)
+    }))
 
   const toggleSuperset = (sessId, ei) => {
     setSessions(prev => prev.map(s => {
@@ -251,7 +279,8 @@ function ProgramEditorPage({ params }) {
     for (let i = 0; i < sessions.length; i++) {
       const s = sessions[i]
       await supabase.from('program_sessions').update({
-        order_index: i, title: s.title || '', activation: s.activation || null, coach_notes: s.coach_notes || null
+        order_index: i, title: s.title || '', activation: s.activation || null, coach_notes: s.coach_notes || null,
+        activation_videos: s.activation_videos || [],
       }).eq('id', s.id)
       await supabase.from('program_exercises').delete().eq('program_session_id', s.id)
       const toInsert = s.exercises.filter(e => e.name.trim()).map((e, j) => ({
@@ -354,6 +383,57 @@ function ProgramEditorPage({ params }) {
                       <textarea placeholder="Échauffement, mobilité…" value={s.activation || ''}
                         onChange={e => updateSession(s.id, 'activation', e.target.value)}
                         rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)' }} />
+                    </div>
+
+                    {/* Vidéos d'activation */}
+                    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
+                      <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🎥 Vidéos d'activation</span>
+                      </div>
+                      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+                        {/* Chips des vidéos ajoutées */}
+                        {(s.activation_videos || []).map((v, vi) => (
+                          <div key={vi} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px' }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, flex: 1, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.name}</span>
+                            {v.video_url ? (
+                              <a href={v.video_url} target="_blank" rel="noreferrer"
+                                style={{ fontSize: 15, textDecoration: 'none', flexShrink: 0 }} title="Voir la vidéo">🎥</a>
+                            ) : (
+                              <input
+                                placeholder="Coller une URL vidéo…"
+                                defaultValue=""
+                                onBlur={e => updateActVideoUrl(s.id, vi, e.target.value.trim())}
+                                style={{ ...inp, fontSize: 11, padding: '4px 8px', flex: 1, minWidth: 0 }}
+                              />
+                            )}
+                            <button onClick={() => removeActVideo(s.id, vi)}
+                              style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 16, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>×</button>
+                          </div>
+                        ))}
+
+                        {/* Recherche */}
+                        <div style={{ position: 'relative' }}>
+                          <input
+                            placeholder="Rechercher un mouvement…"
+                            value={actVideoSearch[s.id] || ''}
+                            onChange={e => searchActVideo(s.id, e.target.value)}
+                            onBlur={() => setTimeout(() => setActVideoSuggs(p => ({ ...p, [s.id]: [] })), 150)}
+                            style={{ ...inp, fontSize: 12 }}
+                          />
+                          {(actVideoSuggs[s.id] || []).length > 0 && (
+                            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
+                              {actVideoSuggs[s.id].map((mov, mi) => (
+                                <button key={mi} onMouseDown={() => addActVideo(s.id, mov)}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: mi < actVideoSuggs[s.id].length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
+                                  <span style={{ flex: 1 }}>{mov.name}</span>
+                                  <span style={{ fontSize: 12 }}>{mov.youtube_url ? '🎥' : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Note */}

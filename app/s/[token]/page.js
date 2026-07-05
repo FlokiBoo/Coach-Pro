@@ -375,10 +375,27 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
 
       {isOpen && (
         <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {session.activation && (
+          {(session.activation || (session.activation_videos?.length > 0)) && (
             <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>⚡ Activation</div>
-              <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7 }}>{session.activation}</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>⚡ Activation</div>
+              {session.activation && (
+                <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: session.activation_videos?.length > 0 ? 8 : 0 }}>{session.activation}</div>
+              )}
+              {session.activation_videos?.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {session.activation_videos.map((v, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, flex: 1, color: 'var(--text)' }}>{v.name}</span>
+                      {v.video_url && (
+                        <a href={v.video_url} target="_blank" rel="noreferrer"
+                          style={{ background: 'var(--green)', color: '#fff', borderRadius: 'var(--r)', padding: '4px 12px', fontSize: 12, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}>
+                          ▶ Voir
+                        </a>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {session.coach_notes && (
