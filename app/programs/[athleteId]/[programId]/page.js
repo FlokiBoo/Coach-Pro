@@ -290,14 +290,13 @@ function ProgramEditorPage({ params }) {
     if (toInsert.length) {
       const { data: inserted, error: insErr } = await supabase.from('program_exercises').insert(toInsert).select()
       if (insErr) { alert('Erreur insertion exercices : ' + insErr.message); setSaving(false); return }
-      if (inserted) {
-        setSessions(prev => prev.map(sess => sess.id !== sessId ? sess : {
-          ...sess,
-          exercises: sess.exercises.filter(e => e.name.trim()).map((e, j) => ({
-            ...e, _key: inserted[j]?.id || e._key, id: inserted[j]?.id || e.id
-          }))
+      if (!inserted?.length) { alert('Erreur : les exercices n\'ont pas été enregistrés. Vérifiez la console.'); setSaving(false); return }
+      setSessions(prev => prev.map(sess => sess.id !== sessId ? sess : {
+        ...sess,
+        exercises: sess.exercises.filter(e => e.name.trim()).map((e, j) => ({
+          ...e, _key: inserted[j]?.id || e._key, id: inserted[j]?.id || e.id
         }))
-      }
+      }))
       await supabase.from('movements').upsert(toInsert.map(e => ({ name: e.name })), { onConflict: 'name', ignoreDuplicates: true })
     }
 
