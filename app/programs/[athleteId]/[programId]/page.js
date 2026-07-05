@@ -391,9 +391,6 @@ function ProgramEditorPage({ params }) {
                 {isTemplate ? '📋 Modèle' : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
               </div>
             </div>
-            <button onClick={save} disabled={saving} style={{ background: saved ? '#166534' : 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'background .3s', flexShrink: 0 }}>
-              {saving ? '…' : saved ? '✓ Enregistré' : 'Enregistrer'}
-            </button>
           </div>
         </div>
 
