@@ -264,13 +264,18 @@ function ProgramEditorPage({ params }) {
 
   const saveSession = async (sessId) => {
     setSaving(true)
-    const s = sessions.find(s => s.id === sessId)
+    const s = sessions.find(sess => sess.id === sessId)
     if (!s) { setSaving(false); return }
-    await supabase.from('program_sessions').update({
+
+    const { error: sessErr } = await supabase.from('program_sessions').update({
       title: s.title || '', activation: s.activation || null,
       coach_notes: s.coach_notes || null, activation_videos: s.activation_videos || [],
     }).eq('id', s.id)
-    await supabase.from('program_exercises').delete().eq('program_session_id', s.id)
+    if (sessErr) { alert('Erreur sauvegarde séance : ' + sessErr.message); setSaving(false); return }
+
+    const { error: delErr } = await supabase.from('program_exercises').delete().eq('program_session_id', s.id)
+    if (delErr) { alert('Erreur suppression exercices : ' + delErr.message); setSaving(false); return }
+
     const toInsert = s.exercises.filter(e => e.name.trim()).map((e, j) => ({
       program_session_id: s.id, order_index: j, name: e.name.trim(),
       sets: e.sets !== '' ? parseInt(e.sets) : null,
@@ -281,9 +286,10 @@ function ProgramEditorPage({ params }) {
       video_url: e.video_url || null,
       superset_group: e.superset_group || null,
     }))
+
     if (toInsert.length) {
-      const { data: inserted } = await supabase.from('program_exercises').insert(toInsert).select()
-      // Mettre à jour les _key avec les vrais IDs
+      const { data: inserted, error: insErr } = await supabase.from('program_exercises').insert(toInsert).select()
+      if (insErr) { alert('Erreur insertion exercices : ' + insErr.message); setSaving(false); return }
       if (inserted) {
         setSessions(prev => prev.map(sess => sess.id !== sessId ? sess : {
           ...sess,
@@ -294,6 +300,7 @@ function ProgramEditorPage({ params }) {
       }
       await supabase.from('movements').upsert(toInsert.map(e => ({ name: e.name })), { onConflict: 'name', ignoreDuplicates: true })
     }
+
     setSaving(false)
     setSavedId(sessId)
     setTimeout(() => setSavedId(null), 2000)
