@@ -26,7 +26,6 @@ export default function MicrocyclesBlock({ athleteId }) {
       sessions: [...(p.program_sessions || [])].sort((a, b) => a.order_index - b.order_index)
     }))
     setPrograms(progs)
-    if (progs.length > 0) setExpandedId(progs[0].id)
   }
 
   async function createProgram() {

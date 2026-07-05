@@ -18,9 +18,9 @@ function formatDuration(min) {
   return `${h}h${String(m).padStart(2, '0')}`
 }
 
-export default function ActivityBlock({ athleteId, date }) {
+export default function ActivityBlock({ athleteId, date, defaultOpen = false }) {
   const [logs, setLogs] = useState({})
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState({ km: '', duration_minutes: '', difficulty: '' })
   const [saving, setSaving] = useState(false)
@@ -55,12 +55,22 @@ export default function ActivityBlock({ athleteId, date }) {
     const duration_minutes = form.duration_minutes !== '' ? parseInt(form.duration_minutes) : null
     const difficulty = form.difficulty !== '' ? parseInt(form.difficulty) : null
 
-    const { data } = await supabase.from('activity_logs').upsert(
-      { athlete_id: athleteId, date, type: editing, km, duration_minutes, difficulty },
-      { onConflict: 'athlete_id,date,type' }
-    ).select().single()
+    const existing = logs[editing]
+    let result
+    if (existing?.id) {
+      const { data } = await supabase.from('activity_logs')
+        .update({ km, duration_minutes, difficulty })
+        .eq('id', existing.id)
+        .select().single()
+      result = data
+    } else {
+      const { data } = await supabase.from('activity_logs')
+        .insert({ athlete_id: athleteId, date, type: editing, km, duration_minutes, difficulty })
+        .select().single()
+      result = data
+    }
 
-    if (data) setLogs(prev => ({ ...prev, [editing]: data }))
+    if (result) setLogs(prev => ({ ...prev, [editing]: result }))
     setEditing(null)
     setSaving(false)
   }
@@ -95,10 +105,7 @@ export default function ActivityBlock({ athleteId, date }) {
           <div key={act.type} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
 
             {/* Ligne principale */}
-            <div
-              onClick={() => !isEditing && startEdit(act.type)}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', cursor: isEditing ? 'default' : 'pointer' }}
-            >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
               <span style={{ fontSize: 22, flexShrink: 0 }}>{act.emoji}</span>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 700, fontSize: 14 }}>{act.label}</div>
@@ -118,7 +125,18 @@ export default function ActivityBlock({ athleteId, date }) {
                 )}
               </div>
               {!isEditing && (
-                <span style={{ fontSize: 16, color: 'var(--text3)' }}>{hasData ? '✏️' : '+'}</span>
+                <button
+                  onClick={() => startEdit(act.type)}
+                  style={{
+                    background: hasData ? 'var(--bg2)' : 'var(--green)',
+                    color: hasData ? 'var(--text2)' : '#fff',
+                    border: hasData ? '1px solid var(--border2)' : 'none',
+                    borderRadius: 20, padding: '5px 12px',
+                    fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+                  }}
+                >
+                  {hasData ? '✏️ Modifier' : '+ Ajouter'}
+                </button>
               )}
             </div>
 

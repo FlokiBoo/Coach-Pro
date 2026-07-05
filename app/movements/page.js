@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 
@@ -21,6 +22,7 @@ function emptyForm() {
 }
 
 export default function MovementsPage() {
+  const router = useRouter()
   const [movements, setMovements] = useState([])
   const [search, setSearch] = useState('')
   const [editingId, setEditingId] = useState(null)
@@ -207,7 +209,8 @@ export default function MovementsPage() {
               ) : (
                 /* Ligne normale */
                 <div
-                  style={{ display: 'flex', padding: '13px 24px', alignItems: 'center', gap: 0, cursor: 'default' }}
+                  onClick={() => router.push(`/movements/${m.id}`)}
+                  style={{ display: 'flex', padding: '13px 24px', alignItems: 'center', gap: 0, cursor: 'pointer' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg2)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
@@ -231,9 +234,9 @@ export default function MovementsPage() {
                     }
                   </div>
                   <div style={{ width: 72, display: 'flex', gap: 4, justifyContent: 'flex-end', flexShrink: 0 }}>
-                    <button onClick={() => { setEditingId(m.id); setEditForm({ name: m.name, muscles: m.muscles || '', torque: m.torque || '', youtube_url: m.youtube_url || '' }) }}
+                    <button onClick={e => { e.stopPropagation(); setEditingId(m.id); setEditForm({ name: m.name, muscles: m.muscles || '', torque: m.torque || '', youtube_url: m.youtube_url || '' }) }}
                       style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 15, cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}>✏️</button>
-                    <button onClick={() => remove(m.id)}
+                    <button onClick={e => { e.stopPropagation(); remove(m.id) }}
                       style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 14, cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}>🗑️</button>
                   </div>
                 </div>

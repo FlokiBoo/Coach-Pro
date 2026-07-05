@@ -1,0 +1,242 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+
+const ACTIVITIES = [
+  { type: 'run', label: 'Run', emoji: '🏃' },
+  { type: 'velo', label: 'Vélo', emoji: '🚴' },
+  { type: 'natation', label: 'Natation', emoji: '🏊' },
+]
+
+function fmt(d) {
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
+}
+
+function getWeekRange() {
+  const now = new Date()
+  const day = now.getDay()
+  const monday = new Date(now)
+  monday.setDate(now.getDate() + (day === 0 ? -6 : 1 - day))
+  const sunday = new Date(monday)
+  sunday.setDate(monday.getDate() + 6)
+  return { start: fmt(monday), end: fmt(sunday) }
+}
+
+function getMonthRange() {
+  const now = new Date()
+  const first = new Date(now.getFullYear(), now.getMonth(), 1)
+  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  return { start: fmt(first), end: fmt(last) }
+}
+
+function formatDur(min) {
+  if (!min || min <= 0) return null
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  if (h === 0) return `${m}min`
+  if (m === 0) return `${h}h`
+  return `${h}h${String(m).padStart(2, '0')}`
+}
+
+function parseNum(val) {
+  if (!val && val !== 0) return 0
+  const str = String(val).trim()
+  if (str.includes('-')) {
+    const parts = str.split('-').map(s => parseFloat(s.trim())).filter(n => !isNaN(n))
+    return parts.length === 2 ? (parts[0] + parts[1]) / 2 : parts[0] || 0
+  }
+  return parseFloat(str) || 0
+}
+
+function fmtKm(km) {
+  if (!km) return null
+  return km % 1 === 0 ? `${km} km` : `${km.toFixed(1)} km`
+}
+
+async function fetchStats(athleteId, start, end) {
+  const [{ data: actLogs }, { data: comps }] = await Promise.all([
+    supabase.from('activity_logs')
+      .select('type, km, duration_minutes')
+      .eq('athlete_id', athleteId)
+      .gte('date', start)
+      .lte('date', end),
+    supabase.from('program_completions')
+      .select('program_session_id, duration_minutes')
+      .eq('athlete_id', athleteId)
+      .gte('created_at', start + 'T00:00:00')
+      .lte('created_at', end + 'T23:59:59'),
+  ])
+
+  const kmByType = {}, durByType = {}
+  ;(actLogs || []).forEach(l => {
+    if (l.km) kmByType[l.type] = (kmByType[l.type] || 0) + l.km
+    if (l.duration_minutes) durByType[l.type] = (durByType[l.type] || 0) + l.duration_minutes
+  })
+  const totalKm = Object.values(kmByType).reduce((s, v) => s + v, 0)
+  const totalCardioMin = Object.values(durByType).reduce((s, v) => s + v, 0)
+  const gymMin = (comps || []).reduce((s, c) => s + (c.duration_minutes || 0), 0)
+
+  let tonnage = 0
+  const sessionIds = (comps || []).map(c => c.program_session_id).filter(Boolean)
+  if (sessionIds.length > 0) {
+    const { data: exercises } = await supabase
+      .from('program_exercises')
+      .select('id, sets, reps, kg')
+      .in('program_session_id', sessionIds)
+
+    if (exercises?.length) {
+      const { data: logs } = await supabase
+        .from('program_exercise_logs')
+        .select('program_exercise_id, sets_done, reps_done, kg_done')
+        .eq('athlete_id', athleteId)
+        .in('program_exercise_id', exercises.map(e => e.id))
+
+      const logsMap = {}
+      ;(logs || []).forEach(l => { logsMap[l.program_exercise_id] = l })
+
+      exercises.forEach(e => {
+        const log = logsMap[e.id]
+        const sets = parseNum(log?.sets_done || e.sets)
+        const reps = parseNum(log?.reps_done || e.reps)
+        const kg = parseNum(log?.kg_done || e.kg)
+        tonnage += sets * reps * kg
+      })
+    }
+  }
+
+  return { kmByType, durByType, totalKm, totalCardioMin, gymMin, tonnage }
+}
+
+export default function WeeklyStatsBlock({ athleteId }) {
+  const [mode, setMode] = useState('week') // 'week' | 'month'
+  const [stats, setStats] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!athleteId) return
+    setLoading(true)
+    const { start, end } = mode === 'week' ? getWeekRange() : getMonthRange()
+    fetchStats(athleteId, start, end).then(s => {
+      setStats({ ...s, start })
+      setLoading(false)
+    })
+  }, [athleteId, mode])
+
+  if (!stats && !loading) return null
+
+  const periodLabel = (() => {
+    if (!stats) return ''
+    const d = new Date(stats.start + 'T00:00:00')
+    if (mode === 'week') return `Semaine du ${d.getDate()} ${d.toLocaleDateString('fr-FR', { month: 'long' })}`
+    return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
+  })()
+
+  const { kmByType = {}, durByType = {}, totalKm = 0, totalCardioMin = 0, gymMin = 0, tonnage = 0 } = stats || {}
+  const totalMin = totalCardioMin + gymMin
+  const hasAny = tonnage > 0 || totalKm > 0 || totalMin > 0
+
+  const bigStats = [
+    tonnage > 0 && { value: Math.round(tonnage).toLocaleString('fr-FR') + ' kg', label: '🏋️ Tonnage' },
+    totalKm > 0 && { value: fmtKm(Math.round(totalKm * 10) / 10), label: '🗺️ Distance' },
+    totalMin > 0 && { value: formatDur(totalMin), label: '⏱️ Temps total' },
+  ].filter(Boolean)
+
+  const hasBreakdown = ACTIVITIES.some(a => kmByType[a.type] || durByType[a.type]) || gymMin > 0
+
+  return (
+    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+
+      {/* Header avec toggle */}
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1 }}>
+          📊 {mode === 'week' ? 'Ma semaine' : 'Mon mois'}
+        </div>
+
+        {/* Sélecteur semaine / mois */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: 'var(--bg2)', borderRadius: 20, padding: '2px', border: '1px solid var(--border)' }}>
+          <button
+            onClick={() => setMode('week')}
+            style={{
+              background: mode === 'week' ? 'var(--bg)' : 'transparent',
+              border: mode === 'week' ? '1px solid var(--border2)' : '1px solid transparent',
+              borderRadius: 18, padding: '3px 10px', fontSize: 11, fontWeight: 700,
+              cursor: 'pointer', color: mode === 'week' ? 'var(--text)' : 'var(--text3)',
+              transition: 'all .15s',
+            }}
+          >Sem.</button>
+          <button
+            onClick={() => setMode('month')}
+            style={{
+              background: mode === 'month' ? 'var(--bg)' : 'transparent',
+              border: mode === 'month' ? '1px solid var(--border2)' : '1px solid transparent',
+              borderRadius: 18, padding: '3px 10px', fontSize: 11, fontWeight: 700,
+              cursor: 'pointer', color: mode === 'month' ? 'var(--text)' : 'var(--text3)',
+              transition: 'all .15s',
+            }}
+          >Mois</button>
+        </div>
+
+        <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {periodLabel}
+        </div>
+      </div>
+
+      {/* Chargement */}
+      {loading && (
+        <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>…</div>
+      )}
+
+      {/* Pas de données */}
+      {!loading && !hasAny && (
+        <div style={{ padding: '16px 14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+          Aucune activité {mode === 'week' ? 'cette semaine' : 'ce mois-ci'}
+        </div>
+      )}
+
+      {/* Grands chiffres */}
+      {!loading && hasAny && (
+        <>
+          <div style={{ display: 'flex', borderBottom: hasBreakdown ? '1px solid var(--border)' : 'none' }}>
+            {bigStats.map((stat, i) => (
+              <div key={i} style={{
+                flex: 1, padding: '14px 10px', textAlign: 'center',
+                borderRight: i < bigStats.length - 1 ? '1px solid var(--border)' : 'none',
+              }}>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', lineHeight: 1.1 }}>{stat.value}</div>
+                <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Détail par discipline */}
+          {hasBreakdown && (
+            <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {ACTIVITIES.filter(a => kmByType[a.type] || durByType[a.type]).map(act => (
+                <div key={act.type} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 18, width: 24, textAlign: 'center', flexShrink: 0 }}>{act.emoji}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text2)', flex: 1 }}>{act.label}</span>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {kmByType[act.type] > 0 && (
+                      <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--green)' }}>{fmtKm(Math.round(kmByType[act.type] * 10) / 10)}</span>
+                    )}
+                    {durByType[act.type] > 0 && (
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text3)' }}>{formatDur(durByType[act.type])}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {gymMin > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 18, width: 24, textAlign: 'center', flexShrink: 0 }}>🏋️</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text2)', flex: 1 }}>Musculation</span>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text3)' }}>{formatDur(gymMin)}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}

@@ -179,8 +179,11 @@ export default function AthletesSidebar({ athleteId, date }) {
 
               {/* Infos */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: active ? '#0D6B4F' : 'var(--text)' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: active ? '#0D6B4F' : 'var(--text)', display: 'flex', alignItems: 'center', gap: 5 }}>
                   {a.name}
+                  {a.is_coach && (
+                    <span style={{ fontSize: 9, fontWeight: 800, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>COACH</span>
+                  )}
                 </div>
                 {/* Dots bien-être sportif */}
                 {w ? (
@@ -196,7 +199,7 @@ export default function AthletesSidebar({ athleteId, date }) {
                     })}
                   </div>
                 ) : (
-                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1 }}>Pas de données</div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1 }}>{a.is_coach ? 'Coach' : 'Pas de données'}</div>
                 )}
               </div>
 

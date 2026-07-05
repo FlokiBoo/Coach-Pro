@@ -5,6 +5,8 @@ import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import WellnessBlock from '@/app/components/WellnessBlock'
 import ActivityBlock from '@/app/components/ActivityBlock'
+import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
+import ProgressBlock from '@/app/components/ProgressBlock'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -23,6 +25,20 @@ function computeLabels(exercises) {
     }
   }
   return labels
+}
+
+function getSupersetFlow(exos, ei, labels) {
+  const exo = exos[ei]
+  if (!exo.superset_group) return null
+  if (ei > 0 && exos[ei - 1].superset_group === exo.superset_group) return null
+  const group = []
+  for (let j = ei; j < exos.length && exos[j].superset_group === exo.superset_group; j++) group.push(exos[j])
+  const parts = []
+  group.forEach(e => {
+    parts.push(labels[e.id] || '?')
+    if (e.rest) parts.push(e.rest)
+  })
+  return parts.join(' → ')
 }
 
 function today() {
@@ -154,6 +170,20 @@ function AthleteView({ params }) {
       { athlete_id: athlete.id, program_exercise_id: exerciseId, ...updated },
       { onConflict: 'athlete_id,program_exercise_id' }
     )
+    // Enregistre un snapshot dans l'historique quand kg_done change
+    if (field === 'kg_done' && value) {
+      const prevKg = parseFloat(existing.kg_done)
+      const newKg = parseFloat(value)
+      if (!isNaN(newKg) && newKg !== prevKg) {
+        supabase.from('exercise_performance_history').insert({
+          athlete_id: athlete.id,
+          program_exercise_id: exerciseId,
+          kg_done: newKg,
+          reps_done: updated.reps_done || null,
+          sets_done: updated.sets_done || null,
+        })
+      }
+    }
   }
 
   function getSupabaseConfig() {
@@ -175,11 +205,6 @@ function AthleteView({ params }) {
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ fontWeight: 800, fontSize: 18, flex: 1 }}>{athlete.name}</div>
-          <a
-            href={`https://tracker-nutrition.netlify.app/tracker.html?profil=${encodeURIComponent(athlete.name)}&coach=maxime`}
-            target="_blank" rel="noreferrer"
-            style={{ background: '#F0FDF4', border: '1px solid #B8EAD8', color: 'var(--green)', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}
-          >🥗 Nutrition</a>
         </div>
         {isCoachView && (
           <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600 }}>
@@ -189,6 +214,9 @@ function AthleteView({ params }) {
       </div>
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+        <WeeklyStatsBlock athleteId={athlete.id} />
+        <ProgressBlock athleteId={athlete.id} />
 
         {/* Navigation date bien-être / activité */}
         <div style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', border: '1px solid var(--border)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -369,11 +397,20 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                   <a href={exo.video_url} target="_blank" rel="noreferrer" style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, textDecoration: 'none', fontWeight: 700, flexShrink: 0 }}>▶</a>
                 )}
               </div>
-              {(exo.sets || exo.reps || exo.kg) && (
+              {(() => {
+                const flow = getSupersetFlow(exos, ei, labels)
+                return flow ? (
+                  <div style={{ fontSize: 11, color: '#6366f1', background: '#EEF2FF', borderRadius: 6, padding: '4px 10px', marginBottom: 6, fontWeight: 700, letterSpacing: '0.2px' }}>
+                    {flow}
+                  </div>
+                ) : null
+              })()}
+              {(exo.sets || exo.reps || exo.kg || exo.rest) && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: exo.note ? 6 : 0 }}>
                   {exo.sets && <Pill value={exo.sets} label="séries" />}
                   {exo.reps && <Pill value={exo.reps} label="reps" />}
                   {exo.kg && <Pill value={`${exo.kg} kg`} />}
+                  {exo.rest && <Pill value={exo.rest} label="récup" color="#EFF6FF" textColor="#1D4ED8" />}
                 </div>
               )}
               {exo.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>{exo.note}</div>}
@@ -503,9 +540,9 @@ function SessionFeedback({ onValidate, validating }) {
   )
 }
 
-function Pill({ value, label }) {
+function Pill({ value, label, color, textColor }) {
   return (
-    <div style={{ background: 'var(--green-light)', color: 'var(--green)', borderRadius: 20, padding: '3px 10px', fontSize: 13, fontWeight: 700 }}>
+    <div style={{ background: color || 'var(--green-light)', color: textColor || 'var(--green)', borderRadius: 20, padding: '3px 10px', fontSize: 13, fontWeight: 700 }}>
       {value}{label ? ` ${label}` : ''}
     </div>
   )
