@@ -379,7 +379,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
             <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px' }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>⚡ Activation</div>
               {session.activation && (
-                <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, marginBottom: session.activation_videos?.length > 0 ? 8 : 0 }}>{session.activation}</div>
+                <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: session.activation_videos?.length > 0 ? 8 : 0 }}>{session.activation}</div>
               )}
               {session.activation_videos?.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
