@@ -43,12 +43,13 @@ export default function MovementsPage() {
   async function create() {
     if (!newForm.name.trim()) return
     setSaving(true)
-    const { data } = await supabase.from('movements').insert({
+    const { data, error } = await supabase.from('movements').insert({
       name: newForm.name.trim(),
       muscles: newForm.muscles.trim() || null,
       torque: newForm.torque.trim() || null,
       youtube_url: newForm.youtube_url.trim() || null,
     }).select().single()
+    if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
     if (data) setMovements(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name, 'fr')))
     setNewForm(emptyForm())
     setShowCreate(false)
