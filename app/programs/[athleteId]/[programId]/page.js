@@ -130,6 +130,7 @@ function ProgramEditorPage({ params }) {
   const [actVideoSuggs, setActVideoSuggs] = useState({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [savedId, setSavedId] = useState(null)
   const [loading, setLoading] = useState(true)
 
   const isTemplate = athleteId === 'templates'
@@ -179,6 +180,17 @@ function ProgramEditorPage({ params }) {
       ...s, exercises: s.exercises.filter(e => e._key !== key).length
         ? s.exercises.filter(e => e._key !== key)
         : [emptyExo(0)]
+    }))
+
+  const moveExo = (sessId, key, dir) =>
+    setSessions(prev => prev.map(s => {
+      if (s.id !== sessId) return s
+      const exos = [...s.exercises]
+      const idx = exos.findIndex(e => e._key === key)
+      const to = idx + dir
+      if (to < 0 || to >= exos.length) return s
+      ;[exos[idx], exos[to]] = [exos[to], exos[idx]]
+      return { ...s, exercises: exos }
     }))
 
   const searchMovements = async (key, val) => {
@@ -241,6 +253,43 @@ function ProgramEditorPage({ params }) {
     updateExo(sessId, exoKey, 'video_url', trimmed)
     setVideoInputKey(null)
     setVideoInputVal('')
+  }
+
+  const saveSession = async (sessId) => {
+    setSaving(true)
+    const s = sessions.find(s => s.id === sessId)
+    if (!s) { setSaving(false); return }
+    await supabase.from('program_sessions').update({
+      title: s.title || '', activation: s.activation || null,
+      coach_notes: s.coach_notes || null, activation_videos: s.activation_videos || [],
+    }).eq('id', s.id)
+    await supabase.from('program_exercises').delete().eq('program_session_id', s.id)
+    const toInsert = s.exercises.filter(e => e.name.trim()).map((e, j) => ({
+      program_session_id: s.id, order_index: j, name: e.name.trim(),
+      sets: e.sets !== '' ? parseInt(e.sets) : null,
+      reps: e.reps || null,
+      kg: e.kg !== '' ? parseFloat(e.kg) : null,
+      rest: e.rest || null,
+      note: e.note || null,
+      video_url: e.video_url || null,
+      superset_group: e.superset_group || null,
+    }))
+    if (toInsert.length) {
+      const { data: inserted } = await supabase.from('program_exercises').insert(toInsert).select()
+      // Mettre à jour les _key avec les vrais IDs
+      if (inserted) {
+        setSessions(prev => prev.map(sess => sess.id !== sessId ? sess : {
+          ...sess,
+          exercises: sess.exercises.filter(e => e.name.trim()).map((e, j) => ({
+            ...e, _key: inserted[j]?.id || e._key, id: inserted[j]?.id || e.id
+          }))
+        }))
+      }
+      await supabase.from('movements').upsert(toInsert.map(e => ({ name: e.name })), { onConflict: 'name', ignoreDuplicates: true })
+    }
+    setSaving(false)
+    setSavedId(sessId)
+    setTimeout(() => setSavedId(null), 2000)
   }
 
   const addSession = async () => {
@@ -453,6 +502,13 @@ function ProgramEditorPage({ params }) {
                         <div key={exo._key}>
                         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 10 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: videoInputKey === exo._key ? 4 : 6 }}>
+                            {/* Flèches de déplacement */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0 }}>
+                              <button onClick={() => moveExo(s.id, exo._key, -1)} disabled={ei === 0}
+                                style={{ background: 'none', border: 'none', cursor: ei === 0 ? 'default' : 'pointer', padding: '0 2px', fontSize: 10, color: ei === 0 ? 'var(--border2)' : 'var(--text3)', lineHeight: 1 }}>▲</button>
+                              <button onClick={() => moveExo(s.id, exo._key, 1)} disabled={ei === s.exercises.length - 1}
+                                style={{ background: 'none', border: 'none', cursor: ei === s.exercises.length - 1 ? 'default' : 'pointer', padding: '0 2px', fontSize: 10, color: ei === s.exercises.length - 1 ? 'var(--border2)' : 'var(--text3)', lineHeight: 1 }}>▼</button>
+                            </div>
                             <div style={{ minWidth: 22, height: 22, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0, padding: '0 3px' }}>{label}</div>
                             <div style={{ position: 'relative', flex: 1 }}>
                               <input placeholder="Nom du mouvement" value={exo.name}
@@ -551,6 +607,22 @@ function ProgramEditorPage({ params }) {
                     </button>
 
                     <SessionSummaryBlock exercises={s.exercises} />
+
+                    {/* Bouton sauvegarder la séance */}
+                    <button
+                      onClick={() => saveSession(s.id)}
+                      disabled={saving}
+                      style={{
+                        background: savedId === s.id ? '#DCFCE7' : 'var(--green)',
+                        color: savedId === s.id ? '#166534' : '#fff',
+                        border: savedId === s.id ? '1px solid #BBF7D0' : 'none',
+                        borderRadius: 'var(--r)', padding: '12px', fontSize: 14,
+                        fontWeight: 700, cursor: saving ? 'default' : 'pointer', width: '100%',
+                        transition: 'all .2s',
+                      }}
+                    >
+                      {saving && savedId !== s.id ? '…' : savedId === s.id ? '✓ Séance sauvegardée' : '💾 Sauvegarder la séance'}
+                    </button>
                   </div>
                 )}
               </div>
