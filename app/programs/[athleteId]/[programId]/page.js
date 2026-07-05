@@ -11,6 +11,12 @@ function today() {
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
+function getYouTubeId(url) {
+  if (!url) return null
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?.*v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/)
+  return m ? m[1] : null
+}
+
 function emptyExo(order) {
   return { _key: Date.now() + Math.random(), order_index: order, name: '', sets: '', reps: '', kg: '', rest: '', note: '', video_url: '' }
 }
@@ -126,6 +132,7 @@ function ProgramEditorPage({ params }) {
   const [suggestions, setSuggestions] = useState({})
   const [videoInputKey, setVideoInputKey] = useState(null)
   const [videoInputVal, setVideoInputVal] = useState('')
+  const [videoPreviewKey, setVideoPreviewKey] = useState(null)
   const [actVideoSearch, setActVideoSearch] = useState({})
   const [actVideoSuggs, setActVideoSuggs] = useState({})
   const [saving, setSaving] = useState(false)
@@ -528,11 +535,11 @@ function ProgramEditorPage({ params }) {
                             </div>
                             {exo.name.trim() && (
                               exo.video_url ? (
-                                <a href={exo.video_url} target="_blank" rel="noreferrer"
-                                  style={{ fontSize: 17, textDecoration: 'none', flexShrink: 0, lineHeight: 1 }}
-                                  title="Voir la vidéo">🎥</a>
+                                <button onClick={() => setVideoPreviewKey(videoPreviewKey === exo._key ? null : exo._key)}
+                                  style={{ background: 'none', border: 'none', fontSize: 17, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
+                                  title="Voir la vidéo">🎥</button>
                               ) : (
-                                <button onClick={() => { setVideoInputKey(exo._key); setVideoInputVal('') }}
+                                <button onClick={() => { setVideoInputKey(exo._key); setVideoInputVal(''); setVideoPreviewKey(null) }}
                                   style={{ background: 'none', border: 'none', fontSize: 17, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1, opacity: 0.25, filter: 'grayscale(1)' }}
                                   title="Ajouter une vidéo">🎥</button>
                               )
@@ -558,6 +565,36 @@ function ProgramEditorPage({ params }) {
                                 style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 8px', fontSize: 13, cursor: 'pointer', color: 'var(--text3)' }}>✕</button>
                             </div>
                           )}
+                          {videoPreviewKey === exo._key && exo.video_url && (() => {
+                            const ytId = getYouTubeId(exo.video_url)
+                            return (
+                              <div style={{ marginBottom: 8, borderRadius: 'var(--r)', overflow: 'hidden', border: '1px solid var(--border2)', background: 'var(--bg2)' }}>
+                                {ytId ? (
+                                  <img
+                                    src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+                                    alt="miniature"
+                                    style={{ width: '100%', display: 'block', aspectRatio: '16/9', objectFit: 'cover' }}
+                                  />
+                                ) : (
+                                  <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text3)' }}>Pas de miniature disponible</div>
+                                )}
+                                <div style={{ display: 'flex', gap: 6, padding: 8 }}>
+                                  <a href={exo.video_url} target="_blank" rel="noreferrer"
+                                    style={{ flex: 1, background: 'var(--green)', color: '#fff', borderRadius: 'var(--r)', padding: '8px', fontSize: 13, fontWeight: 700, textDecoration: 'none', textAlign: 'center' }}>
+                                    ▶ Ouvrir
+                                  </a>
+                                  <button onClick={() => {
+                                    updateExo(s.id, exo._key, 'video_url', '')
+                                    supabase.from('movements').update({ youtube_url: null }).eq('name', exo.name)
+                                    setVideoPreviewKey(null)
+                                  }}
+                                    style={{ flex: 1, background: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '8px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                                    🗑 Supprimer
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })()}
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginBottom: 5 }}>
                             {[{ f: 'sets', l: 'Séries', t: 'number', ph: '—' }, { f: 'reps', l: 'Reps', t: 'text', ph: '8-12' }, { f: 'kg', l: 'Kg', t: 'number', ph: '—' }, { f: 'rest', l: 'Récup', t: 'text', ph: '90s' }].map(({ f, l, t, ph }) => (
                               <div key={f}>
