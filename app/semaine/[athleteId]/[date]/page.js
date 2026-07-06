@@ -8,6 +8,7 @@ import AthletesSidebar from '@/app/components/AthletesSidebar'
 import MicrocyclesBlock from '@/app/components/MicrocyclesBlock'
 import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
 import ProgressBlock from '@/app/components/ProgressBlock'
+import ActivityBlock from '@/app/components/ActivityBlock'
 
 function today() {
   const n = new Date()
@@ -40,11 +41,6 @@ const METRICS = [
   { key: 'forme',       emoji: '⚡', label: 'Forme',       inverse: false },
 ]
 
-const ACTIVITIES = [
-  { type: 'velo',     label: 'Vélo',     emoji: '🚴' },
-  { type: 'run',      label: 'Run',      emoji: '🏃' },
-  { type: 'natation', label: 'Natation', emoji: '🏊' },
-]
 
 function scoreColor(val, inverse) {
   const s = inverse ? (11 - val) : val
@@ -58,7 +54,7 @@ export default function AthletePage({ params }) {
   const router = useRouter()
   const [athlete, setAthlete] = useState(null)
   const [wellness, setWellness] = useState(null)
-  const [activityLogs, setActivityLogs] = useState({})
+  const [activityLogs] = useState({})
   const [completionsToday, setCompletionsToday] = useState([])
   const [objectives, setObjectives] = useState([])
   const [loading, setLoading] = useState(true)
@@ -78,7 +74,7 @@ export default function AthletePage({ params }) {
       const [{ data: ath }, { data: w }, { data: actLogs }, { data: progs }, { data: objs }] = await Promise.all([
         supabase.from('athletes').select('*').eq('id', athleteId).single(),
         supabase.from('wellness').select('*').eq('athlete_id', athleteId).eq('date', todayStr).single(),
-        supabase.from('activity_logs').select('*').eq('athlete_id', athleteId).eq('date', todayStr),
+        Promise.resolve({ data: [] }),
         supabase.from('programs').select('*, program_sessions(id)').eq('athlete_id', athleteId),
         supabase.from('athlete_objectives').select('*').eq('athlete_id', athleteId).order('created_at'),
       ])
@@ -96,9 +92,6 @@ export default function AthletePage({ params }) {
 
       setAthlete(ath)
       setWellness(w)
-      const logsMap = {}
-      ;(actLogs || []).forEach(l => { logsMap[l.type] = l })
-      setActivityLogs(logsMap)
       setCompletionsToday(completions)
       setObjectives(objs || [])
       if (ath) setForm({ name: ath.name || '', email: ath.email || '', birth_date: ath.birth_date || '', weight: ath.weight || '', height: ath.height || '' })
@@ -163,8 +156,6 @@ export default function AthletePage({ params }) {
   )
 
   const age = calcAge(athlete?.birth_date)
-  const hasCardio = Object.values(activityLogs).some(l => l?.km || l?.duration_minutes)
-
   return (
     <div className="coach-layout" style={{ background: 'var(--bg2)' }}>
       <AthletesSidebar athleteId={athleteId} date={today()} />
@@ -341,30 +332,9 @@ export default function AthletePage({ params }) {
               )}
             </div>
 
-            {/* Cardio */}
+            {/* Activité */}
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>Cardio</div>
-              {hasCardio ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {ACTIVITIES.map(act => {
-                    const log = activityLogs[act.type]
-                    if (!log?.km && !log?.duration_minutes) return null
-                    return (
-                      <div key={act.type} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 16 }}>{act.emoji}</span>
-                        <span style={{ fontSize: 13, fontWeight: 700 }}>{act.label}</span>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          {log.km && <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)' }}>{log.km} km</span>}
-                          {log.duration_minutes && <span style={{ fontSize: 12, color: 'var(--text3)' }}>{formatDuration(log.duration_minutes)}</span>}
-                          {log.difficulty && <span style={{ fontSize: 12, fontWeight: 700, color: log.difficulty >= 8 ? '#ef4444' : log.difficulty >= 5 ? '#f59e0b' : '#22c55e' }}>RPE {log.difficulty}</span>}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <span style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Aucune activité</span>
-              )}
+              <ActivityBlock athleteId={athleteId} />
             </div>
 
             {/* Séance */}
