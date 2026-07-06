@@ -247,7 +247,7 @@ function ProgramEditorPage({ params }) {
       if (a.superset_group && a.superset_group === b.superset_group) {
         return { ...s, exercises: exos.map((e, i) => i === ei || i === ei + 1 ? { ...e, superset_group: null } : e) }
       } else {
-        const group = a.superset_group || b.superset_group || Date.now()
+        const group = a.superset_group || b.superset_group || Math.floor(Math.random() * 1000000000)
         return { ...s, exercises: exos.map((e, i) => i === ei || i === ei + 1 ? { ...e, superset_group: group } : e) }
       }
     }))
@@ -278,10 +278,11 @@ function ProgramEditorPage({ params }) {
 
     // Remapper les superset_group non-numériques (ex-UUIDs) vers des entiers valides
     const groupRemap = new Map()
-    let gCounter = Date.now()
+    let gCounter = 1
     s.exercises.forEach(e => {
       if (e.superset_group && !groupRemap.has(e.superset_group)) {
-        groupRemap.set(e.superset_group, typeof e.superset_group === 'number' ? e.superset_group : gCounter++)
+        const v = Number(e.superset_group)
+        groupRemap.set(e.superset_group, (!isNaN(v) && v < 2000000000) ? v : gCounter++)
       }
     })
 
