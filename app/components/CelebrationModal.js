@@ -16,6 +16,36 @@ const MUSCLE_MAP = {
   'mollets':         ['mollet', 'calf', 'calves', 'gastro'],
 }
 
+const CITATIONS = [
+  { texte: "La douleur est temporaire. Abandonner dure pour toujours.", auteur: "Lance Armstrong" },
+  { texte: "Je n'ai pas échoué. J'ai juste trouvé 10 000 façons qui ne fonctionnent pas.", auteur: "Thomas Edison" },
+  { texte: "Impossible is nothing.", auteur: "Muhammad Ali" },
+  { texte: "La différence entre l'impossible et le possible réside dans la détermination.", auteur: "Tommy Lasorda" },
+  { texte: "Je ne perds jamais. Soit je gagne, soit j'apprends.", auteur: "Nelson Mandela" },
+  { texte: "Ce que l'esprit peut concevoir et croire, il peut l'accomplir.", auteur: "Muhammad Ali" },
+  { texte: "Les champions ne sont pas faits dans les salles de sport. Ils sont faits de ce qu'ils ont en eux.", auteur: "Muhammad Ali" },
+  { texte: "La sueur, c'est de la graisse qui pleure.", auteur: "Anonyme" },
+  { texte: "Le succès, c'est se relever une fois de plus que le nombre de fois où on est tombé.", auteur: "Winston Churchill" },
+  { texte: "Je joue chaque match comme si c'était le dernier.", auteur: "Zinédine Zidane" },
+  { texte: "Plus fort est celui qui se lève après chaque chute.", auteur: "Vince Lombardi" },
+  { texte: "Le talent gagne des matchs, mais le travail d'équipe et l'intelligence gagnent des championnats.", auteur: "Michael Jordan" },
+  { texte: "Il n'y a pas de raccourcis vers un endroit qui vaut le déplacement.", auteur: "Beverly Sills" },
+  { texte: "Chaque matin tu as le choix. Continue à dormir avec tes rêves ou te lever et les réaliser.", auteur: "Anonyme" },
+  { texte: "Ce n'est pas la montagne que nous conquérons, mais nous-mêmes.", auteur: "Edmund Hillary" },
+  { texte: "Quelqu'un quelque part s'entraîne pendant que toi tu ne le fais pas. Quand vous vous rencontrez, il gagnera.", auteur: "Tom Fleming" },
+  { texte: "La gloire n'est pas de ne jamais tomber, mais de se relever à chaque chute.", auteur: "Confucius" },
+  { texte: "Je peux accepter l'échec, tout le monde échoue. Mais je ne peux pas accepter de ne pas essayer.", auteur: "Michael Jordan" },
+  { texte: "Le secret, c'est de commencer.", auteur: "Mark Twain" },
+  { texte: "Aujourd'hui tu as fait ce que d'autres ne feront jamais.", auteur: "Anonyme" },
+  { texte: "Il m'a fallu 17 ans et 114 jours pour devenir une star en une nuit.", auteur: "Lionel Messi" },
+  { texte: "Plus dure sera la lutte, plus grande sera la victoire.", auteur: "Thomas Paine" },
+  { texte: "Repoussez vos limites ou elles vous repousseront.", auteur: "Anonyme" },
+]
+
+function randomCitation() {
+  return CITATIONS[Math.floor(Math.random() * CITATIONS.length)]
+}
+
 export function parseMusclesFromText(text) {
   if (!text) return []
   const lower = text.toLowerCase()
@@ -127,6 +157,7 @@ function BodySVG({ active, view }) {
 
 export default function CelebrationModal({ tonnage, muscles, onClose }) {
   const hasBody = muscles.length > 0
+  const [citation] = useState(() => randomCitation())
 
   return (
     <div
@@ -139,7 +170,14 @@ export default function CelebrationModal({ tonnage, muscles, onClose }) {
       >
         <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 8 }}>🎉</div>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Bravo !</div>
-        <div style={{ fontSize: 14, color: 'var(--text3)', marginBottom: tonnage > 0 ? 18 : 8 }}>Séance terminée 💪</div>
+        <div style={{ fontSize: 14, color: 'var(--text3)', marginBottom: 18 }}>Séance terminée 💪</div>
+
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: tonnage > 0 ? 18 : 8, textAlign: 'left' }}>
+          <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, fontStyle: 'italic', marginBottom: 8 }}>
+            « {citation.texte} »
+          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>— {citation.auteur}</div>
+        </div>
 
         {tonnage > 0 && (
           <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 12, padding: '12px 16px', marginBottom: 18 }}>
