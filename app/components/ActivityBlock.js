@@ -12,9 +12,12 @@ function formatDuration(min) {
   return `${h}h${String(m).padStart(2, '0')}`
 }
 
+const VISIBLE_COUNT = 3
+
 export default function ActivityBlock({ athleteId, maxActivities = Infinity }) {
   const [activities, setActivities] = useState([])
   const [open, setOpen] = useState(false)
+  const [allVisible, setAllVisible] = useState(false)
   const [creating, setCreating] = useState(false)
   const [newForm, setNewForm] = useState({ label: '', show_km: false, show_duration: false })
   const [editingId, setEditingId] = useState(null)
@@ -24,6 +27,7 @@ export default function ActivityBlock({ athleteId, maxActivities = Infinity }) {
   useEffect(() => {
     if (!athleteId) return
     supabase.from('activity_logs').select('*').eq('athlete_id', athleteId).is('date', null)
+      .order('created_at', { ascending: false })
       .then(({ data }) => setActivities(data || []))
   }, [athleteId])
 
@@ -97,7 +101,7 @@ export default function ActivityBlock({ athleteId, maxActivities = Infinity }) {
       {open && (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
 
-          {activities.map((act, i) => {
+          {(allVisible ? activities : activities.slice(0, VISIBLE_COUNT)).map((act, i) => {
             const isEditing = editingId === act.id
             const hasData = act.km || act.duration_minutes || act.difficulty
             return (
@@ -181,6 +185,16 @@ export default function ActivityBlock({ athleteId, maxActivities = Infinity }) {
               </div>
             )
           })}
+
+          {activities.length > VISIBLE_COUNT && (
+            <button onClick={() => setAllVisible(v => !v)}
+              style={{ background: 'none', border: 'none', borderTop: '1px solid var(--border)', padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {allVisible
+                ? <>▲ Masquer</>
+                : <>{`▼ Voir les ${activities.length - VISIBLE_COUNT} autre${activities.length - VISIBLE_COUNT > 1 ? 's' : ''}`}</>
+              }
+            </button>
+          )}
 
           {creating && (
             <div style={{ borderTop: activities.length > 0 ? '1px solid var(--border)' : 'none', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
