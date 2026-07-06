@@ -7,6 +7,7 @@ import WellnessBlock from '@/app/components/WellnessBlock'
 import ActivityBlock from '@/app/components/ActivityBlock'
 import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
 import ProgressBlock from '@/app/components/ProgressBlock'
+import CelebrationModal, { parseMusclesFromText } from '@/app/components/CelebrationModal'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -75,6 +76,7 @@ function AthleteView({ params }) {
   const [validating, setValidating] = useState(false)
   const [exerciseLogs, setExerciseLogs] = useState({})
   const [viewDate, setViewDate] = useState(today())
+  const [celebration, setCelebration] = useState(null)
 
   useEffect(() => {
     supabase.from('athletes').select('*').eq('token', token).single().then(({ data }) => setAthlete(data))
@@ -143,6 +145,28 @@ function AthleteView({ params }) {
     const next = progSessions.find(s => !newSet.has(s.id))
     setOpenSessionId(next?.id || null)
     setValidating(false)
+
+    // Popup de félicitation avec tonnage + muscles
+    const allSessions = programs.flatMap(p => p.sessions)
+    const sess = allSessions.find(s => s.id === sessId)
+    if (sess) {
+      const exos = sess.exercises.filter(e => e.name)
+      let tonnage = 0
+      exos.forEach(e => {
+        const log = exerciseLogs[e.id]
+        if (log?.kg_done && log?.sets_done && log?.reps_done) {
+          tonnage += (parseFloat(log.kg_done) || 0) * (parseInt(log.sets_done) || 0) * (parseInt(log.reps_done) || 0)
+        }
+      })
+      const exerciseNames = [...new Set(exos.map(e => e.name.trim()).filter(Boolean))]
+      let muscles = []
+      if (exerciseNames.length > 0) {
+        const { data: movData } = await supabase.from('movements').select('name, muscles').in('name', exerciseNames)
+        const allText = (movData || []).map(m => m.muscles || '').join(', ')
+        muscles = parseMusclesFromText(allText)
+      }
+      setCelebration({ tonnage: Math.round(tonnage), muscles })
+    }
 
     // Demande au service worker de pré-charger les données Supabase mises à jour
     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
@@ -332,6 +356,14 @@ function AthleteView({ params }) {
           )
         })}
       </div>
+
+      {celebration && (
+        <CelebrationModal
+          tonnage={celebration.tonnage}
+          muscles={celebration.muscles}
+          onClose={() => setCelebration(null)}
+        />
+      )}
     </div>
   )
 }
