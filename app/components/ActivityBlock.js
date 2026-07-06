@@ -74,9 +74,9 @@ export default function ActivityBlock({ athleteId, maxActivities = Infinity }) {
 
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-      <div onClick={() => setOpen(v => !v)}
-        style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', cursor: 'pointer', borderBottom: open ? '1px solid var(--border)' : 'none' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1 }}>
+      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', borderBottom: open ? '1px solid var(--border)' : 'none' }}>
+        <div onClick={() => setOpen(v => !v)}
+          style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1, cursor: 'pointer' }}>
           🏃 Activité du jour
         </div>
         {activities.length > 0 && !open && (
@@ -84,7 +84,14 @@ export default function ActivityBlock({ athleteId, maxActivities = Infinity }) {
             {activities.length} activité{activities.length > 1 ? 's' : ''}
           </span>
         )}
-        <span style={{ fontSize: 12, color: 'var(--text3)' }}>{open ? '▲' : '▼'}</span>
+        {activities.length < maxActivities && (
+          <button
+            onClick={e => { e.stopPropagation(); setOpen(true); setCreating(true); setEditingId(null) }}
+            style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', marginRight: 8 }}>
+            + Discipline
+          </button>
+        )}
+        <span onClick={() => setOpen(v => !v)} style={{ fontSize: 12, color: 'var(--text3)', cursor: 'pointer' }}>{open ? '▲' : '▼'}</span>
       </div>
 
       {open && (
