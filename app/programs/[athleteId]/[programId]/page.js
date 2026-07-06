@@ -247,7 +247,7 @@ function ProgramEditorPage({ params }) {
       if (a.superset_group && a.superset_group === b.superset_group) {
         return { ...s, exercises: exos.map((e, i) => i === ei || i === ei + 1 ? { ...e, superset_group: null } : e) }
       } else {
-        const group = a.superset_group || b.superset_group || crypto.randomUUID()
+        const group = a.superset_group || b.superset_group || Date.now()
         return { ...s, exercises: exos.map((e, i) => i === ei || i === ei + 1 ? { ...e, superset_group: group } : e) }
       }
     }))
