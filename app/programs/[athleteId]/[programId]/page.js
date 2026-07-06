@@ -23,7 +23,20 @@ function emptyExo(order) {
 
 function computeLabels(exercises) {
   const labels = {}
-  exercises.forEach((e, i) => { labels[e._key || e.id] = String.fromCharCode(65 + i) })
+  let li = 0, i = 0
+  while (i < exercises.length) {
+    const g = exercises[i].superset_group
+    if (!g) {
+      labels[exercises[i]._key || exercises[i].id] = String.fromCharCode(65 + li)
+      li++; i++
+    } else {
+      let j = i
+      while (j < exercises.length && exercises[j].superset_group === g) j++
+      const l = String.fromCharCode(65 + li)
+      for (let k = i; k < j; k++) labels[exercises[k]._key || exercises[k].id] = `${l}${k - i + 1}`
+      li++; i = j
+    }
+  }
   return labels
 }
 
@@ -147,7 +160,7 @@ function ProgramEditorPage({ params }) {
         ...s,
         exercises: [...(s.program_exercises || [])]
           .sort((a, b) => a.order_index - b.order_index)
-          .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', rest: e.rest ?? '', note: e.note ?? '', video_url: e.video_url || '' })),
+          .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', rest: e.rest ?? '', note: e.note ?? '', video_url: e.video_url || '', superset_group: e.superset_group || null })),
         activation_videos: s.activation_videos || [],
       }))
       setSessions(loaded)
@@ -227,6 +240,23 @@ function ProgramEditorPage({ params }) {
       ...s, activation_videos: (s.activation_videos || []).map((v, i) => i === idx ? { ...v, video_url: url } : v)
     }))
 
+  const toggleSuperset = (sessId, ei) => {
+    setSessions(prev => prev.map(s => {
+      if (s.id !== sessId) return s
+      const exos = [...s.exercises]
+      const a = exos[ei], b = exos[ei + 1]
+      if (!a || !b) return s
+      if (a.superset_group && a.superset_group === b.superset_group) {
+        return { ...s, exercises: exos.map((e, i) => i === ei || i === ei + 1 ? { ...e, superset_group: null } : e) }
+      } else {
+        const group = (typeof a.superset_group === 'number' && a.superset_group < 2000000000) ? a.superset_group
+          : (typeof b.superset_group === 'number' && b.superset_group < 2000000000) ? b.superset_group
+          : Math.floor(Math.random() * 1000000000) + 1
+        return { ...s, exercises: exos.map((e, i) => i === ei || i === ei + 1 ? { ...e, superset_group: group } : e) }
+      }
+    }))
+  }
+
   const saveMovementVideo = async (sessId, exoKey, exoName, url) => {
     const trimmed = url.trim()
     if (!trimmed) { setVideoInputKey(null); return }
@@ -258,6 +288,7 @@ function ProgramEditorPage({ params }) {
       rest: e.rest || null,
       note: e.note || null,
       video_url: e.video_url || null,
+      superset_group: (typeof e.superset_group === 'number' && e.superset_group < 2000000000) ? e.superset_group : null,
     }))
 
     if (toInsert.length) {
@@ -326,6 +357,7 @@ function ProgramEditorPage({ params }) {
         rest: e.rest || null,
         note: e.note || null,
         video_url: e.video_url || null,
+        superset_group: (typeof e.superset_group === 'number' && e.superset_group < 2000000000) ? e.superset_group : null,
       }))
       if (toInsert.length) {
         await supabase.from('program_exercises').insert(toInsert)
@@ -586,6 +618,27 @@ function ProgramEditorPage({ params }) {
                             style={{ ...inp, fontSize: 12, color: 'var(--text2)', resize: 'vertical', lineHeight: 1.5 }} />
                         </div>
 
+                        {/* Bouton supersérie */}
+                        {ei < s.exercises.length - 1 && (() => {
+                          const next = s.exercises[ei + 1]
+                          const isSS = exo.superset_group && exo.superset_group === next?.superset_group
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
+                              <div style={{ flex: 1, height: 1, background: isSS ? 'var(--green)' : 'var(--border)' }} />
+                              <button onClick={() => toggleSuperset(s.id, ei)} style={{
+                                background: isSS ? 'var(--green)' : 'var(--bg2)',
+                                color: isSS ? '#fff' : 'var(--text3)',
+                                border: `1px solid ${isSS ? 'var(--green)' : 'var(--border2)'}`,
+                                borderRadius: 20, padding: '2px 10px',
+                                fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                                letterSpacing: '0.3px', whiteSpace: 'nowrap',
+                              }}>
+                                {isSS ? '✕ Supersérie' : '+ Supersérie'}
+                              </button>
+                              <div style={{ flex: 1, height: 1, background: isSS ? 'var(--green)' : 'var(--border)' }} />
+                            </div>
+                          )
+                        })()}
                         </div>
                       )
                     })}
