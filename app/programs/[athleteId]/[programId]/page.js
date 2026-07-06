@@ -276,15 +276,24 @@ function ProgramEditorPage({ params }) {
     const { error: delErr } = await supabase.from('program_exercises').delete().eq('program_session_id', s.id)
     if (delErr) { alert('Erreur suppression exercices : ' + delErr.message); setSaving(false); return }
 
+    // Remapper les superset_group non-numériques (ex-UUIDs) vers des entiers valides
+    const groupRemap = new Map()
+    let gCounter = Date.now()
+    s.exercises.forEach(e => {
+      if (e.superset_group && !groupRemap.has(e.superset_group)) {
+        groupRemap.set(e.superset_group, typeof e.superset_group === 'number' ? e.superset_group : gCounter++)
+      }
+    })
+
     const toInsert = s.exercises.filter(e => e.name.trim()).map((e, j) => ({
       program_session_id: s.id, order_index: j, name: e.name.trim(),
       sets: e.sets !== '' ? parseInt(e.sets) : null,
       reps: e.reps || null,
-      kg: e.kg !== '' ? parseFloat(e.kg) : null,
+      kg: e.kg !== '' && !isNaN(parseFloat(e.kg)) ? parseFloat(e.kg) : null,
       rest: e.rest || null,
       note: e.note || null,
       video_url: e.video_url || null,
-      superset_group: e.superset_group || null,
+      superset_group: e.superset_group ? (groupRemap.get(e.superset_group) ?? null) : null,
     }))
 
     if (toInsert.length) {
