@@ -249,9 +249,7 @@ function ProgramEditorPage({ params }) {
       if (a.superset_group && a.superset_group === b.superset_group) {
         return { ...s, exercises: exos.map((e, i) => i === ei || i === ei + 1 ? { ...e, superset_group: null } : e) }
       } else {
-        const group = (typeof a.superset_group === 'number' && a.superset_group < 2000000000) ? a.superset_group
-          : (typeof b.superset_group === 'number' && b.superset_group < 2000000000) ? b.superset_group
-          : Math.floor(Math.random() * 1000000000) + 1
+        const group = a.superset_group || b.superset_group || Math.random().toString(36).slice(2, 8)
         return { ...s, exercises: exos.map((e, i) => i === ei || i === ei + 1 ? { ...e, superset_group: group } : e) }
       }
     }))
@@ -288,7 +286,7 @@ function ProgramEditorPage({ params }) {
       rest: e.rest || null,
       note: e.note || null,
       video_url: e.video_url || null,
-      superset_group: (typeof e.superset_group === 'number' && e.superset_group < 2000000000) ? e.superset_group : null,
+      superset_group: e.superset_group || null,
     }))
 
     if (toInsert.length) {
@@ -357,7 +355,7 @@ function ProgramEditorPage({ params }) {
         rest: e.rest || null,
         note: e.note || null,
         video_url: e.video_url || null,
-        superset_group: (typeof e.superset_group === 'number' && e.superset_group < 2000000000) ? e.superset_group : null,
+        superset_group: e.superset_group || null,
       }))
       if (toInsert.length) {
         await supabase.from('program_exercises').insert(toInsert)
