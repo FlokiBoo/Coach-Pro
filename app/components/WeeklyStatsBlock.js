@@ -3,12 +3,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
-const ACTIVITIES = [
-  { type: 'run', label: 'Run', emoji: '🏃' },
-  { type: 'velo', label: 'Vélo', emoji: '🚴' },
-  { type: 'natation', label: 'Natation', emoji: '🏊' },
-]
-
 function fmt(d) {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
 }
@@ -57,7 +51,7 @@ function fmtKm(km) {
 async function fetchStats(athleteId, start, end) {
   const [{ data: actLogs }, { data: comps }] = await Promise.all([
     supabase.from('activity_logs')
-      .select('type, km, duration_minutes')
+      .select('label, type, km, duration_minutes')
       .eq('athlete_id', athleteId)
       .gte('date', start)
       .lte('date', end),
@@ -68,13 +62,14 @@ async function fetchStats(athleteId, start, end) {
       .lte('created_at', end + 'T23:59:59'),
   ])
 
-  const kmByType = {}, durByType = {}
+  const kmByLabel = {}, durByLabel = {}
   ;(actLogs || []).forEach(l => {
-    if (l.km) kmByType[l.type] = (kmByType[l.type] || 0) + l.km
-    if (l.duration_minutes) durByType[l.type] = (durByType[l.type] || 0) + l.duration_minutes
+    const key = l.label || l.type || 'Activité'
+    if (l.km) kmByLabel[key] = (kmByLabel[key] || 0) + parseFloat(l.km)
+    if (l.duration_minutes) durByLabel[key] = (durByLabel[key] || 0) + parseInt(l.duration_minutes)
   })
-  const totalKm = Object.values(kmByType).reduce((s, v) => s + v, 0)
-  const totalCardioMin = Object.values(durByType).reduce((s, v) => s + v, 0)
+  const totalKm = Object.values(kmByLabel).reduce((s, v) => s + v, 0)
+  const totalCardioMin = Object.values(durByLabel).reduce((s, v) => s + v, 0)
   const gymMin = (comps || []).reduce((s, c) => s + (c.duration_minutes || 0), 0)
 
   let tonnage = 0
@@ -105,11 +100,11 @@ async function fetchStats(athleteId, start, end) {
     }
   }
 
-  return { kmByType, durByType, totalKm, totalCardioMin, gymMin, tonnage }
+  return { kmByLabel, durByLabel, totalKm, totalCardioMin, gymMin, tonnage }
 }
 
 export default function WeeklyStatsBlock({ athleteId }) {
-  const [mode, setMode] = useState('week') // 'week' | 'month'
+  const [mode, setMode] = useState('week')
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -132,7 +127,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
     return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
   })()
 
-  const { kmByType = {}, durByType = {}, totalKm = 0, totalCardioMin = 0, gymMin = 0, tonnage = 0 } = stats || {}
+  const { kmByLabel = {}, durByLabel = {}, totalKm = 0, totalCardioMin = 0, gymMin = 0, tonnage = 0 } = stats || {}
   const totalMin = totalCardioMin + gymMin
   const hasAny = tonnage > 0 || totalKm > 0 || totalMin > 0
 
@@ -142,7 +137,8 @@ export default function WeeklyStatsBlock({ athleteId }) {
     totalMin > 0 && { value: formatDur(totalMin), label: '⏱️ Temps total' },
   ].filter(Boolean)
 
-  const hasBreakdown = ACTIVITIES.some(a => kmByType[a.type] || durByType[a.type]) || gymMin > 0
+  const activityLabels = [...new Set([...Object.keys(kmByLabel), ...Object.keys(durByLabel)])]
+  const hasBreakdown = activityLabels.length > 0 || gymMin > 0
 
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
@@ -153,7 +149,6 @@ export default function WeeklyStatsBlock({ athleteId }) {
           📊 {mode === 'week' ? 'Ma semaine' : 'Mon mois'}
         </div>
 
-        {/* Sélecteur semaine / mois */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: 'var(--bg2)', borderRadius: 20, padding: '2px', border: '1px solid var(--border)' }}>
           <button
             onClick={() => setMode('week')}
@@ -182,19 +177,16 @@ export default function WeeklyStatsBlock({ athleteId }) {
         </div>
       </div>
 
-      {/* Chargement */}
       {loading && (
         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>…</div>
       )}
 
-      {/* Pas de données */}
       {!loading && !hasAny && (
         <div style={{ padding: '16px 14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
           Aucune activité {mode === 'week' ? 'cette semaine' : 'ce mois-ci'}
         </div>
       )}
 
-      {/* Grands chiffres */}
       {!loading && hasAny && (
         <>
           <div style={{ display: 'flex', borderBottom: hasBreakdown ? '1px solid var(--border)' : 'none' }}>
@@ -209,19 +201,17 @@ export default function WeeklyStatsBlock({ athleteId }) {
             ))}
           </div>
 
-          {/* Détail par discipline */}
           {hasBreakdown && (
             <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {ACTIVITIES.filter(a => kmByType[a.type] || durByType[a.type]).map(act => (
-                <div key={act.type} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 18, width: 24, textAlign: 'center', flexShrink: 0 }}>{act.emoji}</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text2)', flex: 1 }}>{act.label}</span>
+              {activityLabels.map(label => (
+                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text2)', flex: 1 }}>{label}</span>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {kmByType[act.type] > 0 && (
-                      <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--green)' }}>{fmtKm(Math.round(kmByType[act.type] * 10) / 10)}</span>
+                    {kmByLabel[label] > 0 && (
+                      <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--green)' }}>{fmtKm(Math.round(kmByLabel[label] * 10) / 10)}</span>
                     )}
-                    {durByType[act.type] > 0 && (
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text3)' }}>{formatDur(durByType[act.type])}</span>
+                    {durByLabel[label] > 0 && (
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text3)' }}>{formatDur(durByLabel[label])}</span>
                     )}
                   </div>
                 </div>

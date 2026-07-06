@@ -266,7 +266,7 @@ function AthleteView({ params }) {
         </div>
 
         <WellnessBlock athleteId={athlete.id} date={viewDate} mode="athlete" />
-        <ActivityBlock athleteId={athlete.id} maxActivities={1} />
+        <ActivityBlock athleteId={athlete.id} maxActivities={1} date={viewDate} />
 
         {programs.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>

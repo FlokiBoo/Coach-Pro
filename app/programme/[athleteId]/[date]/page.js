@@ -538,7 +538,7 @@ export default function ProgrammePage({ params }) {
         <WellnessBlock athleteId={athleteId} date={date} mode="coach" athleteName={athlete.name} />
 
         {/* Activité du jour */}
-        <ActivityBlock athleteId={athleteId} />
+        <ActivityBlock athleteId={athleteId} date={date} />
 
         {/* Titre */}
         <input placeholder="Titre de la séance (ex: Force — Bas du corps)" value={title}

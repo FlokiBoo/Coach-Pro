@@ -1,97 +1,126 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-
-function formatDuration(min) {
-  if (!min) return ''
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  if (h === 0) return `${m}min`
-  if (m === 0) return `${h}h`
-  return `${h}h${String(m).padStart(2, '0')}`
-}
 
 const VISIBLE_COUNT = 3
 
-export default function ActivityBlock({ athleteId, maxActivities = 9999 }) {
-  const [activities, setActivities] = useState([])
-  const [open, setOpen] = useState(false)
+export default function ActivityBlock({ athleteId, date = null, maxActivities = 9999 }) {
+  const [defs, setDefs]         = useState([])   // activity definitions (date=null)
+  const [dayLogs, setDayLogs]   = useState({})   // label → daily log record
+  const [open, setOpen]         = useState(false)
   const [allVisible, setAllVisible] = useState(false)
   const [creating, setCreating] = useState(false)
-  const [newForm, setNewForm] = useState({ label: '', show_km: false, show_duration: false })
+  const [newForm, setNewForm]   = useState({ label: '', show_km: false, show_duration: false })
   const [editingId, setEditingId] = useState(null)
-  const [editForm, setEditForm] = useState({ km: '', duration_minutes: '', difficulty: '' })
-  const [saving, setSaving] = useState(false)
+  const [editForm, setEditForm] = useState({ label: '', show_km: false, show_duration: false })
+  const [saving, setSaving]     = useState(false)
+  const dayLogsRef = useRef(dayLogs)
+  useEffect(() => { dayLogsRef.current = dayLogs }, [dayLogs])
 
+  // Load definitions
   useEffect(() => {
     if (!athleteId) return
     supabase.from('activity_logs').select('*').eq('athlete_id', athleteId).is('date', null)
-      .then(({ data, error }) => {
-        if (!error) setActivities(data || [])
-      })
+      .then(({ data, error }) => { if (!error) setDefs(data || []) })
   }, [athleteId])
 
-  const createActivity = async () => {
+  // Load today's logs
+  useEffect(() => {
+    if (!athleteId || !date) return
+    supabase.from('activity_logs').select('*').eq('athlete_id', athleteId).eq('date', date)
+      .then(({ data, error }) => {
+        if (!error) {
+          const map = {}
+          ;(data || []).forEach(l => { map[l.label || l.type] = l })
+          setDayLogs(map)
+        }
+      })
+  }, [athleteId, date])
+
+  // ── CRUD definitions ──────────────────────────────────────────────────────
+
+  const createDef = async () => {
     if (!newForm.label.trim()) return
     setSaving(true)
     const { data } = await supabase.from('activity_logs').insert({
       athlete_id: athleteId, type: 'custom',
       label: newForm.label.trim(), show_km: newForm.show_km, show_duration: newForm.show_duration,
     }).select().single()
-    if (data) {
-      setActivities(prev => [data, ...prev])
-      setEditingId(data.id)
-      setEditForm({ km: '', duration_minutes: '', difficulty: '' })
-    }
+    if (data) setDefs(prev => [data, ...prev])
     setCreating(false)
     setNewForm({ label: '', show_km: false, show_duration: false })
     setSaving(false)
   }
 
-  const saveValues = async () => {
-    if (!editingId) return
+  const updateDef = async () => {
+    if (!editForm.label.trim()) return
     setSaving(true)
-    const km = editForm.km !== '' ? parseFloat(editForm.km) : null
-    const duration_minutes = editForm.duration_minutes !== '' ? parseInt(editForm.duration_minutes) : null
-    const difficulty = editForm.difficulty !== '' ? parseInt(editForm.difficulty) : null
     const { data } = await supabase.from('activity_logs')
-      .update({ km, duration_minutes, difficulty }).eq('id', editingId).select().single()
-    if (data) setActivities(prev => prev.map(a => a.id === editingId ? data : a))
+      .update({ label: editForm.label.trim(), show_km: editForm.show_km, show_duration: editForm.show_duration })
+      .eq('id', editingId).select().single()
+    if (data) setDefs(prev => prev.map(d => d.id === editingId ? data : d))
     setEditingId(null)
     setSaving(false)
   }
 
-  const startEdit = (act) => {
-    setEditingId(act.id)
-    setEditForm({ km: act.km ?? '', duration_minutes: act.duration_minutes ?? '', difficulty: act.difficulty ?? '' })
-    setCreating(false)
-  }
-
-  const deleteActivity = async (id) => {
+  const deleteDef = async (id) => {
     if (!confirm('Supprimer cette activité ?')) return
     await supabase.from('activity_logs').delete().eq('id', id)
-    setActivities(prev => prev.filter(a => a.id !== id))
-    if (editingId === id) setEditingId(null)
+    setDefs(prev => prev.filter(d => d.id !== id))
   }
 
-  const inp = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 16, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', fontWeight: 700, fontFamily: 'inherit' }
+  // ── Log journalier ─────────────────────────────────────────────────────────
+
+  const saveLog = async (label, field, value) => {
+    if (!date || !athleteId) return
+    const existing = dayLogsRef.current[label]
+    const payload = { athlete_id: athleteId, date, type: 'custom', label, [field]: value ?? null }
+    if (existing) {
+      const { data } = await supabase.from('activity_logs')
+        .update({ [field]: value ?? null }).eq('id', existing.id).select().single()
+      if (data) setDayLogs(prev => ({ ...prev, [label]: data }))
+    } else {
+      const { data } = await supabase.from('activity_logs').insert(payload).select().single()
+      if (data) setDayLogs(prev => ({ ...prev, [label]: data }))
+    }
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  const inp = {
+    width: '100%', boxSizing: 'border-box', padding: '8px 10px',
+    border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+    fontSize: 15, outline: 'none', background: 'var(--bg)',
+    color: 'var(--text)', fontWeight: 700, fontFamily: 'inherit',
+  }
+
+  const CheckBox = ({ checked, onChange, label }) => (
+    <label onClick={onChange} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+      <div style={{ width: 18, height: 18, borderRadius: 4, flexShrink: 0, border: `2px solid ${checked ? 'var(--green)' : 'var(--border2)'}`, background: checked ? 'var(--green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {checked && <span style={{ color: '#fff', fontSize: 10, fontWeight: 800 }}>✓</span>}
+      </div>
+      <span style={{ fontSize: 12, color: 'var(--text2)' }}>{label}</span>
+    </label>
+  )
+
+  const visible = allVisible ? defs : defs.slice(0, VISIBLE_COUNT)
 
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+
+      {/* Header */}
       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', borderBottom: open ? '1px solid var(--border)' : 'none' }}>
-        <div onClick={() => setOpen(v => !v)}
-          style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1, cursor: 'pointer' }}>
+        <div onClick={() => setOpen(v => !v)} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1, cursor: 'pointer' }}>
           🏃 Activité du jour
         </div>
-        {activities.length > 0 && !open && (
+        {defs.length > 0 && !open && (
           <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, marginRight: 8 }}>
-            {activities.length} activité{activities.length > 1 ? 's' : ''}
+            {defs.length} activité{defs.length > 1 ? 's' : ''}
           </span>
         )}
-        {activities.length < maxActivities && (
-          <button
-            onClick={e => { e.stopPropagation(); setOpen(true); setCreating(true); setEditingId(null) }}
+        {defs.length < maxActivities && (
+          <button onClick={e => { e.stopPropagation(); setOpen(true); setCreating(true); setEditingId(null) }}
             style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', marginRight: 8 }}>
             + Discipline
           </button>
@@ -102,122 +131,120 @@ export default function ActivityBlock({ athleteId, maxActivities = 9999 }) {
       {open && (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
 
-          {(allVisible ? activities : activities.slice(0, VISIBLE_COUNT)).map((act, i) => {
-            const isEditing = editingId === act.id
-            const hasData = act.km || act.duration_minutes || act.difficulty
+          {visible.map((def, i) => {
+            const log = dayLogs[def.label] || null
+            const isEditing = editingId === def.id
+
             return (
-              <div key={act.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+              <div key={def.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>{act.label || act.type}</div>
-                    {hasData && !isEditing && (
-                      <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2, display: 'flex', gap: 8 }}>
-                        {act.km && <span style={{ fontWeight: 600, color: 'var(--green)' }}>{act.km} km</span>}
-                        {act.duration_minutes && <span>{formatDuration(act.duration_minutes)}</span>}
-                        {act.difficulty && (
-                          <span style={{ fontWeight: 700, color: act.difficulty >= 8 ? '#ef4444' : act.difficulty >= 5 ? '#f59e0b' : '#22c55e' }}>
-                            RPE {act.difficulty}/10
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  {!isEditing && (
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button onClick={() => startEdit(act)}
-                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, cursor: 'pointer', color: 'var(--text2)' }}>✏️</button>
-                      <button onClick={() => deleteActivity(act.id)}
-                        style={{ background: 'none', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, cursor: 'pointer', color: '#DC2626' }}>🗑️</button>
-                    </div>
-                  )}
-                </div>
-
-                {isEditing && (
-                  <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {(act.show_km || act.show_duration) && (
-                      <div style={{ display: 'flex', gap: 10 }}>
-                        {act.show_km && (
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Distance (km)</div>
-                            <input autoFocus type="number" step="0.1" min="0" placeholder="0.0"
-                              value={editForm.km} onChange={e => setEditForm(f => ({ ...f, km: e.target.value }))}
-                              style={inp} />
-                          </div>
-                        )}
-                        {act.show_duration && (
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Durée (min)</div>
-                            <input type="number" min="0" placeholder="45"
-                              value={editForm.duration_minutes} onChange={e => setEditForm(f => ({ ...f, duration_minutes: e.target.value }))}
-                              style={inp} />
-                          </div>
-                        )}
-                      </div>
-                    )}
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>RPE</div>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        {[1,2,3,4,5,6,7,8,9,10].map(n => (
-                          <button key={n} type="button"
-                            onClick={() => setEditForm(f => ({ ...f, difficulty: f.difficulty === n ? '' : n }))}
-                            style={{
-                              flex: 1, padding: '8px 0', border: '1px solid',
-                              borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                              borderColor: editForm.difficulty === n ? 'transparent' : 'var(--border2)',
-                              background: editForm.difficulty === n ? (n >= 8 ? '#ef4444' : n >= 5 ? '#f59e0b' : '#22c55e') : 'var(--bg2)',
-                              color: editForm.difficulty === n ? '#fff' : 'var(--text2)',
-                            }}>{n}</button>
-                        ))}
-                      </div>
+                {isEditing ? (
+                  /* ── Formulaire édition définition ── */
+                  <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <input autoFocus value={editForm.label}
+                      onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
+                      style={{ ...inp, fontWeight: 600 }} />
+                    <div style={{ display: 'flex', gap: 14 }}>
+                      <CheckBox checked={editForm.show_km} onChange={() => setEditForm(f => ({ ...f, show_km: !f.show_km }))} label="Kilométrage" />
+                      <CheckBox checked={editForm.show_duration} onChange={() => setEditForm(f => ({ ...f, show_duration: !f.show_duration }))} label="Durée" />
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => setEditingId(null)}
-                        style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text3)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                        Annuler
-                      </button>
-                      <button onClick={saveValues} disabled={saving}
-                        style={{ flex: 2, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                        {saving ? '…' : 'Enregistrer'}
-                      </button>
+                      <button onClick={() => setEditingId(null)} style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text3)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+                      <button onClick={updateDef} disabled={saving} style={{ flex: 2, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>{saving ? '…' : 'Enregistrer'}</button>
                     </div>
+                  </div>
+                ) : (
+                  /* ── Carte activité ── */
+                  <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+                    {/* Titre + boutons */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>{def.label}</div>
+                      <button onClick={() => { setEditingId(def.id); setEditForm({ label: def.label, show_km: def.show_km, show_duration: def.show_duration }) }}
+                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '3px 9px', fontSize: 13, cursor: 'pointer', color: 'var(--text2)' }}>✏️</button>
+                      <button onClick={() => deleteDef(def.id)}
+                        style={{ background: 'none', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '3px 9px', fontSize: 13, cursor: 'pointer', color: '#DC2626' }}>🗑️</button>
+                    </div>
+
+                    {/* Log du jour (si date fournie) */}
+                    {date ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {(def.show_km || def.show_duration) && (
+                          <div style={{ display: 'flex', gap: 10 }}>
+                            {def.show_km && (
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>km</div>
+                                <input key={`km-${def.id}-${date}`} type="number" step="0.1" min="0" placeholder="0.0"
+                                  defaultValue={log?.km ?? ''}
+                                  onBlur={e => saveLog(def.label, 'km', e.target.value ? parseFloat(e.target.value) : null)}
+                                  style={inp} />
+                              </div>
+                            )}
+                            {def.show_duration && (
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>min</div>
+                                <input key={`dur-${def.id}-${date}`} type="number" min="0" placeholder="45"
+                                  defaultValue={log?.duration_minutes ?? ''}
+                                  onBlur={e => saveLog(def.label, 'duration_minutes', e.target.value ? parseInt(e.target.value) : null)}
+                                  style={inp} />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>RPE</div>
+                          <div style={{ display: 'flex', gap: 3 }}>
+                            {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                              <button key={n} type="button"
+                                onClick={() => saveLog(def.label, 'difficulty', log?.difficulty === n ? null : n)}
+                                style={{
+                                  flex: 1, padding: '7px 0', border: '1px solid', borderRadius: 'var(--r)',
+                                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                                  borderColor: log?.difficulty === n ? 'transparent' : 'var(--border2)',
+                                  background: log?.difficulty === n ? (n >= 8 ? '#ef4444' : n >= 5 ? '#f59e0b' : '#22c55e') : 'var(--bg2)',
+                                  color: log?.difficulty === n ? '#fff' : 'var(--text2)',
+                                }}>{n}</button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Mode gestion (pas de date) : affiche les champs configurés */
+                      <div style={{ display: 'flex', gap: 5 }}>
+                        {def.show_km && <span style={{ fontSize: 11, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>km</span>}
+                        {def.show_duration && <span style={{ fontSize: 11, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>durée</span>}
+                        <span style={{ fontSize: 11, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>RPE</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             )
           })}
 
-          {activities.length > VISIBLE_COUNT && (
+          {defs.length > VISIBLE_COUNT && (
             <button onClick={() => setAllVisible(v => !v)}
               style={{ background: 'none', border: 'none', borderTop: '1px solid var(--border)', padding: '10px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6 }}>
-              {allVisible
-                ? <>▲ Masquer</>
-                : <>{`▼ Voir les ${activities.length - VISIBLE_COUNT} autre${activities.length - VISIBLE_COUNT > 1 ? 's' : ''}`}</>
-              }
+              {allVisible ? <>▲ Masquer</> : <>{`▼ Voir les ${defs.length - VISIBLE_COUNT} autre${defs.length - VISIBLE_COUNT > 1 ? 's' : ''}`}</>}
             </button>
           )}
 
+          {/* Formulaire création */}
           {creating && (
-            <div style={{ borderTop: activities.length > 0 ? '1px solid var(--border)' : 'none', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ borderTop: defs.length > 0 ? '1px solid var(--border)' : 'none', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Nom de l'activité</div>
                 <input autoFocus placeholder="Ex: Vélo, Run, Yoga…"
                   value={newForm.label} onChange={e => setNewForm(f => ({ ...f, label: e.target.value }))}
-                  onKeyDown={e => e.key === 'Enter' && createActivity()}
-                  style={{ ...inp, fontSize: 14, fontWeight: 400 }} />
+                  onKeyDown={e => e.key === 'Enter' && createDef()}
+                  style={{ ...inp, fontSize: 14 }} />
               </div>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Champs à afficher</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {[{ key: 'show_km', label: 'Kilométrage' }, { key: 'show_duration', label: 'Durée' }].map(({ key, label }) => (
-                    <label key={key} onClick={() => setNewForm(f => ({ ...f, [key]: !f[key] }))}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                      <div style={{
-                        width: 20, height: 20, borderRadius: 4, flexShrink: 0,
-                        border: `2px solid ${newForm[key] ? 'var(--green)' : 'var(--border2)'}`,
-                        background: newForm[key] ? 'var(--green)' : 'transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
+                    <label key={key} onClick={() => setNewForm(f => ({ ...f, [key]: !f[key] }))} style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                      <div style={{ width: 20, height: 20, borderRadius: 4, flexShrink: 0, border: `2px solid ${newForm[key] ? 'var(--green)' : 'var(--border2)'}`, background: newForm[key] ? 'var(--green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         {newForm[key] && <span style={{ color: '#fff', fontSize: 11, fontWeight: 800 }}>✓</span>}
                       </div>
                       <span style={{ fontSize: 13, color: 'var(--text2)' }}>{label}</span>
@@ -236,7 +263,7 @@ export default function ActivityBlock({ athleteId, maxActivities = 9999 }) {
                   style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text3)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                   Annuler
                 </button>
-                <button onClick={createActivity} disabled={saving || !newForm.label.trim()}
+                <button onClick={createDef} disabled={saving || !newForm.label.trim()}
                   style={{ flex: 2, background: newForm.label.trim() ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                   {saving ? '…' : 'Créer'}
                 </button>
@@ -244,8 +271,8 @@ export default function ActivityBlock({ athleteId, maxActivities = 9999 }) {
             </div>
           )}
 
-          {!creating && activities.length < maxActivities && (
-            <div style={{ borderTop: activities.length > 0 ? '1px solid var(--border)' : 'none', padding: '10px 14px' }}>
+          {!creating && defs.length < maxActivities && (
+            <div style={{ borderTop: defs.length > 0 ? '1px solid var(--border)' : 'none', padding: '10px 14px' }}>
               <button onClick={() => { setCreating(true); setEditingId(null) }}
                 style={{ width: '100%', background: 'transparent', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
                 + Ajouter une activité
