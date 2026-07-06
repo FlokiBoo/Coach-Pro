@@ -334,7 +334,7 @@ export default function AthletePage({ params }) {
 
             {/* Activité */}
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-              <ActivityBlock athleteId={athleteId} />
+              <ActivityBlock athleteId={athleteId} isCoach={true} />
             </div>
 
             {/* Séance */}

@@ -5,9 +5,9 @@ import { supabase } from '@/lib/supabase'
 
 const VISIBLE_COUNT = 3
 
-export default function ActivityBlock({ athleteId, date = null, maxActivities = 9999 }) {
-  const [defs, setDefs]         = useState([])   // activity definitions (date=null)
-  const [dayLogs, setDayLogs]   = useState({})   // label → daily log record
+export default function ActivityBlock({ athleteId, date = null, isCoach = false }) {
+  const [defs, setDefs]         = useState([])
+  const [dayLogs, setDayLogs]   = useState({})
   const [open, setOpen]         = useState(false)
   const [allVisible, setAllVisible] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -18,14 +18,13 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
   const dayLogsRef = useRef(dayLogs)
   useEffect(() => { dayLogsRef.current = dayLogs }, [dayLogs])
 
-  // Load definitions
+  // Charger les définitions globales
   useEffect(() => {
-    if (!athleteId) return
-    supabase.from('activity_logs').select('*').eq('athlete_id', athleteId).is('date', null)
+    supabase.from('activity_definitions').select('*').order('created_at')
       .then(({ data, error }) => { if (!error) setDefs(data || []) })
-  }, [athleteId])
+  }, [])
 
-  // Load today's logs
+  // Charger les logs du jour
   useEffect(() => {
     if (!athleteId || !date) return
     supabase.from('activity_logs').select('*').eq('athlete_id', athleteId).eq('date', date)
@@ -38,16 +37,15 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
       })
   }, [athleteId, date])
 
-  // ── CRUD definitions ──────────────────────────────────────────────────────
+  // ── CRUD définitions (coach uniquement) ───────────────────────────────────
 
   const createDef = async () => {
     if (!newForm.label.trim()) return
     setSaving(true)
-    const { data } = await supabase.from('activity_logs').insert({
-      athlete_id: athleteId, type: 'custom',
+    const { data } = await supabase.from('activity_definitions').insert({
       label: newForm.label.trim(), show_km: newForm.show_km, show_duration: newForm.show_duration,
     }).select().single()
-    if (data) setDefs(prev => [data, ...prev])
+    if (data) setDefs(prev => [...prev, data])
     setCreating(false)
     setNewForm({ label: '', show_km: false, show_duration: false })
     setSaving(false)
@@ -56,7 +54,7 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
   const updateDef = async () => {
     if (!editForm.label.trim()) return
     setSaving(true)
-    const { data } = await supabase.from('activity_logs')
+    const { data } = await supabase.from('activity_definitions')
       .update({ label: editForm.label.trim(), show_km: editForm.show_km, show_duration: editForm.show_duration })
       .eq('id', editingId).select().single()
     if (data) setDefs(prev => prev.map(d => d.id === editingId ? data : d))
@@ -66,7 +64,7 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
 
   const deleteDef = async (id) => {
     if (!confirm('Supprimer cette activité ?')) return
-    await supabase.from('activity_logs').delete().eq('id', id)
+    await supabase.from('activity_definitions').delete().eq('id', id)
     setDefs(prev => prev.filter(d => d.id !== id))
   }
 
@@ -95,15 +93,6 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
     color: 'var(--text)', fontWeight: 700, fontFamily: 'inherit',
   }
 
-  const CheckBox = ({ checked, onChange, label }) => (
-    <label onClick={onChange} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-      <div style={{ width: 18, height: 18, borderRadius: 4, flexShrink: 0, border: `2px solid ${checked ? 'var(--green)' : 'var(--border2)'}`, background: checked ? 'var(--green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {checked && <span style={{ color: '#fff', fontSize: 10, fontWeight: 800 }}>✓</span>}
-      </div>
-      <span style={{ fontSize: 12, color: 'var(--text2)' }}>{label}</span>
-    </label>
-  )
-
   const visible = allVisible ? defs : defs.slice(0, VISIBLE_COUNT)
 
   return (
@@ -119,7 +108,7 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
             {defs.length} activité{defs.length > 1 ? 's' : ''}
           </span>
         )}
-        {defs.length < maxActivities && (
+        {isCoach && (
           <button onClick={e => { e.stopPropagation(); setOpen(true); setCreating(true); setEditingId(null) }}
             style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', marginRight: 8 }}>
             + Discipline
@@ -131,6 +120,12 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
       {open && (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
 
+          {defs.length === 0 && !creating && (
+            <div style={{ padding: '16px 14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+              {isCoach ? 'Aucune activité. Créez-en une avec + Discipline.' : 'Aucune activité disponible.'}
+            </div>
+          )}
+
           {visible.map((def, i) => {
             const log = dayLogs[def.label] || null
             const isEditing = editingId === def.id
@@ -139,14 +134,21 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
               <div key={def.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
 
                 {isEditing ? (
-                  /* ── Formulaire édition définition ── */
+                  /* ── Formulaire édition (coach) ── */
                   <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     <input autoFocus value={editForm.label}
                       onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
                       style={{ ...inp, fontWeight: 600 }} />
                     <div style={{ display: 'flex', gap: 14 }}>
-                      <CheckBox checked={editForm.show_km} onChange={() => setEditForm(f => ({ ...f, show_km: !f.show_km }))} label="Kilométrage" />
-                      <CheckBox checked={editForm.show_duration} onChange={() => setEditForm(f => ({ ...f, show_duration: !f.show_duration }))} label="Durée" />
+                      {[{ key: 'show_km', label: 'Kilométrage' }, { key: 'show_duration', label: 'Durée' }].map(({ key, label }) => (
+                        <label key={key} onClick={() => setEditForm(f => ({ ...f, [key]: !f[key] }))}
+                          style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                          <div style={{ width: 18, height: 18, borderRadius: 4, flexShrink: 0, border: `2px solid ${editForm[key] ? 'var(--green)' : 'var(--border2)'}`, background: editForm[key] ? 'var(--green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {editForm[key] && <span style={{ color: '#fff', fontSize: 10, fontWeight: 800 }}>✓</span>}
+                          </div>
+                          <span style={{ fontSize: 12, color: 'var(--text2)' }}>{label}</span>
+                        </label>
+                      ))}
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => setEditingId(null)} style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text3)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
@@ -157,13 +159,17 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
                   /* ── Carte activité ── */
                   <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
 
-                    {/* Titre + boutons */}
+                    {/* Titre + boutons coach */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>{def.label}</div>
-                      <button onClick={() => { setEditingId(def.id); setEditForm({ label: def.label, show_km: def.show_km, show_duration: def.show_duration }) }}
-                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '3px 9px', fontSize: 13, cursor: 'pointer', color: 'var(--text2)' }}>✏️</button>
-                      <button onClick={() => deleteDef(def.id)}
-                        style={{ background: 'none', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '3px 9px', fontSize: 13, cursor: 'pointer', color: '#DC2626' }}>🗑️</button>
+                      {isCoach && (
+                        <>
+                          <button onClick={() => { setEditingId(def.id); setEditForm({ label: def.label, show_km: def.show_km, show_duration: def.show_duration }) }}
+                            style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '3px 9px', fontSize: 13, cursor: 'pointer', color: 'var(--text2)' }}>✏️</button>
+                          <button onClick={() => deleteDef(def.id)}
+                            style={{ background: 'none', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '3px 9px', fontSize: 13, cursor: 'pointer', color: '#DC2626' }}>🗑️</button>
+                        </>
+                      )}
                     </div>
 
                     {/* Log du jour (si date fournie) */}
@@ -209,7 +215,7 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
                         </div>
                       </div>
                     ) : (
-                      /* Mode gestion (pas de date) : affiche les champs configurés */
+                      /* Mode sans date : affiche les champs configurés */
                       <div style={{ display: 'flex', gap: 5 }}>
                         {def.show_km && <span style={{ fontSize: 11, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>km</span>}
                         {def.show_duration && <span style={{ fontSize: 11, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>durée</span>}
@@ -229,8 +235,8 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
             </button>
           )}
 
-          {/* Formulaire création */}
-          {creating && (
+          {/* Formulaire création (coach uniquement) */}
+          {creating && isCoach && (
             <div style={{ borderTop: defs.length > 0 ? '1px solid var(--border)' : 'none', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Nom de l'activité</div>
@@ -271,7 +277,8 @@ export default function ActivityBlock({ athleteId, date = null, maxActivities = 
             </div>
           )}
 
-          {!creating && defs.length < maxActivities && (
+          {/* Bouton inline d'ajout (coach) */}
+          {!creating && isCoach && (
             <div style={{ borderTop: defs.length > 0 ? '1px solid var(--border)' : 'none', padding: '10px 14px' }}>
               <button onClick={() => { setCreating(true); setEditingId(null) }}
                 style={{ width: '100%', background: 'transparent', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
