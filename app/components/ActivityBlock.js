@@ -14,7 +14,7 @@ function formatDuration(min) {
 
 const VISIBLE_COUNT = 3
 
-export default function ActivityBlock({ athleteId, maxActivities = Infinity }) {
+export default function ActivityBlock({ athleteId, maxActivities = 9999 }) {
   const [activities, setActivities] = useState([])
   const [open, setOpen] = useState(false)
   const [allVisible, setAllVisible] = useState(false)
@@ -27,8 +27,9 @@ export default function ActivityBlock({ athleteId, maxActivities = Infinity }) {
   useEffect(() => {
     if (!athleteId) return
     supabase.from('activity_logs').select('*').eq('athlete_id', athleteId).is('date', null)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => setActivities(data || []))
+      .then(({ data, error }) => {
+        if (!error) setActivities(data || [])
+      })
   }, [athleteId])
 
   const createActivity = async () => {
@@ -39,7 +40,7 @@ export default function ActivityBlock({ athleteId, maxActivities = Infinity }) {
       label: newForm.label.trim(), show_km: newForm.show_km, show_duration: newForm.show_duration,
     }).select().single()
     if (data) {
-      setActivities(prev => [...prev, data])
+      setActivities(prev => [data, ...prev])
       setEditingId(data.id)
       setEditForm({ km: '', duration_minutes: '', difficulty: '' })
     }
