@@ -12,7 +12,7 @@ function formatDuration(min) {
   return `${h}h${String(m).padStart(2, '0')}`
 }
 
-export default function ActivityBlock({ athleteId, date }) {
+export default function ActivityBlock({ athleteId, maxActivities = Infinity }) {
   const [activities, setActivities] = useState([])
   const [open, setOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -22,16 +22,16 @@ export default function ActivityBlock({ athleteId, date }) {
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    if (!athleteId || !date) return
-    supabase.from('activity_logs').select('*').eq('athlete_id', athleteId).eq('date', date)
+    if (!athleteId) return
+    supabase.from('activity_logs').select('*').eq('athlete_id', athleteId).is('date', null)
       .then(({ data }) => setActivities(data || []))
-  }, [athleteId, date])
+  }, [athleteId])
 
   const createActivity = async () => {
     if (!newForm.label.trim()) return
     setSaving(true)
     const { data } = await supabase.from('activity_logs').insert({
-      athlete_id: athleteId, date, type: 'custom',
+      athlete_id: athleteId, type: 'custom',
       label: newForm.label.trim(), show_km: newForm.show_km, show_duration: newForm.show_duration,
     }).select().single()
     if (data) {
@@ -222,7 +222,7 @@ export default function ActivityBlock({ athleteId, date }) {
             </div>
           )}
 
-          {!creating && (
+          {!creating && activities.length < maxActivities && (
             <div style={{ borderTop: activities.length > 0 ? '1px solid var(--border)' : 'none', padding: '10px 14px' }}>
               <button onClick={() => { setCreating(true); setEditingId(null) }}
                 style={{ width: '100%', background: 'transparent', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
