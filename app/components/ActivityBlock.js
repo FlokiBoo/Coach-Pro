@@ -42,9 +42,14 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false 
   const createDef = async () => {
     if (!newForm.label.trim()) return
     setSaving(true)
-    const { data } = await supabase.from('activity_definitions').insert({
+    const { data, error } = await supabase.from('activity_definitions').insert({
       label: newForm.label.trim(), show_km: newForm.show_km, show_duration: newForm.show_duration,
     }).select().single()
+    if (error) {
+      alert('Erreur : ' + error.message)
+      setSaving(false)
+      return
+    }
     if (data) setDefs(prev => [...prev, data])
     setCreating(false)
     setNewForm({ label: '', show_km: false, show_duration: false })
@@ -277,15 +282,6 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false 
             </div>
           )}
 
-          {/* Bouton inline d'ajout (coach) */}
-          {!creating && isCoach && (
-            <div style={{ borderTop: defs.length > 0 ? '1px solid var(--border)' : 'none', padding: '10px 14px' }}>
-              <button onClick={() => { setCreating(true); setEditingId(null) }}
-                style={{ width: '100%', background: 'transparent', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
-                + Ajouter une activité
-              </button>
-            </div>
-          )}
 
         </div>
       )}
