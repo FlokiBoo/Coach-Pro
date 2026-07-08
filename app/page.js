@@ -100,7 +100,7 @@ export default function Home() {
         }))
 
       const progDone = (progComps || [])
-        .filter(c => c.program_sessions?.program_exercises?.some(e => progLogsMap[e.id]))
+        .filter(c => c.program_sessions)
         .map(c => ({
           id: `prog-${c.id}`,
           type: 'program',
@@ -110,9 +110,9 @@ export default function Home() {
           athleteName: c.athletes?.name || '—',
           title: c.program_sessions?.title,
           href: `/programs/${c.athlete_id}/${c.program_sessions?.program_id}`,
-          exosDone: c.program_sessions.program_exercises.filter(e => progLogsMap[e.id]).map(e => ({
+          exosDone: (c.program_sessions.program_exercises || []).filter(e => e.name).map(e => ({
             id: e.id, name: e.name, sets: e.sets, reps: e.reps, kg: e.kg,
-            log: progLogsMap[e.id],
+            log: progLogsMap[e.id] || {},
           })),
         }))
 
