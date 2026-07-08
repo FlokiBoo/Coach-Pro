@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+
 const MUSCLE_MAP = {
   'pectoraux':       ['pec', 'poitrine', 'chest', 'pectoral'],
   'deltoïdes':       ['delt', 'épaule', 'epaule', 'shoulder'],
