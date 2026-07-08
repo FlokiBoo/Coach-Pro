@@ -85,8 +85,8 @@ export default function AthletePage({ params }) {
         const { data: comps } = await supabase.from('program_completions')
           .select('*, program_sessions(title, programs(title))')
           .in('program_session_id', sessionIds)
-          .gte('completed_at', todayStr + 'T00:00:00')
-          .lte('completed_at', todayStr + 'T23:59:59')
+          .gte('created_at', todayStr + 'T00:00:00')
+          .lte('created_at', todayStr + 'T23:59:59')
         completions = comps || []
       }
 

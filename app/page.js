@@ -261,7 +261,6 @@ function SessionCard({ session }) {
           <div style={{ fontWeight: 700, fontSize: 14 }}>{session.athleteName}</div>
           <div style={{ fontSize: 12, color: 'var(--text3)', textTransform: 'capitalize' }}>
             {formatDateLong(dateLabel)}
-            {session.type === 'program' && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: 'var(--green)' }}>· programme</span>}
           </div>
         </div>
         <div style={{ fontSize: 12, fontWeight: 700, background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px', flexShrink: 0 }}>
