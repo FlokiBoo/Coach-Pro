@@ -39,6 +39,19 @@ export default function AthletesSidebar({ athleteId, date }) {
   const [wellness, setWellness] = useState({})
   const [done, setDone] = useState(new Set())
   const [open, setOpen] = useState(false)
+  const [collapsed, setCollapsed] = useState(false)
+
+  useEffect(() => {
+    setCollapsed(localStorage.getItem('coachpro_sidebar_collapsed') === '1')
+  }, [])
+
+  const toggleCollapsed = () => {
+    setCollapsed(prev => {
+      const next = !prev
+      localStorage.setItem('coachpro_sidebar_collapsed', next ? '1' : '0')
+      return next
+    })
+  }
 
   useEffect(() => {
     async function load() {
@@ -109,7 +122,7 @@ export default function AthletesSidebar({ athleteId, date }) {
         />
       )}
 
-    <div className={`coach-sidebar${open ? ' coach-sidebar--open' : ''}`}>
+    <div className={`coach-sidebar${open ? ' coach-sidebar--open' : ''}${collapsed ? ' coach-sidebar--collapsed' : ''}`}>
       {/* Header sidebar */}
       <div style={{ padding: '16px 12px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ flex: 1 }}>
@@ -118,6 +131,9 @@ export default function AthletesSidebar({ athleteId, date }) {
             {formatDateShort(date)}
           </div>
         </div>
+        <button onClick={toggleCollapsed} className="sidebar-collapse-btn"
+          style={{ display: 'none', background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: 'var(--text3)', padding: 4 }}
+          title="Réduire le bandeau">«</button>
         <button onClick={() => setOpen(false)} className="sidebar-close"
           style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 4 }}>✕</button>
       </div>
@@ -225,6 +241,19 @@ export default function AthletesSidebar({ athleteId, date }) {
         </Link>
       </div>
     </div>
+
+    {/* Bouton pour rouvrir le bandeau réduit — desktop uniquement */}
+    <button
+      onClick={toggleCollapsed}
+      className="sidebar-reopen-btn"
+      style={{
+        display: 'none', position: 'sticky', top: 10, left: 0, alignSelf: 'flex-start',
+        background: 'var(--bg)', border: '1px solid var(--border)', borderLeft: 'none',
+        borderRadius: '0 var(--r) var(--r) 0', width: 20, height: 40,
+        fontSize: 13, color: 'var(--text3)', cursor: 'pointer', flexShrink: 0, zIndex: 5,
+      }}
+      title="Afficher le bandeau"
+    >»</button>
     </>
   )
 }

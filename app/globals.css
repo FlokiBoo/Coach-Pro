@@ -93,4 +93,12 @@ input, textarea, button, select {
 
   .sidebar-toggle { display: none !important; }
   .sidebar-close  { display: none !important; }
+
+  .coach-sidebar--collapsed {
+    width: 0;
+    border-right: none;
+  }
+
+  .sidebar-collapse-btn { display: flex !important; }
+  .coach-sidebar--collapsed + .sidebar-reopen-btn { display: flex !important; }
 }
