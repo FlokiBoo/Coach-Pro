@@ -33,6 +33,17 @@ export default function LoginPage() {
     const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err) { setError('Email ou mot de passe incorrect.'); setLoading(false); return }
 
+    const { data: coach } = await supabase
+      .from('coaches')
+      .select('id')
+      .eq('id', data.user.id)
+      .single()
+
+    if (coach) {
+      router.push('/')
+      return
+    }
+
     const { data: athlete } = await supabase
       .from('athletes')
       .select('token')

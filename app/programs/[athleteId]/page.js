@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
+import { getCoachId } from '@/lib/coach'
 
 function today() {
   const n = new Date()
@@ -52,10 +53,11 @@ export default function ProgramsPage({ params }) {
   const createProgram = async () => {
     if (!newTitle.trim() || newAthleteIds.length === 0) return
     setCreating(true)
+    const coachId = await getCoachId()
     let firstId = null, firstProgId = null
     for (const aid of newAthleteIds) {
       const { data, error } = await supabase.from('programs')
-        .insert({ athlete_id: aid, title: newTitle.trim() })
+        .insert({ athlete_id: aid, title: newTitle.trim(), coach_id: coachId })
         .select().single()
       if (data) {
         await supabase.from('program_sessions')
@@ -88,6 +90,7 @@ export default function ProgramsPage({ params }) {
   const assignProgram = async () => {
     if (!selectedIds.length || !assignModal) return
     setAssigning(true)
+    const coachId = await getCoachId()
 
     // Charger le programme complet avec sessions et exercices
     const { data: sessions } = await supabase
@@ -99,7 +102,7 @@ export default function ProgramsPage({ params }) {
     for (const targetId of selectedIds) {
       // Créer le programme pour cet athlète
       const { data: newProg } = await supabase.from('programs')
-        .insert({ athlete_id: targetId, title: assignModal.title })
+        .insert({ athlete_id: targetId, title: assignModal.title, coach_id: coachId })
         .select().single()
       if (!newProg) continue
 

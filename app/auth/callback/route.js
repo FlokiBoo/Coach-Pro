@@ -1,5 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin as adminClient } from '@/lib/supabase-admin'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
@@ -23,13 +23,17 @@ export async function GET(request) {
       }
     )
 
-    const adminClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    )
-
     const { data } = await supabase.auth.exchangeCodeForSession(code)
+
+    if (data?.user) {
+      const { data: coach } = await adminClient.from('coaches').select('id').eq('id', data.user.id).single()
+      if (coach) {
+        await adminClient.auth.admin.updateUserById(data.user.id, {
+          app_metadata: { needs_password: true }
+        })
+        return NextResponse.redirect(`${origin}/definir-mot-de-passe`)
+      }
+    }
 
     if (data?.user && athleteId) {
       // Lier l'utilisateur à son athlete

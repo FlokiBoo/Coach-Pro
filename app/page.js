@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
+import { getCoachId } from '@/lib/coach'
 
 function today() {
   const n = new Date()
@@ -31,6 +32,7 @@ export default function Home() {
   const [saving, setSaving] = useState(false)
   const [coachToken, setCoachToken] = useState(null)
   const [generatingToken, setGeneratingToken] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -50,9 +52,15 @@ export default function Home() {
       const athList = aths || []
       setAthletes(athList)
 
-      // Le premier athlète = le coach. On auto-génère un token s'il n'en a pas.
-      if (athList.length > 0) {
-        const coach = athList[0]
+      const coachId = await getCoachId()
+      if (coachId) {
+        const { data: me } = await supabase.from('coaches').select('is_admin').eq('id', coachId).single()
+        if (me?.is_admin) setIsAdmin(true)
+      }
+
+      // La ligne athletes marquée is_coach = le profil perso de ce coach (RLS la scope déjà à lui).
+      const coach = athList.find(a => a.is_coach)
+      if (coach) {
         if (coach.token) {
           setCoachToken(coach.token)
         } else {
@@ -75,7 +83,8 @@ export default function Home() {
     const name = newName.trim()
     if (!name) return
     setSaving(true)
-    const { data } = await supabase.from('athletes').insert({ name }).select().single()
+    const coachId = await getCoachId()
+    const { data } = await supabase.from('athletes').insert({ name, coach_id: coachId }).select().single()
     if (data) setAthletes(prev => [...prev, data])
     setNewName('')
     setShowForm(false)
@@ -119,6 +128,12 @@ export default function Home() {
             >
               👤 Vue sportif
             </button>
+          )}
+          {isAdmin && (
+            <Link href="/admin/coachs" style={{
+              background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)',
+              borderRadius: 20, padding: '8px 14px', fontSize: 12, fontWeight: 600, textDecoration: 'none', flexShrink: 0
+            }}>🛡️ Coachs</Link>
           )}
           <a href="https://tracker-nutrition.netlify.app/coach.html" target="_blank" rel="noreferrer" style={{
             background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)',

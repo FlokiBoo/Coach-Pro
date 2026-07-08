@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
+import { getCoachId } from '@/lib/coach'
 
 function today() {
   const n = new Date()
@@ -47,11 +48,12 @@ export default function ProgramsPage() {
   const createProgram = async () => {
     if (!newTitle.trim()) return
     setCreating(true)
+    const coachId = await getCoachId()
 
     if (newAthleteIds.length === 0) {
       // Modèle sans client
       const { data, error } = await supabase.from('programs')
-        .insert({ title: newTitle.trim() })
+        .insert({ title: newTitle.trim(), coach_id: coachId })
         .select().single()
       if (data) {
         await supabase.from('program_sessions').insert({ program_id: data.id, order_index: 0, title: 'Séance 1' })
@@ -66,7 +68,7 @@ export default function ProgramsPage() {
     let firstId = null, firstProgId = null
     for (const aid of newAthleteIds) {
       const { data, error } = await supabase.from('programs')
-        .insert({ athlete_id: aid, title: newTitle.trim() })
+        .insert({ athlete_id: aid, title: newTitle.trim(), coach_id: coachId })
         .select().single()
       if (data) {
         await supabase.from('program_sessions').insert({ program_id: data.id, order_index: 0, title: 'Séance 1' })
@@ -98,6 +100,7 @@ export default function ProgramsPage() {
   const assignProgram = async () => {
     if (!selectedIds.length || !assignModal) return
     setAssigning(true)
+    const coachId = await getCoachId()
 
     const { data: sessions } = await supabase
       .from('program_sessions')
@@ -107,7 +110,7 @@ export default function ProgramsPage() {
 
     for (const targetId of selectedIds) {
       const { data: newProg } = await supabase.from('programs')
-        .insert({ athlete_id: targetId, title: assignModal.title })
+        .insert({ athlete_id: targetId, title: assignModal.title, coach_id: coachId })
         .select().single()
       if (!newProg) continue
 

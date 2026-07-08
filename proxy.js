@@ -39,22 +39,20 @@ export async function proxy(request) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Si c'est un compte client (pas le coach), le cantonner à son espace
   const athleteToken = user.app_metadata?.athlete_token
   const needsPassword = user.app_metadata?.needs_password
 
-  if (athleteToken) {
-    // Forcer la création de mot de passe à la première connexion
-    if (needsPassword) {
-      if (!pathname.startsWith('/definir-mot-de-passe')) {
-        return NextResponse.redirect(new URL('/definir-mot-de-passe', request.url))
-      }
-      return response
+  // Forcer la création de mot de passe à la première connexion (athlète ou coach invité)
+  if (needsPassword) {
+    if (!pathname.startsWith('/definir-mot-de-passe')) {
+      return NextResponse.redirect(new URL('/definir-mot-de-passe', request.url))
     }
-    // Ensuite, cantonner à son espace uniquement
-    if (!pathname.startsWith(`/s/${athleteToken}`)) {
-      return NextResponse.redirect(new URL(`/s/${athleteToken}`, request.url))
-    }
+    return response
+  }
+
+  // Si c'est un compte client (pas le coach), le cantonner à son espace
+  if (athleteToken && !pathname.startsWith(`/s/${athleteToken}`)) {
+    return NextResponse.redirect(new URL(`/s/${athleteToken}`, request.url))
   }
 
   return response

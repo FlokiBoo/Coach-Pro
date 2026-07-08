@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextResponse } from 'next/server'
 
 export async function POST(request) {
@@ -7,17 +7,6 @@ export async function POST(request) {
   if (!email || !athleteId) {
     return NextResponse.json({ error: 'email et athleteId requis' }, { status: 400 })
   }
-
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!serviceKey) {
-    return NextResponse.json({ error: 'Service role key non configurée' }, { status: 500 })
-  }
-
-  const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    serviceKey,
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
 
   // Sauvegarder l'email sur l'athlete
   await supabaseAdmin.from('athletes').update({ email }).eq('id', athleteId)
