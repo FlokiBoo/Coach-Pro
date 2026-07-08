@@ -442,6 +442,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                   {labels[exo.id] || String.fromCharCode(65 + ei)}
                 </div>
                 <span style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>{exo.name}</span>
+                <TipsButton />
                 {exo.video_url && (
                   <a href={exo.video_url} target="_blank" rel="noreferrer" style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, textDecoration: 'none', fontWeight: 700, flexShrink: 0 }}>▶</a>
                 )}
@@ -594,5 +595,74 @@ function Pill({ value, label, color, textColor }) {
     <div style={{ background: color || 'var(--green-light)', color: textColor || 'var(--green)', borderRadius: 20, padding: '3px 10px', fontSize: 13, fontWeight: 700 }}>
       {value}{label ? ` ${label}` : ''}
     </div>
+  )
+}
+
+let tipsCache = null
+
+function TipsButton() {
+  const [open, setOpen] = useState(false)
+  const [tips, setTips] = useState(tipsCache)
+  const [selected, setSelected] = useState(null)
+
+  const openModal = async (e) => {
+    e.stopPropagation()
+    setOpen(true)
+    setSelected(null)
+    if (!tipsCache) {
+      const { data } = await supabase.from('tips').select('*').order('order_index')
+      tipsCache = data || []
+      setTips(tipsCache)
+    }
+  }
+
+  return (
+    <>
+      <button onClick={openModal} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+        💡
+      </button>
+      {open && (
+        <div onClick={() => setOpen(false)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 200,
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480,
+            maxHeight: '75vh', overflowY: 'auto', padding: 18
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              {selected && (
+                <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>←</button>
+              )}
+              <div style={{ fontWeight: 800, fontSize: 17, flex: 1 }}>💡 {selected ? selected.title : 'Tips'}</div>
+              <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
+            </div>
+
+            {!tips ? (
+              <div style={{ color: 'var(--text3)', fontSize: 13 }}>Chargement…</div>
+            ) : selected ? (
+              <div style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                {selected.content || 'Pas encore d\'explication pour ce tip.'}
+              </div>
+            ) : tips.length === 0 ? (
+              <div style={{ color: 'var(--text3)', fontSize: 13 }}>Aucun tip pour le moment.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {tips.map(t => (
+                  <button key={t.id} onClick={() => setSelected(t)} style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
+                    background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)',
+                    padding: '12px 14px', fontSize: 14, fontWeight: 700, color: 'var(--text)', cursor: 'pointer'
+                  }}>
+                    <span style={{ flex: 1 }}>{t.title}</span>
+                    <span style={{ color: 'var(--text3)' }}>›</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   )
 }
