@@ -141,6 +141,7 @@ function ProgramEditorPage({ params }) {
   const [saved, setSaved] = useState(false)
   const [savedId, setSavedId] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [layoutCols, setLayoutCols] = useState(1)
 
   const isTemplate = athleteId === 'templates'
 
@@ -392,13 +393,30 @@ function ProgramEditorPage({ params }) {
                 {isTemplate ? '📋 Modèle' : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
               </div>
             </div>
+            {sessions.length > 1 && (
+              <div style={{ display: 'flex', gap: 2, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 2, flexShrink: 0 }}>
+                {[1, 2, 3, 4].map(n => (
+                  <button key={n} onClick={() => setLayoutCols(n)}
+                    style={{
+                      background: layoutCols === n ? 'var(--green)' : 'transparent',
+                      color: layoutCols === n ? '#fff' : 'var(--text3)',
+                      border: 'none', borderRadius: 4, padding: '5px 9px',
+                      fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    }}
+                    title={n === 1 ? '1 séance' : `${n} séances côte à côte`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
-        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ padding: 16, display: layoutCols > 1 ? 'grid' : 'flex', flexDirection: layoutCols > 1 ? undefined : 'column', gridTemplateColumns: layoutCols > 1 ? `repeat(${layoutCols}, minmax(280px, 1fr))` : undefined, overflowX: layoutCols > 1 ? 'auto' : undefined, gap: 8, alignItems: 'start' }}>
 
           {sessions.map((s, idx) => {
-            const isOpen = openId === s.id
+            const isOpen = layoutCols > 1 ? true : openId === s.id
             const labels = computeLabels(s.exercises)
             return (
               <div key={s.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
