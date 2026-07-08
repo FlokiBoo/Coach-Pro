@@ -319,6 +319,48 @@ function ProgramEditorPage({ params }) {
     }
   }
 
+  const duplicateSession = async (id) => {
+    const s = sessions.find(sess => sess.id === id)
+    if (!s) return
+
+    const { data: newSession, error: sessErr } = await supabase.from('program_sessions')
+      .insert({
+        program_id: programId, order_index: sessions.length,
+        title: s.title ? `${s.title} (copie)` : '',
+        activation: s.activation || null, coach_notes: s.coach_notes || null,
+        activation_videos: s.activation_videos || [],
+      })
+      .select().single()
+    if (sessErr || !newSession) { alert('Erreur duplication : ' + sessErr?.message); return }
+
+    const toInsert = s.exercises.filter(e => e.name.trim()).map((e, j) => ({
+      program_session_id: newSession.id, order_index: j, name: e.name.trim(),
+      sets: e.sets !== '' ? parseInt(e.sets) : null,
+      reps: e.reps || null,
+      kg: e.kg !== '' && !isNaN(parseFloat(e.kg)) ? parseFloat(e.kg) : null,
+      rest: e.rest || null,
+      note: e.note || null,
+      video_url: e.video_url || null,
+      superset_group: e.superset_group || null,
+    }))
+
+    let insertedExos = []
+    if (toInsert.length) {
+      const { data: inserted, error: insErr } = await supabase.from('program_exercises').insert(toInsert).select()
+      if (insErr) { alert('Erreur duplication des exercices : ' + insErr.message); return }
+      insertedExos = inserted || []
+    }
+
+    const newS = {
+      ...newSession,
+      exercises: insertedExos.length
+        ? insertedExos.map(e => ({ ...e, _key: e.id }))
+        : [emptyExo(0)],
+    }
+    setSessions(prev => [...prev, newS])
+    setOpenId(newSession.id)
+  }
+
   const deleteSession = async (id) => {
     if (!confirm('Supprimer cette séance ?')) return
     await supabase.from('program_sessions').delete().eq('id', id)
@@ -445,6 +487,9 @@ function ProgramEditorPage({ params }) {
                     <button onClick={e => { e.stopPropagation(); moveSession(idx, 1) }}
                       style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>↓</button>
                   )}
+                  <button onClick={e => { e.stopPropagation(); duplicateSession(s.id) }}
+                    title="Dupliquer la séance"
+                    style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>⧉</button>
                   <button onClick={e => { e.stopPropagation(); deleteSession(s.id) }}
                     style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>×</button>
                   <span style={{ fontSize: 14, color: 'var(--text3)' }}>{isOpen ? '▲' : '▼'}</span>
@@ -465,7 +510,7 @@ function ProgramEditorPage({ params }) {
                     </div>
 
                     {/* Vidéos d'activation */}
-                    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
+                    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'visible' }}>
                       <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
                         <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🎥 Vidéos d'activation</span>
                       </div>
