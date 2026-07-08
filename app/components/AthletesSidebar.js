@@ -144,7 +144,7 @@ export default function AthletesSidebar({ athleteId, date }) {
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
-        }}>👥 Clients</Link>
+        }}>🏠 Dashboard</Link>
         <Link href="/programs" onClick={() => setOpen(false)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
