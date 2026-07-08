@@ -40,6 +40,7 @@ export default function AthletesSidebar({ athleteId, date }) {
   const [done, setDone] = useState(new Set())
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [search, setSearch] = useState('')
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('coachpro_sidebar_collapsed') === '1')
@@ -163,7 +164,20 @@ export default function AthletesSidebar({ athleteId, date }) {
           Mes sportifs
         </div>
 
-        {athletes.map(a => {
+        <div style={{ position: 'relative', marginBottom: 4 }}>
+          <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--text3)' }}>🔍</span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher un sportif…"
+            style={{
+              width: '100%', boxSizing: 'border-box', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+              padding: '6px 8px 6px 26px', fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
+            }}
+          />
+        </div>
+
+        {athletes.filter(a => a.name.toLowerCase().includes(search.trim().toLowerCase())).map(a => {
           const active = a.id === athleteId
           const w = wellness[a.id]
           const seanceFaite = done.has(a.id)
