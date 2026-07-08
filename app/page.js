@@ -41,16 +41,28 @@ export default function Home() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: aths }, { data: sessions }] = await Promise.all([
+      const [{ data: aths }, { data: sessions }, { data: progComps }] = await Promise.all([
         supabase.from('athletes').select('*').neq('archived', true).order('created_at'),
         supabase
           .from('sessions')
           .select('id, date, title, athlete_id, athletes(id, name), exercises(id, name, sets, reps, kg, athlete_logs(sets_done, reps_done, kg_done))')
           .order('date', { ascending: false })
+          .limit(40),
+        supabase
+          .from('program_completions')
+          .select('id, created_at, athlete_id, athletes(id, name), program_sessions(id, title, program_id, program_exercises(id, name, sets, reps, kg))')
+          .order('created_at', { ascending: false })
           .limit(40)
       ])
       const athList = aths || []
       setAthletes(athList)
+
+      const progSessionIds = (progComps || []).flatMap(c => (c.program_sessions?.program_exercises || []).map(e => e.id))
+      const { data: progLogs } = progSessionIds.length
+        ? await supabase.from('program_exercise_logs').select('program_exercise_id, sets_done, reps_done, kg_done').in('program_exercise_id', progSessionIds)
+        : { data: [] }
+      const progLogsMap = {}
+      ;(progLogs || []).forEach(l => { progLogsMap[l.program_exercise_id] = l })
 
       const coachId = await getCoachId()
       if (coachId) {
@@ -70,10 +82,42 @@ export default function Home() {
         }
       }
 
-      const done = (sessions || []).filter(s =>
-        s.exercises?.some(e => e.athlete_logs?.length > 0)
-      )
-      setCompletedSessions(done)
+      const legacyDone = (sessions || [])
+        .filter(s => s.exercises?.some(e => e.athlete_logs?.length > 0))
+        .map(s => ({
+          id: `legacy-${s.id}`,
+          type: 'legacy',
+          date: s.date,
+          sortKey: s.date,
+          athleteId: s.athlete_id,
+          athleteName: s.athletes?.name || '—',
+          title: s.title,
+          href: `/semaine/${s.athlete_id}/${s.date}`,
+          exosDone: s.exercises.filter(e => e.athlete_logs?.length > 0).map(e => ({
+            id: e.id, name: e.name, sets: e.sets, reps: e.reps, kg: e.kg,
+            log: e.athlete_logs[0],
+          })),
+        }))
+
+      const progDone = (progComps || [])
+        .filter(c => c.program_sessions?.program_exercises?.some(e => progLogsMap[e.id]))
+        .map(c => ({
+          id: `prog-${c.id}`,
+          type: 'program',
+          date: c.created_at,
+          sortKey: c.created_at,
+          athleteId: c.athlete_id,
+          athleteName: c.athletes?.name || '—',
+          title: c.program_sessions?.title,
+          href: `/programs/${c.athlete_id}/${c.program_sessions?.program_id}`,
+          exosDone: c.program_sessions.program_exercises.filter(e => progLogsMap[e.id]).map(e => ({
+            id: e.id, name: e.name, sets: e.sets, reps: e.reps, kg: e.kg,
+            log: progLogsMap[e.id],
+          })),
+        }))
+
+      const merged = [...legacyDone, ...progDone].sort((a, b) => b.sortKey.localeCompare(a.sortKey))
+      setCompletedSessions(merged)
       setLoading(false)
     }
     load()
@@ -196,11 +240,10 @@ export default function Home() {
 }
 
 function SessionCard({ session }) {
-  const exosDone = (session.exercises || []).filter(e => e.athlete_logs?.length > 0)
-  const athleteName = session.athletes?.name || '—'
+  const dateLabel = session.type === 'program' ? session.date.slice(0, 10) : session.date
 
   return (
-    <Link href={`/semaine/${session.athlete_id}/${session.date}`} style={{
+    <Link href={session.href} style={{
       display: 'block', background: 'var(--bg)', border: '1px solid var(--border)',
       borderRadius: 'var(--rl)', padding: '14px 16px', textDecoration: 'none', color: 'inherit'
     }}>
@@ -212,16 +255,17 @@ function SessionCard({ session }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 12, fontWeight: 800
         }}>
-          {athleteName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+          {session.athleteName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>{athleteName}</div>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{session.athleteName}</div>
           <div style={{ fontSize: 12, color: 'var(--text3)', textTransform: 'capitalize' }}>
-            {formatDateLong(session.date)}
+            {formatDateLong(dateLabel)}
+            {session.type === 'program' && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: 'var(--green)' }}>· programme</span>}
           </div>
         </div>
         <div style={{ fontSize: 12, fontWeight: 700, background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px', flexShrink: 0 }}>
-          ✓ {exosDone.length} exercice{exosDone.length !== 1 ? 's' : ''}
+          ✓ {session.exosDone.length} exercice{session.exosDone.length !== 1 ? 's' : ''}
         </div>
       </div>
 
@@ -234,8 +278,8 @@ function SessionCard({ session }) {
 
       {/* Exercices réalisés */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {exosDone.map(e => {
-          const log = e.athlete_logs[0]
+        {session.exosDone.map(e => {
+          const log = e.log
           const prescribed = [e.sets && `${e.sets} séries`, e.reps && `${e.reps} reps`, e.kg && `${e.kg} kg`].filter(Boolean).join(' · ')
           const done = [log.sets_done && `${log.sets_done}×`, log.reps_done, log.kg_done && `${log.kg_done} kg`].filter(Boolean).join(' ')
           return (
