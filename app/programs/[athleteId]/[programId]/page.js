@@ -754,7 +754,7 @@ function ExerciseHistoryModal({ athleteId, exerciseName, onClose }) {
 
   useEffect(() => {
     supabase.from('exercise_performance_history')
-      .select('kg_done, reps_done, sets_done, logged_at, program_exercises(name)')
+      .select('kg_done, reps_done, sets_done, note, logged_at, program_exercises(name)')
       .eq('athlete_id', athleteId)
       .order('logged_at', { ascending: false })
       .then(({ data }) => {
@@ -785,18 +785,23 @@ function ExerciseHistoryModal({ athleteId, exerciseName, onClose }) {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {entries.map((e, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-                <div style={{ fontSize: 12, color: 'var(--text3)', minWidth: 90, flexShrink: 0 }}>
-                  {new Date(e.logged_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+              <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text3)', minWidth: 90, flexShrink: 0 }}>
+                    {new Date(e.logged_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </div>
+                  <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                    {e.kg_done != null && `${e.kg_done} kg`}
+                    {(e.sets_done || e.reps_done) && (
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginLeft: e.kg_done != null ? 8 : 0 }}>
+                        {[e.sets_done && `${e.sets_done} séries`, e.reps_done].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                  {e.kg_done} kg
-                  {(e.sets_done || e.reps_done) && (
-                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginLeft: 8 }}>
-                      {[e.sets_done && `${e.sets_done} séries`, e.reps_done].filter(Boolean).join(' · ')}
-                    </span>
-                  )}
-                </div>
+                {e.note && (
+                  <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', paddingLeft: 100 }}>« {e.note} »</div>
+                )}
               </div>
             ))}
           </div>

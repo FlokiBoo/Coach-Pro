@@ -155,11 +155,30 @@ function AthleteView({ params }) {
     }
     setValidating(false)
 
+    // Snapshot de l'historique : une entrée par exercice loggé, à chaque validation/mise à jour
+    const allSessions = programs.flatMap(p => p.sessions)
+    const sess = allSessions.find(s => s.id === sessId)
+    if (sess) {
+      const exos = sess.exercises.filter(e => e.name)
+      const historyRows = exos
+        .map(e => ({ exo: e, log: exerciseLogs[e.id] }))
+        .filter(({ log }) => log?.kg_done || log?.reps_done || log?.sets_done || log?.note)
+        .map(({ exo, log }) => ({
+          athlete_id: athlete.id,
+          program_exercise_id: exo.id,
+          kg_done: log.kg_done ? parseFloat(log.kg_done) : null,
+          reps_done: log.reps_done || null,
+          sets_done: log.sets_done || null,
+          note: log.note || null,
+        }))
+      if (historyRows.length) {
+        supabase.from('exercise_performance_history').insert(historyRows)
+      }
+    }
+
     if (isUpdate) return
 
     // Popup de félicitation avec tonnage + muscles
-    const allSessions = programs.flatMap(p => p.sessions)
-    const sess = allSessions.find(s => s.id === sessId)
     if (sess) {
       const exos = sess.exercises.filter(e => e.name)
       let tonnage = 0
@@ -205,20 +224,6 @@ function AthleteView({ params }) {
       { athlete_id: athlete.id, program_exercise_id: exerciseId, ...updated },
       { onConflict: 'athlete_id,program_exercise_id' }
     )
-    // Enregistre un snapshot dans l'historique quand kg_done change
-    if (field === 'kg_done' && value) {
-      const prevKg = parseFloat(existing.kg_done)
-      const newKg = parseFloat(value)
-      if (!isNaN(newKg) && newKg !== prevKg) {
-        supabase.from('exercise_performance_history').insert({
-          athlete_id: athlete.id,
-          program_exercise_id: exerciseId,
-          kg_done: newKg,
-          reps_done: updated.reps_done || null,
-          sets_done: updated.sets_done || null,
-        })
-      }
-    }
   }
 
   const createFreeSession = async (exos) => {
@@ -736,7 +741,7 @@ function ExerciseHistoryButton({ athleteId, exerciseName }) {
     setOpen(true)
     setEntries(null)
     const { data } = await supabase.from('exercise_performance_history')
-      .select('kg_done, reps_done, sets_done, logged_at, program_exercises(name)')
+      .select('kg_done, reps_done, sets_done, note, logged_at, program_exercises(name)')
       .eq('athlete_id', athleteId)
       .order('logged_at', { ascending: false })
     setEntries((data || []).filter(l => l.program_exercises?.name === exerciseName))
@@ -768,18 +773,23 @@ function ExerciseHistoryButton({ athleteId, exerciseName }) {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {entries.map((e, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-                    <div style={{ fontSize: 12, color: 'var(--text3)', minWidth: 90, flexShrink: 0 }}>
-                      {new Date(e.logged_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ fontSize: 12, color: 'var(--text3)', minWidth: 90, flexShrink: 0 }}>
+                        {new Date(e.logged_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </div>
+                      <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                        {e.kg_done != null && `${e.kg_done} kg`}
+                        {(e.sets_done || e.reps_done) && (
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginLeft: e.kg_done != null ? 8 : 0 }}>
+                            {[e.sets_done && `${e.sets_done} séries`, e.reps_done].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
-                      {e.kg_done} kg
-                      {(e.sets_done || e.reps_done) && (
-                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginLeft: 8 }}>
-                          {[e.sets_done && `${e.sets_done} séries`, e.reps_done].filter(Boolean).join(' · ')}
-                        </span>
-                      )}
-                    </div>
+                    {e.note && (
+                      <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', paddingLeft: 100 }}>« {e.note} »</div>
+                    )}
                   </div>
                 ))}
               </div>
