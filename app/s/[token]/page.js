@@ -185,13 +185,14 @@ function AthleteView({ params }) {
     const existing = exerciseLogs[exerciseId] || {}
     const updated = { ...existing, [field]: value }
     setExerciseLogs(prev => ({ ...prev, [exerciseId]: updated }))
-    await supabase.from('program_exercise_logs').upsert(
+    const { error: logErr } = await supabase.from('program_exercise_logs').upsert(
       { athlete_id: athlete.id, program_exercise_id: exerciseId, ...updated },
       { onConflict: 'athlete_id,program_exercise_id' }
     )
+    if (logErr) { alert('Erreur log : ' + logErr.message); return }
     // Snapshot dans l'historique à chaque champ enregistré (charge, reps, séries ou note)
     if (updated.kg_done || updated.reps_done || updated.sets_done || updated.note) {
-      supabase.from('exercise_performance_history').insert({
+      const { error: histErr } = await supabase.from('exercise_performance_history').insert({
         athlete_id: athlete.id,
         program_exercise_id: exerciseId,
         kg_done: updated.kg_done ? parseFloat(updated.kg_done) : null,
@@ -199,6 +200,7 @@ function AthleteView({ params }) {
         sets_done: updated.sets_done || null,
         note: updated.note || null,
       })
+      if (histErr) alert('Erreur historique : ' + histErr.message)
     }
   }
 
