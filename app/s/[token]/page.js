@@ -155,30 +155,11 @@ function AthleteView({ params }) {
     }
     setValidating(false)
 
-    // Snapshot de l'historique : une entrée par exercice loggé, à chaque validation/mise à jour
-    const allSessions = programs.flatMap(p => p.sessions)
-    const sess = allSessions.find(s => s.id === sessId)
-    if (sess) {
-      const exos = sess.exercises.filter(e => e.name)
-      const historyRows = exos
-        .map(e => ({ exo: e, log: exerciseLogs[e.id] }))
-        .filter(({ log }) => log?.kg_done || log?.reps_done || log?.sets_done || log?.note)
-        .map(({ exo, log }) => ({
-          athlete_id: athlete.id,
-          program_exercise_id: exo.id,
-          kg_done: log.kg_done ? parseFloat(log.kg_done) : null,
-          reps_done: log.reps_done || null,
-          sets_done: log.sets_done || null,
-          note: log.note || null,
-        }))
-      if (historyRows.length) {
-        supabase.from('exercise_performance_history').insert(historyRows)
-      }
-    }
-
     if (isUpdate) return
 
     // Popup de félicitation avec tonnage + muscles
+    const allSessions = programs.flatMap(p => p.sessions)
+    const sess = allSessions.find(s => s.id === sessId)
     if (sess) {
       const exos = sess.exercises.filter(e => e.name)
       let tonnage = 0
@@ -208,6 +189,17 @@ function AthleteView({ params }) {
       { athlete_id: athlete.id, program_exercise_id: exerciseId, ...updated },
       { onConflict: 'athlete_id,program_exercise_id' }
     )
+    // Snapshot dans l'historique à chaque champ enregistré (charge, reps, séries ou note)
+    if (updated.kg_done || updated.reps_done || updated.sets_done || updated.note) {
+      supabase.from('exercise_performance_history').insert({
+        athlete_id: athlete.id,
+        program_exercise_id: exerciseId,
+        kg_done: updated.kg_done ? parseFloat(updated.kg_done) : null,
+        reps_done: updated.reps_done || null,
+        sets_done: updated.sets_done || null,
+        note: updated.note || null,
+      })
+    }
   }
 
   const createFreeSession = async (exos) => {
