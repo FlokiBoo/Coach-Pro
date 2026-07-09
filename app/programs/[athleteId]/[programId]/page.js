@@ -143,6 +143,9 @@ function ProgramEditorPage({ params }) {
   const [loading, setLoading] = useState(true)
   const [layoutCols, setLayoutCols] = useState(1)
   const [historyExo, setHistoryExo] = useState(null)
+  const [selectedSessions, setSelectedSessions] = useState(new Set())
+  const [duplicatingSelected, setDuplicatingSelected] = useState(false)
+  const [titleSaving, setTitleSaving] = useState(false)
 
   const isTemplate = athleteId === 'templates'
 
@@ -320,13 +323,13 @@ function ProgramEditorPage({ params }) {
     }
   }
 
-  const duplicateSession = async (id) => {
+  const duplicateSession = async (id, forcedIdx = null, opts = {}) => {
     const s = sessions.find(sess => sess.id === id)
     if (!s) return
 
     const { data: newSession, error: sessErr } = await supabase.from('program_sessions')
       .insert({
-        program_id: programId, order_index: sessions.length,
+        program_id: programId, order_index: forcedIdx !== null ? forcedIdx : sessions.length,
         title: s.title ? `${s.title} (copie)` : '',
         activation: s.activation || null, coach_notes: s.coach_notes || null,
         activation_videos: s.activation_videos || [],
@@ -359,7 +362,36 @@ function ProgramEditorPage({ params }) {
         : [emptyExo(0)],
     }
     setSessions(prev => [...prev, newS])
-    setOpenId(newSession.id)
+    if (!opts.skipOpen) setOpenId(newSession.id)
+  }
+
+  const toggleSessionSelected = (id) => {
+    setSelectedSessions(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const duplicateSelectedSessions = async () => {
+    const toDuplicate = sessions.filter(s => selectedSessions.has(s.id))
+    if (!toDuplicate.length) return
+    setDuplicatingSelected(true)
+    let nextIdx = sessions.length
+    for (const s of toDuplicate) {
+      await duplicateSession(s.id, nextIdx, { skipOpen: true })
+      nextIdx++
+    }
+    setSelectedSessions(new Set())
+    setDuplicatingSelected(false)
+  }
+
+  const saveTitle = async () => {
+    if (!program) return
+    setTitleSaving(true)
+    await supabase.from('programs').update({ title: program.title }).eq('id', programId)
+    setTitleSaving(false)
   }
 
   const deleteSession = async (id) => {
@@ -429,9 +461,12 @@ function ProgramEditorPage({ params }) {
               <input
                 value={program?.title || ''}
                 onChange={e => setProgram(p => ({ ...p, title: e.target.value }))}
+                onBlur={saveTitle}
+                onKeyDown={e => e.key === 'Enter' && e.target.blur()}
                 style={{ fontWeight: 800, fontSize: 16, border: 'none', outline: 'none', background: 'transparent', width: '100%', color: 'var(--text)' }}
                 placeholder="Nom du programme"
               />
+              {titleSaving && <div style={{ fontSize: 10, color: 'var(--text3)' }}>Enregistrement…</div>}
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>
                 {isTemplate ? '📋 Modèle' : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
               </div>
@@ -456,6 +491,27 @@ function ProgramEditorPage({ params }) {
           </div>
         </div>
 
+        {selectedSessions.size > 0 && (
+          <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--green-light)' }}>
+            <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
+              {selectedSessions.size} sélectionnée(s)
+            </span>
+            <button
+              onClick={duplicateSelectedSessions}
+              disabled={duplicatingSelected}
+              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >
+              {duplicatingSelected ? '…' : '⧉ Dupliquer'}
+            </button>
+            <button
+              onClick={() => setSelectedSessions(new Set())}
+              style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}
+            >
+              Annuler
+            </button>
+          </div>
+        )}
+
         <div style={{ padding: 16, display: layoutCols > 1 ? 'grid' : 'flex', flexDirection: layoutCols > 1 ? undefined : 'column', gridTemplateColumns: layoutCols > 1 ? `repeat(${layoutCols}, minmax(280px, 1fr))` : undefined, overflowX: layoutCols > 1 ? 'auto' : undefined, gap: 8, alignItems: 'start' }}>
 
           {sessions.map((s, idx) => {
@@ -467,6 +523,13 @@ function ProgramEditorPage({ params }) {
                 {/* En-tête séance */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: isOpen ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
                   onClick={() => setOpenId(isOpen ? null : s.id)}>
+                  <input
+                    type="checkbox"
+                    checked={selectedSessions.has(s.id)}
+                    onChange={() => toggleSessionSelected(s.id)}
+                    onClick={e => e.stopPropagation()}
+                    style={{ accentColor: 'var(--green)', width: 15, height: 15, flexShrink: 0, cursor: 'pointer' }}
+                  />
                   <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
                     {idx + 1}
                   </div>
