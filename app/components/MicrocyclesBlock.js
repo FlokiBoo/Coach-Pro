@@ -16,8 +16,15 @@ export default function MicrocyclesBlock({ athleteId }) {
   const [renamingId, setRenamingId] = useState(null)
   const [renameVal, setRenameVal] = useState('')
   const [creatingFree, setCreatingFree] = useState(false)
+  const [activityTypes, setActivityTypes] = useState([])
+  const [newActivityType, setNewActivityType] = useState('Musculation 🏋️')
 
   useEffect(() => { load() }, [athleteId])
+
+  useEffect(() => {
+    supabase.from('activity_definitions').select('label').order('created_at')
+      .then(({ data }) => setActivityTypes((data || []).map(d => d.label)))
+  }, [])
 
   async function load() {
     const { data } = await supabase
@@ -50,7 +57,7 @@ export default function MicrocyclesBlock({ athleteId }) {
     if (!newName.trim()) return
     setSaving(true)
     const { data } = await supabase.from('programs')
-      .insert({ title: newName.trim(), athlete_id: athleteId })
+      .insert({ title: newName.trim(), athlete_id: athleteId, activity_type: newActivityType })
       .select().single()
     if (data) {
       const prog = { ...data, sessions: [] }
@@ -58,6 +65,7 @@ export default function MicrocyclesBlock({ athleteId }) {
       setExpandedId(data.id)
     }
     setNewName('')
+    setNewActivityType('Musculation 🏋️')
     setCreating(false)
     setSaving(false)
   }
@@ -142,20 +150,30 @@ export default function MicrocyclesBlock({ athleteId }) {
 
       {/* Formulaire création */}
       {creating && (
-        <div style={{ padding: 12, display: 'flex', gap: 8, borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
+        <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8, borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
           <input
             autoFocus
             placeholder="Nom du micro-cycle…"
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') createProgram(); if (e.key === 'Escape') setCreating(false) }}
-            style={{ flex: 1, padding: '9px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+            style={{ padding: '9px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
           />
-          <button onClick={() => setCreating(false)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '9px 10px', fontSize: 14, cursor: 'pointer', color: 'var(--text3)' }}>✕</button>
-          <button onClick={createProgram} disabled={saving || !newName.trim()}
-            style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-            {saving ? '…' : 'OK'}
-          </button>
+          <select
+            value={newActivityType}
+            onChange={e => setNewActivityType(e.target.value)}
+            style={{ padding: '9px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+          >
+            {!activityTypes.includes('Musculation 🏋️') && <option value="Musculation 🏋️">Musculation 🏋️</option>}
+            {activityTypes.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => setCreating(false)} style={{ flex: 1, background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '9px 10px', fontSize: 14, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
+            <button onClick={createProgram} disabled={saving || !newName.trim()}
+              style={{ flex: 2, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              {saving ? '…' : 'Créer'}
+            </button>
+          </div>
         </div>
       )}
 

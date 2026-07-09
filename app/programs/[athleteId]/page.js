@@ -27,6 +27,13 @@ export default function ProgramsPage({ params }) {
   const [selectedIds, setSelectedIds] = useState([])
   const [assigning, setAssigning] = useState(false)
   const [assignDone, setAssignDone] = useState(false)
+  const [activityTypes, setActivityTypes] = useState([])
+  const [newActivityType, setNewActivityType] = useState('Musculation 🏋️')
+
+  useEffect(() => {
+    supabase.from('activity_definitions').select('label').order('created_at')
+      .then(({ data }) => setActivityTypes((data || []).map(d => d.label)))
+  }, [])
 
   useEffect(() => {
     async function load() {
@@ -71,7 +78,7 @@ export default function ProgramsPage({ params }) {
     let firstId = null, firstProgId = null
     for (const aid of newAthleteIds) {
       const { data, error } = await supabase.from('programs')
-        .insert({ athlete_id: aid, title: newTitle.trim(), coach_id: coachId })
+        .insert({ athlete_id: aid, title: newTitle.trim(), coach_id: coachId, activity_type: newActivityType })
         .select().single()
       if (data) {
         await supabase.from('program_sessions')
@@ -186,6 +193,17 @@ export default function ProgramsPage({ params }) {
                 onChange={e => setNewTitle(e.target.value)}
                 style={{ padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
               />
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Activité</div>
+                <select
+                  value={newActivityType}
+                  onChange={e => setNewActivityType(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
+                >
+                  {!activityTypes.includes('Musculation 🏋️') && <option value="Musculation 🏋️">Musculation 🏋️</option>}
+                  {activityTypes.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Assigner à</div>

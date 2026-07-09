@@ -273,18 +273,22 @@ export default function AthletePage({ params }) {
             </div>
 
             <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {/* Liste des objectifs */}
+              {/* Liste des objectifs, 2 colonnes */}
               {objectives.length === 0 && (
                 <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun objectif défini</div>
               )}
-              {objectives.map(obj => (
-                <div key={obj.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, background: 'var(--bg2)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-                  <span style={{ color: 'var(--green)', fontSize: 14, marginTop: 1, flexShrink: 0 }}>▸</span>
-                  <span style={{ flex: 1, fontSize: 14, color: 'var(--text)', lineHeight: 1.4 }}>{obj.text}</span>
-                  <button onClick={() => removeObjective(obj.id)}
-                    style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 16, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>×</button>
+              {objectives.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {objectives.map(obj => (
+                    <div key={obj.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: 'var(--bg2)', borderRadius: 'var(--r)', padding: '10px 12px', minWidth: 0 }}>
+                      <span style={{ color: 'var(--green)', fontSize: 14, marginTop: 1, flexShrink: 0 }}>▸</span>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: 'var(--text)', lineHeight: 1.4, wordBreak: 'break-word' }}>{obj.text}</span>
+                      <button onClick={() => removeObjective(obj.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 16, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>×</button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
 
               {/* Champ ajout */}
               <div style={{ display: 'flex', gap: 8, marginTop: objectives.length > 0 ? 4 : 0 }}>

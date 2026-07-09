@@ -56,7 +56,7 @@ async function fetchStats(athleteId, start, end) {
       .gte('date', start)
       .lte('date', end),
     supabase.from('program_completions')
-      .select('program_session_id, duration_minutes')
+      .select('program_session_id, duration_minutes, program_sessions(program_id, programs(activity_type))')
       .eq('athlete_id', athleteId)
       .gte('completed_at', start + 'T00:00:00')
       .lte('completed_at', end + 'T23:59:59'),
@@ -68,9 +68,13 @@ async function fetchStats(athleteId, start, end) {
     if (l.km) kmByLabel[key] = (kmByLabel[key] || 0) + parseFloat(l.km)
     if (l.duration_minutes) durByLabel[key] = (durByLabel[key] || 0) + parseInt(l.duration_minutes)
   })
+  ;(comps || []).forEach(c => {
+    if (!c.duration_minutes) return
+    const key = c.program_sessions?.programs?.activity_type || 'Musculation 🏋️'
+    durByLabel[key] = (durByLabel[key] || 0) + parseInt(c.duration_minutes)
+  })
   const totalKm = Object.values(kmByLabel).reduce((s, v) => s + v, 0)
   const totalCardioMin = Object.values(durByLabel).reduce((s, v) => s + v, 0)
-  const gymMin = (comps || []).reduce((s, c) => s + (c.duration_minutes || 0), 0)
 
   let tonnage = 0
   const sessionIds = (comps || []).map(c => c.program_session_id).filter(Boolean)
@@ -100,7 +104,7 @@ async function fetchStats(athleteId, start, end) {
     }
   }
 
-  return { kmByLabel, durByLabel, totalKm, totalCardioMin, gymMin, tonnage }
+  return { kmByLabel, durByLabel, totalKm, totalCardioMin, tonnage }
 }
 
 export default function WeeklyStatsBlock({ athleteId }) {
@@ -127,8 +131,8 @@ export default function WeeklyStatsBlock({ athleteId }) {
     return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
   })()
 
-  const { kmByLabel = {}, durByLabel = {}, totalKm = 0, totalCardioMin = 0, gymMin = 0, tonnage = 0 } = stats || {}
-  const totalMin = totalCardioMin + gymMin
+  const { kmByLabel = {}, durByLabel = {}, totalKm = 0, totalCardioMin = 0, tonnage = 0 } = stats || {}
+  const totalMin = totalCardioMin
   const hasAny = tonnage > 0 || totalKm > 0 || totalMin > 0
 
   const bigStats = [
@@ -138,7 +142,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
   ].filter(Boolean)
 
   const activityLabels = [...new Set([...Object.keys(kmByLabel), ...Object.keys(durByLabel)])]
-  const hasBreakdown = activityLabels.length > 0 || gymMin > 0
+  const hasBreakdown = activityLabels.length > 0
 
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
@@ -216,13 +220,6 @@ export default function WeeklyStatsBlock({ athleteId }) {
                   </div>
                 </div>
               ))}
-              {gymMin > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 18, width: 24, textAlign: 'center', flexShrink: 0 }}>🏋️</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text2)', flex: 1 }}>Musculation</span>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text3)' }}>{formatDur(gymMin)}</span>
-                </div>
-              )}
             </div>
           )}
         </>
