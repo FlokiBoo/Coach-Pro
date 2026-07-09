@@ -58,8 +58,8 @@ async function fetchStats(athleteId, start, end) {
     supabase.from('program_completions')
       .select('program_session_id, duration_minutes')
       .eq('athlete_id', athleteId)
-      .gte('created_at', start + 'T00:00:00')
-      .lte('created_at', end + 'T23:59:59'),
+      .gte('completed_at', start + 'T00:00:00')
+      .lte('completed_at', end + 'T23:59:59'),
   ])
 
   const kmByLabel = {}, durByLabel = {}

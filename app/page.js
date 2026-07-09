@@ -50,8 +50,8 @@ export default function Home() {
           .limit(40),
         supabase
           .from('program_completions')
-          .select('id, created_at, athlete_id, athletes(id, name), program_sessions(id, title, program_id, program_exercises(id, name, sets, reps, kg))')
-          .order('created_at', { ascending: false })
+          .select('id, completed_at, athlete_id, athletes(id, name), program_sessions(id, title, program_id, program_exercises(id, name, sets, reps, kg))')
+          .order('completed_at', { ascending: false })
           .limit(40)
       ])
       const athList = aths || []
@@ -104,8 +104,8 @@ export default function Home() {
         .map(c => ({
           id: `prog-${c.id}`,
           type: 'program',
-          date: c.created_at,
-          sortKey: c.created_at,
+          date: c.completed_at,
+          sortKey: c.completed_at,
           athleteId: c.athlete_id,
           athleteName: c.athletes?.name || '—',
           title: c.program_sessions?.title,
