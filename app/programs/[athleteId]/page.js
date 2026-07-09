@@ -50,6 +50,20 @@ export default function ProgramsPage({ params }) {
     setNewAthleteIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
 
+  const createFreeSession = async () => {
+    setCreating(true)
+    const coachId = await getCoachId()
+    const dateLabel = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+    const { data: prog, error } = await supabase.from('programs')
+      .insert({ athlete_id: athleteId, title: `Séance libre — ${dateLabel}`, coach_id: coachId })
+      .select().single()
+    if (!prog) { alert('Erreur : ' + (error?.message || 'impossible de créer la séance')); setCreating(false); return }
+    const { data: sess } = await supabase.from('program_sessions')
+      .insert({ program_id: prog.id, order_index: 0, title: 'Séance libre' })
+      .select().single()
+    router.push(`/programs/${athleteId}/${prog.id}${sess ? `?open=${sess.id}` : ''}`)
+  }
+
   const createProgram = async () => {
     if (!newTitle.trim() || newAthleteIds.length === 0) return
     setCreating(true)
@@ -152,6 +166,9 @@ export default function ProgramsPage({ params }) {
               <div style={{ fontWeight: 800, fontSize: 17 }}>{athlete?.name}</div>
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>Programmes d'entraînement</div>
             </div>
+            <button onClick={createFreeSession} disabled={creating} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              ⚡ Séance libre
+            </button>
             <button onClick={() => setShowForm(v => !v)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               + Programme
             </button>
