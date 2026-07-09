@@ -161,11 +161,19 @@ function ProgramEditorPage({ params }) {
       ])
       setAthlete(a)
       setProgram(prog)
+
+      const exerciseNames = [...new Set((sess || []).flatMap(s => (s.program_exercises || []).map(e => e.name).filter(Boolean)))]
+      let movieMap = {}
+      if (exerciseNames.length) {
+        const { data: movs } = await supabase.from('movements').select('name, youtube_url').in('name', exerciseNames)
+        ;(movs || []).forEach(m => { movieMap[m.name] = m.youtube_url })
+      }
+
       const loaded = (sess || []).map(s => ({
         ...s,
         exercises: [...(s.program_exercises || [])]
           .sort((a, b) => a.order_index - b.order_index)
-          .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', rest: e.rest ?? '', note: e.note ?? '', video_url: e.video_url || '', superset_group: e.superset_group || null })),
+          .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', rest: e.rest ?? '', note: e.note ?? '', video_url: (movieMap[e.name] ?? e.video_url) || '', superset_group: e.superset_group || null })),
         activation_videos: s.activation_videos || [],
       }))
       setSessions(loaded)

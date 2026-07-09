@@ -104,6 +104,15 @@ function AthleteView({ params }) {
       ;(comps || []).forEach(c => { feedbackMap[c.program_session_id] = c })
       setCompletionFeedback(feedbackMap)
 
+      const exerciseNames = [...new Set(
+        (progs || []).flatMap(p => (p.program_sessions || []).flatMap(s => (s.program_exercises || []).map(e => e.name).filter(Boolean)))
+      )]
+      let movieMap = {}
+      if (exerciseNames.length) {
+        const { data: movs } = await supabase.from('movements').select('name, youtube_url').in('name', exerciseNames)
+        ;(movs || []).forEach(m => { movieMap[m.name] = m.youtube_url })
+      }
+
       const progList = (progs || []).map(p => ({
         ...p,
         sessions: [...(p.program_sessions || [])]
@@ -111,6 +120,7 @@ function AthleteView({ params }) {
           .map(s => ({
             ...s,
             exercises: [...(s.program_exercises || [])].sort((a, b) => a.order_index - b.order_index)
+              .map(e => ({ ...e, video_url: movieMap[e.name] ?? e.video_url }))
           }))
       }))
       setPrograms(progList)
