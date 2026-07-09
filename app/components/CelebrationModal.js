@@ -1,12 +1,14 @@
 'use client'
 
 import { useState } from 'react'
+import { FRONT_MUSCLES, BACK_MUSCLES, FRONT_VIEWBOX, BACK_VIEWBOX } from '@/app/data/bodyMap'
 
 const MUSCLE_MAP = {
   'pectoraux':       ['pec', 'poitrine', 'chest', 'pectoral'],
   'deltoïdes':       ['delt', 'épaule', 'epaule', 'shoulder'],
   'biceps':          ['bicep', 'bras'],
   'abdominaux':      ['abdo', 'abs', 'core', 'gainage', 'ventre'],
+  'obliques':        ['oblique', 'gainage latéral'],
   'quadriceps':      ['quad', 'quadricep', 'cuisse'],
   'adducteurs':      ['adducteur'],
   'trapèzes':        ['trap', 'trapèze', 'trapeze'],
@@ -58,99 +60,30 @@ export function parseMusclesFromText(text) {
   return [...active]
 }
 
-const NEUTRAL = '#d1d5db'
-const ACTIVE  = '#ef4444'
-const SKIN    = '#e5e7eb'
-const STROKE  = '#9ca3af'
-const SW      = '0.7'
+const NEUTRAL = '#E8C9AE'
+const ACTIVE  = '#FF5A36'
+const STROKE  = '#C9A47E'
 
+// Schéma anatomique adapté de "body-muscles" (Ivan Vulović, Apache 2.0)
+// https://github.com/vulovix/body-muscles
 function BodySVG({ active, view }) {
-  const c = (id) => active.includes(id) ? ACTIVE : NEUTRAL
   const isFront = view === 'front'
+  const list = isFront ? FRONT_MUSCLES : BACK_MUSCLES
+  const viewBox = isFront ? FRONT_VIEWBOX : BACK_VIEWBOX
 
   return (
-    <svg viewBox="0 0 100 268" style={{ width: 115, height: 'auto' }}>
-      {/* ── Silhouette ── */}
-      {/* Head */}
-      <ellipse cx="50" cy="19" rx="14" ry="17" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Neck */}
-      <rect x="44" y="34" width="12" height="10" rx="3" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Torso */}
-      <path d="M29,43 L15,51 L11,82 L13,113 L87,113 L89,82 L85,51 L71,43 Z" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Left upper arm */}
-      <ellipse cx="9"  cy="77" rx="7" ry="23" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Right upper arm */}
-      <ellipse cx="91" cy="77" rx="7" ry="23" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Left forearm */}
-      <ellipse cx="7"  cy="122" rx="6" ry="18" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Right forearm */}
-      <ellipse cx="93" cy="122" rx="6" ry="18" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Pelvis */}
-      <path d="M13,111 L87,111 L84,138 L74,147 L26,147 L16,138 Z" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Left thigh */}
-      <ellipse cx="35" cy="172" rx="14" ry="27" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Right thigh */}
-      <ellipse cx="65" cy="172" rx="14" ry="27" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Left lower leg */}
-      <ellipse cx="34" cy="222" rx="10" ry="22" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Right lower leg */}
-      <ellipse cx="66" cy="222" rx="10" ry="22" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      {/* Feet */}
-      <ellipse cx="31" cy="254" rx="13" ry="6" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-      <ellipse cx="69" cy="254" rx="13" ry="6" fill={SKIN} stroke={STROKE} strokeWidth={SW} />
-
-      {/* ── Muscles ── */}
-      {isFront ? (
-        <>
-          {/* Pectoraux */}
-          <ellipse cx="37" cy="63" rx="11" ry="12" fill={c('pectoraux')} opacity="0.9" />
-          <ellipse cx="63" cy="63" rx="11" ry="12" fill={c('pectoraux')} opacity="0.9" />
-          {/* Deltoïdes avant */}
-          <ellipse cx="16" cy="57" rx="8"  ry="9"  fill={c('deltoïdes')} opacity="0.9" />
-          <ellipse cx="84" cy="57" rx="8"  ry="9"  fill={c('deltoïdes')} opacity="0.9" />
-          {/* Biceps */}
-          <ellipse cx="9"  cy="77" rx="5.5" ry="15" fill={c('biceps')} opacity="0.9" />
-          <ellipse cx="91" cy="77" rx="5.5" ry="15" fill={c('biceps')} opacity="0.9" />
-          {/* Abdominaux (6 blocs) */}
-          {[78, 90, 102].map(y => (
-            <>
-              <ellipse key={`al${y}`} cx="43" cy={y} rx="6" ry="5" fill={c('abdominaux')} opacity="0.9" />
-              <ellipse key={`ar${y}`} cx="57" cy={y} rx="6" ry="5" fill={c('abdominaux')} opacity="0.9" />
-            </>
-          ))}
-          {/* Quadriceps */}
-          <ellipse cx="35" cy="172" rx="11" ry="23" fill={c('quadriceps')} opacity="0.9" />
-          <ellipse cx="65" cy="172" rx="11" ry="23" fill={c('quadriceps')} opacity="0.9" />
-          {/* Mollets face avant */}
-          <ellipse cx="33" cy="222" rx="7"  ry="15" fill={c('mollets')} opacity="0.9" />
-          <ellipse cx="67" cy="222" rx="7"  ry="15" fill={c('mollets')} opacity="0.9" />
-        </>
-      ) : (
-        <>
-          {/* Trapèzes */}
-          <path d="M44,36 L56,36 L73,46 L68,59 L50,53 L32,59 L27,46 Z" fill={c('trapèzes')} opacity="0.9" />
-          {/* Grand dorsal */}
-          <ellipse cx="24" cy="83" rx="11" ry="25" fill={c('grand dorsal')} opacity="0.9" />
-          <ellipse cx="76" cy="83" rx="11" ry="25" fill={c('grand dorsal')} opacity="0.9" />
-          {/* Triceps */}
-          <ellipse cx="9"  cy="77" rx="5.5" ry="15" fill={c('triceps')} opacity="0.9" />
-          <ellipse cx="91" cy="77" rx="5.5" ry="15" fill={c('triceps')} opacity="0.9" />
-          {/* Lombaires */}
-          <ellipse cx="50" cy="109" rx="18" ry="9" fill={c('lombaires')} opacity="0.9" />
-          {/* Fessiers */}
-          <ellipse cx="32" cy="130" rx="15" ry="16" fill={c('fessiers')} opacity="0.9" />
-          <ellipse cx="68" cy="130" rx="15" ry="16" fill={c('fessiers')} opacity="0.9" />
-          {/* Ischio-jambiers */}
-          <ellipse cx="35" cy="174" rx="11" ry="23" fill={c('ischio-jambiers')} opacity="0.9" />
-          <ellipse cx="65" cy="174" rx="11" ry="23" fill={c('ischio-jambiers')} opacity="0.9" />
-          {/* Mollets */}
-          <ellipse cx="33" cy="222" rx="8"  ry="17" fill={c('mollets')} opacity="0.9" />
-          <ellipse cx="67" cy="222" rx="8"  ry="17" fill={c('mollets')} opacity="0.9" />
-        </>
-      )}
-
-      {/* Label */}
-      <text x="50" y="265" textAnchor="middle" fontSize="7" fill={STROKE} fontWeight="600" fontFamily="sans-serif">
+    <svg viewBox={viewBox} style={{ width: 130, height: 'auto' }}>
+      {list.map(m => (
+        <path
+          key={m.id}
+          d={m.path}
+          fill={m.group && active.includes(m.group) ? ACTIVE : NEUTRAL}
+          stroke={STROKE}
+          strokeWidth="0.15"
+          strokeLinejoin="round"
+        />
+      ))}
+      <text x={isFront ? 17.5 : 54.5} y="91.5" textAnchor="middle" fontSize="2.4" fill={STROKE} fontWeight="700" fontFamily="sans-serif" letterSpacing="0.3">
         {isFront ? 'AVANT' : 'ARRIÈRE'}
       </text>
     </svg>
