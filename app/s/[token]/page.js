@@ -77,6 +77,7 @@ function AthleteView({ params }) {
   const [exerciseLogs, setExerciseLogs] = useState({})
   const [viewDate, setViewDate] = useState(today())
   const [celebration, setCelebration] = useState(null)
+  const [showFreeForm, setShowFreeForm] = useState(false)
 
   useEffect(() => {
     supabase.from('athletes').select('*').eq('token', token).single().then(({ data }) => setAthlete(data))
@@ -210,6 +211,39 @@ function AthleteView({ params }) {
     }
   }
 
+  const createFreeSession = async (exos) => {
+    if (!athlete) return
+    const dateLabel = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+    const { data: prog, error } = await supabase.from('programs')
+      .insert({ athlete_id: athlete.id, coach_id: athlete.coach_id, title: `Séance libre — ${dateLabel}` })
+      .select().single()
+    if (!prog) { alert('Erreur : ' + (error?.message || 'impossible de créer la séance')); return }
+    const { data: sess } = await supabase.from('program_sessions')
+      .insert({ program_id: prog.id, order_index: 0, title: 'Séance libre' })
+      .select().single()
+    if (!sess) return
+
+    const toInsert = exos.filter(e => e.name.trim()).map((e, i) => ({
+      program_session_id: sess.id, order_index: i, name: e.name.trim(),
+      sets: e.sets ? parseInt(e.sets) : null,
+      reps: e.reps || null,
+      kg: e.kg !== '' && !isNaN(parseFloat(e.kg)) ? parseFloat(e.kg) : null,
+    }))
+    let insertedExos = []
+    if (toInsert.length) {
+      const { data: inserted } = await supabase.from('program_exercises').insert(toInsert).select()
+      insertedExos = inserted || []
+    }
+
+    const newProg = {
+      ...prog,
+      sessions: [{ ...sess, exercises: insertedExos.sort((a, b) => a.order_index - b.order_index) }],
+    }
+    setPrograms(prev => [newProg, ...prev])
+    setOpenSessionId(sess.id)
+    setShowFreeForm(false)
+  }
+
   function getSupabaseConfig() {
     try {
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
@@ -267,6 +301,12 @@ function AthleteView({ params }) {
 
         <WellnessBlock athleteId={athlete.id} date={viewDate} mode="athlete" />
         <ActivityBlock athleteId={athlete.id} date={viewDate} />
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button onClick={() => setShowFreeForm(true)} style={{ background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            ⚡ Séance libre
+          </button>
+        </div>
 
         {programs.length === 0 && (
           <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
@@ -365,6 +405,10 @@ function AthleteView({ params }) {
           muscles={celebration.muscles}
           onClose={() => setCelebration(null)}
         />
+      )}
+
+      {showFreeForm && (
+        <FreeSessionModal onClose={() => setShowFreeForm(false)} onCreate={createFreeSession} />
       )}
     </div>
   )
@@ -731,5 +775,106 @@ function ExerciseHistoryButton({ athleteId, exerciseName }) {
         </div>
       )}
     </>
+  )
+}
+
+function emptyFreeExo() {
+  return { _key: Date.now() + Math.random(), name: '', sets: '', reps: '', kg: '' }
+}
+
+function FreeSessionModal({ onClose, onCreate }) {
+  const [exos, setExos] = useState([emptyFreeExo()])
+  const [suggestions, setSuggestions] = useState({})
+  const [saving, setSaving] = useState(false)
+
+  const updateExo = (key, field, value) => {
+    setExos(prev => prev.map(e => e._key === key ? { ...e, [field]: value } : e))
+  }
+
+  const searchMovements = async (key, val) => {
+    if (val.trim().length < 2) { setSuggestions(prev => ({ ...prev, [key]: [] })); return }
+    const { data } = await supabase.from('movements').select('name').ilike('name', `%${val.trim()}%`).limit(6)
+    setSuggestions(prev => ({ ...prev, [key]: (data || []).map(m => m.name) }))
+  }
+
+  const pickSuggestion = (key, name) => {
+    updateExo(key, 'name', name)
+    setSuggestions(prev => ({ ...prev, [key]: [] }))
+  }
+
+  const addExo = () => setExos(prev => [...prev, emptyFreeExo()])
+  const removeExo = (key) => setExos(prev => prev.length > 1 ? prev.filter(e => e._key !== key) : prev)
+
+  const canSave = exos.some(e => e.name.trim())
+
+  const save = async () => {
+    setSaving(true)
+    await onCreate(exos)
+    setSaving(false)
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--bg)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480,
+        maxHeight: '85vh', overflowY: 'auto', padding: 18, display: 'flex', flexDirection: 'column', gap: 12
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontWeight: 800, fontSize: 17, flex: 1 }}>⚡ Séance libre</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+          Ajoute tes exercices. Tape le début d'un nom pour retrouver un mouvement existant, ou entre un nom libre.
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {exos.map((exo, i) => (
+            <div key={exo._key} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <div style={{ position: 'relative', flex: 1 }}>
+                  <input
+                    placeholder="Nom du mouvement"
+                    value={exo.name}
+                    onChange={e => { updateExo(exo._key, 'name', e.target.value); searchMovements(exo._key, e.target.value) }}
+                    onBlur={() => setTimeout(() => setSuggestions(p => ({ ...p, [exo._key]: [] })), 150)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, fontWeight: 600, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+                  />
+                  {suggestions[exo._key]?.length > 0 && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
+                      {suggestions[exo._key].map((sug, si) => (
+                        <button key={si} onMouseDown={() => pickSuggestion(exo._key, sug)}
+                          style={{ display: 'block', width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: si < suggestions[exo._key].length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
+                          {sug}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button onClick={() => removeExo(exo._key)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 18, padding: '0 2px', cursor: 'pointer', flexShrink: 0 }}>×</button>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input placeholder="Séries" value={exo.sets} onChange={e => updateExo(exo._key, 'sets', e.target.value)}
+                  style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+                <input placeholder="Reps" value={exo.reps} onChange={e => updateExo(exo._key, 'reps', e.target.value)}
+                  style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+                <input placeholder="Kg" value={exo.kg} onChange={e => updateExo(exo._key, 'kg', e.target.value)}
+                  style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={addExo} style={{ background: 'none', border: '2px dashed var(--border2)', borderRadius: 'var(--r)', padding: 10, fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
+          + Ajouter un exercice
+        </button>
+
+        <button onClick={save} disabled={!canSave || saving} style={{
+          background: canSave ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
+          borderRadius: 'var(--rl)', padding: 14, fontSize: 15, fontWeight: 700, cursor: canSave ? 'pointer' : 'default'
+        }}>
+          {saving ? 'Création…' : 'Créer la séance'}
+        </button>
+      </div>
+    </div>
   )
 }
