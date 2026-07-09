@@ -78,6 +78,7 @@ function AthleteView({ params }) {
   const [viewDate, setViewDate] = useState(today())
   const [celebration, setCelebration] = useState(null)
   const [showFreeForm, setShowFreeForm] = useState(false)
+  const [completionFeedback, setCompletionFeedback] = useState({})
 
   useEffect(() => {
     supabase.from('athletes').select('*').eq('token', token).single().then(({ data }) => setAthlete(data))
@@ -91,7 +92,7 @@ function AthleteView({ params }) {
           .select('*, program_sessions(*, program_exercises(*))')
           .eq('athlete_id', athlete.id)
           .order('created_at', { ascending: false }),
-        supabase.from('program_completions').select('program_session_id').eq('athlete_id', athlete.id),
+        supabase.from('program_completions').select('program_session_id, pleasure, difficulty, duration_minutes').eq('athlete_id', athlete.id),
         supabase.from('program_exercise_logs').select('*').eq('athlete_id', athlete.id)
       ])
       const logsMap = {}
@@ -99,6 +100,9 @@ function AthleteView({ params }) {
       setExerciseLogs(logsMap)
       const completionSet = new Set((comps || []).map(c => c.program_session_id))
       setCompletions(completionSet)
+      const feedbackMap = {}
+      ;(comps || []).forEach(c => { feedbackMap[c.program_session_id] = c })
+      setCompletionFeedback(feedbackMap)
 
       const progList = (progs || []).map(p => ({
         ...p,
@@ -134,8 +138,9 @@ function AthleteView({ params }) {
     setValidating(false)
   }
 
-  const validate = async (sessId, progSessions, feedback = {}) => {
+  const validate = async (sessId, progSessions, feedback = {}, opts = {}) => {
     if (!athlete) return
+    const isUpdate = !!opts.isUpdate
     setValidating(true)
     await supabase.from('program_completions').upsert(
       { athlete_id: athlete.id, program_session_id: sessId, ...feedback },
@@ -143,9 +148,14 @@ function AthleteView({ params }) {
     )
     const newSet = new Set([...completions, sessId])
     setCompletions(newSet)
-    const next = progSessions.find(s => !newSet.has(s.id))
-    setOpenSessionId(next?.id || null)
+    setCompletionFeedback(prev => ({ ...prev, [sessId]: { program_session_id: sessId, ...feedback } }))
+    if (!isUpdate) {
+      const next = progSessions.find(s => !newSet.has(s.id))
+      setOpenSessionId(next?.id || null)
+    }
     setValidating(false)
+
+    if (isUpdate) return
 
     // Popup de félicitation avec tonnage + muscles
     const allSessions = programs.flatMap(p => p.sessions)
@@ -321,12 +331,11 @@ function AthleteView({ params }) {
           const allDone = done === total && total > 0
           const nextSession = prog.sessions.find(s => !completions.has(s.id))
           const nextIdx = prog.sessions.indexOf(nextSession)
-          const prevSession = nextSession
-            ? prog.sessions[nextIdx - 1] || null
-            : prog.sessions[prog.sessions.length - 1]
-          const prevIdx = prevSession ? prog.sessions.indexOf(prevSession) : -1
+          const pastSessions = prog.sessions
+            .map((s, i) => ({ s, i }))
+            .filter(({ s }) => completions.has(s.id))
+            .reverse()
           const isOpenNext = nextSession && openSessionId === nextSession.id
-          const isOpenPrev = prevSession && openSessionId === prevSession.id
 
           return (
             <div key={prog.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -366,34 +375,38 @@ function AthleteView({ params }) {
                 </div>
               )}
 
-              {/* Séance précédente */}
-              {prevSession && (
-                <div>
-                  <button
-                    onClick={() => setOpenSessionId(isOpenPrev ? null : prevSession.id)}
-                    style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}
-                  >
-                    {isOpenPrev ? '▲' : '▼'} Séance précédente ({prevIdx + 1})
-                  </button>
-                  {isOpenPrev && (
-                    <div style={{ marginTop: 4 }}>
-                      <SessionCard
-                        session={prevSession}
-                        idx={prevIdx}
-                        isOpen={true}
-                        isCompleted={true}
-                        onToggle={() => setOpenSessionId(null)}
-                        onValidate={null}
-                        onUnvalidate={() => unvalidate(prevSession.id, prog.sessions)}
-                        validating={validating}
-                        exerciseLogs={exerciseLogs}
-                        onSaveLog={saveExerciseLog}
-                        athleteId={athlete.id}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* Séances validées : consultables et modifiables */}
+              {pastSessions.map(({ s: pastSession, i: pastIdx }) => {
+                const isOpenPast = openSessionId === pastSession.id
+                return (
+                  <div key={pastSession.id}>
+                    <button
+                      onClick={() => setOpenSessionId(isOpenPast ? null : pastSession.id)}
+                      style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      {isOpenPast ? '▲' : '▼'} {pastSession.title || `Séance ${pastIdx + 1}`} · validée
+                    </button>
+                    {isOpenPast && (
+                      <div style={{ marginTop: 4 }}>
+                        <SessionCard
+                          session={pastSession}
+                          idx={pastIdx}
+                          isOpen={true}
+                          isCompleted={true}
+                          onToggle={() => setOpenSessionId(null)}
+                          onValidate={(fb) => validate(pastSession.id, prog.sessions, fb, { isUpdate: true })}
+                          onUnvalidate={() => unvalidate(pastSession.id, prog.sessions)}
+                          initialFeedback={completionFeedback[pastSession.id]}
+                          validating={validating}
+                          exerciseLogs={exerciseLogs}
+                          onSaveLog={saveExerciseLog}
+                          athleteId={athlete.id}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )
         })}
@@ -420,7 +433,7 @@ const logInputStyle = {
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
 }
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, validating, exerciseLogs = {}, onSaveLog, athleteId }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId }) {
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   return (
@@ -561,8 +574,8 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
             </div>
           ))}
 
-          {!isCompleted && onValidate && (
-            <SessionFeedback onValidate={onValidate} validating={validating} />
+          {onValidate && (
+            <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} />
           )}
           {isCompleted && onUnvalidate && (
             <button onClick={onUnvalidate} disabled={validating}
@@ -597,10 +610,10 @@ function RatingRow({ label, value, onChange }) {
   )
 }
 
-function SessionFeedback({ onValidate, validating }) {
-  const [pleasure, setPleasure] = useState(null)
-  const [difficulty, setDifficulty] = useState(null)
-  const [duration, setDuration] = useState('')
+function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null }) {
+  const [pleasure, setPleasure] = useState(initial?.pleasure ?? null)
+  const [difficulty, setDifficulty] = useState(initial?.difficulty ?? null)
+  const [duration, setDuration] = useState(initial?.duration_minutes ? String(initial.duration_minutes) : '')
 
   const canSubmit = pleasure !== null && difficulty !== null
 
@@ -631,7 +644,7 @@ function SessionFeedback({ onValidate, validating }) {
           cursor: canSubmit ? 'pointer' : 'default', width: '100%',
         }}
       >
-        {validating ? 'Validation…' : canSubmit ? '✓ Valider la séance' : 'Note le plaisir et la difficulté'}
+        {validating ? (isUpdate ? 'Mise à jour…' : 'Validation…') : canSubmit ? (isUpdate ? '✓ Mettre à jour' : '✓ Valider la séance') : 'Note le plaisir et la difficulté'}
       </button>
     </div>
   )
