@@ -18,6 +18,8 @@ export default function MicrocyclesBlock({ athleteId }) {
   const [creatingFree, setCreatingFree] = useState(false)
   const [activityTypes, setActivityTypes] = useState([])
   const [newActivityType, setNewActivityType] = useState('Musculation 🏋️')
+  const [selectedSessions, setSelectedSessions] = useState(new Set())
+  const [duplicating, setDuplicating] = useState(false)
 
   useEffect(() => { load() }, [athleteId])
 
@@ -97,9 +99,9 @@ export default function MicrocyclesBlock({ athleteId }) {
     }
   }
 
-  async function duplicateSession(sess, programId) {
+  async function duplicateSession(sess, programId, forcedIdx = null) {
     const prog = programs.find(p => p.id === programId)
-    const idx = prog?.sessions?.length || 0
+    const idx = forcedIdx !== null ? forcedIdx : (prog?.sessions?.length || 0)
     const { data: newSess } = await supabase.from('program_sessions')
       .insert({ program_id: programId, title: sess.title + ' (copie)', order_index: idx })
       .select().single()
@@ -114,6 +116,30 @@ export default function MicrocyclesBlock({ athleteId }) {
     setPrograms(prev => prev.map(p =>
       p.id === programId ? { ...p, sessions: [...p.sessions, newSess] } : p
     ))
+  }
+
+  async function duplicateSelected(programId) {
+    const prog = programs.find(p => p.id === programId)
+    if (!prog) return
+    const toDuplicate = prog.sessions.filter(s => selectedSessions.has(s.id))
+    if (!toDuplicate.length) return
+    setDuplicating(true)
+    let nextIdx = prog.sessions.length
+    for (const sess of toDuplicate) {
+      await duplicateSession(sess, programId, nextIdx)
+      nextIdx++
+    }
+    setSelectedSessions(new Set())
+    setDuplicating(false)
+  }
+
+  function toggleSessionSelected(id) {
+    setSelectedSessions(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
   async function deleteSession(sessId, programId) {
@@ -219,6 +245,13 @@ export default function MicrocyclesBlock({ athleteId }) {
               <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>
                 {prog.sessions.length} séance{prog.sessions.length !== 1 ? 's' : ''}
               </span>
+              {!isRenaming && (
+                <button
+                  onClick={e => { e.stopPropagation(); setRenamingId(prog.id); setRenameVal(prog.title) }}
+                  title="Renommer"
+                  style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
+                >✏️</button>
+              )}
               <button
                 onClick={e => { e.stopPropagation(); deleteProgram(prog.id) }}
                 style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
@@ -237,6 +270,12 @@ export default function MicrocyclesBlock({ athleteId }) {
                 {prog.sessions.map((sess, si) => (
                   <div key={sess.id}
                     style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedSessions.has(sess.id)}
+                      onChange={() => toggleSessionSelected(sess.id)}
+                      style={{ accentColor: 'var(--green)', width: 15, height: 15, flexShrink: 0, cursor: 'pointer' }}
+                    />
                     <span style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 700, width: 18, flexShrink: 0 }}>
                       {si + 1}
                     </span>
@@ -258,6 +297,27 @@ export default function MicrocyclesBlock({ athleteId }) {
                     >🗑️</button>
                   </div>
                 ))}
+
+                {prog.sessions.some(s => selectedSessions.has(s.id)) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderBottom: '1px solid var(--border)', background: 'var(--green-light)' }}>
+                    <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
+                      {prog.sessions.filter(s => selectedSessions.has(s.id)).length} sélectionnée(s)
+                    </span>
+                    <button
+                      onClick={() => duplicateSelected(prog.id)}
+                      disabled={duplicating}
+                      style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      {duplicating ? '…' : '⧉ Dupliquer'}
+                    </button>
+                    <button
+                      onClick={() => setSelectedSessions(new Set())}
+                      style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}
+                    >
+                      Annuler
+                    </button>
+                  </div>
+                )}
 
                 <button
                   onClick={() => createSession(prog.id)}
