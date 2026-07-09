@@ -33,6 +33,7 @@ export default function Home() {
   const [coachToken, setCoachToken] = useState(null)
   const [generatingToken, setGeneratingToken] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [selected, setSelected] = useState(null)
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -45,12 +46,12 @@ export default function Home() {
         supabase.from('athletes').select('*').neq('archived', true).order('created_at'),
         supabase
           .from('sessions')
-          .select('id, date, title, athlete_id, athletes(id, name), exercises(id, name, sets, reps, kg, athlete_logs(sets_done, reps_done, kg_done))')
+          .select('id, date, title, coach_notes, athlete_id, athletes(id, name), exercises(id, name, sets, reps, kg, note, athlete_logs(sets_done, reps_done, kg_done, note))')
           .order('date', { ascending: false })
           .limit(40),
         supabase
           .from('program_completions')
-          .select('id, completed_at, athlete_id, athletes(id, name), program_sessions(id, title, program_id, program_exercises(id, name, sets, reps, kg))')
+          .select('id, completed_at, athlete_id, pleasure, difficulty, duration_minutes, athletes(id, name), program_sessions(id, title, program_id, program_exercises(id, name, sets, reps, kg, note))')
           .order('completed_at', { ascending: false })
           .limit(40)
       ])
@@ -59,7 +60,7 @@ export default function Home() {
 
       const progSessionIds = (progComps || []).flatMap(c => (c.program_sessions?.program_exercises || []).map(e => e.id))
       const { data: progLogs } = progSessionIds.length
-        ? await supabase.from('program_exercise_logs').select('program_exercise_id, sets_done, reps_done, kg_done').in('program_exercise_id', progSessionIds)
+        ? await supabase.from('program_exercise_logs').select('program_exercise_id, sets_done, reps_done, kg_done, note').in('program_exercise_id', progSessionIds)
         : { data: [] }
       const progLogsMap = {}
       ;(progLogs || []).forEach(l => { progLogsMap[l.program_exercise_id] = l })
@@ -92,9 +93,10 @@ export default function Home() {
           athleteId: s.athlete_id,
           athleteName: s.athletes?.name || '—',
           title: s.title,
-          href: `/semaine/${s.athlete_id}/${s.date}`,
+          coachNotes: s.coach_notes,
+          feedback: null,
           exosDone: s.exercises.filter(e => e.athlete_logs?.length > 0).map(e => ({
-            id: e.id, name: e.name, sets: e.sets, reps: e.reps, kg: e.kg,
+            id: e.id, name: e.name, sets: e.sets, reps: e.reps, kg: e.kg, note: e.note,
             log: e.athlete_logs[0],
           })),
         }))
@@ -109,9 +111,10 @@ export default function Home() {
           athleteId: c.athlete_id,
           athleteName: c.athletes?.name || '—',
           title: c.program_sessions?.title,
-          href: `/programs/${c.athlete_id}/${c.program_sessions?.program_id}`,
+          coachNotes: null,
+          feedback: { pleasure: c.pleasure, difficulty: c.difficulty, duration_minutes: c.duration_minutes },
           exosDone: (c.program_sessions.program_exercises || []).filter(e => e.name).map(e => ({
-            id: e.id, name: e.name, sets: e.sets, reps: e.reps, kg: e.kg,
+            id: e.id, name: e.name, sets: e.sets, reps: e.reps, kg: e.kg, note: e.note,
             log: progLogsMap[e.id] || {},
           })),
         }))
@@ -229,23 +232,24 @@ export default function Home() {
                   <div style={{ fontSize: 13 }}>Aucune séance validée pour l'instant.</div>
                 </div>
               ) : completedSessions.map(s => (
-                <SessionCard key={s.id} session={s} />
+                <SessionCard key={s.id} session={s} onOpen={() => setSelected(s)} />
               ))}
             </>
           )}
         </div>
       </div>
+      {selected && <SessionDetailModal session={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }
 
-function SessionCard({ session }) {
+function SessionCard({ session, onOpen }) {
   const dateLabel = session.type === 'program' ? session.date.slice(0, 10) : session.date
 
   return (
-    <Link href={session.href} style={{
+    <div onClick={onOpen} style={{
       display: 'block', background: 'var(--bg)', border: '1px solid var(--border)',
-      borderRadius: 'var(--rl)', padding: '14px 16px', textDecoration: 'none', color: 'inherit'
+      borderRadius: 'var(--rl)', padding: '14px 16px', cursor: 'pointer', color: 'inherit'
     }}>
       {/* Header : avatar + nom + date */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
@@ -290,6 +294,77 @@ function SessionCard({ session }) {
           )
         })}
       </div>
-    </Link>
+    </div>
+  )
+}
+
+function SessionDetailModal({ session, onClose }) {
+  const dateLabel = session.type === 'program' ? session.date.slice(0, 10) : session.date
+  const f = session.feedback
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1000 }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--bg)', borderRadius: '20px 20px 0 0', padding: 20, width: '100%', maxWidth: 480,
+        maxHeight: '88svh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+            background: 'var(--green-light)', color: 'var(--green)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800
+          }}>
+            {session.athleteName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>{session.athleteName}</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', textTransform: 'capitalize' }}>{formatDateLong(dateLabel)}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 4 }}>✕</button>
+        </div>
+
+        {session.title && <div style={{ fontSize: 14, fontWeight: 700 }}>{session.title}</div>}
+
+        {(f && (f.pleasure != null || f.difficulty != null || f.duration_minutes)) && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {f.pleasure != null && <Stat label="Plaisir" value={`${f.pleasure}/10`} />}
+            {f.difficulty != null && <Stat label="Difficulté" value={`${f.difficulty}/10`} />}
+            {f.duration_minutes && <Stat label="Durée" value={`${f.duration_minutes} min`} />}
+          </div>
+        )}
+
+        {session.coachNotes && (
+          <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, color: 'var(--text2)', fontStyle: 'italic', lineHeight: 1.6 }}>
+            {session.coachNotes}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {session.exosDone.map(e => {
+            const log = e.log || {}
+            const prescribed = [e.sets && `${e.sets} séries`, e.reps && `${e.reps} reps`, e.kg && `${e.kg} kg`].filter(Boolean).join(' · ')
+            const done = [log.sets_done && `${log.sets_done} séries`, log.reps_done && `${log.reps_done} reps`, log.kg_done && `${log.kg_done} kg`].filter(Boolean).join(' · ')
+            return (
+              <div key={e.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{e.name}</div>
+                {prescribed && <div style={{ fontSize: 12, color: 'var(--text3)' }}>Prescrit : {prescribed}</div>}
+                {done && <div style={{ fontSize: 12, color: '#166534', fontWeight: 700, marginTop: 2 }}>Réalisé : {done}</div>}
+                {e.note && <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', marginTop: 4 }}>Note coach : {e.note}</div>}
+                {log.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4 }}>« {log.note} »</div>}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function Stat({ label, value }) {
+  return (
+    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{label}</div>
+      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{value}</div>
+    </div>
   )
 }
