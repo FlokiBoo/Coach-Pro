@@ -197,22 +197,6 @@ function AthleteView({ params }) {
       }
       setCelebration({ tonnage: Math.round(tonnage), muscles })
     }
-
-    // Demande au service worker de pré-charger les données Supabase mises à jour
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-      const { supabaseUrl, supabaseKey } = getSupabaseConfig()
-      if (supabaseUrl && supabaseKey) {
-        const urls = [
-          `${supabaseUrl}/rest/v1/program_completions?athlete_id=eq.${athlete.id}&select=program_session_id`,
-          `${supabaseUrl}/rest/v1/programs?athlete_id=eq.${athlete.id}&select=*,program_sessions(*,program_exercises(*))`,
-        ]
-        navigator.serviceWorker.controller.postMessage({
-          type: 'PREFETCH_URLS',
-          urls,
-          headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
-        })
-      }
-    }
   }
 
   const saveExerciseLog = async (exerciseId, field, value) => {
@@ -257,14 +241,6 @@ function AthleteView({ params }) {
     setPrograms(prev => [newProg, ...prev])
     setOpenSessionId(sess.id)
     setShowFreeForm(false)
-  }
-
-  function getSupabaseConfig() {
-    try {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
-      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-      return { supabaseUrl: url, supabaseKey: key }
-    } catch { return {} }
   }
 
   if (!athlete) return (

@@ -1,4 +1,4 @@
-const CACHE = 'coachpro-v1'
+const CACHE = 'coachpro-v2'
 
 // Installation : cache les pages essentielles
 self.addEventListener('install', event => {
@@ -20,32 +20,19 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url)
 
-  // Appels Supabase (données) — Network first, cache en fallback offline
-  if (url.hostname.includes('supabase.co')) {
-    // On ne cache que les GET (lectures)
-    if (event.request.method !== 'GET') return
-    event.respondWith(
-      fetch(event.request.clone())
-        .then(response => {
-          if (response.ok) {
-            caches.open(CACHE).then(cache => cache.put(event.request, response.clone()))
-          }
-          return response
-        })
-        .catch(() => caches.match(event.request))
-    )
-    return
-  }
+  // Appels Supabase (données) — jamais interceptés, toujours en direct
+  if (url.hostname.includes('supabase.co')) return
 
   // Pages HTML (navigation) — Network first, cache en fallback
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
         .then(response => {
-          caches.open(CACHE).then(cache => cache.put(event.request, response.clone()))
+          const copy = response.clone()
+          caches.open(CACHE).then(cache => cache.put(event.request, copy))
           return response
         })
-        .catch(() => caches.match(event.request) || caches.match('/'))
+        .catch(() => caches.match(event.request).then(cached => cached || caches.match('/')))
     )
     return
   }
@@ -56,24 +43,11 @@ self.addEventListener('fetch', event => {
       if (cached) return cached
       return fetch(event.request).then(response => {
         if (response.ok) {
-          caches.open(CACHE).then(cache => cache.put(event.request, response.clone()))
+          const copy = response.clone()
+          caches.open(CACHE).then(cache => cache.put(event.request, copy))
         }
         return response
       })
     })
   )
-})
-
-// Message depuis la page : pré-charger les données de la prochaine séance
-self.addEventListener('message', event => {
-  if (event.data?.type === 'PREFETCH_URLS') {
-    const urls = event.data.urls || []
-    caches.open(CACHE).then(cache => {
-      urls.forEach(url => {
-        fetch(url, { headers: event.data.headers || {} })
-          .then(r => { if (r.ok) cache.put(url, r) })
-          .catch(() => {})
-      })
-    })
-  }
 })
