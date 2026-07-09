@@ -213,15 +213,14 @@ export default function ProgramsPage() {
             </div>
           )}
 
-          {programs.length === 0 && !showForm ? (
+          {programs.filter(p => !p.athlete_id).length === 0 && !showForm ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun programme</div>
-              <div style={{ fontSize: 13 }}>Clique sur "+ Programme" pour créer ton premier programme</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun modèle</div>
+              <div style={{ fontSize: 13 }}>Clique sur "+ Programme" pour créer ton premier modèle</div>
             </div>
           ) : (() => {
             const templates = programs.filter(p => !p.athlete_id)
-            const assigned = programs.filter(p => p.athlete_id)
             const renderProgram = (p) => {
               const href = p.athlete_id ? `/programs/${p.athlete_id}/${p.id}` : `/programs/templates/${p.id}`
               return (
@@ -246,13 +245,9 @@ export default function ProgramsPage() {
             return (
               <>
                 {templates.length > 0 && (
-                  <>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 2px' }}>📋 Modèles</div>
-                    {templates.map(renderProgram)}
-                    {assigned.length > 0 && <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 2px', marginTop: 4 }}>👤 Par client</div>}
-                  </>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 2px' }}>📋 Modèles</div>
                 )}
-                {assigned.map(renderProgram)}
+                {templates.map(renderProgram)}
               </>
             )
           })()}
