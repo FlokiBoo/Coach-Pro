@@ -1,10 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import { getCoachId } from '@/lib/coach'
 
 export default function MicrocyclesBlock({ athleteId }) {
+  const router = useRouter()
   const [programs, setPrograms] = useState([])
   const [expandedId, setExpandedId] = useState(null)
   const [creating, setCreating] = useState(false)
@@ -12,6 +15,7 @@ export default function MicrocyclesBlock({ athleteId }) {
   const [saving, setSaving] = useState(false)
   const [renamingId, setRenamingId] = useState(null)
   const [renameVal, setRenameVal] = useState('')
+  const [creatingFree, setCreatingFree] = useState(false)
 
   useEffect(() => { load() }, [athleteId])
 
@@ -26,6 +30,20 @@ export default function MicrocyclesBlock({ athleteId }) {
       sessions: [...(p.program_sessions || [])].sort((a, b) => a.order_index - b.order_index)
     }))
     setPrograms(progs)
+  }
+
+  async function createFreeSession() {
+    setCreatingFree(true)
+    const coachId = await getCoachId()
+    const dateLabel = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+    const { data: prog, error } = await supabase.from('programs')
+      .insert({ athlete_id: athleteId, title: `Séance libre — ${dateLabel}`, coach_id: coachId })
+      .select().single()
+    if (!prog) { alert('Erreur : ' + (error?.message || 'impossible de créer la séance')); setCreatingFree(false); return }
+    const { data: sess } = await supabase.from('program_sessions')
+      .insert({ program_id: prog.id, order_index: 0, title: 'Séance libre' })
+      .select().single()
+    router.push(`/programs/${athleteId}/${prog.id}${sess ? `?open=${sess.id}` : ''}`)
   }
 
   async function createProgram() {
@@ -105,12 +123,21 @@ export default function MicrocyclesBlock({ athleteId }) {
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
           🔄 Micro-cycles
         </div>
-        <button
-          onClick={() => { setCreating(true); setNewName('') }}
-          style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-        >
-          + Créer
-        </button>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            onClick={createFreeSession}
+            disabled={creatingFree}
+            style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            {creatingFree ? '…' : '⚡ Séance libre'}
+          </button>
+          <button
+            onClick={() => { setCreating(true); setNewName('') }}
+            style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            + Créer
+          </button>
+        </div>
       </div>
 
       {/* Formulaire création */}
