@@ -315,6 +315,7 @@ function AthleteView({ params }) {
                   validating={validating}
                   exerciseLogs={exerciseLogs}
                   onSaveLog={saveExerciseLog}
+                  athleteId={athlete.id}
                 />
               )}
 
@@ -347,6 +348,7 @@ function AthleteView({ params }) {
                         validating={validating}
                         exerciseLogs={exerciseLogs}
                         onSaveLog={saveExerciseLog}
+                        athleteId={athlete.id}
                       />
                     </div>
                   )}
@@ -374,7 +376,7 @@ const logInputStyle = {
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
 }
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, validating, exerciseLogs = {}, onSaveLog }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, validating, exerciseLogs = {}, onSaveLog, athleteId }) {
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   return (
@@ -443,6 +445,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                 </div>
                 <span style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>{exo.name}</span>
                 <TipsButton />
+                <ExerciseHistoryButton athleteId={athleteId} exerciseName={exo.name} />
                 {exo.video_url && (
                   <a href={exo.video_url} target="_blank" rel="noreferrer" style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, textDecoration: 'none', fontWeight: 700, flexShrink: 0 }}>▶</a>
                 )}
@@ -657,6 +660,70 @@ function TipsButton() {
                     <span style={{ flex: 1 }}>{t.title}</span>
                     <span style={{ color: 'var(--text3)' }}>›</span>
                   </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function ExerciseHistoryButton({ athleteId, exerciseName }) {
+  const [open, setOpen] = useState(false)
+  const [entries, setEntries] = useState(null)
+
+  const openModal = async (e) => {
+    e.stopPropagation()
+    setOpen(true)
+    setEntries(null)
+    const { data } = await supabase.from('exercise_performance_history')
+      .select('kg_done, reps_done, sets_done, logged_at, program_exercises(name)')
+      .eq('athlete_id', athleteId)
+      .order('logged_at', { ascending: false })
+    setEntries((data || []).filter(l => l.program_exercises?.name === exerciseName))
+  }
+
+  return (
+    <>
+      <button onClick={openModal} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+        📈
+      </button>
+      {open && (
+        <div onClick={() => setOpen(false)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 200,
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480,
+            maxHeight: '75vh', overflowY: 'auto', padding: 18
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <div style={{ fontWeight: 800, fontSize: 17, flex: 1 }}>📈 {exerciseName}</div>
+              <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
+            </div>
+
+            {entries === null ? (
+              <div style={{ color: 'var(--text3)', fontSize: 13 }}>Chargement…</div>
+            ) : entries.length === 0 ? (
+              <div style={{ color: 'var(--text3)', fontSize: 13 }}>Aucune charge enregistrée pour cet exercice.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {entries.map((e, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+                    <div style={{ fontSize: 12, color: 'var(--text3)', minWidth: 90, flexShrink: 0 }}>
+                      {new Date(e.logged_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </div>
+                    <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                      {e.kg_done} kg
+                      {(e.sets_done || e.reps_done) && (
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginLeft: 8 }}>
+                          {[e.sets_done && `${e.sets_done} séries`, e.reps_done].filter(Boolean).join(' · ')}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}

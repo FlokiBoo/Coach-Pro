@@ -142,6 +142,7 @@ function ProgramEditorPage({ params }) {
   const [savedId, setSavedId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [layoutCols, setLayoutCols] = useState(1)
+  const [historyExo, setHistoryExo] = useState(null)
 
   const isTemplate = athleteId === 'templates'
 
@@ -612,6 +613,11 @@ function ProgramEditorPage({ params }) {
                                   title="Ajouter une vidéo">🎥</button>
                               )
                             )}
+                            {!isTemplate && exo.name.trim() && (
+                              <button onClick={() => setHistoryExo({ name: exo.name.trim() })}
+                                style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
+                                title="Historique de l'exercice">📈</button>
+                            )}
                             <button onClick={() => removeExo(s.id, exo._key)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 18, padding: '0 2px', cursor: 'pointer', flexShrink: 0 }}>×</button>
                           </div>
                           {videoInputKey === exo._key && (
@@ -735,6 +741,66 @@ function ProgramEditorPage({ params }) {
             + Ajouter une séance
           </button>
         </div>
+      </div>
+      {historyExo && (
+        <ExerciseHistoryModal athleteId={athleteId} exerciseName={historyExo.name} onClose={() => setHistoryExo(null)} />
+      )}
+    </div>
+  )
+}
+
+function ExerciseHistoryModal({ athleteId, exerciseName, onClose }) {
+  const [entries, setEntries] = useState(null)
+
+  useEffect(() => {
+    supabase.from('exercise_performance_history')
+      .select('kg_done, reps_done, sets_done, logged_at, program_exercises(name)')
+      .eq('athlete_id', athleteId)
+      .order('logged_at', { ascending: false })
+      .then(({ data }) => {
+        setEntries((data || []).filter(e => e.program_exercises?.name === exerciseName))
+      })
+  }, [athleteId, exerciseName])
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1000 }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--bg)', borderRadius: '20px 20px 0 0', padding: 20, width: '100%', maxWidth: 480,
+        maxHeight: '80svh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 800, fontSize: 16 }}>📈 Historique</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>{exerciseName}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 4 }}>✕</button>
+        </div>
+
+        {entries === null ? (
+          <div style={{ color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>Chargement…</div>
+        ) : entries.length === 0 ? (
+          <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '30px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)' }}>
+            <div style={{ fontSize: 13 }}>Aucune charge enregistrée pour cet exercice.</div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {entries.map((e, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+                <div style={{ fontSize: 12, color: 'var(--text3)', minWidth: 90, flexShrink: 0 }}>
+                  {new Date(e.logged_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </div>
+                <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                  {e.kg_done} kg
+                  {(e.sets_done || e.reps_done) && (
+                    <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text3)', marginLeft: 8 }}>
+                      {[e.sets_done && `${e.sets_done} séries`, e.reps_done].filter(Boolean).join(' · ')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
