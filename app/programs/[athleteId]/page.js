@@ -123,13 +123,13 @@ export default function ProgramsPage({ params }) {
     for (const targetId of selectedIds) {
       // Créer le programme pour cet athlète
       const { data: newProg } = await supabase.from('programs')
-        .insert({ athlete_id: targetId, title: assignModal.title, coach_id: coachId })
+        .insert({ athlete_id: targetId, title: assignModal.title, coach_id: coachId, source_program_id: assignModal.id })
         .select().single()
       if (!newProg) continue
 
       for (const sess of (sessions || [])) {
         const { data: newSess } = await supabase.from('program_sessions')
-          .insert({ program_id: newProg.id, order_index: sess.order_index, title: sess.title || '' })
+          .insert({ program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id })
           .select().single()
         if (!newSess) continue
 
@@ -146,6 +146,7 @@ export default function ProgramsPage({ params }) {
               note: e.note,
               video_url: e.video_url,
               superset_group: e.superset_group,
+              source_exercise_id: e.id,
             }))
           )
         }

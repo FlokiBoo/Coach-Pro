@@ -277,15 +277,50 @@ function ProgramEditorPage({ params }) {
     setVideoInputVal('')
   }
 
+  const propagateSessionToClients = async (sessId, sessOrderIndex, fields, exos) => {
+    const { data: clientPrograms } = await supabase.from('programs').select('id').eq('source_program_id', programId)
+    if (!clientPrograms?.length) return
+
+    for (const cp of clientPrograms) {
+      let { data: clientSess } = await supabase.from('program_sessions')
+        .select('id').eq('program_id', cp.id).eq('source_session_id', sessId).maybeSingle()
+
+      if (!clientSess) {
+        const { data: created } = await supabase.from('program_sessions')
+          .insert({ program_id: cp.id, order_index: sessOrderIndex, title: fields.title, source_session_id: sessId })
+          .select().single()
+        clientSess = created
+      } else {
+        await supabase.from('program_sessions').update({
+          title: fields.title, activation: fields.activation,
+          coach_notes: fields.coach_notes, activation_videos: fields.activation_videos,
+        }).eq('id', clientSess.id)
+      }
+      if (!clientSess) continue
+
+      await supabase.from('program_exercises').delete().eq('program_session_id', clientSess.id)
+      if (exos.length) {
+        await supabase.from('program_exercises').insert(
+          exos.map((e, j) => ({
+            program_session_id: clientSess.id, order_index: j, name: e.name,
+            sets: e.sets, reps: e.reps, kg: e.kg, rest: e.rest, note: e.note,
+            video_url: e.video_url, superset_group: e.superset_group,
+          }))
+        )
+      }
+    }
+  }
+
   const saveSession = async (sessId) => {
     setSaving(true)
     const s = sessions.find(sess => sess.id === sessId)
     if (!s) { setSaving(false); return }
 
-    const { error: sessErr } = await supabase.from('program_sessions').update({
+    const sessFields = {
       title: s.title || '', activation: s.activation || null,
       coach_notes: s.coach_notes || null, activation_videos: s.activation_videos || [],
-    }).eq('id', s.id)
+    }
+    const { error: sessErr } = await supabase.from('program_sessions').update(sessFields).eq('id', s.id)
     if (sessErr) { alert('Erreur sauvegarde séance : ' + sessErr.message); setSaving(false); return }
 
     const { error: delErr } = await supabase.from('program_exercises').delete().eq('program_session_id', s.id)
@@ -314,6 +349,8 @@ function ProgramEditorPage({ params }) {
       }))
       await supabase.from('movements').upsert(toInsert.map(e => ({ name: e.name })), { onConflict: 'name', ignoreDuplicates: true })
     }
+
+    await propagateSessionToClients(sessId, s.order_index ?? 0, sessFields, toInsert)
 
     setSaving(false)
     setSavedId(sessId)
@@ -403,7 +440,8 @@ function ProgramEditorPage({ params }) {
   }
 
   const deleteSession = async (id) => {
-    if (!confirm('Supprimer cette séance ?')) return
+    if (!confirm('Supprimer cette séance ? Elle sera aussi supprimée chez les clients à qui ce programme est lié.')) return
+    await supabase.from('program_sessions').delete().eq('source_session_id', id)
     await supabase.from('program_sessions').delete().eq('id', id)
     setSessions(prev => prev.filter(s => s.id !== id))
     if (openId === id) setOpenId(null)
