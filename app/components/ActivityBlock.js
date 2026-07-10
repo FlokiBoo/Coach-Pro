@@ -77,16 +77,13 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false 
 
   const saveLog = async (label, field, value) => {
     if (!date || !athleteId) return
-    const existing = dayLogsRef.current[label]
-    const payload = { athlete_id: athleteId, date, type: 'custom', label, [field]: value ?? null }
-    if (existing) {
-      const { data } = await supabase.from('activity_logs')
-        .update({ [field]: value ?? null }).eq('id', existing.id).select().single()
-      if (data) setDayLogs(prev => ({ ...prev, [label]: data }))
-    } else {
-      const { data } = await supabase.from('activity_logs').insert(payload).select().single()
-      if (data) setDayLogs(prev => ({ ...prev, [label]: data }))
-    }
+    const { id, created_at, ...existingFields } = dayLogsRef.current[label] || {}
+    const payload = { athlete_id: athleteId, date, type: 'custom', ...existingFields, label, [field]: value ?? null }
+    const { data, error } = await supabase.from('activity_logs')
+      .upsert(payload, { onConflict: 'athlete_id,date,type,label' })
+      .select().single()
+    if (error) { alert("Erreur d'enregistrement de l'activité : " + error.message); return }
+    if (data) setDayLogs(prev => ({ ...prev, [label]: data }))
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
