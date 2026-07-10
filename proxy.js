@@ -9,7 +9,8 @@ export async function proxy(request) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/update-password') ||
-    pathname.startsWith('/s/')
+    pathname.startsWith('/s/') ||
+    pathname.startsWith('/api/athlete-view')
   ) {
     return NextResponse.next()
   }
