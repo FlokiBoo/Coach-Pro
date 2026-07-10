@@ -81,20 +81,12 @@ function AthleteView({ params }) {
   const [completionFeedback, setCompletionFeedback] = useState({})
 
   useEffect(() => {
-    supabase.from('athletes').select('*').eq('token', token).single().then(({ data }) => setAthlete(data))
-  }, [token])
-
-  useEffect(() => {
-    if (!athlete) return
     async function load() {
-      const [{ data: progs }, { data: comps }, { data: logs }] = await Promise.all([
-        supabase.from('programs')
-          .select('*, program_sessions(*, program_exercises(*))')
-          .eq('athlete_id', athlete.id)
-          .order('created_at', { ascending: false }),
-        supabase.from('program_completions').select('program_session_id, pleasure, difficulty, duration_minutes').eq('athlete_id', athlete.id),
-        supabase.from('program_exercise_logs').select('*').eq('athlete_id', athlete.id)
-      ])
+      const res = await fetch(`/api/athlete-view/${token}`)
+      if (!res.ok) return
+      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap } = await res.json()
+      setAthlete(ath)
+
       const logsMap = {}
       ;(logs || []).forEach(l => { logsMap[l.program_exercise_id] = l })
       setExerciseLogs(logsMap)
@@ -104,15 +96,6 @@ function AthleteView({ params }) {
       ;(comps || []).forEach(c => { feedbackMap[c.program_session_id] = c })
       setCompletionFeedback(feedbackMap)
 
-      const exerciseNames = [...new Set(
-        (progs || []).flatMap(p => (p.program_sessions || []).flatMap(s => (s.program_exercises || []).map(e => e.name).filter(Boolean)))
-      )]
-      let movieMap = {}
-      if (exerciseNames.length) {
-        const { data: movs } = await supabase.from('movements').select('name, youtube_url').in('name', exerciseNames)
-        ;(movs || []).forEach(m => { movieMap[m.name] = m.youtube_url })
-      }
-
       const progList = (progs || []).map(p => ({
         ...p,
         sessions: [...(p.program_sessions || [])]
@@ -120,7 +103,7 @@ function AthleteView({ params }) {
           .map(s => ({
             ...s,
             exercises: [...(s.program_exercises || [])].sort((a, b) => a.order_index - b.order_index)
-              .map(e => ({ ...e, video_url: movieMap[e.name] ?? e.video_url }))
+              .map(e => ({ ...e, video_url: (movieMap || {})[e.name] ?? e.video_url }))
           }))
       }))
       setPrograms(progList)
@@ -132,7 +115,7 @@ function AthleteView({ params }) {
       }
     }
     load()
-  }, [athlete])
+  }, [token])
 
   const unvalidate = async (sessId, progSessions) => {
     if (!athlete) return
@@ -216,34 +199,20 @@ function AthleteView({ params }) {
 
   const createFreeSession = async (exos) => {
     if (!athlete) return
-    const dateLabel = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
-    const { data: prog, error } = await supabase.from('programs')
-      .insert({ athlete_id: athlete.id, coach_id: athlete.coach_id, title: `Séance libre — ${dateLabel}` })
-      .select().single()
-    if (!prog) { alert('Erreur : ' + (error?.message || 'impossible de créer la séance')); return }
-    const { data: sess } = await supabase.from('program_sessions')
-      .insert({ program_id: prog.id, order_index: 0, title: 'Séance libre' })
-      .select().single()
-    if (!sess) return
-
-    const toInsert = exos.filter(e => e.name.trim()).map((e, i) => ({
-      program_session_id: sess.id, order_index: i, name: e.name.trim(),
-      sets: e.sets ? parseInt(e.sets) : null,
-      reps: e.reps || null,
-      kg: e.kg !== '' && !isNaN(parseFloat(e.kg)) ? parseFloat(e.kg) : null,
-    }))
-    let insertedExos = []
-    if (toInsert.length) {
-      const { data: inserted } = await supabase.from('program_exercises').insert(toInsert).select()
-      insertedExos = inserted || []
-    }
+    const res = await fetch(`/api/athlete-view/${token}/free-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exercises: exos }),
+    })
+    const json = await res.json()
+    if (!res.ok) { alert('Erreur : ' + (json?.error || 'impossible de créer la séance')); return }
 
     const newProg = {
-      ...prog,
-      sessions: [{ ...sess, exercises: insertedExos.sort((a, b) => a.order_index - b.order_index) }],
+      ...json.program,
+      sessions: [{ ...json.session, exercises: (json.session.exercises || []).sort((a, b) => a.order_index - b.order_index) }],
     }
     setPrograms(prev => [newProg, ...prev])
-    setOpenSessionId(sess.id)
+    setOpenSessionId(json.session.id)
     setShowFreeForm(false)
   }
 
