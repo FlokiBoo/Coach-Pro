@@ -278,7 +278,7 @@ function ProgramEditorPage({ params }) {
   }
 
   const propagateSessionToClients = async (sessId, sessOrderIndex, fields, exos) => {
-    const { data: clientPrograms } = await supabase.from('programs').select('id').eq('source_program_id', programId)
+    const { data: clientPrograms } = await supabase.from('programs').select('id, athlete_id').eq('source_program_id', programId)
     if (!clientPrograms?.length) return
 
     for (const cp of clientPrograms) {
@@ -286,27 +286,47 @@ function ProgramEditorPage({ params }) {
         .select('id').eq('program_id', cp.id).eq('source_session_id', sessId).maybeSingle()
 
       if (!clientSess) {
+        // Nouvelle séance côté template, jamais vue par ce client : on la crée
         const { data: created } = await supabase.from('program_sessions')
           .insert({ program_id: cp.id, order_index: sessOrderIndex, title: fields.title, source_session_id: sessId })
           .select().single()
         clientSess = created
+        if (!clientSess) continue
       } else {
+        // Séance déjà validée par ce sportif : on ne touche à rien (contenu + historique intacts)
+        const { data: completion } = await supabase.from('program_completions')
+          .select('program_session_id').eq('program_session_id', clientSess.id).maybeSingle()
+        if (completion) continue
+
         await supabase.from('program_sessions').update({
           title: fields.title, activation: fields.activation,
           coach_notes: fields.coach_notes, activation_videos: fields.activation_videos,
         }).eq('id', clientSess.id)
       }
-      if (!clientSess) continue
 
-      await supabase.from('program_exercises').delete().eq('program_session_id', clientSess.id)
-      if (exos.length) {
-        await supabase.from('program_exercises').insert(
-          exos.map((e, j) => ({
+      // Met à jour les exercices EN PLACE (par position) pour ne pas casser l'historique
+      // lié à l'id de chaque exercice (program_exercise_logs, exercise_performance_history)
+      const { data: existingExos } = await supabase.from('program_exercises')
+        .select('id').eq('program_session_id', clientSess.id).order('order_index')
+      const existing = existingExos || []
+      const maxLen = Math.max(existing.length, exos.length)
+
+      for (let j = 0; j < maxLen; j++) {
+        const e = exos[j]
+        if (e && existing[j]) {
+          await supabase.from('program_exercises').update({
+            order_index: j, name: e.name, sets: e.sets, reps: e.reps, kg: e.kg,
+            rest: e.rest, note: e.note, video_url: e.video_url, superset_group: e.superset_group,
+          }).eq('id', existing[j].id)
+        } else if (e && !existing[j]) {
+          await supabase.from('program_exercises').insert({
             program_session_id: clientSess.id, order_index: j, name: e.name,
             sets: e.sets, reps: e.reps, kg: e.kg, rest: e.rest, note: e.note,
             video_url: e.video_url, superset_group: e.superset_group,
-          }))
-        )
+          })
+        } else if (!e && existing[j]) {
+          await supabase.from('program_exercises').delete().eq('id', existing[j].id)
+        }
       }
     }
   }
@@ -440,8 +460,15 @@ function ProgramEditorPage({ params }) {
   }
 
   const deleteSession = async (id) => {
-    if (!confirm('Supprimer cette séance ? Elle sera aussi supprimée chez les clients à qui ce programme est lié.')) return
-    await supabase.from('program_sessions').delete().eq('source_session_id', id)
+    if (!confirm('Supprimer cette séance ? Elle sera aussi supprimée chez les clients à qui ce programme est lié (sauf s\'ils l\'ont déjà validée).')) return
+
+    const { data: linked } = await supabase.from('program_sessions').select('id').eq('source_session_id', id)
+    for (const l of (linked || [])) {
+      const { data: completion } = await supabase.from('program_completions')
+        .select('program_session_id').eq('program_session_id', l.id).maybeSingle()
+      if (!completion) await supabase.from('program_sessions').delete().eq('id', l.id)
+    }
+
     await supabase.from('program_sessions').delete().eq('id', id)
     setSessions(prev => prev.filter(s => s.id !== id))
     if (openId === id) setOpenId(null)
