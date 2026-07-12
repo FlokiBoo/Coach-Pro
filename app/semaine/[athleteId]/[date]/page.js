@@ -56,7 +56,6 @@ export default function AthletePage({ params }) {
   const [wellness, setWellness] = useState(null)
   const [activityLogs] = useState({})
   const [recentSessions, setRecentSessions] = useState([])
-  const [selectedSessionIdx, setSelectedSessionIdx] = useState(0)
   const [openSession, setOpenSession] = useState(null)
   const [objectives, setObjectives] = useState([])
   const [loading, setLoading] = useState(true)
@@ -112,7 +111,6 @@ export default function AthletePage({ params }) {
       setAthlete(ath)
       setWellness(w)
       setRecentSessions(completions)
-      setSelectedSessionIdx(0)
       setObjectives(objs || [])
       if (ath) setForm({ name: ath.name || '', email: ath.email || '', birth_date: ath.birth_date || '', weight: ath.weight || '', height: ath.height || '' })
       setLoading(false)
@@ -364,51 +362,33 @@ export default function AthletePage({ params }) {
 
             {/* Séance */}
             <div style={{ padding: '12px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', flex: 1 }}>Dernières séances</div>
-                {recentSessions.length > 1 && (
-                  <div style={{ display: 'flex', gap: 4 }}>
-                    {recentSessions.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setSelectedSessionIdx(i)}
-                        style={{
-                          width: 22, height: 22, borderRadius: '50%', fontSize: 11, fontWeight: 700,
-                          border: i === selectedSessionIdx ? 'none' : '1px solid var(--border2)',
-                          background: i === selectedSessionIdx ? '#22c55e' : 'transparent',
-                          color: i === selectedSessionIdx ? '#fff' : 'var(--text3)',
-                          cursor: 'pointer',
-                        }}
-                      >{i + 1}</button>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {recentSessions.length > 0 ? (() => {
-                const c = recentSessions[selectedSessionIdx]
-                if (!c) return null
-                return (
-                  <div
-                    onClick={() => setOpenSession(c)}
-                    style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#F0FDF4', borderRadius: 'var(--r)', padding: '8px 12px', cursor: 'pointer' }}
-                  >
-                    <span style={{ color: '#22c55e', fontSize: 14, marginTop: 1 }}>✓</span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 700 }}>
-                        {c.program_sessions?.title || 'Séance'}
-                        {c.program_sessions?.programs?.title && <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>{c.program_sessions.programs.title}</span>}
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>Dernières séances</div>
+              {recentSessions.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {recentSessions.map((c, i) => (
+                    <div
+                      key={c.id || i}
+                      onClick={() => setOpenSession(c)}
+                      style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#F0FDF4', borderRadius: 'var(--r)', padding: '8px 12px', cursor: 'pointer' }}
+                    >
+                      <span style={{ color: '#22c55e', fontSize: 14, marginTop: 1 }}>✓</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>
+                          {c.program_sessions?.title || 'Séance'}
+                          {c.program_sessions?.programs?.title && <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>{c.program_sessions.programs.title}</span>}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{new Date(c.completed_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
+                          {c.pleasure != null && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Plaisir <b style={{ color: scoreColor(c.pleasure, false) }}>{c.pleasure}/10</b></span>}
+                          {c.difficulty != null && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Difficulté <b style={{ color: scoreColor(c.difficulty, true) }}>{c.difficulty}/10</b></span>}
+                          {c.duration_minutes && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{formatDuration(c.duration_minutes)}</span>}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{new Date(c.completed_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</div>
-                      <div style={{ display: 'flex', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
-                        {c.pleasure != null && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Plaisir <b style={{ color: scoreColor(c.pleasure, false) }}>{c.pleasure}/10</b></span>}
-                        {c.difficulty != null && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Difficulté <b style={{ color: scoreColor(c.difficulty, true) }}>{c.difficulty}/10</b></span>}
-                        {c.duration_minutes && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{formatDuration(c.duration_minutes)}</span>}
-                      </div>
+                      <span style={{ color: 'var(--text3)', fontSize: 12, marginTop: 2 }}>›</span>
                     </div>
-                    <span style={{ color: 'var(--text3)', fontSize: 12, marginTop: 2 }}>›</span>
-                  </div>
-                )
-              })() : (
+                  ))}
+                </div>
+              ) : (
                 <span style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Aucune séance validée</span>
               )}
             </div>
