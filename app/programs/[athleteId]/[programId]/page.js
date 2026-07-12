@@ -146,6 +146,8 @@ function ProgramEditorPage({ params }) {
   const [selectedSessions, setSelectedSessions] = useState(new Set())
   const [duplicatingSelected, setDuplicatingSelected] = useState(false)
   const [titleSaving, setTitleSaving] = useState(false)
+  const [actPresetSearch, setActPresetSearch] = useState({})
+  const [actPresetSuggs, setActPresetSuggs] = useState({})
 
   const isTemplate = athleteId === 'templates'
 
@@ -227,6 +229,21 @@ function ProgramEditorPage({ params }) {
     setSuggestions(prev => ({ ...prev, [key]: [] }))
     const { data: mov } = await supabase.from('movements').select('youtube_url').eq('name', name).single()
     if (mov?.youtube_url) updateExo(sessId, key, 'video_url', mov.youtube_url)
+  }
+
+  const searchActPreset = async (sessId, val) => {
+    setActPresetSearch(prev => ({ ...prev, [sessId]: val }))
+    if (val.trim().length < 1) { setActPresetSuggs(prev => ({ ...prev, [sessId]: [] })); return }
+    const { data } = await supabase.from('activation_presets').select('*').ilike('name', `%${val.trim()}%`).limit(8)
+    setActPresetSuggs(prev => ({ ...prev, [sessId]: data || [] }))
+  }
+
+  const applyActPreset = (sessId, preset) => {
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, activation: preset.text || '', activation_videos: preset.videos || [],
+    }))
+    setActPresetSearch(prev => ({ ...prev, [sessId]: '' }))
+    setActPresetSuggs(prev => ({ ...prev, [sessId]: [] }))
   }
 
   const searchActVideo = async (sessId, val) => {
@@ -691,13 +708,34 @@ function ProgramEditorPage({ params }) {
                   <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
 
                     {/* Activation */}
-                    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
+                    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'visible' }}>
                       <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
                         <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>⚡ Activation</span>
                       </div>
+                      <div style={{ position: 'relative', padding: '8px 10px 0' }}>
+                        <input
+                          placeholder="Insérer une activation pré-créée…"
+                          value={actPresetSearch[s.id] || ''}
+                          onChange={e => searchActPreset(s.id, e.target.value)}
+                          onFocus={e => searchActPreset(s.id, e.target.value)}
+                          onBlur={() => setTimeout(() => setActPresetSuggs(p => ({ ...p, [s.id]: [] })), 150)}
+                          style={{ ...inp, fontSize: 12 }}
+                        />
+                        {(actPresetSuggs[s.id] || []).length > 0 && (
+                          <div style={{ position: 'absolute', top: '100%', left: 10, right: 10, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
+                            {actPresetSuggs[s.id].map((preset, pi) => (
+                              <button key={preset.id} onMouseDown={() => applyActPreset(s.id, preset)}
+                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: pi < actPresetSuggs[s.id].length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
+                                <span style={{ flex: 1 }}>{preset.name}</span>
+                                {preset.videos?.length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{preset.videos.length} 🎥</span>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <textarea placeholder="Échauffement, mobilité…" value={s.activation || ''}
                         onChange={e => updateSession(s.id, 'activation', e.target.value)}
-                        rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)' }} />
+                        rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)', boxSizing: 'border-box' }} />
                     </div>
 
                     {/* Vidéos d'activation */}
