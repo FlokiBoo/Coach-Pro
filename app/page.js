@@ -34,6 +34,7 @@ export default function Home() {
   const [generatingToken, setGeneratingToken] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [selected, setSelected] = useState(null)
+  const [movementsMissingMuscles, setMovementsMissingMuscles] = useState([])
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -64,6 +65,13 @@ export default function Home() {
         : { data: [] }
       const progLogsMap = {}
       ;(progLogs || []).forEach(l => { progLogsMap[l.program_exercise_id] = l })
+
+      const { data: missingMuscles } = await supabase
+        .from('movements')
+        .select('id, name')
+        .or('muscles.is.null,muscles.eq.')
+        .order('name')
+      setMovementsMissingMuscles(missingMuscles || [])
 
       const coachId = await getCoachId()
       if (coachId) {
@@ -210,6 +218,25 @@ export default function Home() {
                 borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer'
               }}>{saving ? '…' : 'Créer'}</button>
             </div>
+          )}
+
+          {/* Mouvements sans muscles renseignés */}
+          {movementsMissingMuscles.length > 0 && (
+            <Link href="/movements" style={{
+              display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none',
+              background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 'var(--rl)', padding: '12px 14px',
+            }}>
+              <span style={{ fontSize: 20, flexShrink: 0 }}>⚠️</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>
+                  {movementsMissingMuscles.length} mouvement{movementsMissingMuscles.length !== 1 ? 's' : ''} sans muscle renseigné
+                </div>
+                <div style={{ fontSize: 12, color: '#92400E', opacity: 0.85, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {movementsMissingMuscles.map(m => m.name).join(', ')}
+                </div>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#92400E', flexShrink: 0 }}>Corriger →</span>
+            </Link>
           )}
 
           {/* Titre feed */}
