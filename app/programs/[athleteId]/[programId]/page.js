@@ -175,6 +175,7 @@ function ProgramEditorPage({ params }) {
           .sort((a, b) => a.order_index - b.order_index)
           .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', rest: e.rest ?? '', note: e.note ?? '', video_url: (movieMap[e.name] ?? e.video_url) || '', superset_group: e.superset_group || null })),
         activation_videos: s.activation_videos || [],
+        circuits: s.circuits || [],
       }))
       setSessions(loaded)
       if (loaded.length === 1) setOpenId(loaded[0].id)
@@ -253,6 +254,57 @@ function ProgramEditorPage({ params }) {
       ...s, activation_videos: (s.activation_videos || []).map((v, i) => i === idx ? { ...v, video_url: url } : v)
     }))
 
+  const addCircuit = (sessId) => {
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, circuits: [...(s.circuits || []), { id: Date.now() + Math.random(), text: '', videos: [] }]
+    }))
+  }
+
+  const removeCircuit = (sessId, circuitId) => {
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, circuits: (s.circuits || []).filter(c => c.id !== circuitId)
+    }))
+  }
+
+  const updateCircuitText = (sessId, circuitId, text) => {
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, circuits: (s.circuits || []).map(c => c.id === circuitId ? { ...c, text } : c)
+    }))
+  }
+
+  const searchCircuitVideo = async (key, val) => {
+    setActVideoSearch(prev => ({ ...prev, [key]: val }))
+    if (val.trim().length < 2) { setActVideoSuggs(prev => ({ ...prev, [key]: [] })); return }
+    const { data } = await supabase.from('movements').select('name, youtube_url').ilike('name', `%${val.trim()}%`).limit(8)
+    setActVideoSuggs(prev => ({ ...prev, [key]: data || [] }))
+  }
+
+  const addCircuitVideo = (sessId, circuitId, key, mov) => {
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, circuits: (s.circuits || []).map(c => c.id !== circuitId ? c : {
+        ...c, videos: [...(c.videos || []), { name: mov.name, video_url: mov.youtube_url || '' }]
+      })
+    }))
+    setActVideoSearch(prev => ({ ...prev, [key]: '' }))
+    setActVideoSuggs(prev => ({ ...prev, [key]: [] }))
+  }
+
+  const removeCircuitVideo = (sessId, circuitId, idx) => {
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, circuits: (s.circuits || []).map(c => c.id !== circuitId ? c : {
+        ...c, videos: (c.videos || []).filter((_, i) => i !== idx)
+      })
+    }))
+  }
+
+  const updateCircuitVideoUrl = (sessId, circuitId, idx, url) => {
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, circuits: (s.circuits || []).map(c => c.id !== circuitId ? c : {
+        ...c, videos: (c.videos || []).map((v, i) => i === idx ? { ...v, video_url: url } : v)
+      })
+    }))
+  }
+
   const toggleSuperset = (sessId, ei) => {
     setSessions(prev => prev.map(s => {
       if (s.id !== sessId) return s
@@ -301,6 +353,7 @@ function ProgramEditorPage({ params }) {
         await supabase.from('program_sessions').update({
           title: fields.title, activation: fields.activation,
           coach_notes: fields.coach_notes, activation_videos: fields.activation_videos,
+          circuits: fields.circuits,
         }).eq('id', clientSess.id)
       }
 
@@ -339,6 +392,7 @@ function ProgramEditorPage({ params }) {
     const sessFields = {
       title: s.title || '', activation: s.activation || null,
       coach_notes: s.coach_notes || null, activation_videos: s.activation_videos || [],
+      circuits: s.circuits || [],
     }
     const { error: sessErr } = await supabase.from('program_sessions').update(sessFields).eq('id', s.id)
     if (sessErr) { alert('Erreur sauvegarde séance : ' + sessErr.message); setSaving(false); return }
@@ -697,6 +751,65 @@ function ProgramEditorPage({ params }) {
                       </div>
                     </div>
 
+                    {/* Circuits (texte libre + vidéos par mouvement) */}
+                    {(s.circuits || []).map((c, ci) => {
+                      const key = `${s.id}:circuit:${c.id}`
+                      return (
+                        <div key={c.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'visible' }}>
+                          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1 }}>🔁 Circuit {ci + 1}</span>
+                            <button onClick={() => removeCircuit(s.id, c.id)}
+                              style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 15, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
+                          </div>
+                          <textarea placeholder="A1: Squat x10, A2: Fentes x10, A3: Row x10…" value={c.text || ''}
+                            onChange={e => updateCircuitText(s.id, c.id, e.target.value)}
+                            rows={3} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)', boxSizing: 'border-box' }} />
+
+                          <div style={{ padding: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {(c.videos || []).map((v, vi) => (
+                              <div key={vi} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px' }}>
+                                <span style={{ fontSize: 13, fontWeight: 700, flex: 1, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.name}</span>
+                                {v.video_url ? (
+                                  <a href={v.video_url} target="_blank" rel="noreferrer"
+                                    style={{ fontSize: 15, textDecoration: 'none', flexShrink: 0 }} title="Voir la vidéo">🎥</a>
+                                ) : (
+                                  <input
+                                    placeholder="Coller une URL vidéo…"
+                                    defaultValue=""
+                                    onBlur={e => updateCircuitVideoUrl(s.id, c.id, vi, e.target.value.trim())}
+                                    style={{ ...inp, fontSize: 11, padding: '4px 8px', flex: 1, minWidth: 0 }}
+                                  />
+                                )}
+                                <button onClick={() => removeCircuitVideo(s.id, c.id, vi)}
+                                  style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 16, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>×</button>
+                              </div>
+                            ))}
+
+                            <div style={{ position: 'relative' }}>
+                              <input
+                                placeholder="Rechercher un mouvement pour ajouter sa vidéo…"
+                                value={actVideoSearch[key] || ''}
+                                onChange={e => searchCircuitVideo(key, e.target.value)}
+                                onBlur={() => setTimeout(() => setActVideoSuggs(p => ({ ...p, [key]: [] })), 150)}
+                                style={{ ...inp, fontSize: 12 }}
+                              />
+                              {(actVideoSuggs[key] || []).length > 0 && (
+                                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
+                                  {actVideoSuggs[key].map((mov, mi) => (
+                                    <button key={mi} onMouseDown={() => addCircuitVideo(s.id, c.id, key, mov)}
+                                      style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: mi < actVideoSuggs[key].length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
+                                      <span style={{ flex: 1 }}>{mov.name}</span>
+                                      <span style={{ fontSize: 12 }}>{mov.youtube_url ? '🎥' : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+
                     {/* Note */}
                     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
                       <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
@@ -846,9 +959,14 @@ function ProgramEditorPage({ params }) {
                       )
                     })}
 
-                    <button onClick={() => addExo(s.id)} style={{ background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '8px', fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', width: '100%' }}>
-                      + Exercice
-                    </button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => addExo(s.id)} style={{ flex: 1, background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '8px', fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
+                        + Exercice
+                      </button>
+                      <button onClick={() => addCircuit(s.id)} style={{ flex: 1, background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '8px', fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
+                        + Circuit
+                      </button>
+                    </div>
 
                     <SessionSummaryBlock exercises={s.exercises} />
 
