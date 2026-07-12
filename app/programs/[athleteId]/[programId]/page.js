@@ -11,6 +11,22 @@ function today() {
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
+function formatDuration(min) {
+  if (!min) return ''
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  if (h === 0) return `${m}min`
+  if (m === 0) return `${h}h`
+  return `${h}h${String(m).padStart(2, '0')}`
+}
+
+function scoreColor(val, inverse) {
+  const s = inverse ? (11 - val) : val
+  if (s >= 7) return '#22c55e'
+  if (s >= 4) return '#f59e0b'
+  return '#ef4444'
+}
+
 function getYouTubeId(url) {
   if (!url) return null
   const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?.*v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/)
@@ -148,6 +164,8 @@ function ProgramEditorPage({ params }) {
   const [titleSaving, setTitleSaving] = useState(false)
   const [actPresetSearch, setActPresetSearch] = useState({})
   const [actPresetSuggs, setActPresetSuggs] = useState({})
+  const [completionsMap, setCompletionsMap] = useState({})
+  const [logsMap, setLogsMap] = useState({})
 
   const isTemplate = athleteId === 'templates'
 
@@ -181,6 +199,26 @@ function ProgramEditorPage({ params }) {
       }))
       setSessions(loaded)
       if (loaded.length === 1) setOpenId(loaded[0].id)
+
+      if (!isTemplate && a) {
+        const sessionIds = (sess || []).map(s => s.id)
+        const exerciseIds = (sess || []).flatMap(s => (s.program_exercises || []).map(e => e.id))
+        if (sessionIds.length) {
+          const { data: comps } = await supabase.from('program_completions')
+            .select('*').eq('athlete_id', a.id).in('program_session_id', sessionIds)
+          const cMap = {}
+          ;(comps || []).forEach(c => { cMap[c.program_session_id] = c })
+          setCompletionsMap(cMap)
+        }
+        if (exerciseIds.length) {
+          const { data: logs } = await supabase.from('program_exercise_logs')
+            .select('*').eq('athlete_id', a.id).in('program_exercise_id', exerciseIds)
+          const lMap = {}
+          ;(logs || []).forEach(l => { lMap[l.program_exercise_id] = l })
+          setLogsMap(lMap)
+        }
+      }
+
       setLoading(false)
     }
     load()
@@ -685,6 +723,7 @@ function ProgramEditorPage({ params }) {
           {sessions.map((s, idx) => {
             const isOpen = layoutCols > 1 ? true : openId === s.id
             const labels = computeLabels(s.exercises)
+            const completion = completionsMap[s.id]
             return (
               <div key={s.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
 
@@ -711,6 +750,11 @@ function ProgramEditorPage({ params }) {
                   <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>
                     {s.exercises.filter(e => e.name.trim()).length} ex.
                   </span>
+                  {completion && (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#166534', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
+                      ✓ Effectuée
+                    </span>
+                  )}
                   {idx > 0 && (
                     <button onClick={e => { e.stopPropagation(); moveSession(idx, -1) }}
                       style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>↑</button>
@@ -730,6 +774,53 @@ function ProgramEditorPage({ params }) {
                 {/* Contenu de la séance */}
                 {isOpen && (
                   <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+                    {/* Retours du client si la séance a déjà été effectuée */}
+                    {completion && (
+                      <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 'var(--r)', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ fontSize: 10, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                          ✓ Effectuée {completion.completed_at ? `le ${new Date(completion.completed_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}` : ''}
+                        </div>
+                        {(completion.pleasure != null || completion.difficulty != null || completion.duration_minutes) && (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {completion.pleasure != null && (
+                              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '5px 10px' }}>
+                                <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase' }}>Plaisir</div>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: scoreColor(completion.pleasure, false) }}>{completion.pleasure}/10</div>
+                              </div>
+                            )}
+                            {completion.difficulty != null && (
+                              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '5px 10px' }}>
+                                <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase' }}>Difficulté</div>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: scoreColor(completion.difficulty, true) }}>{completion.difficulty}/10</div>
+                              </div>
+                            )}
+                            {completion.duration_minutes && (
+                              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '5px 10px' }}>
+                                <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase' }}>Durée</div>
+                                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{formatDuration(completion.duration_minutes)}</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {s.exercises.filter(e => e.name.trim()).map(e => {
+                            const log = logsMap[e.id]
+                            if (!log) return null
+                            const prescribed = [e.sets && `${e.sets} séries`, e.reps && `${e.reps} reps`, e.kg && `${e.kg} kg`].filter(Boolean).join(' · ')
+                            const done = [log.sets_done && `${log.sets_done} séries`, log.reps_done && `${log.reps_done} reps`, log.kg_done && `${log.kg_done} kg`].filter(Boolean).join(' · ')
+                            return (
+                              <div key={e.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 10px' }}>
+                                <div style={{ fontWeight: 700, fontSize: 13 }}>{e.name}</div>
+                                {prescribed && <div style={{ fontSize: 11, color: 'var(--text3)' }}>Prescrit : {prescribed}</div>}
+                                {done && <div style={{ fontSize: 11, color: '#166534', fontWeight: 700, marginTop: 2 }}>Réalisé : {done}</div>}
+                                {log.note && <div style={{ fontSize: 11, color: 'var(--text2)', marginTop: 2, fontStyle: 'italic' }}>« {log.note} »</div>}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Activation */}
                     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'visible' }}>
