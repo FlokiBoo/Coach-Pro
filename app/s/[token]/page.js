@@ -8,6 +8,7 @@ import ActivityBlock from '@/app/components/ActivityBlock'
 import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
 import ProgressBlock from '@/app/components/ProgressBlock'
 import CelebrationModal, { parseMusclesFromText } from '@/app/components/CelebrationModal'
+import MuscleAnatomyDiagram from '@/app/components/MuscleAnatomyDiagram'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -678,8 +679,13 @@ function TipsButton() {
             {!tips ? (
               <div style={{ color: 'var(--text3)', fontSize: 13 }}>Chargement…</div>
             ) : selected ? (
-              <div style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {selected.content || 'Pas encore d\'explication pour ce tip.'}
+              <div>
+                {(selected.content || !selected.diagram) && (
+                  <div style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: selected.diagram ? 14 : 0 }}>
+                    {selected.content || 'Pas encore d\'explication pour ce tip.'}
+                  </div>
+                )}
+                {selected.diagram === 'muscle_anatomy' && <MuscleAnatomyDiagram />}
               </div>
             ) : tips.length === 0 ? (
               <div style={{ color: 'var(--text3)', fontSize: 13 }}>Aucun tip pour le moment.</div>

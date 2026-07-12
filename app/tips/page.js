@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
+import MuscleAnatomyDiagram from '@/app/components/MuscleAnatomyDiagram'
 
 function emptyForm() {
-  return { title: '', content: '' }
+  return { title: '', content: '', diagram: false }
 }
 
 export default function TipsPage() {
@@ -32,6 +33,7 @@ export default function TipsPage() {
       title: newForm.title.trim(),
       content: newForm.content.trim() || null,
       order_index: tips.length,
+      diagram: newForm.diagram ? 'muscle_anatomy' : null,
     }).select().single()
     if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
     setTips(prev => [...prev, data])
@@ -42,18 +44,20 @@ export default function TipsPage() {
 
   function startEdit(t) {
     setEditingId(t.id)
-    setEditForm({ title: t.title, content: t.content || '' })
+    setEditForm({ title: t.title, content: t.content || '', diagram: t.diagram === 'muscle_anatomy' })
   }
 
   async function saveEdit() {
     if (!editForm.title.trim()) return
     setSaving(true)
+    const diagram = editForm.diagram ? 'muscle_anatomy' : null
     const { error } = await supabase.from('tips').update({
       title: editForm.title.trim(),
       content: editForm.content.trim() || null,
+      diagram,
     }).eq('id', editingId)
     if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
-    setTips(prev => prev.map(t => t.id === editingId ? { ...t, title: editForm.title.trim(), content: editForm.content.trim() || null } : t))
+    setTips(prev => prev.map(t => t.id === editingId ? { ...t, title: editForm.title.trim(), content: editForm.content.trim() || null, diagram } : t))
     setEditingId(null)
     setSaving(false)
   }
@@ -114,6 +118,11 @@ export default function TipsPage() {
                 rows={4}
                 style={{ padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', resize: 'vertical', fontFamily: 'inherit' }}
               />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text2)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={newForm.diagram} onChange={e => setNewForm(f => ({ ...f, diagram: e.target.checked }))}
+                  style={{ accentColor: 'var(--green)', width: 16, height: 16 }} />
+                Inclure le schéma musculaire (avant/arrière + légende)
+              </label>
               <button onClick={create} disabled={saving} style={{
                 background: 'var(--green)', color: '#fff', border: 'none',
                 borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer'
@@ -143,6 +152,11 @@ export default function TipsPage() {
                       rows={4}
                       style={{ padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', resize: 'vertical', fontFamily: 'inherit' }}
                     />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text2)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={editForm.diagram} onChange={e => setEditForm(f => ({ ...f, diagram: e.target.checked }))}
+                        style={{ accentColor: 'var(--green)', width: 16, height: 16 }} />
+                      Inclure le schéma musculaire (avant/arrière + légende)
+                    </label>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={saveEdit} disabled={saving} style={{
                         background: 'var(--green)', color: '#fff', border: 'none',
@@ -163,8 +177,9 @@ export default function TipsPage() {
                         style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: idx === tips.length - 1 ? 'var(--border2)' : 'var(--text3)', cursor: idx === tips.length - 1 ? 'default' : 'pointer' }}>▼</button>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: t.content ? 4 : 0 }}>{t.title}</div>
-                      {t.content && <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{t.content}</div>}
+                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: (t.content || t.diagram) ? 4 : 0 }}>{t.title}</div>
+                      {t.content && <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5, whiteSpace: 'pre-wrap', marginBottom: t.diagram ? 10 : 0 }}>{t.content}</div>}
+                      {t.diagram === 'muscle_anatomy' && <MuscleAnatomyDiagram />}
                     </div>
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                       <button onClick={() => startEdit(t)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>✎</button>
