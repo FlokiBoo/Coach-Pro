@@ -212,7 +212,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
                   <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text2)', flex: 1 }}>{label}</span>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     {kmByLabel[label] > 0 && (
-                      <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--green)' }}>{fmtKm(Math.round(kmByLabel[label] * 10) / 10)}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)' }}>{fmtKm(Math.round(kmByLabel[label] * 10) / 10)}</span>
                     )}
                     {durByLabel[label] > 0 && (
                       <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text3)' }}>{formatDur(durByLabel[label])}</span>
