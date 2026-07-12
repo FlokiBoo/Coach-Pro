@@ -1,6 +1,9 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextResponse } from 'next/server'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 export async function GET(request, { params }) {
   const { token } = await params
   if (!token) return NextResponse.json({ error: 'token requis' }, { status: 400 })
@@ -28,5 +31,8 @@ export async function GET(request, { params }) {
     ;(movs || []).forEach(m => { movieMap[m.name] = m.youtube_url })
   }
 
-  return NextResponse.json({ athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap })
+  return NextResponse.json(
+    { athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap },
+    { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
+  )
 }

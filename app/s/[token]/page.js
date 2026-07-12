@@ -83,7 +83,7 @@ function AthleteView({ params }) {
 
   useEffect(() => {
     async function load() {
-      const res = await fetch(`/api/athlete-view/${token}`)
+      const res = await fetch(`/api/athlete-view/${token}`, { cache: 'no-store' })
       if (!res.ok) return
       const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap } = await res.json()
       setAthlete(ath)
