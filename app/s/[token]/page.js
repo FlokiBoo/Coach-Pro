@@ -636,22 +636,17 @@ function Pill({ value, label, color, textColor }) {
   )
 }
 
-let tipsCache = null
-
 function TipsButton() {
   const [open, setOpen] = useState(false)
-  const [tips, setTips] = useState(tipsCache)
+  const [tips, setTips] = useState(null)
   const [selected, setSelected] = useState(null)
 
   const openModal = async (e) => {
     e.stopPropagation()
     setOpen(true)
     setSelected(null)
-    if (!tipsCache) {
-      const { data } = await supabase.from('tips').select('*').order('order_index')
-      tipsCache = data || []
-      setTips(tipsCache)
-    }
+    const { data } = await supabase.from('tips').select('*').order('order_index')
+    setTips(data || [])
   }
 
   return (
