@@ -55,7 +55,9 @@ export default function AthletePage({ params }) {
   const [athlete, setAthlete] = useState(null)
   const [wellness, setWellness] = useState(null)
   const [activityLogs] = useState({})
-  const [completionsToday, setCompletionsToday] = useState([])
+  const [recentSessions, setRecentSessions] = useState([])
+  const [selectedSessionIdx, setSelectedSessionIdx] = useState(0)
+  const [openSession, setOpenSession] = useState(null)
   const [objectives, setObjectives] = useState([])
   const [loading, setLoading] = useState(true)
   const [showDanger, setShowDanger] = useState(false)
@@ -83,16 +85,34 @@ export default function AthletePage({ params }) {
       let completions = []
       if (sessionIds.length > 0) {
         const { data: comps } = await supabase.from('program_completions')
-          .select('*, program_sessions(title, programs(title))')
+          .select('*, program_sessions(id, title, programs(title), program_exercises(id, name, sets, reps, kg, note))')
           .in('program_session_id', sessionIds)
-          .gte('completed_at', todayStr + 'T00:00:00')
-          .lte('completed_at', todayStr + 'T23:59:59')
+          .order('completed_at', { ascending: false })
+          .limit(3)
         completions = comps || []
+
+        const exerciseIds = completions.flatMap(c => (c.program_sessions?.program_exercises || []).map(e => e.id))
+        if (exerciseIds.length > 0) {
+          const { data: logs } = await supabase.from('program_exercise_logs')
+            .select('*')
+            .eq('athlete_id', athleteId)
+            .in('program_exercise_id', exerciseIds)
+          const logsMap = {}
+          ;(logs || []).forEach(l => { logsMap[l.program_exercise_id] = l })
+          completions = completions.map(c => ({
+            ...c,
+            program_sessions: c.program_sessions ? {
+              ...c.program_sessions,
+              program_exercises: (c.program_sessions.program_exercises || []).map(e => ({ ...e, log: logsMap[e.id] })),
+            } : c.program_sessions,
+          }))
+        }
       }
 
       setAthlete(ath)
       setWellness(w)
-      setCompletionsToday(completions)
+      setRecentSessions(completions)
+      setSelectedSessionIdx(0)
       setObjectives(objs || [])
       if (ath) setForm({ name: ath.name || '', email: ath.email || '', birth_date: ath.birth_date || '', weight: ath.weight || '', height: ath.height || '' })
       setLoading(false)
@@ -344,27 +364,51 @@ export default function AthletePage({ params }) {
 
             {/* Séance */}
             <div style={{ padding: '12px 14px' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>Séance</div>
-              {completionsToday.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {completionsToday.map((c, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#F0FDF4', borderRadius: 'var(--r)', padding: '8px 12px' }}>
-                      <span style={{ color: '#22c55e', fontSize: 14, marginTop: 1 }}>✓</span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700 }}>
-                          {c.program_sessions?.title || 'Séance'}
-                          {c.program_sessions?.programs?.title && <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>{c.program_sessions.programs.title}</span>}
-                        </div>
-                        <div style={{ display: 'flex', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
-                          {c.pleasure != null && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Plaisir <b style={{ color: scoreColor(c.pleasure, false) }}>{c.pleasure}/10</b></span>}
-                          {c.difficulty != null && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Difficulté <b style={{ color: scoreColor(c.difficulty, true) }}>{c.difficulty}/10</b></span>}
-                          {c.duration_minutes && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{formatDuration(c.duration_minutes)}</span>}
-                        </div>
+              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 6 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', flex: 1 }}>Dernières séances</div>
+                {recentSessions.length > 1 && (
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {recentSessions.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setSelectedSessionIdx(i)}
+                        style={{
+                          width: 22, height: 22, borderRadius: '50%', fontSize: 11, fontWeight: 700,
+                          border: i === selectedSessionIdx ? 'none' : '1px solid var(--border2)',
+                          background: i === selectedSessionIdx ? '#22c55e' : 'transparent',
+                          color: i === selectedSessionIdx ? '#fff' : 'var(--text3)',
+                          cursor: 'pointer',
+                        }}
+                      >{i + 1}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {recentSessions.length > 0 ? (() => {
+                const c = recentSessions[selectedSessionIdx]
+                if (!c) return null
+                return (
+                  <div
+                    onClick={() => setOpenSession(c)}
+                    style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#F0FDF4', borderRadius: 'var(--r)', padding: '8px 12px', cursor: 'pointer' }}
+                  >
+                    <span style={{ color: '#22c55e', fontSize: 14, marginTop: 1 }}>✓</span>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>
+                        {c.program_sessions?.title || 'Séance'}
+                        {c.program_sessions?.programs?.title && <span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>{c.program_sessions.programs.title}</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{new Date(c.completed_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}</div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
+                        {c.pleasure != null && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Plaisir <b style={{ color: scoreColor(c.pleasure, false) }}>{c.pleasure}/10</b></span>}
+                        {c.difficulty != null && <span style={{ fontSize: 11, color: 'var(--text3)' }}>Difficulté <b style={{ color: scoreColor(c.difficulty, true) }}>{c.difficulty}/10</b></span>}
+                        {c.duration_minutes && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{formatDuration(c.duration_minutes)}</span>}
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
+                    <span style={{ color: 'var(--text3)', fontSize: 12, marginTop: 2 }}>›</span>
+                  </div>
+                )
+              })() : (
                 <span style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Aucune séance validée</span>
               )}
             </div>
@@ -373,6 +417,53 @@ export default function AthletePage({ params }) {
           {/* ── PROGRAMMES ── */}
           <MicrocyclesBlock athleteId={athleteId} athleteToken={athlete?.token} />
 
+        </div>
+      </div>
+      {openSession && <SessionDetailModal session={openSession} onClose={() => setOpenSession(null)} />}
+    </div>
+  )
+}
+
+function SessionDetailModal({ session, onClose }) {
+  const sess = session.program_sessions
+  const exercises = sess?.program_exercises || []
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 1000 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: '20px 20px 0 0', padding: 20, width: '100%', maxWidth: 480, maxHeight: '88svh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div>
+          <div style={{ fontSize: 16, fontWeight: 800 }}>
+            {sess?.title || 'Séance'}
+            {sess?.programs?.title && <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text3)', marginLeft: 6 }}>{sess.programs.title}</span>}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>
+            {new Date(session.completed_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+          </div>
+        </div>
+        {(session.pleasure != null || session.difficulty != null || session.duration_minutes) && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {session.pleasure != null && <Stat label="Plaisir" value={`${session.pleasure}/10`} />}
+            {session.difficulty != null && <Stat label="Difficulté" value={`${session.difficulty}/10`} />}
+            {session.duration_minutes && <Stat label="Durée" value={formatDuration(session.duration_minutes)} />}
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {exercises.map(e => {
+            const log = e.log || {}
+            const prescribed = [e.sets && `${e.sets} séries`, e.reps && `${e.reps} reps`, e.kg && `${e.kg} kg`].filter(Boolean).join(' · ')
+            const done = [log.sets_done && `${log.sets_done} séries`, log.reps_done && `${log.reps_done} reps`, log.kg_done && `${log.kg_done} kg`].filter(Boolean).join(' · ')
+            return (
+              <div key={e.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{e.name}</div>
+                {prescribed && <div style={{ fontSize: 12, color: 'var(--text3)' }}>Prescrit : {prescribed}</div>}
+                {done && <div style={{ fontSize: 12, color: '#166534', fontWeight: 700, marginTop: 2 }}>Réalisé : {done}</div>}
+                {e.note && <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Note coach : {e.note}</div>}
+                {log.note && <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2, fontStyle: 'italic' }}>« {log.note} »</div>}
+              </div>
+            )
+          })}
+          {exercises.length === 0 && (
+            <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>Aucun exercice</div>
+          )}
         </div>
       </div>
     </div>
