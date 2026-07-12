@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { getCoachId } from '@/lib/coach'
 
-export default function MicrocyclesBlock({ athleteId }) {
+export default function MicrocyclesBlock({ athleteId, athleteToken }) {
   const router = useRouter()
   const [programs, setPrograms] = useState([])
   const [expandedId, setExpandedId] = useState(null)
@@ -285,6 +285,14 @@ export default function MicrocyclesBlock({ athleteId }) {
                     >
                       {sess.title || `Séance ${si + 1}`}
                     </Link>
+                    {athleteToken && (
+                      <a
+                        href={`/s/${athleteToken}?coach=1&session=${sess.id}`}
+                        target="_blank" rel="noreferrer"
+                        title="Lancer cette séance (coaching)"
+                        style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: 'var(--green)', padding: '2px 4px', flexShrink: 0, textDecoration: 'none' }}
+                      >🏋️</a>
+                    )}
                     <button
                       onClick={() => duplicateSession(sess, prog.id)}
                       title="Dupliquer"

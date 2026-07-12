@@ -70,6 +70,7 @@ function AthleteView({ params }) {
   const { token } = use(params)
   const searchParams = useSearchParams()
   const isCoachView = searchParams.get('coach') === '1'
+  const targetSessionId = searchParams.get('session')
   const [athlete, setAthlete] = useState(null)
   const [programs, setPrograms] = useState([])
   const [completions, setCompletions] = useState(new Set())
@@ -108,6 +109,13 @@ function AthleteView({ params }) {
           }))
       }))
       setPrograms(progList)
+
+      // Séance ciblée via l'URL (ex: lancée depuis l'espace coach) prioritaire sur l'auto-ouverture
+      const allSessionIds = new Set(progList.flatMap(p => p.sessions.map(s => s.id)))
+      if (targetSessionId && allSessionIds.has(targetSessionId)) {
+        setOpenSessionId(targetSessionId)
+        return
+      }
 
       // Auto-ouvrir la première séance à faire du premier programme
       for (const prog of progList) {
@@ -290,6 +298,9 @@ function AthleteView({ params }) {
             .map((s, i) => ({ s, i }))
             .filter(({ s }) => completions.has(s.id))
             .reverse()
+          const otherSessions = prog.sessions
+            .map((s, i) => ({ s, i }))
+            .filter(({ s }) => !completions.has(s.id) && s.id !== nextSession?.id)
           const isOpenNext = nextSession && openSessionId === nextSession.id
 
           return (
@@ -352,6 +363,38 @@ function AthleteView({ params }) {
                           onValidate={(fb) => validate(pastSession.id, prog.sessions, fb, { isUpdate: true })}
                           onUnvalidate={() => unvalidate(pastSession.id, prog.sessions)}
                           initialFeedback={completionFeedback[pastSession.id]}
+                          validating={validating}
+                          exerciseLogs={exerciseLogs}
+                          onSaveLog={saveExerciseLog}
+                          athleteId={athlete.id}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+
+              {/* Autres séances non encore faites (accès direct, ex: coaching en présentiel) */}
+              {otherSessions.map(({ s: otherSession, i: otherIdx }) => {
+                const isOpenOther = openSessionId === otherSession.id
+                return (
+                  <div key={otherSession.id}>
+                    <button
+                      onClick={() => setOpenSessionId(isOpenOther ? null : otherSession.id)}
+                      style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      {isOpenOther ? '▲' : '▼'} {otherSession.title || `Séance ${otherIdx + 1}`}
+                    </button>
+                    {isOpenOther && (
+                      <div style={{ marginTop: 4 }}>
+                        <SessionCard
+                          session={otherSession}
+                          idx={otherIdx}
+                          isOpen={true}
+                          isCompleted={false}
+                          onToggle={() => setOpenSessionId(null)}
+                          onValidate={(fb) => validate(otherSession.id, prog.sessions, fb)}
+                          onUnvalidate={null}
                           validating={validating}
                           exerciseLogs={exerciseLogs}
                           onSaveLog={saveExerciseLog}

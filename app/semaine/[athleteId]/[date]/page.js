@@ -234,25 +234,26 @@ export default function AthletePage({ params }) {
 
                 {/* Lien personnel */}
                 {athlete?.token ? (
-                  athlete.is_coach ? (
-                    <Link href={`/s/${athlete.token}`} target="_blank"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#DBEAFE', color: '#1D4ED8', border: '1px solid #BFDBFE', borderRadius: 'var(--r)', padding: '9px 16px', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-                      👤 Vue sportif
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <Link href={`/s/${athlete.token}?coach=1`} target="_blank"
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                      🏋️ Coaching — lancer une séance
                     </Link>
-                  ) : (
-                  <div style={{ background: 'var(--bg2)', borderRadius: 'var(--r)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>Lien personnel</div>
-                      <div style={{ fontSize: 12, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {`${process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/s/${athlete.token}`}
+                    {!athlete.is_coach && (
+                      <div style={{ background: 'var(--bg2)', borderRadius: 'var(--r)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>Lien personnel</div>
+                          <div style={{ fontSize: 12, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {`${process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/s/${athlete.token}`}
+                          </div>
+                        </div>
+                        <button onClick={() => navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/s/${athlete.token}`)}
+                          style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                          Copier
+                        </button>
                       </div>
-                    </div>
-                    <button onClick={() => navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/s/${athlete.token}`)}
-                      style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                      Copier
-                    </button>
+                    )}
                   </div>
-                  )
                 ) : (
                   <button onClick={async () => {
                     const token = crypto.randomUUID()
@@ -370,7 +371,7 @@ export default function AthletePage({ params }) {
           </div>
 
           {/* ── PROGRAMMES ── */}
-          <MicrocyclesBlock athleteId={athleteId} />
+          <MicrocyclesBlock athleteId={athleteId} athleteToken={athlete?.token} />
 
         </div>
       </div>
