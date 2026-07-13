@@ -366,136 +366,23 @@ function AthleteView({ params }) {
           </div>
         )}
 
-        {programs.map(prog => {
-          const done = prog.sessions.filter(s => completions.has(s.id)).length
-          const total = prog.sessions.length
-          const allDone = done === total && total > 0
-          const nextSession = prog.sessions.find(s => !completions.has(s.id))
-          const nextIdx = prog.sessions.indexOf(nextSession)
-          const pastSessions = prog.sessions
-            .map((s, i) => ({ s, i }))
-            .filter(({ s }) => completions.has(s.id))
-            .reverse()
-          const otherSessions = prog.sessions
-            .map((s, i) => ({ s, i }))
-            .filter(({ s }) => !completions.has(s.id) && s.id !== nextSession?.id)
-          const isOpenNext = nextSession && openSessionId === nextSession.id
-
-          return (
-            <div key={prog.id} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-
-              {/* En-tête programme + barre de progression */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text2)', flex: 1 }}>{prog.title}</div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: allDone ? '#166534' : 'var(--text3)' }}>
-                  {done}/{total}
-                </div>
-              </div>
-              <div style={{ height: 5, background: 'var(--border)', borderRadius: 10, overflow: 'hidden', marginBottom: 2 }}>
-                <div style={{ height: '100%', background: 'var(--green)', borderRadius: 10, width: `${total ? Math.round((done / total) * 100) : 0}%`, transition: 'width .4s' }} />
-              </div>
-
-              {/* Séance à faire */}
-              {nextSession && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    onClick={() => router.push(`/s/${token}?session=${nextSession.id}&focus=1${isCoachView ? '&coach=1' : ''}`)}
-                    style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    ▶ Lancer la séance
-                  </button>
-                </div>
-              )}
-              {nextSession && (
-                <SessionCard
-                  session={nextSession}
-                  idx={nextIdx}
-                  isOpen={isOpenNext}
-                  isCompleted={false}
-                  onToggle={() => setOpenSessionId(isOpenNext ? null : nextSession.id)}
-                  onValidate={(fb) => validate(nextSession.id, prog.sessions, fb)}
-                  onUnvalidate={null}
-                  validating={validating}
-                  exerciseLogs={exerciseLogs}
-                  onSaveLog={saveExerciseLog}
-                  athleteId={athlete.id}
-                />
-              )}
-
-              {/* Programme terminé */}
-              {allDone && (
-                <div style={{ background: '#DCFCE7', border: '1px solid #BBF7D0', borderRadius: 'var(--rl)', padding: '12px 14px', textAlign: 'center', color: '#166534', fontWeight: 700, fontSize: 14 }}>
-                  ✓ Programme terminé !
-                </div>
-              )}
-
-              {/* Séances validées : consultables et modifiables */}
-              {pastSessions.map(({ s: pastSession, i: pastIdx }) => {
-                const isOpenPast = openSessionId === pastSession.id
-                return (
-                  <div key={pastSession.id}>
-                    <button
-                      onClick={() => setOpenSessionId(isOpenPast ? null : pastSession.id)}
-                      style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}
-                    >
-                      {isOpenPast ? '▲' : '▼'} {pastSession.title || `Séance ${pastIdx + 1}`} · validée
-                    </button>
-                    {isOpenPast && (
-                      <div style={{ marginTop: 4 }}>
-                        <SessionCard
-                          session={pastSession}
-                          idx={pastIdx}
-                          isOpen={true}
-                          isCompleted={true}
-                          onToggle={() => setOpenSessionId(null)}
-                          onValidate={(fb) => validate(pastSession.id, prog.sessions, fb, { isUpdate: true })}
-                          onUnvalidate={() => unvalidate(pastSession.id, prog.sessions)}
-                          initialFeedback={completionFeedback[pastSession.id]}
-                          validating={validating}
-                          exerciseLogs={exerciseLogs}
-                          onSaveLog={saveExerciseLog}
-                          athleteId={athlete.id}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-
-              {/* Autres séances non encore faites (accès direct, ex: coaching en présentiel) */}
-              {otherSessions.map(({ s: otherSession, i: otherIdx }) => {
-                const isOpenOther = openSessionId === otherSession.id
-                return (
-                  <div key={otherSession.id}>
-                    <button
-                      onClick={() => setOpenSessionId(isOpenOther ? null : otherSession.id)}
-                      style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}
-                    >
-                      {isOpenOther ? '▲' : '▼'} {otherSession.title || `Séance ${otherIdx + 1}`}
-                    </button>
-                    {isOpenOther && (
-                      <div style={{ marginTop: 4 }}>
-                        <SessionCard
-                          session={otherSession}
-                          idx={otherIdx}
-                          isOpen={true}
-                          isCompleted={false}
-                          onToggle={() => setOpenSessionId(null)}
-                          onValidate={(fb) => validate(otherSession.id, prog.sessions, fb)}
-                          onUnvalidate={null}
-                          validating={validating}
-                          exerciseLogs={exerciseLogs}
-                          onSaveLog={saveExerciseLog}
-                          athleteId={athlete.id}
-                        />
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          )
-        })}
+        {programs.map(prog => (
+          <ProgramSessionsBlock
+            key={prog.id}
+            prog={prog}
+            completions={completions}
+            completionFeedback={completionFeedback}
+            validating={validating}
+            exerciseLogs={exerciseLogs}
+            athleteId={athlete.id}
+            validate={validate}
+            unvalidate={unvalidate}
+            saveExerciseLog={saveExerciseLog}
+            router={router}
+            token={token}
+            isCoachView={isCoachView}
+          />
+        ))}
       </div>
 
       {celebration && (
@@ -517,6 +404,109 @@ const logInputStyle = {
   width: '100%', padding: '7px 9px', border: '1px solid var(--border2)',
   borderRadius: 'var(--r)', fontSize: 14, fontWeight: 700, outline: 'none',
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
+}
+
+function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView }) {
+  const total = prog.sessions.length
+  const done = prog.sessions.filter(s => completions.has(s.id)).length
+  const allDone = done === total && total > 0
+  const firstIncompleteIdx = prog.sessions.findIndex(s => !completions.has(s.id))
+
+  const [selectedIdx, setSelectedIdx] = useState(firstIncompleteIdx !== -1 ? firstIncompleteIdx : 0)
+  const [showValidated, setShowValidated] = useState(false)
+
+  if (total === 0) return null
+  const session = prog.sessions[selectedIdx]
+  const isCompleted = completions.has(session.id)
+  const validatedSessions = prog.sessions
+    .map((s, i) => ({ s, i }))
+    .filter(({ s }) => completions.has(s.id))
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+      {/* En-tête programme + barre de progression */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text2)', flex: 1 }}>{prog.title}</div>
+        <div style={{ fontSize: 12, fontWeight: 700, color: allDone ? '#166534' : 'var(--text3)' }}>
+          {done}/{total}
+        </div>
+      </div>
+      <div style={{ height: 5, background: 'var(--border)', borderRadius: 10, overflow: 'hidden', marginBottom: 2 }}>
+        <div style={{ height: '100%', background: 'var(--green)', borderRadius: 10, width: `${total ? Math.round((done / total) * 100) : 0}%`, transition: 'width .4s' }} />
+      </div>
+
+      {/* Pager séance précédente / suivante */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <button
+          onClick={() => setSelectedIdx(i => Math.max(0, i - 1))}
+          disabled={selectedIdx === 0}
+          style={{ background: 'none', border: 'none', fontSize: 22, color: selectedIdx === 0 ? 'var(--border2)' : 'var(--text2)', cursor: selectedIdx === 0 ? 'default' : 'pointer', padding: '2px 6px', flexShrink: 0, lineHeight: 1 }}
+        >‹</button>
+        <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {session.title || `Séance ${selectedIdx + 1}`}
+          </div>
+        </div>
+        <button
+          onClick={() => setSelectedIdx(i => Math.min(total - 1, i + 1))}
+          disabled={selectedIdx === total - 1}
+          style={{ background: 'none', border: 'none', fontSize: 22, color: selectedIdx === total - 1 ? 'var(--border2)' : 'var(--text2)', cursor: selectedIdx === total - 1 ? 'default' : 'pointer', padding: '2px 6px', flexShrink: 0, lineHeight: 1 }}
+        >›</button>
+        <button
+          onClick={() => router.push(`/s/${token}?session=${session.id}&focus=1${isCoachView ? '&coach=1' : ''}`)}
+          style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
+        >▶ Lancer</button>
+      </div>
+
+      <SessionCard
+        session={session}
+        idx={selectedIdx}
+        isOpen={true}
+        isCompleted={isCompleted}
+        onToggle={() => {}}
+        onValidate={(fb) => validate(session.id, prog.sessions, fb, { isUpdate: isCompleted })}
+        onUnvalidate={isCompleted ? () => unvalidate(session.id, prog.sessions) : null}
+        initialFeedback={completionFeedback[session.id]}
+        validating={validating}
+        exerciseLogs={exerciseLogs}
+        onSaveLog={saveExerciseLog}
+        athleteId={athleteId}
+      />
+
+      {/* Programme terminé */}
+      {allDone && (
+        <div style={{ background: '#DCFCE7', border: '1px solid #BBF7D0', borderRadius: 'var(--rl)', padding: '12px 14px', textAlign: 'center', color: '#166534', fontWeight: 700, fontSize: 14 }}>
+          ✓ Programme terminé !
+        </div>
+      )}
+
+      {/* Séances validées : liste repliable */}
+      {validatedSessions.length > 0 && (
+        <div>
+          <button
+            onClick={() => setShowValidated(v => !v)}
+            style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}
+          >
+            {showValidated ? '▲' : '▼'} Séances validées ({validatedSessions.length})
+          </button>
+          {showValidated && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 4 }}>
+              {validatedSessions.map(({ s, i }) => (
+                <button
+                  key={s.id}
+                  onClick={() => { setSelectedIdx(i); setShowValidated(false) }}
+                  style={{ background: 'none', border: 'none', color: i === selectedIdx ? 'var(--green)' : 'var(--text2)', fontWeight: i === selectedIdx ? 700 : 600, fontSize: 12, textAlign: 'left', cursor: 'pointer', padding: '3px 0' }}
+                >
+                  ✓ {s.title || `Séance ${i + 1}`}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId }) {
