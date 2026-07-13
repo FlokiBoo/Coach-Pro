@@ -11,7 +11,7 @@ export async function GET(request, { params }) {
   const { data: athlete } = await supabaseAdmin.from('athletes').select('*').eq('token', token).single()
   if (!athlete) return NextResponse.json({ error: 'introuvable' }, { status: 404 })
 
-  const [{ data: progs }, { data: comps }, { data: logs }] = await Promise.all([
+  const [{ data: progs }, { data: comps }, { data: logs }, { data: objectives }, { data: noteBlocks }] = await Promise.all([
     supabaseAdmin.from('programs')
       .select('*, program_sessions(*, program_exercises(*))')
       .eq('athlete_id', athlete.id)
@@ -20,6 +20,8 @@ export async function GET(request, { params }) {
       .select('program_session_id, pleasure, difficulty, duration_minutes')
       .eq('athlete_id', athlete.id),
     supabaseAdmin.from('program_exercise_logs').select('*').eq('athlete_id', athlete.id),
+    supabaseAdmin.from('athlete_objectives').select('*').eq('athlete_id', athlete.id).order('created_at'),
+    supabaseAdmin.from('athlete_note_blocks').select('*').eq('athlete_id', athlete.id).order('order_index'),
   ])
 
   const exerciseNames = [...new Set(
@@ -32,7 +34,7 @@ export async function GET(request, { params }) {
   }
 
   return NextResponse.json(
-    { athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap },
+    { athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap, objectives: objectives || [], noteBlocks: noteBlocks || [] },
     { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
   )
 }

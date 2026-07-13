@@ -84,6 +84,8 @@ function AthleteView({ params }) {
   const [showFreeForm, setShowFreeForm] = useState(false)
   const [completionFeedback, setCompletionFeedback] = useState({})
   const [isOffline, setIsOffline] = useState(false)
+  const [objectives, setObjectives] = useState([])
+  const [noteBlocks, setNoteBlocks] = useState([])
 
   useEffect(() => {
     setIsOffline(typeof navigator !== 'undefined' && !navigator.onLine)
@@ -106,8 +108,10 @@ function AthleteView({ params }) {
     async function load() {
       const res = await fetch(`/api/athlete-view/${token}`, { cache: 'no-store' })
       if (!res.ok) return
-      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap } = await res.json()
+      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, objectives: objs, noteBlocks: blocks } = await res.json()
       setAthlete(ath)
+      setObjectives(objs || [])
+      setNoteBlocks(blocks || [])
 
       const logsMap = {}
       ;(logs || []).forEach(l => { logsMap[l.program_exercise_id] = l })
@@ -323,6 +327,35 @@ function AthleteView({ params }) {
       )}
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+        {objectives.length > 0 && (
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>🎯 Objectifs</span>
+            </div>
+            <div style={{ padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {objectives.map(obj => (
+                <div key={obj.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: 'var(--bg2)', borderRadius: 'var(--r)', padding: '10px 12px', minWidth: 0 }}>
+                  <span style={{ color: 'var(--green)', fontSize: 14, marginTop: 1, flexShrink: 0 }}>▸</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: 'var(--text)', lineHeight: 1.4, wordBreak: 'break-word' }}>{obj.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {noteBlocks.map(b => (
+          <div key={b.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+            {b.title && (
+              <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{b.title}</span>
+              </div>
+            )}
+            {b.content && (
+              <div style={{ padding: 14, fontSize: 14, color: 'var(--text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{b.content}</div>
+            )}
+          </div>
+        ))}
 
         <WeeklyStatsBlock athleteId={athlete.id} />
         <ProgressBlock athleteId={athlete.id} />

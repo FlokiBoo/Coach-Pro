@@ -58,6 +58,10 @@ export default function AthletePage({ params }) {
   const [recentSessions, setRecentSessions] = useState([])
   const [openSession, setOpenSession] = useState(null)
   const [objectives, setObjectives] = useState([])
+  const [noteBlocks, setNoteBlocks] = useState([])
+  const [editingBlockId, setEditingBlockId] = useState(null)
+  const [blockForm, setBlockForm] = useState({ title: '', content: '' })
+  const [savingBlock, setSavingBlock] = useState(false)
   const [loading, setLoading] = useState(true)
   const [showDanger, setShowDanger] = useState(false)
   const [editingProfile, setEditingProfile] = useState(false)
@@ -72,12 +76,13 @@ export default function AthletePage({ params }) {
   useEffect(() => {
     async function load() {
       const todayStr = today()
-      const [{ data: ath }, { data: w }, { data: actLogs }, { data: progs }, { data: objs }] = await Promise.all([
+      const [{ data: ath }, { data: w }, { data: actLogs }, { data: progs }, { data: objs }, { data: blocks }] = await Promise.all([
         supabase.from('athletes').select('*').eq('id', athleteId).single(),
         supabase.from('wellness').select('*').eq('athlete_id', athleteId).eq('date', todayStr).single(),
         Promise.resolve({ data: [] }),
         supabase.from('programs').select('*, program_sessions(id)').eq('athlete_id', athleteId),
         supabase.from('athlete_objectives').select('*').eq('athlete_id', athleteId).order('created_at'),
+        supabase.from('athlete_note_blocks').select('*').eq('athlete_id', athleteId).order('order_index'),
       ])
 
       const sessionIds = (progs || []).flatMap(p => (p.program_sessions || []).map(s => s.id))
@@ -112,6 +117,7 @@ export default function AthletePage({ params }) {
       setWellness(w)
       setRecentSessions(completions)
       setObjectives(objs || [])
+      setNoteBlocks(blocks || [])
       if (ath) setForm({ name: ath.name || '', email: ath.email || '', birth_date: ath.birth_date || '', weight: ath.weight || '', height: ath.height || '' })
       setLoading(false)
     }
@@ -144,6 +150,40 @@ export default function AthletePage({ params }) {
   const removeObjective = async (id) => {
     await supabase.from('athlete_objectives').delete().eq('id', id)
     setObjectives(prev => prev.filter(o => o.id !== id))
+  }
+
+  const addBlock = async () => {
+    setSavingBlock(true)
+    const { data } = await supabase.from('athlete_note_blocks')
+      .insert({ athlete_id: athleteId, title: '', content: '', order_index: noteBlocks.length })
+      .select().single()
+    if (data) {
+      setNoteBlocks(prev => [...prev, data])
+      setEditingBlockId(data.id)
+      setBlockForm({ title: '', content: '' })
+    }
+    setSavingBlock(false)
+  }
+
+  const startEditBlock = (b) => {
+    setEditingBlockId(b.id)
+    setBlockForm({ title: b.title || '', content: b.content || '' })
+  }
+
+  const saveBlock = async () => {
+    setSavingBlock(true)
+    const { data } = await supabase.from('athlete_note_blocks')
+      .update({ title: blockForm.title.trim(), content: blockForm.content.trim() })
+      .eq('id', editingBlockId).select().single()
+    if (data) setNoteBlocks(prev => prev.map(b => b.id === editingBlockId ? data : b))
+    setEditingBlockId(null)
+    setSavingBlock(false)
+  }
+
+  const removeBlock = async (id) => {
+    if (!confirm('Supprimer ce bloc ?')) return
+    await supabase.from('athlete_note_blocks').delete().eq('id', id)
+    setNoteBlocks(prev => prev.filter(b => b.id !== id))
   }
 
   const inviteClient = async () => {
@@ -322,6 +362,58 @@ export default function AthletePage({ params }) {
               </div>
             </div>
           </div>
+
+          {/* ── BLOCS LIBRES ── */}
+          {noteBlocks.map(b => (
+            <div key={b.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+              <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                {editingBlockId === b.id ? (
+                  <input
+                    autoFocus
+                    value={blockForm.title}
+                    onChange={e => setBlockForm(f => ({ ...f, title: e.target.value }))}
+                    placeholder="Titre du bloc…"
+                    style={{ flex: 1, fontSize: 13, fontWeight: 700, border: 'none', outline: 'none', background: 'transparent', color: 'var(--text)' }}
+                  />
+                ) : (
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                    {b.title || <span style={{ color: 'var(--text3)', fontWeight: 400, fontStyle: 'italic' }}>Sans titre</span>}
+                  </span>
+                )}
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  {editingBlockId === b.id ? (
+                    <>
+                      <button onClick={() => setEditingBlockId(null)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+                      <button onClick={saveBlock} disabled={savingBlock} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{savingBlock ? '…' : 'Enregistrer'}</button>
+                    </>
+                  ) : (
+                    <>
+                      <button onClick={() => startEditBlock(b)} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Modifier</button>
+                      <button onClick={() => removeBlock(b.id)} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>×</button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div style={{ padding: 14 }}>
+                {editingBlockId === b.id ? (
+                  <textarea
+                    value={blockForm.content}
+                    onChange={e => setBlockForm(f => ({ ...f, content: e.target.value }))}
+                    placeholder="Contenu…"
+                    rows={4}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', fontFamily: 'inherit', resize: 'vertical' }}
+                  />
+                ) : (
+                  b.content
+                    ? <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{b.content}</div>
+                    : <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Vide</div>
+                )}
+              </div>
+            </div>
+          ))}
+          <button onClick={addBlock} disabled={savingBlock} style={{ background: 'var(--bg2)', border: '1px dashed var(--border2)', color: 'var(--text2)', borderRadius: 'var(--rl)', padding: '10px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'left' }}>
+            + Ajouter un bloc
+          </button>
 
           {/* ── STATS SEMAINE / MOIS ── */}
           <WeeklyStatsBlock athleteId={athleteId} />
