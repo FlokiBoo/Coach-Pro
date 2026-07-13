@@ -9,6 +9,7 @@ import MicrocyclesBlock from '@/app/components/MicrocyclesBlock'
 import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
 import ProgressBlock from '@/app/components/ProgressBlock'
 import ActivityBlock from '@/app/components/ActivityBlock'
+import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 
 function today() {
   const n = new Date()
@@ -68,8 +69,6 @@ export default function AthletePage({ params }) {
   const [saving, setSaving] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [inviteMsg, setInviteMsg] = useState('')
-  const [newObjective, setNewObjective] = useState('')
-  const objInputRef = useRef(null)
 
   const [form, setForm] = useState({ name: '', email: '', birth_date: '', weight: '', height: '' })
 
@@ -136,21 +135,6 @@ export default function AthletePage({ params }) {
     if (data) setAthlete(data)
     setSaving(false)
     setEditingProfile(false)
-  }
-
-  const addObjective = async () => {
-    const text = newObjective.trim()
-    if (!text) return
-    const { data, error } = await supabase.from('athlete_objectives').insert({ athlete_id: athleteId, text }).select().single()
-    if (error) { alert('Erreur : ' + error.message); return }
-    if (data) setObjectives(prev => [...prev, data])
-    setNewObjective('')
-    objInputRef.current?.focus()
-  }
-
-  const removeObjective = async (id) => {
-    await supabase.from('athlete_objectives').delete().eq('id', id)
-    setObjectives(prev => prev.filter(o => o.id !== id))
   }
 
   const addBlock = async () => {
@@ -329,42 +313,7 @@ export default function AthletePage({ params }) {
           </div>
 
           {/* ── OBJECTIFS ── */}
-          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>🎯 Objectifs</span>
-            </div>
-
-            <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {/* Liste des objectifs, 2 colonnes */}
-              {objectives.length === 0 && (
-                <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun objectif défini</div>
-              )}
-              {objectives.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  {objectives.map(obj => (
-                    <div key={obj.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: 'var(--bg2)', borderRadius: 'var(--r)', padding: '10px 12px', minWidth: 0 }}>
-                      <span style={{ color: 'var(--green)', fontSize: 14, marginTop: 1, flexShrink: 0 }}>▸</span>
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: 'var(--text)', lineHeight: 1.4, wordBreak: 'break-word' }}>{obj.text}</span>
-                      <button onClick={() => removeObjective(obj.id)}
-                        style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 16, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>×</button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Champ ajout */}
-              <div style={{ display: 'flex', gap: 8, marginTop: objectives.length > 0 ? 4 : 0 }}>
-                <input
-                  ref={objInputRef}
-                  value={newObjective}
-                  onChange={e => setNewObjective(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addObjective()}
-                  placeholder="Ajouter un objectif… (Entrée pour valider)"
-                  style={{ ...inputStyle, flex: 1, fontSize: 13 }}
-                />
-              </div>
-            </div>
-          </div>
+          <ObjectivesBlock athleteId={athleteId} objectives={objectives} setObjectives={setObjectives} />
 
           {/* ── BLOCS LIBRES ── */}
           {noteBlocks.map(b => (

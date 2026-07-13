@@ -9,6 +9,7 @@ import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
 import ProgressBlock from '@/app/components/ProgressBlock'
 import CelebrationModal, { parseMusclesFromText } from '@/app/components/CelebrationModal'
 import MuscleAnatomyDiagram from '@/app/components/MuscleAnatomyDiagram'
+import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -328,21 +329,7 @@ function AthleteView({ params }) {
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {objectives.length > 0 && (
-          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>🎯 Objectifs</span>
-            </div>
-            <div style={{ padding: 14, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-              {objectives.map(obj => (
-                <div key={obj.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: 'var(--bg2)', borderRadius: 'var(--r)', padding: '10px 12px', minWidth: 0 }}>
-                  <span style={{ color: 'var(--green)', fontSize: 14, marginTop: 1, flexShrink: 0 }}>▸</span>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, color: 'var(--text)', lineHeight: 1.4, wordBreak: 'break-word' }}>{obj.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {athlete?.id && <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} />}
 
         {noteBlocks.map(b => (
           <div key={b.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
