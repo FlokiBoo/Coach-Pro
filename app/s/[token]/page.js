@@ -81,6 +81,24 @@ function AthleteView({ params }) {
   const [celebration, setCelebration] = useState(null)
   const [showFreeForm, setShowFreeForm] = useState(false)
   const [completionFeedback, setCompletionFeedback] = useState({})
+  const [isOffline, setIsOffline] = useState(false)
+
+  useEffect(() => {
+    setIsOffline(typeof navigator !== 'undefined' && !navigator.onLine)
+    const goOffline = () => setIsOffline(true)
+    const goOnline = () => setIsOffline(false)
+    window.addEventListener('offline', goOffline)
+    window.addEventListener('online', goOnline)
+    return () => {
+      window.removeEventListener('offline', goOffline)
+      window.removeEventListener('online', goOnline)
+    }
+  }, [])
+
+  const requireOnline = () => {
+    if (isOffline) { alert('Tu es hors ligne. Cette action nécessite une connexion internet — réessaie une fois reconnecté.'); return false }
+    return true
+  }
 
   useEffect(() => {
     async function load() {
@@ -128,6 +146,7 @@ function AthleteView({ params }) {
 
   const unvalidate = async (sessId, progSessions) => {
     if (!athlete) return
+    if (!requireOnline()) return
     setValidating(true)
     await supabase.from('program_completions')
       .delete()
@@ -142,6 +161,7 @@ function AthleteView({ params }) {
 
   const validate = async (sessId, progSessions, feedback = {}, opts = {}) => {
     if (!athlete) return
+    if (!requireOnline()) return
     const isUpdate = !!opts.isUpdate
     setValidating(true)
     await supabase.from('program_completions').upsert(
@@ -184,6 +204,7 @@ function AthleteView({ params }) {
 
   const saveExerciseLog = async (exerciseId, field, value) => {
     if (!athlete) return
+    if (!requireOnline()) return
     const existing = exerciseLogs[exerciseId] || {}
     const updated = { ...existing, [field]: value }
     setExerciseLogs(prev => ({ ...prev, [exerciseId]: updated }))
@@ -208,6 +229,7 @@ function AthleteView({ params }) {
 
   const createFreeSession = async (exos) => {
     if (!athlete) return
+    if (!requireOnline()) return
     const res = await fetch(`/api/athlete-view/${token}/free-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -243,6 +265,13 @@ function AthleteView({ params }) {
           </a>
         )}
       </div>
+
+      {isOffline && (
+        <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FDE68A', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 14 }}>📴</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: '#92400E' }}>Hors ligne — tu vois les dernières données chargées. Les actions (valider, enregistrer) reprendront une fois reconnecté.</span>
+        </div>
+      )}
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 

@@ -52,6 +52,10 @@ export default function WellnessBlock({ athleteId, date, mode, athleteName }) {
   }, [athleteId, date])
 
   const set = async (key, val) => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      alert('Tu es hors ligne. Cette action nécessite une connexion internet — réessaie une fois reconnecté.')
+      return
+    }
     const field = key + suffix
     // Toggle : reclique sur la même valeur = effacer
     const newVal = row?.[field] === val ? null : val
@@ -92,11 +96,11 @@ export default function WellnessBlock({ athleteId, date, mode, athleteName }) {
       {/* Sélecteurs 1–10 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {METRICS.map(m => (
-          <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ width: 86, fontSize: 12, fontWeight: 600, color: 'var(--text2)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+          <div key={m.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+            <div style={{ width: 80, fontSize: 12, fontWeight: 600, color: 'var(--text2)', flexShrink: 0, whiteSpace: 'nowrap', paddingTop: 5 }}>
               {m.emoji} {m.label}
             </div>
-            <div style={{ display: 'flex', gap: 2, overflowX: 'auto' }}>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1 }}>
               {[1,2,3,4,5,6,7,8,9,10].map(n => {
                 const active = vals[m.key] === n
                 return (

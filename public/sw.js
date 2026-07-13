@@ -1,4 +1,4 @@
-const CACHE = 'coachpro-v2'
+const CACHE = 'coachpro-v3'
 
 // Installation : cache les pages essentielles
 self.addEventListener('install', event => {
@@ -20,10 +20,13 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url)
 
+  // On ne touche jamais aux écritures (POST/PATCH/DELETE...)
+  if (event.request.method !== 'GET') return
+
   // Appels Supabase (données) — jamais interceptés, toujours en direct
   if (url.hostname.includes('supabase.co')) return
 
-  // Pages HTML (navigation) — Network first, cache en fallback
+  // Pages HTML (navigation) — Network first, cache en fallback (permet l'ouverture hors ligne)
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
@@ -33,6 +36,23 @@ self.addEventListener('fetch', event => {
           return response
         })
         .catch(() => caches.match(event.request).then(cached => cached || caches.match('/')))
+    )
+    return
+  }
+
+  // Données API (ex: /api/athlete-view) — toujours fraîches en priorité,
+  // le cache ne sert que de secours si le réseau tombe en cours de session
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          if (response.ok) {
+            const copy = response.clone()
+            caches.open(CACHE).then(cache => cache.put(event.request, copy))
+          }
+          return response
+        })
+        .catch(() => caches.match(event.request))
     )
     return
   }
