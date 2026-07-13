@@ -4,6 +4,7 @@ import ServiceWorkerRegistration from "@/app/components/ServiceWorkerRegistratio
 export const metadata = {
   title: "CoachPro",
   description: "Gestion de programmes sportifs",
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({ children }) {
@@ -16,7 +17,6 @@ export default function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="CoachPro" />
-        <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon.svg" />
       </head>
       <body>
