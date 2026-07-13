@@ -141,7 +141,8 @@ export default function AthletePage({ params }) {
   const addObjective = async () => {
     const text = newObjective.trim()
     if (!text) return
-    const { data } = await supabase.from('athlete_objectives').insert({ athlete_id: athleteId, text }).select().single()
+    const { data, error } = await supabase.from('athlete_objectives').insert({ athlete_id: athleteId, text }).select().single()
+    if (error) { alert('Erreur : ' + error.message); return }
     if (data) setObjectives(prev => [...prev, data])
     setNewObjective('')
     objInputRef.current?.focus()
@@ -154,9 +155,10 @@ export default function AthletePage({ params }) {
 
   const addBlock = async () => {
     setSavingBlock(true)
-    const { data } = await supabase.from('athlete_note_blocks')
+    const { data, error } = await supabase.from('athlete_note_blocks')
       .insert({ athlete_id: athleteId, title: '', content: '', order_index: noteBlocks.length })
       .select().single()
+    if (error) { alert('Erreur : ' + error.message); setSavingBlock(false); return }
     if (data) {
       setNoteBlocks(prev => [...prev, data])
       setEditingBlockId(data.id)
@@ -172,9 +174,10 @@ export default function AthletePage({ params }) {
 
   const saveBlock = async () => {
     setSavingBlock(true)
-    const { data } = await supabase.from('athlete_note_blocks')
+    const { data, error } = await supabase.from('athlete_note_blocks')
       .update({ title: blockForm.title.trim(), content: blockForm.content.trim() })
       .eq('id', editingBlockId).select().single()
+    if (error) { alert('Erreur : ' + error.message); setSavingBlock(false); return }
     if (data) setNoteBlocks(prev => prev.map(b => b.id === editingBlockId ? data : b))
     setEditingBlockId(null)
     setSavingBlock(false)
