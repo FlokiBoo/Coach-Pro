@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, use, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import WellnessBlock from '@/app/components/WellnessBlock'
 import ActivityBlock from '@/app/components/ActivityBlock'
@@ -68,9 +68,11 @@ function formatDateFr(date) {
 
 function AthleteView({ params }) {
   const { token } = use(params)
+  const router = useRouter()
   const searchParams = useSearchParams()
   const isCoachView = searchParams.get('coach') === '1'
   const targetSessionId = searchParams.get('session')
+  const focusMode = searchParams.get('focus') === '1'
   const [athlete, setAthlete] = useState(null)
   const [programs, setPrograms] = useState([])
   const [completions, setCompletions] = useState(new Set())
@@ -251,6 +253,53 @@ function AthleteView({ params }) {
     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>Chargement…</div>
   )
 
+  if (focusMode && targetSessionId) {
+    let focusSession = null, focusProgSessions = []
+    for (const p of programs) {
+      const idx = p.sessions.findIndex(s => s.id === targetSessionId)
+      if (idx !== -1) { focusSession = p.sessions[idx]; focusProgSessions = p.sessions; break }
+    }
+    const isDone = focusSession ? completions.has(focusSession.id) : false
+    const backHref = `/s/${token}${isCoachView ? '?coach=1' : ''}`
+
+    return (
+      <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 60 }}>
+        <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, position: 'sticky', top: 0, zIndex: 10 }}>
+          <button onClick={() => router.push(backHref)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1, flexShrink: 0 }}>←</button>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{focusSession?.title || 'Séance'}</div>
+            <div style={{ fontSize: 11, color: 'var(--text3)' }}>{athlete.name}</div>
+          </div>
+        </div>
+
+        <div style={{ padding: 16 }}>
+          {focusSession ? (
+            <SessionCard
+              session={focusSession}
+              idx={0}
+              isOpen={true}
+              isCompleted={isDone}
+              onToggle={() => {}}
+              onValidate={(fb) => validate(focusSession.id, focusProgSessions, fb, { isUpdate: isDone })}
+              onUnvalidate={isDone ? () => unvalidate(focusSession.id, focusProgSessions) : null}
+              initialFeedback={completionFeedback[focusSession.id]}
+              validating={validating}
+              exerciseLogs={exerciseLogs}
+              onSaveLog={saveExerciseLog}
+              athleteId={athlete.id}
+            />
+          ) : (
+            <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
+          )}
+        </div>
+
+        {celebration && (
+          <CelebrationModal tonnage={celebration.tonnage} muscles={celebration.muscles} onClose={() => setCelebration(null)} />
+        )}
+      </div>
+    )
+  }
+
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 60 }}>
 
@@ -347,6 +396,16 @@ function AthleteView({ params }) {
               </div>
 
               {/* Séance à faire */}
+              {nextSession && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    onClick={() => router.push(`/s/${token}?session=${nextSession.id}&focus=1${isCoachView ? '&coach=1' : ''}`)}
+                    style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    ▶ Lancer la séance
+                  </button>
+                </div>
+              )}
               {nextSession && (
                 <SessionCard
                   session={nextSession}

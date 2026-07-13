@@ -287,7 +287,7 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                     </Link>
                     {athleteToken && (
                       <a
-                        href={`/s/${athleteToken}?coach=1&session=${sess.id}`}
+                        href={`/s/${athleteToken}?coach=1&session=${sess.id}&focus=1`}
                         target="_blank" rel="noreferrer"
                         title="Lancer cette séance (coaching)"
                         style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: 'var(--green)', padding: '2px 4px', flexShrink: 0, textDecoration: 'none' }}
