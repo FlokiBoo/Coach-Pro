@@ -234,12 +234,15 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                   style={{ flex: 1, padding: '4px 8px', border: '1px solid var(--border2)', borderRadius: 6, fontSize: 14, fontWeight: 700, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
                 />
               ) : (
-                <span
-                  style={{ flex: 1, fontWeight: 700, fontSize: 14 }}
-                  onDoubleClick={e => { e.stopPropagation(); setRenamingId(prog.id); setRenameVal(prog.title) }}
+                <Link
+                  href={`/programs/${athleteId}/${prog.id}`}
+                  onClick={e => e.stopPropagation()}
+                  onDoubleClick={e => { e.preventDefault(); e.stopPropagation(); setRenamingId(prog.id); setRenameVal(prog.title) }}
+                  title="Ouvrir en plein écran"
+                  style={{ flex: 1, fontWeight: 700, fontSize: 14, color: 'var(--text)', textDecoration: 'none' }}
                 >
                   {prog.title}
-                </span>
+                </Link>
               )}
 
               <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>

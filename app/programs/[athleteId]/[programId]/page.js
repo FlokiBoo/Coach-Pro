@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
+import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 
 function today() {
   const n = new Date()
@@ -166,6 +167,8 @@ function ProgramEditorPage({ params }) {
   const [actPresetSuggs, setActPresetSuggs] = useState({})
   const [completionsMap, setCompletionsMap] = useState({})
   const [logsMap, setLogsMap] = useState({})
+  const [objectives, setObjectives] = useState([])
+  const [noteBlocks, setNoteBlocks] = useState([])
 
   const isTemplate = athleteId === 'templates'
 
@@ -217,6 +220,13 @@ function ProgramEditorPage({ params }) {
           ;(logs || []).forEach(l => { lMap[l.program_exercise_id] = l })
           setLogsMap(lMap)
         }
+
+        const [{ data: objs }, { data: blocks }] = await Promise.all([
+          supabase.from('athlete_objectives').select('*').eq('athlete_id', a.id).order('created_at'),
+          supabase.from('athlete_note_blocks').select('*').eq('athlete_id', a.id).order('order_index'),
+        ])
+        setObjectives(objs || [])
+        setNoteBlocks(blocks || [])
       }
 
       setLoading(false)
@@ -696,6 +706,26 @@ function ProgramEditorPage({ params }) {
             )}
           </div>
         </div>
+
+        {!isTemplate && athlete && (objectives.length > 0 || noteBlocks.length > 0) && (
+          <div style={{ margin: '12px 16px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {objectives.length > 0 && (
+              <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} />
+            )}
+            {noteBlocks.map(b => (
+              <div key={b.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+                {b.title && (
+                  <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{b.title}</span>
+                  </div>
+                )}
+                {b.content && (
+                  <div style={{ padding: 14, fontSize: 14, color: 'var(--text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{b.content}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
 
         {selectedSessions.size > 0 && (
           <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--green-light)' }}>
