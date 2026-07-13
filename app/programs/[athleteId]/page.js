@@ -29,6 +29,8 @@ export default function ProgramsPage({ params }) {
   const [assignDone, setAssignDone] = useState(false)
   const [activityTypes, setActivityTypes] = useState([])
   const [newActivityType, setNewActivityType] = useState('Musculation 🏋️')
+  const [selectedTypes, setSelectedTypes] = useState(new Set())
+  const [typesInit, setTypesInit] = useState(false)
 
   useEffect(() => {
     supabase.from('activity_definitions').select('label').order('created_at')
@@ -48,10 +50,22 @@ export default function ProgramsPage({ params }) {
       setAthlete(a)
       setPrograms(ps || [])
       setAllAthletes(aths || [])
+      if (!typesInit && (ps || []).length) {
+        setSelectedTypes(new Set((ps || []).map(p => p.activity_type || 'Musculation 🏋️')))
+        setTypesInit(true)
+      }
       setLoading(false)
     }
     load()
   }, [athleteId])
+
+  const toggleType = (t) => {
+    setSelectedTypes(prev => {
+      const next = new Set(prev)
+      next.has(t) ? next.delete(t) : next.add(t)
+      return next
+    })
+  }
 
   const toggleNewAthlete = (id) => {
     setNewAthleteIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -242,29 +256,80 @@ export default function ProgramsPage({ params }) {
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun programme</div>
               <div style={{ fontSize: 13 }}>Crée un programme structuré pour {athlete?.name}</div>
             </div>
-          ) : programs.map(p => (
-            <div key={p.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-              <Link href={`/programs/${athleteId}/${p.id}`} style={{ display: 'block', padding: '14px 16px', textDecoration: 'none', color: 'inherit' }}>
-                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{p.title}</div>
-                <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                  {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}
-                </div>
-              </Link>
-              <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12 }}>
-                <Link href={`/programs/${athleteId}/${p.id}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)', textDecoration: 'none' }}>
-                  ✏️ Modifier
-                </Link>
-                {allAthletes.length > 0 && (
-                  <button onClick={() => openAssign(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
-                    👥 Assigner
-                  </button>
+          ) : (() => {
+            const allTypes = [...new Set(programs.map(p => p.activity_type || 'Musculation 🏋️'))]
+            const visibleTypes = allTypes.filter(t => selectedTypes.has(t))
+            return (
+              <>
+                {allTypes.length > 1 && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {allTypes.map(t => (
+                      <button
+                        key={t}
+                        onClick={() => toggleType(t)}
+                        style={{
+                          background: selectedTypes.has(t) ? 'var(--green)' : 'var(--bg2)',
+                          color: selectedTypes.has(t) ? '#fff' : 'var(--text2)',
+                          border: selectedTypes.has(t) ? 'none' : '1px solid var(--border2)',
+                          borderRadius: 20, padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        }}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
                 )}
-                <button onClick={() => deleteProgram(p.id)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
-                  🗑 Supprimer
-                </button>
-              </div>
-            </div>
-          ))}
+
+                {visibleTypes.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '30px 20px', fontSize: 13 }}>
+                    Sélectionne au moins une catégorie ci-dessus
+                  </div>
+                ) : (
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: `repeat(${visibleTypes.length}, minmax(240px, 1fr))`,
+                    gap: 12, overflowX: 'auto', alignItems: 'start',
+                  }}>
+                    {visibleTypes.map(type => {
+                      const typePrograms = programs.filter(p => (p.activity_type || 'Musculation 🏋️') === type)
+                      return (
+                        <div key={type} style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
+                          {allTypes.length > 1 && (
+                            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text2)' }}>{type}</div>
+                          )}
+                          {typePrograms.length === 0 && (
+                            <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun programme</div>
+                          )}
+                          {typePrograms.map(p => (
+                            <div key={p.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+                              <Link href={`/programs/${athleteId}/${p.id}`} style={{ display: 'block', padding: '14px 16px', textDecoration: 'none', color: 'inherit' }}>
+                                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{p.title}</div>
+                                <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                                  {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}
+                                </div>
+                              </Link>
+                              <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12 }}>
+                                <Link href={`/programs/${athleteId}/${p.id}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)', textDecoration: 'none' }}>
+                                  ✏️ Modifier
+                                </Link>
+                                {allAthletes.length > 0 && (
+                                  <button onClick={() => openAssign(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
+                                    👥 Assigner
+                                  </button>
+                                )}
+                                <button onClick={() => deleteProgram(p.id)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
+                                  🗑 Supprimer
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </div>
       </div>
 
