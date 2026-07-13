@@ -215,6 +215,19 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false 
                             ))}
                           </div>
                         </div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                          {log?.validated_at ? (
+                            <button onClick={() => saveLog(def.label, 'validated_at', null)}
+                              style={{ background: '#DCFCE7', color: '#166534', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                              ✓ Validée
+                            </button>
+                          ) : (
+                            <button onClick={() => saveLog(def.label, 'validated_at', new Date().toISOString())}
+                              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                              ✓ Valider
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       /* Mode sans date : affiche les champs configurés */

@@ -43,7 +43,7 @@ export default function Home() {
 
   useEffect(() => {
     async function load() {
-      const [{ data: aths }, { data: sessions }, { data: progComps }] = await Promise.all([
+      const [{ data: aths }, { data: sessions }, { data: progComps }, { data: actValidated }] = await Promise.all([
         supabase.from('athletes').select('*').neq('archived', true).order('created_at'),
         supabase
           .from('sessions')
@@ -54,6 +54,12 @@ export default function Home() {
           .from('program_completions')
           .select('id, completed_at, athlete_id, pleasure, difficulty, duration_minutes, athletes(id, name), program_sessions(id, title, program_id, program_exercises(id, name, sets, reps, kg, note))')
           .order('completed_at', { ascending: false })
+          .limit(40),
+        supabase
+          .from('activity_logs')
+          .select('id, athlete_id, athletes(id, name), label, km, duration_minutes, difficulty, validated_at')
+          .not('validated_at', 'is', null)
+          .order('validated_at', { ascending: false })
           .limit(40)
       ])
       const athList = aths || []
@@ -127,7 +133,21 @@ export default function Home() {
           })),
         }))
 
-      const merged = [...legacyDone, ...progDone].sort((a, b) => b.sortKey.localeCompare(a.sortKey))
+      const activityDone = (actValidated || []).map(a => ({
+        id: `activity-${a.id}`,
+        type: 'activity',
+        date: a.validated_at,
+        sortKey: a.validated_at,
+        athleteId: a.athlete_id,
+        athleteName: a.athletes?.name || '—',
+        title: a.label,
+        coachNotes: null,
+        feedback: { pleasure: null, difficulty: a.difficulty, duration_minutes: a.duration_minutes },
+        km: a.km,
+        exosDone: [],
+      }))
+
+      const merged = [...legacyDone, ...progDone, ...activityDone].sort((a, b) => b.sortKey.localeCompare(a.sortKey))
       setCompletedSessions(merged)
       setLoading(false)
     }
@@ -249,7 +269,7 @@ export default function Home() {
           ) : (
             <>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Séances validées
+                Séances & activités validées
               </div>
 
               {completedSessions === null ? (
@@ -271,7 +291,8 @@ export default function Home() {
 }
 
 function SessionCard({ session, onOpen }) {
-  const dateLabel = session.type === 'program' ? session.date.slice(0, 10) : session.date
+  const dateLabel = session.type === 'program' || session.type === 'activity' ? session.date.slice(0, 10) : session.date
+  const isActivity = session.type === 'activity'
 
   return (
     <div onClick={onOpen} style={{
@@ -295,7 +316,7 @@ function SessionCard({ session, onOpen }) {
           </div>
         </div>
         <div style={{ fontSize: 12, fontWeight: 700, background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px', flexShrink: 0 }}>
-          ✓ {session.exosDone.length} exercice{session.exosDone.length !== 1 ? 's' : ''}
+          {isActivity ? '🏃 Activité' : `✓ ${session.exosDone.length} exercice${session.exosDone.length !== 1 ? 's' : ''}`}
         </div>
       </div>
 
@@ -303,6 +324,15 @@ function SessionCard({ session, onOpen }) {
       {session.title && (
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginBottom: 8 }}>
           {session.title}
+        </div>
+      )}
+
+      {/* Détail activité (km / durée / RPE) */}
+      {isActivity && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {session.km != null && <span style={{ fontSize: 12, color: 'var(--text3)' }}>{session.km} km</span>}
+          {session.feedback?.duration_minutes && <span style={{ fontSize: 12, color: 'var(--text3)' }}>{session.feedback.duration_minutes} min</span>}
+          {session.feedback?.difficulty != null && <span style={{ fontSize: 12, color: 'var(--text3)' }}>RPE {session.feedback.difficulty}/10</span>}
         </div>
       )}
 
@@ -326,7 +356,7 @@ function SessionCard({ session, onOpen }) {
 }
 
 function SessionDetailModal({ session, onClose }) {
-  const dateLabel = session.type === 'program' ? session.date.slice(0, 10) : session.date
+  const dateLabel = session.type === 'program' || session.type === 'activity' ? session.date.slice(0, 10) : session.date
   const f = session.feedback
 
   return (
@@ -352,11 +382,12 @@ function SessionDetailModal({ session, onClose }) {
 
         {session.title && <div style={{ fontSize: 14, fontWeight: 700 }}>{session.title}</div>}
 
-        {(f && (f.pleasure != null || f.difficulty != null || f.duration_minutes)) && (
+        {(session.km != null || (f && (f.pleasure != null || f.difficulty != null || f.duration_minutes))) && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {f.pleasure != null && <Stat label="Plaisir" value={`${f.pleasure}/10`} />}
-            {f.difficulty != null && <Stat label="Difficulté" value={`${f.difficulty}/10`} />}
-            {f.duration_minutes && <Stat label="Durée" value={`${f.duration_minutes} min`} />}
+            {session.km != null && <Stat label="Distance" value={`${session.km} km`} />}
+            {f?.pleasure != null && <Stat label="Plaisir" value={`${f.pleasure}/10`} />}
+            {f?.difficulty != null && <Stat label={session.type === 'activity' ? 'RPE' : 'Difficulté'} value={`${f.difficulty}/10`} />}
+            {f?.duration_minutes && <Stat label="Durée" value={`${f.duration_minutes} min`} />}
           </div>
         )}
 
