@@ -17,6 +17,61 @@ const COLUMNS = [
   { key: 'youtube_url', label: 'Vidéo',               flex: 1 },
 ]
 
+// Cycle des états de tri par colonne : name = alpha/inverse,
+// muscles/torque = alpha/inverse/vide d'abord, vidéo = avec/sans d'abord
+const SORT_CYCLES = {
+  name: ['asc', 'desc'],
+  muscles: ['asc', 'desc', 'empty'],
+  torque: ['asc', 'desc', 'empty'],
+  youtube_url: ['with', 'without'],
+}
+
+function sortIndicator(colKey, sort) {
+  if (sort.key !== colKey) return ''
+  if (colKey === 'youtube_url') return sort.dir === 'with' ? ' 🎥 d\'abord' : ' — d\'abord'
+  if (sort.dir === 'empty') return ' (vide d\'abord)'
+  return sort.dir === 'asc' ? ' ▲' : ' ▼'
+}
+
+function sortMovements(list, sort) {
+  const arr = [...list]
+  const { key, dir } = sort
+
+  if (key === 'name') {
+    arr.sort((a, b) => a.name.localeCompare(b.name, 'fr'))
+    if (dir === 'desc') arr.reverse()
+    return arr
+  }
+
+  if (key === 'muscles' || key === 'torque') {
+    arr.sort((a, b) => {
+      const av = (a[key] || '').trim(), bv = (b[key] || '').trim()
+      if (dir === 'empty') {
+        if (!av && bv) return -1
+        if (av && !bv) return 1
+        return a.name.localeCompare(b.name, 'fr')
+      }
+      if (!av && !bv) return a.name.localeCompare(b.name, 'fr')
+      if (!av) return 1
+      if (!bv) return -1
+      return dir === 'desc' ? bv.localeCompare(av, 'fr') : av.localeCompare(bv, 'fr')
+    })
+    return arr
+  }
+
+  if (key === 'youtube_url') {
+    arr.sort((a, b) => {
+      const aHas = !!a.youtube_url, bHas = !!b.youtube_url
+      if (aHas === bHas) return a.name.localeCompare(b.name, 'fr')
+      const aFirst = dir === 'with' ? aHas : !aHas
+      return aFirst ? -1 : 1
+    })
+    return arr
+  }
+
+  return arr
+}
+
 function emptyForm() {
   return { name: '', muscles: '', torque: '', youtube_url: '' }
 }
@@ -30,6 +85,7 @@ export default function MovementsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [newForm, setNewForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
   const nameRef = useRef(null)
 
   useEffect(() => { load() }, [])
@@ -79,11 +135,21 @@ export default function MovementsPage() {
     setMovements(prev => prev.filter(m => m.id !== id))
   }
 
+  const handleSort = (key) => {
+    setSort(prev => {
+      if (prev.key !== key) return { key, dir: SORT_CYCLES[key][0] }
+      const cycle = SORT_CYCLES[key]
+      const idx = cycle.indexOf(prev.dir)
+      return { key, dir: cycle[(idx + 1) % cycle.length] }
+    })
+  }
+
   const filtered = movements.filter(m =>
     m.name.toLowerCase().includes(search.toLowerCase()) ||
     (m.muscles || '').toLowerCase().includes(search.toLowerCase()) ||
     (m.torque || '').toLowerCase().includes(search.toLowerCase())
   )
+  const sorted = sortMovements(filtered, sort)
 
   const inputStyle = {
     width: '100%', boxSizing: 'border-box', padding: '7px 10px',
@@ -163,8 +229,18 @@ export default function MovementsPage() {
         {/* En-tête colonnes */}
         <div style={{ display: 'flex', padding: '8px 24px', background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
           {COLUMNS.map(col => (
-            <div key={col.key} style={{ flex: col.flex, fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-              {col.label}
+            <div
+              key={col.key}
+              onClick={() => handleSort(col.key)}
+              title="Cliquer pour trier"
+              style={{
+                flex: col.flex, fontSize: 11, fontWeight: 700,
+                color: sort.key === col.key ? 'var(--green)' : 'var(--text3)',
+                textTransform: 'uppercase', letterSpacing: '0.4px',
+                cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap',
+              }}
+            >
+              {col.label}{sortIndicator(col.key, sort)}
             </div>
           ))}
           <div style={{ width: 72 }} />
@@ -172,13 +248,13 @@ export default function MovementsPage() {
 
         {/* Lignes */}
         <div style={{ flex: 1, overflowY: 'auto' }}>
-          {filtered.length === 0 && (
+          {sorted.length === 0 && (
             <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
               {search ? 'Aucun résultat pour cette recherche' : 'Aucun mouvement — clique sur "+ Ajouter"'}
             </div>
           )}
 
-          {filtered.map(m => (
+          {sorted.map(m => (
             <div key={m.id} style={{ borderBottom: '1px solid var(--border)' }}>
 
               {editingId === m.id ? (
