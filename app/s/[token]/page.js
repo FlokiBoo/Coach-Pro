@@ -153,9 +153,10 @@ function AthleteView({ params }) {
   }, [token])
 
   useEffect(() => {
-    if (selectedType || !programs.length) return
-    const withNext = programs.find(p => p.sessions.some(s => !completions.has(s.id)))
-    setSelectedType((withNext || programs[0]).activity_type || 'Musculation 🏋️')
+    const boardPrograms = programs.filter(p => p.pinned_board !== false)
+    if (selectedType || !boardPrograms.length) return
+    const withNext = boardPrograms.find(p => p.sessions.some(s => !completions.has(s.id)))
+    setSelectedType((withNext || boardPrograms[0]).activity_type || 'Musculation 🏋️')
   }, [programs, completions, selectedType])
 
   const unvalidate = async (sessId, progSessions) => {
@@ -394,21 +395,30 @@ function AthleteView({ params }) {
         )}
 
         {(() => {
-          const allTypes = [...new Set(programs.map(p => p.activity_type || 'Musculation 🏋️'))]
+          const boardPrograms = programs.filter(p => p.pinned_board !== false)
+          const allTypes = [...new Set(boardPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
           const commonProps = {
             completions, completionFeedback, validating, exerciseLogs,
             athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView,
           }
 
+          if (boardPrograms.length === 0) {
+            return programs.length > 0 ? (
+              <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '20px', fontSize: 13 }}>
+                Aucun programme épinglé au tableau de bord
+              </div>
+            ) : null
+          }
+
           if (allTypes.length <= 1) {
-            return programs.map(prog => <ProgramSessionsBlock key={prog.id} prog={prog} {...commonProps} />)
+            return boardPrograms.map(prog => <ProgramSessionsBlock key={prog.id} prog={prog} {...commonProps} />)
           }
 
           return (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${allTypes.length}, minmax(100px, 1fr))`, gap: 8, overflowX: 'auto' }}>
                 {allTypes.map(t => {
-                  const typePrograms = programs.filter(p => (p.activity_type || 'Musculation 🏋️') === t)
+                  const typePrograms = boardPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === t)
                   const total = typePrograms.reduce((n, p) => n + p.sessions.length, 0)
                   const done = typePrograms.reduce((n, p) => n + p.sessions.filter(s => completions.has(s.id)).length, 0)
                   const nextProg = typePrograms.find(p => p.sessions.some(s => !completions.has(s.id)))
@@ -439,7 +449,7 @@ function AthleteView({ params }) {
                 })}
               </div>
 
-              {programs
+              {boardPrograms
                 .filter(p => (p.activity_type || 'Musculation 🏋️') === selectedType)
                 .map(prog => <ProgramSessionsBlock key={prog.id} prog={prog} {...commonProps} />)}
             </>

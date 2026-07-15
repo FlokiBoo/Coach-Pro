@@ -112,6 +112,12 @@ export default function ProgramsPage({ params }) {
     setPrograms(prev => prev.filter(p => p.id !== id))
   }
 
+  const togglePinned = async (p) => {
+    const next = p.pinned_board === false ? true : false
+    await supabase.from('programs').update({ pinned_board: next }).eq('id', p.id)
+    setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, pinned_board: next } : x))
+  }
+
   const openAssign = (p) => {
     setAssignModal(p)
     setSelectedIds([])
@@ -307,7 +313,7 @@ export default function ProgramsPage({ params }) {
                                   {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}
                                 </div>
                               </Link>
-                              <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12 }}>
+                              <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                                 <Link href={`/programs/${athleteId}/${p.id}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)', textDecoration: 'none' }}>
                                   ✏️ Modifier
                                 </Link>
@@ -316,6 +322,13 @@ export default function ProgramsPage({ params }) {
                                     👥 Assigner
                                   </button>
                                 )}
+                                <button
+                                  onClick={() => togglePinned(p)}
+                                  title={p.pinned_board === false ? 'Afficher dans le tableau de bord côte à côte' : 'Masquer du tableau de bord côte à côte'}
+                                  style={{ background: 'none', border: 'none', fontSize: 12, color: p.pinned_board === false ? 'var(--text3)' : 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600 }}
+                                >
+                                  {p.pinned_board === false ? '📌 Épingler' : '📍 Épinglé'}
+                                </button>
                                 <button onClick={() => deleteProgram(p.id)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
                                   🗑 Supprimer
                                 </button>

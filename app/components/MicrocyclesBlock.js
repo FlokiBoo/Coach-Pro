@@ -86,6 +86,12 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
     if (expandedId === id) setExpandedId(null)
   }
 
+  async function togglePinned(p) {
+    const next = p.pinned_board === false ? true : false
+    await supabase.from('programs').update({ pinned_board: next }).eq('id', p.id)
+    setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, pinned_board: next } : x))
+  }
+
   async function createSession(programId) {
     const prog = programs.find(p => p.id === programId)
     const idx = prog?.sessions?.length || 0
@@ -255,6 +261,11 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                   style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
                 >✏️</button>
               )}
+              <button
+                onClick={e => { e.stopPropagation(); togglePinned(prog) }}
+                title={prog.pinned_board === false ? 'Afficher dans le tableau de bord côte à côte' : 'Masquer du tableau de bord côte à côte'}
+                style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: prog.pinned_board === false ? 'var(--text3)' : 'var(--green)', padding: '0 2px', flexShrink: 0 }}
+              >{prog.pinned_board === false ? '📌' : '📍'}</button>
               <button
                 onClick={e => { e.stopPropagation(); deleteProgram(prog.id) }}
                 style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
