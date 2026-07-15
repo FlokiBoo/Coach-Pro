@@ -87,6 +87,7 @@ function AthleteView({ params }) {
   const [isOffline, setIsOffline] = useState(false)
   const [objectives, setObjectives] = useState([])
   const [noteBlocks, setNoteBlocks] = useState([])
+  const [selectedType, setSelectedType] = useState(null)
 
   useEffect(() => {
     setIsOffline(typeof navigator !== 'undefined' && !navigator.onLine)
@@ -150,6 +151,12 @@ function AthleteView({ params }) {
     }
     load()
   }, [token])
+
+  useEffect(() => {
+    if (selectedType || !programs.length) return
+    const withNext = programs.find(p => p.sessions.some(s => !completions.has(s.id)))
+    setSelectedType((withNext || programs[0]).activity_type || 'Musculation 🏋️')
+  }, [programs, completions, selectedType])
 
   const unvalidate = async (sessId, progSessions) => {
     if (!athlete) return
@@ -386,23 +393,58 @@ function AthleteView({ params }) {
           </div>
         )}
 
-        {programs.map(prog => (
-          <ProgramSessionsBlock
-            key={prog.id}
-            prog={prog}
-            completions={completions}
-            completionFeedback={completionFeedback}
-            validating={validating}
-            exerciseLogs={exerciseLogs}
-            athleteId={athlete.id}
-            validate={validate}
-            unvalidate={unvalidate}
-            saveExerciseLog={saveExerciseLog}
-            router={router}
-            token={token}
-            isCoachView={isCoachView}
-          />
-        ))}
+        {(() => {
+          const allTypes = [...new Set(programs.map(p => p.activity_type || 'Musculation 🏋️'))]
+          const commonProps = {
+            completions, completionFeedback, validating, exerciseLogs,
+            athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView,
+          }
+
+          if (allTypes.length <= 1) {
+            return programs.map(prog => <ProgramSessionsBlock key={prog.id} prog={prog} {...commonProps} />)
+          }
+
+          return (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${allTypes.length}, minmax(100px, 1fr))`, gap: 8, overflowX: 'auto' }}>
+                {allTypes.map(t => {
+                  const typePrograms = programs.filter(p => (p.activity_type || 'Musculation 🏋️') === t)
+                  const total = typePrograms.reduce((n, p) => n + p.sessions.length, 0)
+                  const done = typePrograms.reduce((n, p) => n + p.sessions.filter(s => completions.has(s.id)).length, 0)
+                  const nextProg = typePrograms.find(p => p.sessions.some(s => !completions.has(s.id)))
+                  const nextSess = nextProg?.sessions.find(s => !completions.has(s.id))
+                  const isSelected = selectedType === t
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setSelectedType(t)}
+                      style={{
+                        display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', minWidth: 0,
+                        background: isSelected ? 'var(--green-light)' : 'var(--bg)',
+                        border: isSelected ? '1.5px solid var(--green)' : '1px solid var(--border)',
+                        borderRadius: 'var(--rl)', padding: '10px 8px', cursor: 'pointer',
+                      }}
+                    >
+                      <div style={{ fontSize: 12, fontWeight: 800, color: isSelected ? 'var(--green)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t}
+                      </div>
+                      <div style={{ fontSize: 10, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {nextSess ? (nextSess.title || 'Séance') : total ? '✓ Tout fait' : '—'}
+                      </div>
+                      {total > 0 && (
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)' }}>{done}/{total}</div>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+
+              {programs
+                .filter(p => (p.activity_type || 'Musculation 🏋️') === selectedType)
+                .map(prog => <ProgramSessionsBlock key={prog.id} prog={prog} {...commonProps} />)}
+            </>
+          )
+        })()}
       </div>
 
       {celebration && (
@@ -434,6 +476,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
   const [selectedIdx, setSelectedIdx] = useState(firstIncompleteIdx !== -1 ? firstIncompleteIdx : 0)
   const [showValidated, setShowValidated] = useState(false)
+  const [isOpen, setIsOpen] = useState(true)
 
   if (total === 0) return null
   const session = prog.sessions[selectedIdx]
@@ -459,7 +502,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
       {/* Pager séance précédente / suivante */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         <button
-          onClick={() => setSelectedIdx(i => Math.max(0, i - 1))}
+          onClick={() => { setSelectedIdx(i => Math.max(0, i - 1)); setIsOpen(true) }}
           disabled={selectedIdx === 0}
           style={{ background: 'none', border: 'none', fontSize: 22, color: selectedIdx === 0 ? 'var(--border2)' : 'var(--text2)', cursor: selectedIdx === 0 ? 'default' : 'pointer', padding: '2px 6px', flexShrink: 0, lineHeight: 1 }}
         >‹</button>
@@ -469,7 +512,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
           </div>
         </div>
         <button
-          onClick={() => setSelectedIdx(i => Math.min(total - 1, i + 1))}
+          onClick={() => { setSelectedIdx(i => Math.min(total - 1, i + 1)); setIsOpen(true) }}
           disabled={selectedIdx === total - 1}
           style={{ background: 'none', border: 'none', fontSize: 22, color: selectedIdx === total - 1 ? 'var(--border2)' : 'var(--text2)', cursor: selectedIdx === total - 1 ? 'default' : 'pointer', padding: '2px 6px', flexShrink: 0, lineHeight: 1 }}
         >›</button>
@@ -482,9 +525,9 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
       <SessionCard
         session={session}
         idx={selectedIdx}
-        isOpen={true}
+        isOpen={isOpen}
         isCompleted={isCompleted}
-        onToggle={() => {}}
+        onToggle={() => setIsOpen(v => !v)}
         onValidate={(fb) => validate(session.id, prog.sessions, fb, { isUpdate: isCompleted })}
         onUnvalidate={isCompleted ? () => unvalidate(session.id, prog.sessions) : null}
         initialFeedback={completionFeedback[session.id]}
@@ -515,7 +558,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
               {validatedSessions.map(({ s, i }) => (
                 <button
                   key={s.id}
-                  onClick={() => { setSelectedIdx(i); setShowValidated(false) }}
+                  onClick={() => { setSelectedIdx(i); setShowValidated(false); setIsOpen(true) }}
                   style={{ background: 'none', border: 'none', color: i === selectedIdx ? 'var(--green)' : 'var(--text2)', fontWeight: i === selectedIdx ? 700 : 600, fontSize: 12, textAlign: 'left', cursor: 'pointer', padding: '3px 0' }}
                 >
                   ✓ {s.title || `Séance ${i + 1}`}
