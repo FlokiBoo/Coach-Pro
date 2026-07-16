@@ -56,7 +56,7 @@ async function fetchStats(athleteId, start, end) {
       .gte('date', start)
       .lte('date', end),
     supabase.from('program_completions')
-      .select('program_session_id, duration_minutes, program_sessions(program_id, programs(activity_type))')
+      .select('program_session_id, duration_minutes, distance_km, program_sessions(program_id, programs(activity_type))')
       .eq('athlete_id', athleteId)
       .gte('completed_at', start + 'T00:00:00')
       .lte('completed_at', end + 'T23:59:59'),
@@ -69,9 +69,9 @@ async function fetchStats(athleteId, start, end) {
     if (l.duration_minutes) durByLabel[key] = (durByLabel[key] || 0) + parseInt(l.duration_minutes)
   })
   ;(comps || []).forEach(c => {
-    if (!c.duration_minutes) return
     const key = c.program_sessions?.programs?.activity_type || 'Musculation 🏋️'
-    durByLabel[key] = (durByLabel[key] || 0) + parseInt(c.duration_minutes)
+    if (c.duration_minutes) durByLabel[key] = (durByLabel[key] || 0) + parseInt(c.duration_minutes)
+    if (c.distance_km) kmByLabel[key] = (kmByLabel[key] || 0) + parseFloat(c.distance_km)
   })
   const totalKm = Object.values(kmByLabel).reduce((s, v) => s + v, 0)
   const totalCardioMin = Object.values(durByLabel).reduce((s, v) => s + v, 0)

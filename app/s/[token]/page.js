@@ -10,6 +10,7 @@ import ProgressBlock from '@/app/components/ProgressBlock'
 import CelebrationModal, { parseMusclesFromText } from '@/app/components/CelebrationModal'
 import MuscleAnatomyDiagram from '@/app/components/MuscleAnatomyDiagram'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
+import Toast from '@/app/components/Toast'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -88,6 +89,7 @@ function AthleteView({ params }) {
   const [objectives, setObjectives] = useState([])
   const [noteBlocks, setNoteBlocks] = useState([])
   const [selectedType, setSelectedType] = useState(null)
+  const [toast, setToast] = useState(null)
 
   useEffect(() => {
     setIsOffline(typeof navigator !== 'undefined' && !navigator.onLine)
@@ -191,6 +193,7 @@ function AthleteView({ params }) {
       setOpenSessionId(next?.id || null)
     }
     setValidating(false)
+    setToast(isUpdate ? 'Bilan mis à jour' : 'Séance validée')
 
     if (isUpdate) return
 
@@ -267,10 +270,10 @@ function AthleteView({ params }) {
   )
 
   if (focusMode && targetSessionId) {
-    let focusSession = null, focusProgSessions = []
+    let focusSession = null, focusProgSessions = [], focusActivityType = null
     for (const p of programs) {
       const idx = p.sessions.findIndex(s => s.id === targetSessionId)
-      if (idx !== -1) { focusSession = p.sessions[idx]; focusProgSessions = p.sessions; break }
+      if (idx !== -1) { focusSession = p.sessions[idx]; focusProgSessions = p.sessions; focusActivityType = p.activity_type; break }
     }
     const isDone = focusSession ? completions.has(focusSession.id) : false
     const backHref = `/s/${token}${isCoachView ? '?coach=1' : ''}`
@@ -300,6 +303,7 @@ function AthleteView({ params }) {
               exerciseLogs={exerciseLogs}
               onSaveLog={saveExerciseLog}
               athleteId={athlete.id}
+              activityType={focusActivityType}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
@@ -309,6 +313,7 @@ function AthleteView({ params }) {
         {celebration && (
           <CelebrationModal tonnage={celebration.tonnage} muscles={celebration.muscles} onClose={() => setCelebration(null)} />
         )}
+        <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
       </div>
     )
   }
@@ -468,6 +473,7 @@ function AthleteView({ params }) {
       {showFreeForm && (
         <FreeSessionModal onClose={() => setShowFreeForm(false)} onCreate={createFreeSession} />
       )}
+      <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
     </div>
   )
 }
@@ -545,6 +551,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         exerciseLogs={exerciseLogs}
         onSaveLog={saveExerciseLog}
         athleteId={athleteId}
+        activityType={prog.activity_type}
       />
 
       {/* Programme terminé */}
@@ -582,7 +589,9 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
   )
 }
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId }) {
+const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
+
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType }) {
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   return (
@@ -747,7 +756,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
           ))}
 
           {onValidate && (
-            <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} />
+            <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} />
           )}
           {isCompleted && onUnvalidate && (
             <button onClick={onUnvalidate} disabled={validating}
@@ -782,10 +791,11 @@ function RatingRow({ label, value, onChange }) {
   )
 }
 
-function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null }) {
+function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null, isEndurance = false }) {
   const [pleasure, setPleasure] = useState(initial?.pleasure ?? null)
   const [difficulty, setDifficulty] = useState(initial?.difficulty ?? null)
   const [duration, setDuration] = useState(initial?.duration_minutes ? String(initial.duration_minutes) : '')
+  const [distanceKm, setDistanceKm] = useState(initial?.distance_km != null ? String(initial.distance_km) : '')
 
   const canSubmit = pleasure !== null && difficulty !== null
 
@@ -793,8 +803,20 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
     <div style={{ marginTop: 8, background: 'var(--bg2)', borderRadius: 'var(--rl)', border: '1px solid var(--border)', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>Bilan de séance</div>
 
+      {isEndurance && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Distance (km)</div>
+          <input
+            type="number" min="0" step="0.1" placeholder="ex: 10"
+            value={distanceKm}
+            onChange={e => setDistanceKm(e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+          />
+        </div>
+      )}
+
       <RatingRow label="Plaisir" value={pleasure} onChange={setPleasure} />
-      <RatingRow label="Difficulté" value={difficulty} onChange={setDifficulty} />
+      <RatingRow label="Difficulté de la séance" value={difficulty} onChange={setDifficulty} />
 
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Durée (minutes)</div>
@@ -807,7 +829,11 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
       </div>
 
       <button
-        onClick={() => onValidate({ pleasure, difficulty, duration_minutes: duration ? parseInt(duration) : null })}
+        onClick={() => onValidate({
+          pleasure, difficulty,
+          duration_minutes: duration ? parseInt(duration) : null,
+          ...(isEndurance ? { distance_km: distanceKm ? parseFloat(distanceKm) : null } : {}),
+        })}
         disabled={validating || !canSubmit}
         style={{
           background: canSubmit ? 'var(--green)' : 'var(--border2)',

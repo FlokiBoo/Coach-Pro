@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import Toast from '@/app/components/Toast'
 
 const METRICS = [
   { key: 'sommeil',     label: 'Sommeil',     emoji: '🌙', inverse: false },
@@ -42,6 +43,7 @@ function WellnessSummary({ data, suffix = '' }) {
 export default function WellnessBlock({ athleteId, date, mode, athleteName }) {
   const [row, setRow] = useState(null) // null = loading, {} = no data, {...} = data
   const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState(null)
   const suffix = mode === 'coach' ? '_coach' : ''
 
   useEffect(() => {
@@ -65,6 +67,21 @@ export default function WellnessBlock({ athleteId, date, mode, athleteName }) {
     await supabase.from('wellness')
       .upsert({ athlete_id: athleteId, date, [field]: newVal }, { onConflict: 'athlete_id,date' })
     setSaving(false)
+  }
+
+  const toggleValidated = async () => {
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      alert('Tu es hors ligne. Cette action nécessite une connexion internet — réessaie une fois reconnecté.')
+      return
+    }
+    const newVal = !row?.validated
+    const updated = { ...(row || {}), athlete_id: athleteId, date, validated: newVal }
+    setRow(updated)
+    setSaving(true)
+    await supabase.from('wellness')
+      .upsert({ athlete_id: athleteId, date, validated: newVal }, { onConflict: 'athlete_id,date' })
+    setSaving(false)
+    setToast(newVal ? 'Bien-être validé' : 'Validation annulée')
   }
 
   if (row === null) return null
@@ -117,6 +134,19 @@ export default function WellnessBlock({ athleteId, date, mode, athleteName }) {
           </div>
         ))}
       </div>
+
+      {mode !== 'coach' && (
+        <button onClick={toggleValidated} style={{
+          marginTop: 10, width: '100%', padding: '10px', borderRadius: 'var(--r)',
+          border: row?.validated ? 'none' : '1px solid var(--border2)',
+          background: row?.validated ? 'var(--green)' : 'var(--bg2)',
+          color: row?.validated ? '#fff' : 'var(--text2)',
+          fontSize: 13, fontWeight: 700, cursor: 'pointer',
+        }}>
+          {row?.validated ? '✓ Validé' : 'Valider mon bien-être du jour'}
+        </button>
+      )}
+      <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
     </div>
   )
 }

@@ -20,8 +20,18 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
   const [newActivityType, setNewActivityType] = useState('Musculation 🏋️')
   const [selectedSessions, setSelectedSessions] = useState(new Set())
   const [duplicating, setDuplicating] = useState(false)
+  const [allAthletes, setAllAthletes] = useState([])
+  const [assignModal, setAssignModal] = useState(null) // micro-cycle en cours de copie
+  const [selectedIds, setSelectedIds] = useState([])
+  const [assigning, setAssigning] = useState(false)
+  const [assignDone, setAssignDone] = useState(false)
 
   useEffect(() => { load() }, [athleteId])
+
+  useEffect(() => {
+    supabase.from('athletes').select('id, name').neq('archived', true).order('created_at')
+      .then(({ data }) => setAllAthletes((data || []).filter(a => a.id !== athleteId)))
+  }, [athleteId])
 
   useEffect(() => {
     supabase.from('activity_definitions').select('label').order('created_at')
@@ -90,6 +100,63 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
     const next = p.pinned_board === false ? true : false
     await supabase.from('programs').update({ pinned_board: next }).eq('id', p.id)
     setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, pinned_board: next } : x))
+  }
+
+  function openAssign(p) {
+    setAssignModal(p)
+    setSelectedIds([])
+    setAssignDone(false)
+  }
+
+  function toggleAthlete(id) {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  async function assignProgram() {
+    if (!selectedIds.length || !assignModal) return
+    setAssigning(true)
+    const coachId = await getCoachId()
+
+    const { data: sessions } = await supabase
+      .from('program_sessions')
+      .select('*, program_exercises(*)')
+      .eq('program_id', assignModal.id)
+      .order('order_index')
+
+    for (const targetId of selectedIds) {
+      const { data: newProg } = await supabase.from('programs')
+        .insert({ athlete_id: targetId, title: assignModal.title, coach_id: coachId, activity_type: assignModal.activity_type, source_program_id: assignModal.id })
+        .select().single()
+      if (!newProg) continue
+
+      for (const sess of (sessions || [])) {
+        const { data: newSess } = await supabase.from('program_sessions')
+          .insert({ program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', coach_notes: sess.coach_notes, activation: sess.activation, activation_videos: sess.activation_videos, circuits: sess.circuits, source_session_id: sess.id })
+          .select().single()
+        if (!newSess) continue
+
+        const exos = (sess.program_exercises || []).sort((a, b) => a.order_index - b.order_index)
+        if (exos.length > 0) {
+          await supabase.from('program_exercises').insert(
+            exos.map(e => ({
+              program_session_id: newSess.id,
+              order_index: e.order_index,
+              name: e.name,
+              sets: e.sets,
+              reps: e.reps,
+              kg: e.kg,
+              note: e.note,
+              video_url: e.video_url,
+              superset_group: e.superset_group,
+              source_exercise_id: e.id,
+            }))
+          )
+        }
+      }
+    }
+
+    setAssigning(false)
+    setAssignDone(true)
   }
 
   async function createSession(programId) {
@@ -266,6 +333,13 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                 title={prog.pinned_board === false ? 'Afficher dans le tableau de bord côte à côte' : 'Masquer du tableau de bord côte à côte'}
                 style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: prog.pinned_board === false ? 'var(--text3)' : 'var(--green)', padding: '0 2px', flexShrink: 0 }}
               >{prog.pinned_board === false ? '📌' : '📍'}</button>
+              {allAthletes.length > 0 && (
+                <button
+                  onClick={e => { e.stopPropagation(); openAssign(prog) }}
+                  title="Copier chez un autre sportif"
+                  style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
+                >👥</button>
+              )}
               <button
                 onClick={e => { e.stopPropagation(); deleteProgram(prog.id) }}
                 style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
@@ -352,6 +426,60 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
           </div>
         )
       })}
+
+      {/* Modal copie vers un autre sportif */}
+      {assignModal && (
+        <div onClick={() => setAssignModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 380, boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>Copier chez un autre sportif</div>
+            <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16 }}>
+              "{assignModal.title}" sera copié pour chaque sportif sélectionné.
+            </div>
+
+            {assignDone ? (
+              <div style={{ textAlign: 'center', padding: '20px 0' }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+                <div style={{ fontWeight: 700, marginBottom: 4 }}>Micro-cycle copié !</div>
+                <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16 }}>
+                  Une copie a été créée pour {selectedIds.length} sportif{selectedIds.length > 1 ? 's' : ''}.
+                </div>
+                <button onClick={() => setAssignModal(null)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px 24px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+                  Fermer
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, maxHeight: 260, overflowY: 'auto' }}>
+                  {allAthletes.map(a => (
+                    <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--r)', border: selectedIds.includes(a.id) ? '1.5px solid var(--green)' : '1px solid var(--border)', background: selectedIds.includes(a.id) ? 'var(--green-light)' : 'var(--bg2)', cursor: 'pointer' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(a.id)}
+                        onChange={() => toggleAthlete(a.id)}
+                        style={{ accentColor: 'var(--green)', width: 16, height: 16 }}
+                      />
+                      <span style={{ fontSize: 14, fontWeight: 600, color: selectedIds.includes(a.id) ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
+                    </label>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={assignProgram}
+                    disabled={assigning || selectedIds.length === 0}
+                    style={{ flex: 1, background: selectedIds.length ? 'var(--green)' : 'var(--border)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: selectedIds.length ? 'pointer' : 'default' }}
+                  >
+                    {assigning ? 'Copie…' : `Copier chez ${selectedIds.length || '—'} sportif${selectedIds.length > 1 ? 's' : ''}`}
+                  </button>
+                  <button onClick={() => setAssignModal(null)} style={{ background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '11px 16px', fontSize: 14, cursor: 'pointer' }}>
+                    Annuler
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
