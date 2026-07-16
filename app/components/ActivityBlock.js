@@ -185,6 +185,7 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false 
                                 <input key={`km-${def.id}-${date}`} type="number" step="0.1" min="0" placeholder="0.0"
                                   defaultValue={log?.km ?? ''}
                                   onBlur={e => saveLog(def.label, 'km', e.target.value ? parseFloat(e.target.value) : null)}
+                                  onKeyDown={e => e.key === 'Enter' && e.target.blur()}
                                   style={inp} />
                               </div>
                             )}
@@ -194,6 +195,7 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false 
                                 <input key={`dur-${def.id}-${date}`} type="number" min="0" placeholder="45"
                                   defaultValue={log?.duration_minutes ?? ''}
                                   onBlur={e => saveLog(def.label, 'duration_minutes', e.target.value ? parseInt(e.target.value) : null)}
+                                  onKeyDown={e => e.key === 'Enter' && e.target.blur()}
                                   style={inp} />
                               </div>
                             )}
