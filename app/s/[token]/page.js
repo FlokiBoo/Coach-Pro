@@ -91,12 +91,47 @@ function AthleteView({ params }) {
   const [selectedType, setSelectedType] = useState(null)
   const [toast, setToast] = useState(null)
 
+  const queueKey = `coachpro_offline_queue_${token}`
+  const loadQueue = () => { try { return JSON.parse(localStorage.getItem(queueKey) || '[]') } catch { return [] } }
+  const enqueue = (op) => { const q = loadQueue(); q.push(op); localStorage.setItem(queueKey, JSON.stringify(q)) }
+
+  const flushQueue = async () => {
+    const q = loadQueue()
+    if (!q.length) return
+    for (const op of q) {
+      if (op.type === 'exercise_log') {
+        await supabase.from('program_exercise_logs').upsert(
+          { athlete_id: op.athleteId, program_exercise_id: op.exerciseId, ...op.updated },
+          { onConflict: 'athlete_id,program_exercise_id' }
+        )
+        if (op.updated.kg_done || op.updated.reps_done || op.updated.sets_done || op.updated.note) {
+          await supabase.from('exercise_performance_history').insert({
+            athlete_id: op.athleteId,
+            program_exercise_id: op.exerciseId,
+            kg_done: op.updated.kg_done ? parseFloat(op.updated.kg_done) : null,
+            reps_done: op.updated.reps_done || null,
+            sets_done: op.updated.sets_done || null,
+            note: op.updated.note || null,
+          })
+        }
+      } else if (op.type === 'validate') {
+        await supabase.from('program_completions').upsert(
+          { athlete_id: op.athleteId, program_session_id: op.sessId, ...op.feedback },
+          { onConflict: 'athlete_id,program_session_id' }
+        )
+      }
+    }
+    localStorage.removeItem(queueKey)
+    setToast('Synchronisé ✓')
+  }
+
   useEffect(() => {
     setIsOffline(typeof navigator !== 'undefined' && !navigator.onLine)
     const goOffline = () => setIsOffline(true)
-    const goOnline = () => setIsOffline(false)
+    const goOnline = () => { setIsOffline(false); flushQueue() }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
+    if (typeof navigator !== 'undefined' && navigator.onLine) flushQueue()
     return () => {
       window.removeEventListener('offline', goOffline)
       window.removeEventListener('online', goOnline)
@@ -178,9 +213,23 @@ function AthleteView({ params }) {
 
   const validate = async (sessId, progSessions, feedback = {}, opts = {}) => {
     if (!athlete) return
-    if (!requireOnline()) return
     const isUpdate = !!opts.isUpdate
     setValidating(true)
+
+    if (isOffline) {
+      enqueue({ type: 'validate', athleteId: athlete.id, sessId, feedback })
+      const newSet = new Set([...completions, sessId])
+      setCompletions(newSet)
+      setCompletionFeedback(prev => ({ ...prev, [sessId]: { program_session_id: sessId, ...feedback } }))
+      if (!isUpdate) {
+        const next = progSessions.find(s => !newSet.has(s.id))
+        setOpenSessionId(next?.id || null)
+      }
+      setValidating(false)
+      setToast('Validation enregistrée localement (hors ligne)')
+      return
+    }
+
     await supabase.from('program_completions').upsert(
       { athlete_id: athlete.id, program_session_id: sessId, ...feedback },
       { onConflict: 'athlete_id,program_session_id' }
@@ -222,10 +271,16 @@ function AthleteView({ params }) {
 
   const saveExerciseLog = async (exerciseId, field, value) => {
     if (!athlete) return
-    if (!requireOnline()) return
     const existing = exerciseLogs[exerciseId] || {}
     const updated = { ...existing, [field]: value }
     setExerciseLogs(prev => ({ ...prev, [exerciseId]: updated }))
+
+    if (isOffline) {
+      enqueue({ type: 'exercise_log', athleteId: athlete.id, exerciseId, updated })
+      setToast('Enregistré localement (hors ligne)')
+      return
+    }
+
     const { error: logErr } = await supabase.from('program_exercise_logs').upsert(
       { athlete_id: athlete.id, program_exercise_id: exerciseId, ...updated },
       { onConflict: 'athlete_id,program_exercise_id' }
@@ -636,10 +691,8 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, flex: 1, color: 'var(--text)' }}>{v.name}</span>
                       {v.video_url && (
-                        <a href={v.video_url} target="_blank" rel="noreferrer"
-                          style={{ background: 'var(--green)', color: '#fff', borderRadius: 'var(--r)', padding: '4px 12px', fontSize: 12, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}>
-                          ▶ Voir
-                        </a>
+                        <VideoButton url={v.video_url} label="▶ Voir"
+                          style={{ background: 'var(--green)', color: '#fff', borderRadius: 'var(--r)', padding: '4px 12px', fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
                       )}
                     </div>
                   ))}
@@ -664,10 +717,8 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 13, fontWeight: 700, flex: 1, color: 'var(--text)' }}>{v.name}</span>
                       {v.video_url && (
-                        <a href={v.video_url} target="_blank" rel="noreferrer"
-                          style={{ background: '#4338CA', color: '#fff', borderRadius: 'var(--r)', padding: '4px 12px', fontSize: 12, fontWeight: 700, textDecoration: 'none', flexShrink: 0 }}>
-                          ▶ Voir
-                        </a>
+                        <VideoButton url={v.video_url} label="▶ Voir"
+                          style={{ background: '#4338CA', color: '#fff', borderRadius: 'var(--r)', padding: '4px 12px', fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
                       )}
                     </div>
                   ))}
@@ -685,7 +736,8 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                 <TipsButton />
                 <ExerciseHistoryButton athleteId={athleteId} exerciseName={exo.name} />
                 {exo.video_url && (
-                  <a href={exo.video_url} target="_blank" rel="noreferrer" style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, textDecoration: 'none', fontWeight: 700, flexShrink: 0 }}>▶</a>
+                  <VideoButton url={exo.video_url} label="▶"
+                    style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0 }} />
                 )}
               </div>
               {(() => {
@@ -925,6 +977,67 @@ function TipsButton() {
   )
 }
 
+function extractYouTubeId(url) {
+  if (!url) return null
+  const patterns = [
+    /youtu\.be\/([a-zA-Z0-9_-]{6,})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{6,})/,
+    /youtube\.com\/watch\?v=([a-zA-Z0-9_-]{6,})/,
+    /youtube\.com\/embed\/([a-zA-Z0-9_-]{6,})/,
+  ]
+  for (const p of patterns) {
+    const m = url.match(p)
+    if (m) return m[1]
+  }
+  return null
+}
+
+function VideoButton({ url, label, style }) {
+  const [open, setOpen] = useState(false)
+  const videoId = extractYouTubeId(url)
+
+  if (!videoId) {
+    return (
+      <a href={url} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', ...style }}>{label}</a>
+    )
+  }
+
+  const isVertical = url.includes('/shorts/')
+
+  return (
+    <>
+      <button onClick={e => { e.stopPropagation(); setOpen(true) }} style={{ border: 'none', cursor: 'pointer', ...style }}>
+        {label}
+      </button>
+      {open && (
+        <div onClick={() => setOpen(false)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', zIndex: 300,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            width: '100%', maxWidth: isVertical ? 340 : 560, background: '#000',
+            borderRadius: 'var(--rl)', overflow: 'hidden', position: 'relative',
+          }}>
+            <button onClick={() => setOpen(false)} style={{
+              position: 'absolute', top: 8, right: 8, zIndex: 2, background: 'rgba(0,0,0,.6)',
+              color: '#fff', border: 'none', borderRadius: '50%', width: 32, height: 32,
+              fontSize: 18, cursor: 'pointer', lineHeight: 1,
+            }}>×</button>
+            <div style={{ position: 'relative', paddingTop: isVertical ? '177.78%' : '56.25%' }}>
+              <iframe
+                src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
+                style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+                allow="autoplay; encrypted-media; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 function ExerciseHistoryButton({ athleteId, exerciseName }) {
   const [open, setOpen] = useState(false)
   const [entries, setEntries] = useState(null)
@@ -965,7 +1078,17 @@ function ExerciseHistoryButton({ athleteId, exerciseName }) {
               <div style={{ color: 'var(--text3)', fontSize: 13 }}>Aucune charge enregistrée pour cet exercice.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {entries.map((e, i) => (
+                {(() => {
+                  // Une seule carte par jour : garde la plus récente (entries déjà triées desc, valeurs déjà cumulées)
+                  const seenDays = new Set()
+                  const perDay = entries.filter(e => {
+                    const day = e.logged_at.slice(0, 10)
+                    if (seenDays.has(day)) return false
+                    seenDays.add(day)
+                    return true
+                  })
+                  return perDay
+                })().map((e, i) => (
                   <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 3, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div style={{ fontSize: 12, color: 'var(--text3)', minWidth: 90, flexShrink: 0 }}>
