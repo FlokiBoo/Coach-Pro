@@ -159,6 +159,11 @@ export default function AthletesSidebar({ athleteId, date }) {
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>📚 Mouvements</Link>
+        <Link href="/metrics" onClick={() => setOpen(false)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent',
+        }}>📈 Metrics</Link>
         <Link href="/tips" onClick={() => setOpen(false)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,

@@ -11,6 +11,7 @@ import CelebrationModal, { parseMusclesFromText } from '@/app/components/Celebra
 import MuscleAnatomyDiagram from '@/app/components/MuscleAnatomyDiagram'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import Toast from '@/app/components/Toast'
+import AthleteSidePanel from '@/app/components/AthleteSidePanel'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -90,6 +91,7 @@ function AthleteView({ params }) {
   const [noteBlocks, setNoteBlocks] = useState([])
   const [selectedType, setSelectedType] = useState(null)
   const [toast, setToast] = useState(null)
+  const [trackedMovements, setTrackedMovements] = useState([])
 
   const queueKey = `coachpro_offline_queue_${token}`
   const loadQueue = () => { try { return JSON.parse(localStorage.getItem(queueKey) || '[]') } catch { return [] } }
@@ -188,6 +190,20 @@ function AthleteView({ params }) {
     }
     load()
   }, [token])
+
+  useEffect(() => {
+    if (!athlete?.id) return
+    supabase.from('tracked_movements').select('id, name').eq('athlete_id', athlete.id)
+      .then(({ data }) => setTrackedMovements(data || []))
+  }, [athlete?.id])
+
+  const saveTestEntry = async (movementId, rmKey, kgValue) => {
+    if (!athlete || !kgValue) return
+    const payload = { tracked_movement_id: movementId, athlete_id: athlete.id, date: today(), [`rm${rmKey}`]: parseFloat(kgValue) }
+    const { error } = await supabase.from('tracked_movement_entries').insert(payload)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setToast(`Enregistré comme ${rmKey}RM`)
+  }
 
   useEffect(() => {
     const boardPrograms = programs.filter(p => p.pinned_board !== false)
@@ -359,6 +375,8 @@ function AthleteView({ params }) {
               onSaveLog={saveExerciseLog}
               athleteId={athlete.id}
               activityType={focusActivityType}
+              trackedMovements={trackedMovements}
+              onSaveTest={saveTestEntry}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
@@ -398,6 +416,7 @@ function AthleteView({ params }) {
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         {athlete?.id && <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} />}
+
 
         {noteBlocks.map(b => (
           <div key={b.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
@@ -460,6 +479,7 @@ function AthleteView({ params }) {
           const commonProps = {
             completions, completionFeedback, validating, exerciseLogs,
             athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView,
+            trackedMovements, onSaveTest: saveTestEntry,
           }
 
           if (boardPrograms.length === 0) {
@@ -528,6 +548,7 @@ function AthleteView({ params }) {
       {showFreeForm && (
         <FreeSessionModal onClose={() => setShowFreeForm(false)} onCreate={createFreeSession} />
       )}
+      <AthleteSidePanel athlete={athlete} onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))} />
       <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
     </div>
   )
@@ -539,7 +560,7 @@ const logInputStyle = {
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
 }
 
-function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView }) {
+function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, trackedMovements, onSaveTest }) {
   const total = prog.sessions.length
   const done = prog.sessions.filter(s => completions.has(s.id)).length
   const allDone = done === total && total > 0
@@ -607,6 +628,8 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         onSaveLog={saveExerciseLog}
         athleteId={athleteId}
         activityType={prog.activity_type}
+        trackedMovements={trackedMovements}
+        onSaveTest={onSaveTest}
       />
 
       {/* Programme terminé */}
@@ -646,7 +669,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveTest }) {
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   return (
@@ -735,6 +758,16 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                 <span style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>{exo.name}</span>
                 <TipsButton />
                 <ExerciseHistoryButton athleteId={athleteId} exerciseName={exo.name} />
+                {(() => {
+                  const match = trackedMovements.find(m => m.name.trim().toLowerCase() === exo.name.trim().toLowerCase())
+                  return match ? (
+                    <TestButton
+                      movementId={match.id}
+                      kgValue={exerciseLogs[exo.id]?.kg_done}
+                      onSaveTest={onSaveTest}
+                    />
+                  ) : null
+                })()}
                 {exo.video_url && (
                   <VideoButton url={exo.video_url} label="▶"
                     style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0 }} />
@@ -1031,6 +1064,61 @@ function VideoButton({ url, label, style }) {
                 allowFullScreen
               />
             </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+function TestButton({ movementId, kgValue, onSaveTest }) {
+  const [open, setOpen] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const pick = (rm) => {
+    onSaveTest(movementId, rm, kgValue)
+    setSaved(true)
+    setTimeout(() => { setOpen(false); setSaved(false) }, 900)
+  }
+
+  return (
+    <>
+      <button onClick={e => { e.stopPropagation(); setOpen(true) }} title="Marquer comme test"
+        style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+        🏆
+      </button>
+      {open && (
+        <div onClick={() => setOpen(false)} style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 200,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg)', borderRadius: 'var(--rl)', width: '100%', maxWidth: 380, padding: 18,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{ fontWeight: 800, fontSize: 16, flex: 1 }}>🏆 Marquer comme test</div>
+              <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
+            </div>
+
+            {saved ? (
+              <div style={{ textAlign: 'center', padding: '16px 0', color: '#166534', fontWeight: 700 }}>✓ Enregistré</div>
+            ) : !kgValue ? (
+              <div style={{ fontSize: 13, color: 'var(--text3)' }}>Renseigne d'abord la charge levée pour cet exercice.</div>
+            ) : (
+              <>
+                <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 12 }}>
+                  Charge saisie : <b style={{ color: 'var(--text)' }}>{kgValue} kg</b> — combien de répétitions effectuées ?
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+                  {[2, 3, 4, 5, 6].map(rm => (
+                    <button key={rm} onClick={() => pick(rm)}
+                      style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 0', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+                      {rm}RM
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

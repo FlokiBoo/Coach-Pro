@@ -10,6 +10,7 @@ import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
 import ProgressBlock from '@/app/components/ProgressBlock'
 import ActivityBlock from '@/app/components/ActivityBlock'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
+import TrackedMovementsBlock from '@/app/components/TrackedMovementsBlock'
 
 function today() {
   const n = new Date()
@@ -440,6 +441,9 @@ export default function AthletePage({ params }) {
 
           {/* ── PROGRAMMES ── */}
           <MicrocyclesBlock athleteId={athleteId} athleteToken={athlete?.token} />
+
+          {/* ── RECORDS & TESTS ── */}
+          <TrackedMovementsBlock athleteId={athleteId} isCoach />
 
         </div>
       </div>
