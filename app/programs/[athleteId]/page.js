@@ -108,7 +108,23 @@ export default function ProgramsPage({ params }) {
 
   const deleteProgram = async (id) => {
     if (!confirm('Supprimer ce programme et toutes ses séances ?')) return
-    await supabase.from('programs').delete().eq('id', id)
+
+    const { data: sessions } = await supabase.from('program_sessions').select('id').eq('program_id', id)
+    const sessionIds = (sessions || []).map(s => s.id)
+    if (sessionIds.length) {
+      const { data: exos } = await supabase.from('program_exercises').select('id').in('program_session_id', sessionIds)
+      const exoIds = (exos || []).map(e => e.id)
+      if (exoIds.length) {
+        await supabase.from('exercise_performance_history').delete().in('program_exercise_id', exoIds)
+        await supabase.from('program_exercise_logs').delete().in('program_exercise_id', exoIds)
+        await supabase.from('program_exercises').delete().in('id', exoIds)
+      }
+      await supabase.from('program_completions').delete().in('program_session_id', sessionIds)
+      await supabase.from('program_sessions').delete().in('id', sessionIds)
+    }
+
+    const { error } = await supabase.from('programs').delete().eq('id', id)
+    if (error) { alert('Erreur : ' + error.message); return }
     setPrograms(prev => prev.filter(p => p.id !== id))
   }
 
