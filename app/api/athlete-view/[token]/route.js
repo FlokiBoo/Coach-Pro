@@ -1,4 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -10,6 +12,24 @@ export async function GET(request, { params }) {
 
   const { data: athlete } = await supabaseAdmin.from('athletes').select('*').eq('token', token).single()
   if (!athlete) return NextResponse.json({ error: 'introuvable' }, { status: 404 })
+
+  // Auth obligatoire : soit le sportif lui-même, soit un coach
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+  )
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+
+  const isOwner = athlete.auth_user_id === user.id
+  let isCoach = false
+  if (!isOwner) {
+    const { data: coach } = await supabaseAdmin.from('coaches').select('id').eq('id', user.id).single()
+    isCoach = !!coach
+  }
+  if (!isOwner && !isCoach) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const [{ data: progs }, { data: comps }, { data: logs }, { data: objectives }, { data: noteBlocks }] = await Promise.all([
     supabaseAdmin.from('programs')

@@ -187,13 +187,19 @@ export default function AthletePage({ params }) {
 
   const archiveAthlete = async () => {
     if (!confirm(`Archiver ${athlete?.name} ?`)) return
-    await supabase.from('athletes').update({ archived: true }).eq('id', athleteId)
+    const { error } = await supabase.from('athletes').update({ archived: true }).eq('id', athleteId)
+    if (error) { alert('Erreur : ' + error.message); return }
     router.push('/')
   }
 
   const deleteAthlete = async () => {
     if (!confirm(`Supprimer définitivement ${athlete?.name} ? Cette action est irréversible.`)) return
-    await supabase.from('athletes').delete().eq('id', athleteId)
+    const res = await fetch(`/api/athletes/${athleteId}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({}))
+      alert('Erreur : ' + (error || 'suppression impossible'))
+      return
+    }
     router.push('/')
   }
 
