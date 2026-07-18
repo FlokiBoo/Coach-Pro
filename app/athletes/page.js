@@ -18,7 +18,7 @@ export default function AthletesPage() {
   const router = useRouter()
   const [athletes, setAthletes] = useState(null)
   const [search, setSearch] = useState('')
-  const [menuFor, setMenuFor] = useState(null)
+  const [menu, setMenu] = useState(null) // { athlete, top, left, openUp }
   const [busyId, setBusyId] = useState(null)
 
   useEffect(() => { load() }, [])
@@ -30,7 +30,7 @@ export default function AthletesPage() {
 
   const archiveAthlete = async (a) => {
     if (!confirm(`Archiver ${a.name} ?`)) return
-    setMenuFor(null)
+    setMenu(null)
     setBusyId(a.id)
     const { error } = await supabase.from('athletes').update({ archived: true }).eq('id', a.id)
     setBusyId(null)
@@ -40,7 +40,7 @@ export default function AthletesPage() {
 
   const deleteAthlete = async (a) => {
     if (!confirm(`Supprimer définitivement ${a.name} ? Cette action est irréversible.`)) return
-    setMenuFor(null)
+    setMenu(null)
     setBusyId(a.id)
     const res = await fetch(`/api/athletes/${a.id}`, { method: 'DELETE' })
     setBusyId(null)
@@ -98,34 +98,45 @@ export default function AthletesPage() {
                     </div>
                   </div>
 
-                  <button onClick={() => setMenuFor(menuFor === a.id ? null : a.id)}
+                  <button onClick={e => {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const openUp = rect.bottom > window.innerHeight - 100
+                    setMenu(menu?.athlete.id === a.id ? null : {
+                      athlete: a,
+                      left: rect.right,
+                      top: openUp ? rect.top : rect.bottom,
+                      openUp,
+                    })
+                  }}
                     style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 15, cursor: 'pointer', color: 'var(--text3)', flexShrink: 0, lineHeight: 1 }}>
                     ···
                   </button>
-
-                  {menuFor === a.id && (
-                    <>
-                      <div onClick={() => setMenuFor(null)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
-                      <div style={{
-                        position: 'absolute', top: '100%', right: 14, marginTop: 4, zIndex: 100,
-                        background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)',
-                        boxShadow: '0 8px 24px rgba(0,0,0,.15)', overflow: 'hidden', minWidth: 180,
-                      }}>
-                        <button onClick={() => archiveAthlete(a)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#92400E', cursor: 'pointer' }}>
-                          📦 Archiver
-                        </button>
-                        <button onClick={() => deleteAthlete(a)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#991B1B', cursor: 'pointer', borderTop: '1px solid var(--border)' }}>
-                          🗑 Supprimer
-                        </button>
-                      </div>
-                    </>
-                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
+
+      {menu && (
+        <>
+          <div onClick={() => setMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 900 }} />
+          <div style={{
+            position: 'fixed', left: menu.left, zIndex: 1000,
+            transform: 'translateX(-100%)',
+            ...(menu.openUp ? { bottom: window.innerHeight - menu.top + 4 } : { top: menu.top + 4 }),
+            background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)',
+            boxShadow: '0 8px 24px rgba(0,0,0,.2)', overflow: 'hidden', minWidth: 180,
+          }}>
+            <button onClick={() => archiveAthlete(menu.athlete)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#92400E', cursor: 'pointer' }}>
+              📦 Archiver
+            </button>
+            <button onClick={() => deleteAthlete(menu.athlete)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#991B1B', cursor: 'pointer', borderTop: '1px solid var(--border)' }}>
+              🗑 Supprimer
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

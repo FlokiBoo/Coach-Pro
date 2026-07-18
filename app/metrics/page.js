@@ -54,6 +54,13 @@ export default function MetricsPage() {
     const label = (name ?? newName).trim()
     if (!label) return
     setSaving(true)
+
+    // Lie (ou crée) l'entrée correspondante dans la bibliothèque de mouvements
+    const { data: existingLib } = await supabase.from('movements').select('id').eq('name', label).maybeSingle()
+    if (!existingLib) {
+      await supabase.from('movements').insert({ name: label })
+    }
+
     const { data, error } = await supabase.from('tracked_movements').insert({ name: label, unit: newUnit }).select().single()
     if (data) setMovements(prev => [...prev, { ...data, entries: [] }].sort((a, b) => a.name.localeCompare(b.name)))
     else if (error?.code === '23505') alert('Ce mouvement existe déjà dans le catalogue.')
