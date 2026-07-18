@@ -29,9 +29,8 @@ export function formatTime(totalSeconds) {
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
   const sec = s % 60
-  if (h > 0) return `${h}h${String(m).padStart(2, '0')}min${String(sec).padStart(2, '0')}s`
-  if (m > 0) return `${m}min${String(sec).padStart(2, '0')}s`
-  return `${sec}s`
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
 }
 
 // Estime le 1RM (formule d'Epley) à partir du RM rempli le plus lourd entre 2 et 6RM (unité kg uniquement)
@@ -70,25 +69,19 @@ export function formatPerformance(movement, value) {
   return `${value}${cfg.suffix ? ' ' + cfg.suffix : ''}`
 }
 
-function formatDateFr(d) {
-  return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
-}
-
 export function emptyEntryForm() {
   return { date: new Date().toISOString().slice(0, 10), rm1: '', rm2: '', rm3: '', rm4: '', rm5: '', rm6: '', h: '', m: '', s: '', value: '', note: '' }
 }
 
 export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
   const [movements, setMovements] = useState(null)
-  const [expandedId, setExpandedId] = useState(null)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [newUnit, setNewUnit] = useState('kg')
   const [suggestions, setSuggestions] = useState([])
   const [saving, setSaving] = useState(false)
-  const [addingEntryFor, setAddingEntryFor] = useState(null)
-  const [entryForm, setEntryForm] = useState(emptyEntryForm())
   const [detailMovementId, setDetailMovementId] = useState(null)
+  const [search, setSearch] = useState('')
 
   useEffect(() => { load() }, [athleteId])
 
@@ -138,13 +131,8 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
     setMovements(prev => prev.filter(m => m.id !== id))
   }
 
-  const openAddEntry = (id) => {
-    setAddingEntryFor(id)
-    setEntryForm(emptyEntryForm())
-  }
-
-  const saveEntry = async (movement, formOverride) => {
-    const f = formOverride || entryForm
+  const saveEntry = async (movement, form) => {
+    const f = form
     const payload = {
       tracked_movement_id: movement.id,
       athlete_id: athleteId,
@@ -171,7 +159,6 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
       setMovements(prev => prev.map(m => m.id === movement.id
         ? { ...m, entries: [...m.entries, data].sort((a, b) => a.date.localeCompare(b.date)) }
         : m))
-      setAddingEntryFor(null)
     }
     setSaving(false)
   }
@@ -184,6 +171,8 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
   }
 
   if (movements === null) return null
+
+  const filteredMovements = movements.filter(m => m.name.toLowerCase().includes(search.trim().toLowerCase()))
 
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
@@ -235,87 +224,47 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
         </div>
       )}
 
+      {/* Recherche */}
+      {movements.length > 4 && (
+        <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher un exercice…"
+            style={{ width: '100%', boxSizing: 'border-box', padding: '8px 12px', border: '1px solid var(--border2)', borderRadius: 20, fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
+          />
+        </div>
+      )}
+
       {/* Vide */}
       {movements.length === 0 && !creating && (
         <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
           {isCoach ? 'Aucun mouvement dans le catalogue — clique sur "+ Mouvement" pour en ajouter un (visible pour tous les clients).' : 'Aucun mouvement suivi pour le moment.'}
         </div>
       )}
+      {movements.length > 0 && filteredMovements.length === 0 && (
+        <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Aucun résultat.</div>
+      )}
 
       {/* Liste des mouvements */}
-      {movements.map(m => {
-        const isOpen = expandedId === m.id
-        const isAdding = addingEntryFor === m.id
+      {filteredMovements.map(m => {
         const best = bestPerformance(m, m.entries)
-        const cfg = unitOf(m)
-
-        const isKg = m.unit === 'kg' || !m.unit
-        const handleClick = () => {
-          if (!isCoach && isKg) setDetailMovementId(m.id)
-          else setExpandedId(isOpen ? null : m.id)
-        }
 
         return (
           <div key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
-            <div onClick={handleClick} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}>
-              <span style={{ fontSize: 11, color: 'var(--text3)', width: 14, flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
+            <div onClick={() => setDetailMovementId(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
               </div>
-              {best && (
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--green)' }}>{formatPerformance(m, best.value)}</div>
-                  <div style={{ fontSize: 10, color: 'var(--text3)' }}>{best.estimated ? `1RM estimé (${best.from}RM)` : (m.unit === 'kg' || !m.unit) ? '1RM' : 'Meilleure perf'}</div>
-                </div>
+              {best ? (
+                <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--green)', flexShrink: 0 }}>{formatPerformance(m, best.value)}</div>
+              ) : (
+                <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
               )}
               {isCoach && (
                 <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>🗑️</button>
               )}
             </div>
-
-            {isOpen && (
-              <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-                <ProgressChart movement={m} entries={m.entries} />
-
-                {isAdding ? (
-                  <EntryForm movement={m} form={entryForm} setForm={setEntryForm} onCancel={() => setAddingEntryFor(null)} onSave={() => saveEntry(m)} saving={saving} />
-                ) : (
-                  <button onClick={() => openAddEntry(m.id)} style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                    + Ajouter une valeur
-                  </button>
-                )}
-
-                {m.entries.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {[...m.entries].reverse().map(e => {
-                      const isKg = m.unit === 'kg' || !m.unit
-                      const est = isKg ? estimate1RM(e) : null
-                      const filled = isKg
-                        ? [1, ...RM_KEYS].filter(r => e[`rm${r}`] != null).map(r => `${r}RM ${e[`rm${r}`]}kg`)
-                        : [e.value != null ? formatPerformance(m, e.value) : null].filter(Boolean)
-                      return (
-                        <div key={e.id} style={{ display: 'flex', flexDirection: 'column', gap: 3, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '9px 11px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ fontSize: 12, color: 'var(--text3)', minWidth: 80, flexShrink: 0 }}>{formatDateFr(e.date)}</div>
-                            <div style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{filled.join(' · ')}</div>
-                            {est && (
-                              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', flexShrink: 0 }}>
-                                {est.value}kg{est.estimated ? ' (est.)' : ''}
-                              </div>
-                            )}
-                            {isCoach && (
-                              <button onClick={() => deleteEntry(m.id, e.id)} style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>×</button>
-                            )}
-                          </div>
-                          {e.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic' }}>« {e.note} »</div>}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         )
       })}
@@ -329,6 +278,7 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
             athleteId={athleteId}
             onClose={() => setDetailMovementId(null)}
             onSaveEntry={saveEntry}
+            onDeleteEntry={isCoach ? (entryId) => deleteEntry(detailMovement.id, entryId) : null}
           />
         )
       })()}
