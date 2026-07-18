@@ -2,11 +2,40 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import MovementDetailView from './MovementDetailView'
 
 const RM_KEYS = [2, 3, 4, 5, 6]
 
-// Estime le 1RM (formule d'Epley) à partir du RM rempli le plus lourd entre 2 et 6RM
-function estimate1RM(entry) {
+export const UNITS = {
+  kg:          { label: 'Kg (charge)',       suffix: 'kg',   betterIsHigher: true },
+  time:        { label: 'Temps (h/min/sec)', suffix: '',     betterIsHigher: false },
+  cal:         { label: 'Calories',          suffix: 'cal',  betterIsHigher: true },
+  height_cm:   { label: 'Hauteur (cm)',      suffix: 'cm',   betterIsHigher: true },
+  length_cm:   { label: 'Longueur (cm)',     suffix: 'cm',   betterIsHigher: true },
+  watt:        { label: 'Watt',              suffix: 'W',    betterIsHigher: true },
+  reps:        { label: 'Répétitions',       suffix: 'reps', betterIsHigher: true },
+  distance_m:  { label: 'Distance (m)',      suffix: 'm',    betterIsHigher: true },
+  distance_km: { label: 'Distance (km)',     suffix: 'km',   betterIsHigher: true },
+  speed_kmh:   { label: 'Vitesse (km/h)',    suffix: 'km/h', betterIsHigher: true },
+  score:       { label: 'Score / Points',    suffix: 'pts',  betterIsHigher: true },
+}
+
+export function unitOf(movement) {
+  return UNITS[movement?.unit] || UNITS.kg
+}
+
+export function formatTime(totalSeconds) {
+  const s = Math.round(totalSeconds)
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  const sec = s % 60
+  if (h > 0) return `${h}h${String(m).padStart(2, '0')}min${String(sec).padStart(2, '0')}s`
+  if (m > 0) return `${m}min${String(sec).padStart(2, '0')}s`
+  return `${sec}s`
+}
+
+// Estime le 1RM (formule d'Epley) à partir du RM rempli le plus lourd entre 2 et 6RM (unité kg uniquement)
+export function estimate1RM(entry) {
   if (entry.rm1 != null) return { value: entry.rm1, estimated: false }
   let best = null
   for (const r of RM_KEYS) {
@@ -19,12 +48,34 @@ function estimate1RM(entry) {
   return { value, estimated: true, from: best.r }
 }
 
+// Meilleure performance pour un mouvement, quelle que soit son unité
+export function bestPerformance(movement, entries) {
+  if (movement.unit === 'kg' || !movement.unit) {
+    return entries.reduce((acc, e) => {
+      const est = estimate1RM(e)
+      if (!est) return acc
+      return (!acc || est.value > acc.value) ? est : acc
+    }, null)
+  }
+  const cfg = unitOf(movement)
+  const vals = entries.filter(e => e.value != null).map(e => e.value)
+  if (!vals.length) return null
+  const value = cfg.betterIsHigher ? Math.max(...vals) : Math.min(...vals)
+  return { value, estimated: false }
+}
+
+export function formatPerformance(movement, value) {
+  const cfg = unitOf(movement)
+  if (movement.unit === 'time') return formatTime(value)
+  return `${value}${cfg.suffix ? ' ' + cfg.suffix : ''}`
+}
+
 function formatDateFr(d) {
   return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function emptyEntryForm() {
-  return { date: new Date().toISOString().slice(0, 10), rm1: '', rm2: '', rm3: '', rm4: '', rm5: '', rm6: '', note: '' }
+export function emptyEntryForm() {
+  return { date: new Date().toISOString().slice(0, 10), rm1: '', rm2: '', rm3: '', rm4: '', rm5: '', rm6: '', h: '', m: '', s: '', value: '', note: '' }
 }
 
 export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
@@ -32,10 +83,12 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
   const [expandedId, setExpandedId] = useState(null)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newUnit, setNewUnit] = useState('kg')
   const [suggestions, setSuggestions] = useState([])
   const [saving, setSaving] = useState(false)
   const [addingEntryFor, setAddingEntryFor] = useState(null)
   const [entryForm, setEntryForm] = useState(emptyEntryForm())
+  const [detailMovementId, setDetailMovementId] = useState(null)
 
   useEffect(() => { load() }, [athleteId])
 
@@ -63,17 +116,17 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
     const label = (name ?? newName).trim()
     if (!label) return
     setSaving(true)
-    const { data, error } = await supabase.from('tracked_movements').insert({ name: label }).select().single()
+    const { data, error } = await supabase.from('tracked_movements').insert({ name: label, unit: newUnit }).select().single()
     if (data) {
       setMovements(prev => [...(prev || []), { ...data, entries: [] }])
     } else if (error?.code === '23505') {
-      // Le mouvement existe déjà dans le catalogue global — on le récupère simplement
       const { data: existing } = await supabase.from('tracked_movements').select('*').eq('name', label).single()
       if (existing && !movements.some(m => m.id === existing.id)) {
         setMovements(prev => [...(prev || []), { ...existing, entries: [] }])
       }
     }
     setNewName('')
+    setNewUnit('kg')
     setSuggestions([])
     setCreating(false)
     setSaving(false)
@@ -90,21 +143,32 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
     setEntryForm(emptyEntryForm())
   }
 
-  const saveEntry = async (movementId) => {
+  const saveEntry = async (movement, formOverride) => {
+    const f = formOverride || entryForm
     const payload = {
-      tracked_movement_id: movementId,
+      tracked_movement_id: movement.id,
       athlete_id: athleteId,
-      date: entryForm.date,
-      note: entryForm.note.trim() || null,
+      date: f.date,
+      note: f.note.trim() || null,
     }
-    RM_KEYS.forEach(r => { payload[`rm${r}`] = entryForm[`rm${r}`] ? parseFloat(entryForm[`rm${r}`]) : null })
-    payload.rm1 = entryForm.rm1 ? parseFloat(entryForm.rm1) : null
-    if (!Object.keys(payload).some(k => k.startsWith('rm') && payload[k] != null)) return
+
+    if (movement.unit === 'kg' || !movement.unit) {
+      RM_KEYS.forEach(r => { payload[`rm${r}`] = f[`rm${r}`] ? parseFloat(f[`rm${r}`]) : null })
+      payload.rm1 = f.rm1 ? parseFloat(f.rm1) : null
+      if (!Object.keys(payload).some(k => k.startsWith('rm') && payload[k] != null)) return
+    } else if (movement.unit === 'time') {
+      const total = (parseInt(f.h) || 0) * 3600 + (parseInt(f.m) || 0) * 60 + (parseInt(f.s) || 0)
+      if (!total) return
+      payload.value = total
+    } else {
+      if (!f.value) return
+      payload.value = parseFloat(f.value)
+    }
 
     setSaving(true)
     const { data } = await supabase.from('tracked_movement_entries').insert(payload).select().single()
     if (data) {
-      setMovements(prev => prev.map(m => m.id === movementId
+      setMovements(prev => prev.map(m => m.id === movement.id
         ? { ...m, entries: [...m.entries, data].sort((a, b) => a.date.localeCompare(b.date)) }
         : m))
       setAddingEntryFor(null)
@@ -130,7 +194,7 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
           🏆 Records & Tests
         </div>
         {isCoach && (
-          <button onClick={() => { setCreating(v => !v); setNewName('') }} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          <button onClick={() => { setCreating(v => !v); setNewName(''); setNewUnit('kg') }} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             + Mouvement
           </button>
         )}
@@ -149,7 +213,7 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
             style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
           />
           {suggestions.length > 0 && (
-            <div style={{ position: 'absolute', left: 12, right: 12, top: '100%', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
+            <div style={{ position: 'absolute', left: 12, right: 12, top: 46, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden' }}>
               {suggestions.map((s, i) => (
                 <button key={i} onMouseDown={() => createMovement(s)}
                   style={{ display: 'block', width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
@@ -158,6 +222,10 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
               ))}
             </div>
           )}
+          <select value={newUnit} onChange={e => setNewUnit(e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)', marginTop: 8 }}>
+            {Object.entries(UNITS).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
+          </select>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button onClick={() => setCreating(false)} style={{ flex: 1, background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
             <button onClick={() => createMovement()} disabled={saving || !newName.trim()} style={{ flex: 2, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
@@ -178,23 +246,26 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
       {movements.map(m => {
         const isOpen = expandedId === m.id
         const isAdding = addingEntryFor === m.id
-        const best = m.entries.reduce((acc, e) => {
-          const est = estimate1RM(e)
-          if (!est) return acc
-          return (!acc || est.value > acc.value) ? est : acc
-        }, null)
+        const best = bestPerformance(m, m.entries)
+        const cfg = unitOf(m)
+
+        const isKg = m.unit === 'kg' || !m.unit
+        const handleClick = () => {
+          if (!isCoach && isKg) setDetailMovementId(m.id)
+          else setExpandedId(isOpen ? null : m.id)
+        }
 
         return (
           <div key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
-            <div onClick={() => setExpandedId(isOpen ? null : m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}>
+            <div onClick={handleClick} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}>
               <span style={{ fontSize: 11, color: 'var(--text3)', width: 14, flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
               </div>
               {best && (
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--green)' }}>{best.value} kg</div>
-                  <div style={{ fontSize: 10, color: 'var(--text3)' }}>{best.estimated ? `1RM estimé (${best.from}RM)` : '1RM'}</div>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--green)' }}>{formatPerformance(m, best.value)}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text3)' }}>{best.estimated ? `1RM estimé (${best.from}RM)` : (m.unit === 'kg' || !m.unit) ? '1RM' : 'Meilleure perf'}</div>
                 </div>
               )}
               {isCoach && (
@@ -205,10 +276,10 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
             {isOpen && (
               <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-                <ProgressChart entries={m.entries} />
+                <ProgressChart movement={m} entries={m.entries} />
 
                 {isAdding ? (
-                  <EntryForm form={entryForm} setForm={setEntryForm} onCancel={() => setAddingEntryFor(null)} onSave={() => saveEntry(m.id)} saving={saving} />
+                  <EntryForm movement={m} form={entryForm} setForm={setEntryForm} onCancel={() => setAddingEntryFor(null)} onSave={() => saveEntry(m)} saving={saving} />
                 ) : (
                   <button onClick={() => openAddEntry(m.id)} style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                     + Ajouter une valeur
@@ -218,8 +289,11 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
                 {m.entries.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {[...m.entries].reverse().map(e => {
-                      const est = estimate1RM(e)
-                      const filled = [1, ...RM_KEYS].filter(r => e[`rm${r}`] != null).map(r => `${r}RM ${e[`rm${r}`]}kg`)
+                      const isKg = m.unit === 'kg' || !m.unit
+                      const est = isKg ? estimate1RM(e) : null
+                      const filled = isKg
+                        ? [1, ...RM_KEYS].filter(r => e[`rm${r}`] != null).map(r => `${r}RM ${e[`rm${r}`]}kg`)
+                        : [e.value != null ? formatPerformance(m, e.value) : null].filter(Boolean)
                       return (
                         <div key={e.id} style={{ display: 'flex', flexDirection: 'column', gap: 3, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '9px 11px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -245,12 +319,29 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
           </div>
         )
       })}
+
+      {detailMovementId && (() => {
+        const detailMovement = movements.find(m => m.id === detailMovementId)
+        if (!detailMovement) return null
+        return (
+          <MovementDetailView
+            movement={detailMovement}
+            athleteId={athleteId}
+            onClose={() => setDetailMovementId(null)}
+            onSaveEntry={saveEntry}
+          />
+        )
+      })()}
     </div>
   )
 }
 
-function EntryForm({ form, setForm, onCancel, onSave, saving }) {
+export function EntryForm({ movement, form, setForm, onCancel, onSave, saving }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const isKg = movement.unit === 'kg' || !movement.unit
+  const isTime = movement.unit === 'time'
+  const cfg = unitOf(movement)
+
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div>
@@ -259,24 +350,50 @@ function EntryForm({ form, setForm, onCancel, onSave, saving }) {
           style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
       </div>
 
-      <div>
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>1RM (optionnel — remplace l'estimation)</div>
-        <input type="number" step="0.5" min="0" placeholder="ex: 100" value={form.rm1} onChange={e => set('rm1', e.target.value)}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
-      </div>
-
-      <div>
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>2RM à 6RM (kg)</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
-          {RM_KEYS.map(r => (
-            <div key={r}>
-              <div style={{ fontSize: 9, color: 'var(--text3)', textAlign: 'center', marginBottom: 2 }}>{r}RM</div>
-              <input type="number" step="0.5" min="0" value={form[`rm${r}`]} onChange={e => set(`rm${r}`, e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 4px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)', textAlign: 'center' }} />
+      {isKg && (
+        <>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>1RM (optionnel — remplace l'estimation)</div>
+            <input type="number" step="0.5" min="0" placeholder="ex: 100" value={form.rm1} onChange={e => set('rm1', e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>2RM à 6RM (kg)</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+              {RM_KEYS.map(r => (
+                <div key={r}>
+                  <div style={{ fontSize: 9, color: 'var(--text3)', textAlign: 'center', marginBottom: 2 }}>{r}RM</div>
+                  <input type="number" step="0.5" min="0" value={form[`rm${r}`]} onChange={e => set(`rm${r}`, e.target.value)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '7px 4px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)', textAlign: 'center' }} />
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
+        </>
+      )}
+
+      {isTime && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Temps réalisé</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+            {[{ k: 'h', label: 'Heures' }, { k: 'm', label: 'Minutes' }, { k: 's', label: 'Secondes' }].map(({ k, label }) => (
+              <div key={k}>
+                <div style={{ fontSize: 9, color: 'var(--text3)', textAlign: 'center', marginBottom: 2 }}>{label}</div>
+                <input type="number" min="0" value={form[k]} onChange={e => set(k, e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '7px 4px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)', textAlign: 'center' }} />
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {!isKg && !isTime && (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Valeur ({cfg.suffix})</div>
+          <input type="number" step="0.1" min="0" placeholder={`ex: 10`} value={form.value} onChange={e => set('value', e.target.value)}
+            style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+        </div>
+      )}
 
       <div>
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Note</div>
@@ -294,19 +411,22 @@ function EntryForm({ form, setForm, onCancel, onSave, saving }) {
   )
 }
 
-function ProgressChart({ entries }) {
-  const points = entries.map(e => ({ date: e.date, est: estimate1RM(e) })).filter(p => p.est)
+export function ProgressChart({ movement, entries }) {
+  const isKg = movement.unit === 'kg' || !movement.unit
+  const points = isKg
+    ? entries.map(e => ({ date: e.date, val: estimate1RM(e)?.value })).filter(p => p.val != null)
+    : entries.map(e => ({ date: e.date, val: e.value })).filter(p => p.val != null)
   if (points.length < 2) return null
 
   const W = 300, H = 90, PAD = 8
-  const values = points.map(p => p.est.value)
+  const values = points.map(p => p.val)
   const min = Math.min(...values), max = Math.max(...values)
   const range = max - min || 1
 
   const coords = points.map((p, i) => {
     const x = PAD + (i / (points.length - 1)) * (W - PAD * 2)
-    const y = H - PAD - ((p.est.value - min) / range) * (H - PAD * 2)
-    return { x, y, value: p.est.value }
+    const y = H - PAD - ((p.val - min) / range) * (H - PAD * 2)
+    return { x, y, value: p.val }
   })
   const path = coords.map((c, i) => `${i === 0 ? 'M' : 'L'} ${c.x} ${c.y}`).join(' ')
 
@@ -323,7 +443,7 @@ function ProgressChart({ entries }) {
         ))}
         {coords.map((c, i) => (i === firstLabelIdx || i === lastLabelIdx) && (
           <text key={`t-${i}`} x={c.x} y={c.y - 8} fontSize="9" fontWeight="700" fill="var(--text)" textAnchor={i === firstLabelIdx ? 'start' : 'end'}>
-            {c.value}kg
+            {formatPerformance(movement, c.value)}
           </text>
         ))}
       </svg>

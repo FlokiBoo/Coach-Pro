@@ -193,16 +193,33 @@ function AthleteView({ params }) {
 
   useEffect(() => {
     if (!athlete?.id) return
-    supabase.from('tracked_movements').select('id, name').eq('athlete_id', athlete.id)
+    supabase.from('tracked_movements').select('id, name, unit')
       .then(({ data }) => setTrackedMovements(data || []))
   }, [athlete?.id])
 
-  const saveTestEntry = async (movementId, rmKey, kgValue) => {
-    if (!athlete || !kgValue) return
-    const payload = { tracked_movement_id: movementId, athlete_id: athlete.id, date: today(), [`rm${rmKey}`]: parseFloat(kgValue) }
-    const { error } = await supabase.from('tracked_movement_entries').insert(payload)
-    if (error) { alert('Erreur : ' + error.message); return }
-    setToast(`Enregistré comme ${rmKey}RM`)
+  // Détecte automatiquement un nouveau record (1 à 6 reps) sur un mouvement suivi en kg
+  const checkAutoRecord = async (exerciseName, updated) => {
+    if (!athlete || !exerciseName) return
+    const reps = parseInt(updated.reps_done)
+    const kg = parseFloat(updated.kg_done)
+    if (!reps || reps < 1 || reps > 6 || !kg) return
+
+    const match = trackedMovements.find(m =>
+      m.name.trim().toLowerCase() === exerciseName.trim().toLowerCase() && (m.unit === 'kg' || !m.unit)
+    )
+    if (!match) return
+
+    const rmField = `rm${reps}`
+    const { data: entries } = await supabase.from('tracked_movement_entries')
+      .select(rmField).eq('tracked_movement_id', match.id).eq('athlete_id', athlete.id)
+    const best = (entries || []).reduce((max, e) => (e[rmField] != null && e[rmField] > max) ? e[rmField] : max, 0)
+
+    if (kg > best) {
+      const { error } = await supabase.from('tracked_movement_entries').insert({
+        tracked_movement_id: match.id, athlete_id: athlete.id, date: today(), [rmField]: kg,
+      })
+      if (!error) setToast(`🏆 Nouveau record ${reps}RM : ${kg}kg !`)
+    }
   }
 
   useEffect(() => {
@@ -285,7 +302,7 @@ function AthleteView({ params }) {
     }
   }
 
-  const saveExerciseLog = async (exerciseId, field, value) => {
+  const saveExerciseLog = async (exerciseId, exerciseName, field, value) => {
     if (!athlete) return
     const existing = exerciseLogs[exerciseId] || {}
     const updated = { ...existing, [field]: value }
@@ -313,6 +330,10 @@ function AthleteView({ params }) {
         note: updated.note || null,
       })
       if (histErr) alert('Erreur historique : ' + histErr.message)
+    }
+
+    if (field === 'kg_done' || field === 'reps_done') {
+      checkAutoRecord(exerciseName, updated)
     }
   }
 
@@ -375,8 +396,6 @@ function AthleteView({ params }) {
               onSaveLog={saveExerciseLog}
               athleteId={athlete.id}
               activityType={focusActivityType}
-              trackedMovements={trackedMovements}
-              onSaveTest={saveTestEntry}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
@@ -479,7 +498,6 @@ function AthleteView({ params }) {
           const commonProps = {
             completions, completionFeedback, validating, exerciseLogs,
             athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView,
-            trackedMovements, onSaveTest: saveTestEntry,
           }
 
           if (boardPrograms.length === 0) {
@@ -560,7 +578,7 @@ const logInputStyle = {
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
 }
 
-function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, trackedMovements, onSaveTest }) {
+function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView }) {
   const total = prog.sessions.length
   const done = prog.sessions.filter(s => completions.has(s.id)).length
   const allDone = done === total && total > 0
@@ -628,8 +646,6 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         onSaveLog={saveExerciseLog}
         athleteId={athleteId}
         activityType={prog.activity_type}
-        trackedMovements={trackedMovements}
-        onSaveTest={onSaveTest}
       />
 
       {/* Programme terminé */}
@@ -669,7 +685,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveTest }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType }) {
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   return (
@@ -758,16 +774,6 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                 <span style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>{exo.name}</span>
                 <TipsButton />
                 <ExerciseHistoryButton athleteId={athleteId} exerciseName={exo.name} />
-                {(() => {
-                  const match = trackedMovements.find(m => m.name.trim().toLowerCase() === exo.name.trim().toLowerCase())
-                  return match ? (
-                    <TestButton
-                      movementId={match.id}
-                      kgValue={exerciseLogs[exo.id]?.kg_done}
-                      onSaveTest={onSaveTest}
-                    />
-                  ) : null
-                })()}
                 {exo.video_url && (
                   <VideoButton url={exo.video_url} label="▶"
                     style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0 }} />
@@ -802,7 +808,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                           <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Séries</div>
                           <input type="text" placeholder={exo.sets}
                             defaultValue={exerciseLogs[exo.id]?.sets_done || ''}
-                            onBlur={e => onSaveLog(exo.id, 'sets_done', e.target.value)}
+                            onBlur={e => onSaveLog(exo.id, exo.name, 'sets_done', e.target.value)}
                             style={logInputStyle} />
                         </div>
                       )}
@@ -811,7 +817,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                           <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Reps</div>
                           <input type="text" placeholder={exo.reps}
                             defaultValue={exerciseLogs[exo.id]?.reps_done || ''}
-                            onBlur={e => onSaveLog(exo.id, 'reps_done', e.target.value)}
+                            onBlur={e => onSaveLog(exo.id, exo.name, 'reps_done', e.target.value)}
                             style={logInputStyle} />
                         </div>
                       )}
@@ -820,7 +826,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                           <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Charge (kg)</div>
                           <input type="text" placeholder={`${exo.kg} kg`}
                             defaultValue={exerciseLogs[exo.id]?.kg_done || ''}
-                            onBlur={e => onSaveLog(exo.id, 'kg_done', e.target.value)}
+                            onBlur={e => onSaveLog(exo.id, exo.name, 'kg_done', e.target.value)}
                             style={logInputStyle} />
                         </div>
                       )}
@@ -830,7 +836,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                     <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Note</div>
                     <textarea placeholder="Comment c'était ?"
                       defaultValue={exerciseLogs[exo.id]?.note || ''}
-                      onBlur={e => onSaveLog(exo.id, 'note', e.target.value)}
+                      onBlur={e => onSaveLog(exo.id, exo.name, 'note', e.target.value)}
                       rows={2}
                       style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', resize: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
                     />
@@ -1064,61 +1070,6 @@ function VideoButton({ url, label, style }) {
                 allowFullScreen
               />
             </div>
-          </div>
-        </div>
-      )}
-    </>
-  )
-}
-
-function TestButton({ movementId, kgValue, onSaveTest }) {
-  const [open, setOpen] = useState(false)
-  const [saved, setSaved] = useState(false)
-
-  const pick = (rm) => {
-    onSaveTest(movementId, rm, kgValue)
-    setSaved(true)
-    setTimeout(() => { setOpen(false); setSaved(false) }, 900)
-  }
-
-  return (
-    <>
-      <button onClick={e => { e.stopPropagation(); setOpen(true) }} title="Marquer comme test"
-        style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-        🏆
-      </button>
-      {open && (
-        <div onClick={() => setOpen(false)} style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 200,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-        }}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: 'var(--bg)', borderRadius: 'var(--rl)', width: '100%', maxWidth: 380, padding: 18,
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <div style={{ fontWeight: 800, fontSize: 16, flex: 1 }}>🏆 Marquer comme test</div>
-              <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
-            </div>
-
-            {saved ? (
-              <div style={{ textAlign: 'center', padding: '16px 0', color: '#166534', fontWeight: 700 }}>✓ Enregistré</div>
-            ) : !kgValue ? (
-              <div style={{ fontSize: 13, color: 'var(--text3)' }}>Renseigne d'abord la charge levée pour cet exercice.</div>
-            ) : (
-              <>
-                <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 12 }}>
-                  Charge saisie : <b style={{ color: 'var(--text)' }}>{kgValue} kg</b> — combien de répétitions effectuées ?
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
-                  {[2, 3, 4, 5, 6].map(rm => (
-                    <button key={rm} onClick={() => pick(rm)}
-                      style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 0', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
-                      {rm}RM
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
           </div>
         </div>
       )}

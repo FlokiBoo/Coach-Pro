@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
+import { UNITS, unitOf, estimate1RM, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 
 function today() {
   const n = new Date()
@@ -16,20 +17,6 @@ function formatDateFr(d) {
 
 const RM_KEYS = [2, 3, 4, 5, 6]
 
-// Estime le 1RM (formule d'Epley) — même logique que TrackedMovementsBlock
-function estimate1RM(entry) {
-  if (entry.rm1 != null) return { value: entry.rm1, estimated: false }
-  let best = null
-  for (const r of RM_KEYS) {
-    const w = entry[`rm${r}`]
-    if (w == null) continue
-    if (!best || w > best.w) best = { w, r }
-  }
-  if (!best) return null
-  const value = Math.round(best.w * (1 + best.r / 30) * 10) / 10
-  return { value, estimated: true, from: best.r }
-}
-
 export default function MetricsPage() {
   const [loading, setLoading] = useState(true)
   const [movements, setMovements] = useState([])
@@ -37,8 +24,10 @@ export default function MetricsPage() {
   const [expandedId, setExpandedId] = useState(null)
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newUnit, setNewUnit] = useState('kg')
   const [suggestions, setSuggestions] = useState([])
   const [saving, setSaving] = useState(false)
+  const [editingUnitFor, setEditingUnitFor] = useState(null)
 
   async function load() {
     const { data } = await supabase
@@ -65,10 +54,11 @@ export default function MetricsPage() {
     const label = (name ?? newName).trim()
     if (!label) return
     setSaving(true)
-    const { data, error } = await supabase.from('tracked_movements').insert({ name: label }).select().single()
+    const { data, error } = await supabase.from('tracked_movements').insert({ name: label, unit: newUnit }).select().single()
     if (data) setMovements(prev => [...prev, { ...data, entries: [] }].sort((a, b) => a.name.localeCompare(b.name)))
     else if (error?.code === '23505') alert('Ce mouvement existe déjà dans le catalogue.')
     setNewName('')
+    setNewUnit('kg')
     setSuggestions([])
     setCreating(false)
     setSaving(false)
@@ -78,6 +68,12 @@ export default function MetricsPage() {
     if (!confirm('Supprimer ce mouvement du catalogue global et tout son historique (tous clients) ?')) return
     await supabase.from('tracked_movements').delete().eq('id', id)
     setMovements(prev => prev.filter(m => m.id !== id))
+  }
+
+  const changeUnit = async (id, unit) => {
+    await supabase.from('tracked_movements').update({ unit }).eq('id', id)
+    setMovements(prev => prev.map(m => m.id === id ? { ...m, unit } : m))
+    setEditingUnitFor(null)
   }
 
   const filtered = movements.filter(m => m.name.toLowerCase().includes(search.trim().toLowerCase()))
@@ -92,7 +88,7 @@ export default function MetricsPage() {
             <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 2 }}>📈 Metrics</div>
             <div style={{ fontSize: 12, color: 'var(--text3)' }}>Catalogue de mouvements suivis, accessible à tous les clients</div>
           </div>
-          <button onClick={() => { setCreating(v => !v); setNewName('') }} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+          <button onClick={() => { setCreating(v => !v); setNewName(''); setNewUnit('kg') }} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
             + Mouvement
           </button>
         </div>
@@ -120,8 +116,12 @@ export default function MetricsPage() {
                   ))}
                 </div>
               )}
+              <select value={newUnit} onChange={e => setNewUnit(e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', marginTop: 8 }}>
+                {Object.entries(UNITS).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
+              </select>
               <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 6 }}>
-                Choisis un mouvement suggéré (issu de la bibliothèque) ou entre un nom libre.
+                Choisis un mouvement suggéré (issu de la bibliothèque) ou entre un nom libre, puis l'unité de mesure.
               </div>
               <button onClick={() => createMovement()} disabled={saving || !newName.trim()}
                 style={{ marginTop: 8, width: '100%', background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
@@ -149,6 +149,8 @@ export default function MetricsPage() {
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
               {filtered.map((m, i) => {
                 const isOpen = expandedId === m.id
+                const isEditingUnit = editingUnitFor === m.id
+                const cfg = unitOf(m)
                 return (
                   <div key={m.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
                     <div onClick={() => setExpandedId(isOpen ? null : m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}>
@@ -156,8 +158,25 @@ export default function MetricsPage() {
                       <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {m.name}
                       </div>
+                      {isEditingUnit ? (
+                        <select
+                          autoFocus
+                          value={m.unit || 'kg'}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => changeUnit(m.id, e.target.value)}
+                          onBlur={() => setEditingUnitFor(null)}
+                          style={{ fontSize: 11, padding: '3px 6px', border: '1px solid var(--border2)', borderRadius: 6, background: 'var(--bg2)', color: 'var(--text)', flexShrink: 0 }}
+                        >
+                          {Object.entries(UNITS).map(([key, c]) => <option key={key} value={key}>{c.label}</option>)}
+                        </select>
+                      ) : (
+                        <button onClick={e => { e.stopPropagation(); setEditingUnitFor(m.id) }}
+                          style={{ fontSize: 11, color: 'var(--text3)', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 20, padding: '2px 8px', cursor: 'pointer', flexShrink: 0 }}>
+                          {cfg.label}
+                        </button>
+                      )}
                       <div style={{ fontSize: 12, color: 'var(--text3)', flexShrink: 0 }}>
-                        {m.entries.length} performance{m.entries.length !== 1 ? 's' : ''}
+                        {m.entries.length} perf.
                       </div>
                       <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>🗑️</button>
                     </div>
@@ -169,8 +188,11 @@ export default function MetricsPage() {
                         ) : (
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {m.entries.map(e => {
-                              const est = estimate1RM(e)
-                              const filled = [1, ...RM_KEYS].filter(r => e[`rm${r}`] != null).map(r => `${r}RM ${e[`rm${r}`]}kg`)
+                              const isKg = m.unit === 'kg' || !m.unit
+                              const est = isKg ? estimate1RM(e) : null
+                              const filled = isKg
+                                ? [1, ...RM_KEYS].filter(r => e[`rm${r}`] != null).map(r => `${r}RM ${e[`rm${r}`]}kg`)
+                                : [e.value != null ? formatPerformance(m, e.value) : null].filter(Boolean)
                               return (
                                 <div key={e.id} style={{ display: 'flex', flexDirection: 'column', gap: 3, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '9px 11px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
