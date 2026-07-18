@@ -90,7 +90,7 @@ function BodySVG({ active, view }) {
   )
 }
 
-export default function CelebrationModal({ tonnage, muscles, onClose }) {
+export default function CelebrationModal({ tonnage, muscles, records = [], onClose }) {
   const hasBody = muscles.length > 0
   const [citation] = useState(() => randomCitation())
 
@@ -103,9 +103,24 @@ export default function CelebrationModal({ tonnage, muscles, onClose }) {
         onClick={e => e.stopPropagation()}
         style={{ background: 'var(--bg)', borderRadius: 20, padding: '24px 20px', maxWidth: 400, width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: '92svh', overflowY: 'auto' }}
       >
-        <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 8 }}>🎉</div>
+        <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 8 }}>{records.length > 0 ? '🏆' : '🎉'}</div>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Bravo !</div>
         <div style={{ fontSize: 14, color: 'var(--text3)', marginBottom: 18 }}>Séance terminée 💪</div>
+
+        {records.length > 0 && (
+          <div style={{ background: 'linear-gradient(135deg, #FDE68A, #FCD34D)', border: '1px solid #F59E0B', borderRadius: 12, padding: '14px 16px', marginBottom: 18, textAlign: 'left' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 }}>
+              🏆 Nouveau{records.length > 1 ? 'x' : ''} record{records.length > 1 ? 's' : ''} !
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {records.map((r, i) => (
+                <div key={i} style={{ fontSize: 14, fontWeight: 700, color: '#78350F' }}>
+                  {r.name} — {r.label}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px', marginBottom: tonnage > 0 ? 18 : 8, textAlign: 'left' }}>
           <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.6, fontStyle: 'italic', marginBottom: 8 }}>

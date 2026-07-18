@@ -12,6 +12,7 @@ import MuscleAnatomyDiagram from '@/app/components/MuscleAnatomyDiagram'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import Toast from '@/app/components/Toast'
 import AthleteSidePanel from '@/app/components/AthleteSidePanel'
+import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -91,6 +92,7 @@ function AthleteView({ params }) {
   const [noteBlocks, setNoteBlocks] = useState([])
   const [selectedType, setSelectedType] = useState(null)
   const [toast, setToast] = useState(null)
+  const [sessionRecords, setSessionRecords] = useState([])
   const [trackedMovements, setTrackedMovements] = useState([])
 
   const queueKey = `coachpro_offline_queue_${token}`
@@ -218,7 +220,30 @@ function AthleteView({ params }) {
       const { error } = await supabase.from('tracked_movement_entries').insert({
         tracked_movement_id: match.id, athlete_id: athlete.id, date: today(), [rmField]: kg,
       })
-      if (!error) setToast(`🏆 Nouveau record ${reps}RM : ${kg}kg !`)
+      if (!error) {
+        setToast(`🏆 Nouveau record ${reps}RM : ${kg}kg !`)
+        setSessionRecords(prev => [...prev, { name: match.name, label: `${reps}RM : ${kg}kg` }])
+      }
+    }
+  }
+
+  // Enregistre un résultat pour un mouvement suivi non-kg (temps, distance, calories...), uniquement si c'est un nouveau record
+  const saveMetricResult = async (movement, value) => {
+    if (!athlete || value == null || isNaN(value)) return
+    const cfg = UNITS[movement.unit] || UNITS.kg
+    const { data: entries } = await supabase.from('tracked_movement_entries')
+      .select('value').eq('tracked_movement_id', movement.id).eq('athlete_id', athlete.id)
+    const vals = (entries || []).map(e => e.value).filter(v => v != null)
+    const currentBest = vals.length ? (cfg.betterIsHigher ? Math.max(...vals) : Math.min(...vals)) : null
+    const isNewRecord = currentBest == null || (cfg.betterIsHigher ? value > currentBest : value < currentBest)
+    if (!isNewRecord) return
+
+    const { error } = await supabase.from('tracked_movement_entries').insert({
+      tracked_movement_id: movement.id, athlete_id: athlete.id, date: today(), value,
+    })
+    if (!error) {
+      setToast(`🏆 Nouveau record : ${formatPerformance(movement, value)} !`)
+      setSessionRecords(prev => [...prev, { name: movement.name, label: formatPerformance(movement, value) }])
     }
   }
 
@@ -298,7 +323,8 @@ function AthleteView({ params }) {
         const allText = (movData || []).map(m => m.muscles || '').join(', ')
         muscles = parseMusclesFromText(allText)
       }
-      setCelebration({ tonnage: Math.round(tonnage), muscles })
+      setCelebration({ tonnage: Math.round(tonnage), muscles, records: sessionRecords })
+      setSessionRecords([])
     }
   }
 
@@ -396,6 +422,8 @@ function AthleteView({ params }) {
               onSaveLog={saveExerciseLog}
               athleteId={athlete.id}
               activityType={focusActivityType}
+              trackedMovements={trackedMovements}
+              onSaveMetricResult={saveMetricResult}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
@@ -403,7 +431,7 @@ function AthleteView({ params }) {
         </div>
 
         {celebration && (
-          <CelebrationModal tonnage={celebration.tonnage} muscles={celebration.muscles} onClose={() => setCelebration(null)} />
+          <CelebrationModal tonnage={celebration.tonnage} muscles={celebration.muscles} records={celebration.records} onClose={() => setCelebration(null)} />
         )}
         <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
       </div>
@@ -498,6 +526,7 @@ function AthleteView({ params }) {
           const commonProps = {
             completions, completionFeedback, validating, exerciseLogs,
             athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView,
+            trackedMovements, onSaveMetricResult: saveMetricResult,
           }
 
           if (boardPrograms.length === 0) {
@@ -559,6 +588,7 @@ function AthleteView({ params }) {
         <CelebrationModal
           tonnage={celebration.tonnage}
           muscles={celebration.muscles}
+          records={celebration.records}
           onClose={() => setCelebration(null)}
         />
       )}
@@ -578,7 +608,7 @@ const logInputStyle = {
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
 }
 
-function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView }) {
+function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, trackedMovements, onSaveMetricResult }) {
   const total = prog.sessions.length
   const done = prog.sessions.filter(s => completions.has(s.id)).length
   const allDone = done === total && total > 0
@@ -646,6 +676,8 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         onSaveLog={saveExerciseLog}
         athleteId={athleteId}
         activityType={prog.activity_type}
+        trackedMovements={trackedMovements}
+        onSaveMetricResult={onSaveMetricResult}
       />
 
       {/* Programme terminé */}
@@ -685,7 +717,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult }) {
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   return (
@@ -832,6 +864,13 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                       )}
                     </div>
                   )}
+                  {(() => {
+                    const match = trackedMovements.find(m =>
+                      m.name.trim().toLowerCase() === exo.name.trim().toLowerCase() && m.unit && m.unit !== 'kg'
+                    )
+                    if (!match || !onSaveMetricResult) return null
+                    return <MetricResultField movement={match} onSave={val => onSaveMetricResult(match, val)} />
+                  })()}
                   <div>
                     <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Note</div>
                     <textarea placeholder="Comment c'était ?"
@@ -1074,6 +1113,49 @@ function VideoButton({ url, label, style }) {
         </div>
       )}
     </>
+  )
+}
+
+function MetricResultField({ movement, onSave }) {
+  const isTime = movement.unit === 'time'
+  const cfg = unitOf(movement)
+  const [h, setH] = useState('')
+  const [m, setM] = useState('')
+  const [s, setS] = useState('')
+  const [val, setVal] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  const flash = () => { setSaved(true); setTimeout(() => setSaved(false), 1500) }
+
+  const submitTime = () => {
+    const total = (parseInt(h) || 0) * 3600 + (parseInt(m) || 0) * 60 + (parseInt(s) || 0)
+    if (!total) return
+    onSave(total)
+    flash()
+  }
+
+  const submitValue = () => {
+    if (!val) return
+    onSave(parseFloat(val))
+    flash()
+  }
+
+  return (
+    <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span>🏆 Résultat ({cfg.label})</span>
+        {saved && <span>✓ Enregistré</span>}
+      </div>
+      {isTime ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input type="number" min="0" placeholder="h" value={h} onChange={e => setH(e.target.value)} onBlur={submitTime} style={logInputStyle} />
+          <input type="number" min="0" placeholder="min" value={m} onChange={e => setM(e.target.value)} onBlur={submitTime} style={logInputStyle} />
+          <input type="number" min="0" placeholder="sec" value={s} onChange={e => setS(e.target.value)} onBlur={submitTime} style={logInputStyle} />
+        </div>
+      ) : (
+        <input type="number" step="0.1" min="0" placeholder={`ex: 10 ${cfg.suffix}`} value={val} onChange={e => setVal(e.target.value)} onBlur={submitValue} style={logInputStyle} />
+      )}
+    </div>
   )
 }
 

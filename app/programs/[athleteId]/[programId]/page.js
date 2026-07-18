@@ -623,6 +623,8 @@ function ProgramEditorPage({ params }) {
       const swapIdx = idx + dir
       if (swapIdx < 0 || swapIdx >= next.length) return prev
       ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
+      supabase.from('program_sessions').update({ order_index: idx }).eq('id', next[idx].id).then(() => {})
+      supabase.from('program_sessions').update({ order_index: swapIdx }).eq('id', next[swapIdx].id).then(() => {})
       return next
     })
   }
