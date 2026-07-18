@@ -1,4 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
 export async function POST(request) {
@@ -7,6 +9,18 @@ export async function POST(request) {
   if (!email) {
     return NextResponse.json({ error: 'email requis' }, { status: 400 })
   }
+
+  // Auth obligatoire : coach admin uniquement
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+  )
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
+  const { data: me } = await supabaseAdmin.from('coaches').select('is_admin').eq('id', user.id).single()
+  if (!me?.is_admin) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${redirectTo}/auth/callback`,
