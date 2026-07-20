@@ -31,7 +31,7 @@ export async function GET(request, { params }) {
   }
   if (!isOwner && !isCoach) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
-  const [{ data: progs }, { data: comps }, { data: logs }, { data: objectives }, { data: noteBlocks }] = await Promise.all([
+  const [{ data: progs }, { data: comps }, { data: logs }, { data: objectives }, { data: noteBlocks }, { data: exoSets }] = await Promise.all([
     supabaseAdmin.from('programs')
       .select('*, program_sessions(*, program_exercises(*))')
       .eq('athlete_id', athlete.id)
@@ -42,6 +42,7 @@ export async function GET(request, { params }) {
     supabaseAdmin.from('program_exercise_logs').select('*').eq('athlete_id', athlete.id),
     supabaseAdmin.from('athlete_objectives').select('*').eq('athlete_id', athlete.id).order('created_at'),
     supabaseAdmin.from('athlete_note_blocks').select('*').eq('athlete_id', athlete.id).order('order_index'),
+    supabaseAdmin.from('program_exercise_sets').select('*').eq('athlete_id', athlete.id).order('set_index'),
   ])
 
   const exerciseNames = [...new Set(
@@ -54,7 +55,7 @@ export async function GET(request, { params }) {
   }
 
   return NextResponse.json(
-    { athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap, objectives: objectives || [], noteBlocks: noteBlocks || [] },
+    { athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap, objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [] },
     { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
   )
 }

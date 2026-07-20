@@ -83,6 +83,7 @@ function AthleteView({ params }) {
   const [openSessionId, setOpenSessionId] = useState(null)
   const [validating, setValidating] = useState(false)
   const [exerciseLogs, setExerciseLogs] = useState({})
+  const [exerciseSets, setExerciseSets] = useState({})
   const [viewDate, setViewDate] = useState(today())
   const [celebration, setCelebration] = useState(null)
   const [showFreeForm, setShowFreeForm] = useState(false)
@@ -152,7 +153,7 @@ function AthleteView({ params }) {
       const res = await fetch(`/api/athlete-view/${token}`, { cache: 'no-store' })
       if (res.status === 401 || res.status === 403) { router.push('/login'); return }
       if (!res.ok) return
-      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, objectives: objs, noteBlocks: blocks } = await res.json()
+      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets } = await res.json()
       setAthlete(ath)
       setObjectives(objs || [])
       setNoteBlocks(blocks || [])
@@ -160,6 +161,13 @@ function AthleteView({ params }) {
       const logsMap = {}
       ;(logs || []).forEach(l => { logsMap[l.program_exercise_id] = l })
       setExerciseLogs(logsMap)
+
+      const setsMap = {}
+      ;(exoSets || []).forEach(s => {
+        if (!setsMap[s.program_exercise_id]) setsMap[s.program_exercise_id] = []
+        setsMap[s.program_exercise_id].push(s)
+      })
+      setExerciseSets(setsMap)
       const completionSet = new Set((comps || []).map(c => c.program_session_id))
       setCompletions(completionSet)
       const feedbackMap = {}
@@ -364,6 +372,34 @@ function AthleteView({ params }) {
     }
   }
 
+  const addExerciseSet = async (exerciseId) => {
+    if (!athlete) return
+    if (!requireOnline()) return
+    const current = exerciseSets[exerciseId] || []
+    const nextIndex = current.length ? Math.max(...current.map(s => s.set_index)) + 1 : 1
+    const { data, error } = await supabase.from('program_exercise_sets')
+      .insert({ athlete_id: athlete.id, program_exercise_id: exerciseId, set_index: nextIndex })
+      .select().single()
+    if (error) { alert('Erreur : ' + error.message); return }
+    setExerciseSets(prev => ({ ...prev, [exerciseId]: [...(prev[exerciseId] || []), data] }))
+  }
+
+  const saveExerciseSet = async (exerciseId, setId, field, value) => {
+    if (!requireOnline()) return
+    const parsedValue = field === 'kg_done' ? (value === '' ? null : parseFloat(value)) : (value || null)
+    setExerciseSets(prev => ({
+      ...prev,
+      [exerciseId]: (prev[exerciseId] || []).map(s => s.id === setId ? { ...s, [field]: parsedValue } : s),
+    }))
+    const { error } = await supabase.from('program_exercise_sets').update({ [field]: parsedValue }).eq('id', setId)
+    if (error) alert('Erreur : ' + error.message)
+  }
+
+  const deleteExerciseSet = async (exerciseId, setId) => {
+    setExerciseSets(prev => ({ ...prev, [exerciseId]: (prev[exerciseId] || []).filter(s => s.id !== setId) }))
+    await supabase.from('program_exercise_sets').delete().eq('id', setId)
+  }
+
   const createFreeSession = async (exos) => {
     if (!athlete) return
     if (!requireOnline()) return
@@ -425,6 +461,10 @@ function AthleteView({ params }) {
               activityType={focusActivityType}
               trackedMovements={trackedMovements}
               onSaveMetricResult={saveMetricResult}
+              exerciseSets={exerciseSets}
+              onAddExerciseSet={addExerciseSet}
+              onSaveExerciseSet={saveExerciseSet}
+              onDeleteExerciseSet={deleteExerciseSet}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
@@ -528,6 +568,7 @@ function AthleteView({ params }) {
             completions, completionFeedback, validating, exerciseLogs,
             athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView,
             trackedMovements, onSaveMetricResult: saveMetricResult,
+            exerciseSets, onAddExerciseSet: addExerciseSet, onSaveExerciseSet: saveExerciseSet, onDeleteExerciseSet: deleteExerciseSet,
           }
 
           if (boardPrograms.length === 0) {
@@ -609,7 +650,7 @@ const logInputStyle = {
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
 }
 
-function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, trackedMovements, onSaveMetricResult }) {
+function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet }) {
   const total = prog.sessions.length
   const done = prog.sessions.filter(s => completions.has(s.id)).length
   const allDone = done === total && total > 0
@@ -679,6 +720,10 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         activityType={prog.activity_type}
         trackedMovements={trackedMovements}
         onSaveMetricResult={onSaveMetricResult}
+        exerciseSets={exerciseSets}
+        onAddExerciseSet={onAddExerciseSet}
+        onSaveExerciseSet={onSaveExerciseSet}
+        onDeleteExerciseSet={onDeleteExerciseSet}
       />
 
       {/* Programme terminé */}
@@ -718,7 +763,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet }) {
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   return (
@@ -863,6 +908,35 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                             style={logInputStyle} />
                         </div>
                       )}
+                    </div>
+                  )}
+                  {onAddExerciseSet && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {(exerciseSets[exo.id] || []).map(s => (
+                        <div key={s.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', width: 56, flexShrink: 0, paddingBottom: 8 }}>
+                            Série {s.set_index}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Reps</div>
+                            <input type="text" defaultValue={s.reps_done || ''}
+                              onBlur={e => onSaveExerciseSet(exo.id, s.id, 'reps_done', e.target.value)}
+                              style={logInputStyle} />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Charge (kg)</div>
+                            <input type="text" defaultValue={s.kg_done ?? ''}
+                              onBlur={e => onSaveExerciseSet(exo.id, s.id, 'kg_done', e.target.value)}
+                              style={logInputStyle} />
+                          </div>
+                          <button onClick={() => onDeleteExerciseSet(exo.id, s.id)}
+                            style={{ background: 'none', border: 'none', fontSize: 16, color: 'var(--text3)', cursor: 'pointer', padding: '0 2px 8px' }}>×</button>
+                        </div>
+                      ))}
+                      <button onClick={() => onAddExerciseSet(exo.id)}
+                        style={{ alignSelf: 'flex-start', background: 'none', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer' }}>
+                        + Ajouter une série
+                      </button>
                     </div>
                   )}
                   {(() => {
