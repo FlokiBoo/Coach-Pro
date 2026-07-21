@@ -7,20 +7,20 @@ function fmt(d) {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
 }
 
-function getWeekRange() {
+function getWeekRange(offset = 0) {
   const now = new Date()
   const day = now.getDay()
   const monday = new Date(now)
-  monday.setDate(now.getDate() + (day === 0 ? -6 : 1 - day))
+  monday.setDate(now.getDate() + (day === 0 ? -6 : 1 - day) + offset * 7)
   const sunday = new Date(monday)
   sunday.setDate(monday.getDate() + 6)
   return { start: fmt(monday), end: fmt(sunday) }
 }
 
-function getMonthRange() {
+function getMonthRange(offset = 0) {
   const now = new Date()
-  const first = new Date(now.getFullYear(), now.getMonth(), 1)
-  const last = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+  const first = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+  const last = new Date(now.getFullYear(), now.getMonth() + offset + 1, 0)
   return { start: fmt(first), end: fmt(last) }
 }
 
@@ -109,25 +109,33 @@ async function fetchStats(athleteId, start, end) {
 
 export default function WeeklyStatsBlock({ athleteId }) {
   const [mode, setMode] = useState('week')
+  const [offset, setOffset] = useState(0)
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  const changeMode = (m) => { setMode(m); setOffset(0) }
 
   useEffect(() => {
     if (!athleteId) return
     setLoading(true)
-    const { start, end } = mode === 'week' ? getWeekRange() : getMonthRange()
+    const { start, end } = mode === 'week' ? getWeekRange(offset) : getMonthRange(offset)
     fetchStats(athleteId, start, end).then(s => {
-      setStats({ ...s, start })
+      setStats({ ...s, start, end })
       setLoading(false)
     })
-  }, [athleteId, mode])
+  }, [athleteId, mode, offset])
 
   if (!stats && !loading) return null
 
   const periodLabel = (() => {
     if (!stats) return ''
+    if (mode === 'week') {
+      const d = new Date(stats.start + 'T00:00:00')
+      const e = new Date(stats.end + 'T00:00:00')
+      const fmtShort = (x) => `${x.getDate()}/${String(x.getMonth() + 1).padStart(2, '0')}`
+      return `${fmtShort(d)} au ${fmtShort(e)}`
+    }
     const d = new Date(stats.start + 'T00:00:00')
-    if (mode === 'week') return `Semaine du ${d.getDate()} ${d.toLocaleDateString('fr-FR', { month: 'long' })}`
     return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
   })()
 
@@ -155,7 +163,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: 'var(--bg2)', borderRadius: 20, padding: '2px', border: '1px solid var(--border)' }}>
           <button
-            onClick={() => setMode('week')}
+            onClick={() => changeMode('week')}
             style={{
               background: mode === 'week' ? 'var(--bg)' : 'transparent',
               border: mode === 'week' ? '1px solid var(--border2)' : '1px solid transparent',
@@ -165,7 +173,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
             }}
           >Sem.</button>
           <button
-            onClick={() => setMode('month')}
+            onClick={() => changeMode('month')}
             style={{
               background: mode === 'month' ? 'var(--bg)' : 'transparent',
               border: mode === 'month' ? '1px solid var(--border2)' : '1px solid transparent',
@@ -175,10 +183,22 @@ export default function WeeklyStatsBlock({ athleteId }) {
             }}
           >Mois</button>
         </div>
+      </div>
 
-        <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      {/* Navigation période */}
+      <div style={{ padding: '8px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <button
+          onClick={() => setOffset(o => o - 1)}
+          style={{ background: 'none', border: 'none', fontSize: 18, color: 'var(--text2)', cursor: 'pointer', padding: '2px 6px', lineHeight: 1 }}
+        >‹</button>
+        <div style={{ flex: 1, textAlign: 'center', fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'capitalize' }}>
           {periodLabel}
         </div>
+        <button
+          onClick={() => setOffset(o => Math.min(0, o + 1))}
+          disabled={offset >= 0}
+          style={{ background: 'none', border: 'none', fontSize: 18, color: offset >= 0 ? 'var(--border2)' : 'var(--text2)', cursor: offset >= 0 ? 'default' : 'pointer', padding: '2px 6px', lineHeight: 1 }}
+        >›</button>
       </div>
 
       {loading && (
