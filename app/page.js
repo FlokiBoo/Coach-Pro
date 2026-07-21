@@ -444,8 +444,7 @@ function Stat({ label, value }) {
 
 function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteName, onClose }) {
   const [sessions, setSessions] = useState(null)
-  const [index, setIndex] = useState(0)
-  const [expanded, setExpanded] = useState(false)
+  const [range, setRange] = useState({ start: 0, end: 0 })
 
   useEffect(() => {
     async function load() {
@@ -480,7 +479,8 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
       }))
       setSessions(list)
       const idx = list.findIndex(s => s.id === initialSessionId)
-      setIndex(idx >= 0 ? idx : 0)
+      const start = idx >= 0 ? idx : 0
+      setRange({ start, end: start })
     }
     load()
   }, [programId, athleteId, initialSessionId])
@@ -491,7 +491,9 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
     </div>
   )
 
-  const visible = expanded ? sessions.slice(index, index + 3) : (sessions[index] ? [sessions[index]] : [])
+  const isFirst = range.start === 0
+  const isLast = range.end === sessions.length - 1
+  const visible = sessions.slice(range.start, range.end + 1)
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 900, display: 'flex', flexDirection: 'column' }}>
@@ -499,36 +501,24 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
         <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 800, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{athleteName}</div>
-          <div style={{ fontSize: 11, color: 'var(--text3)' }}>Séance {index + 1} / {sessions.length}</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>Séances {range.start + 1} à {range.end + 1} / {sessions.length}</div>
         </div>
-        <button onClick={() => setExpanded(v => !v)} style={{ background: expanded ? 'var(--green)' : 'var(--bg2)', color: expanded ? '#fff' : 'var(--text2)', border: expanded ? 'none' : '1px solid var(--border2)', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-          {expanded ? 'Vue simple' : '+ 2 séances suivantes'}
-        </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        {!expanded && (
-          <button onClick={() => setIndex(i => Math.max(0, i - 1))} disabled={index === 0}
-            style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: '50%', width: 40, height: 40, fontSize: 20, color: index === 0 ? 'var(--border2)' : 'var(--text2)', cursor: index === 0 ? 'default' : 'pointer', flexShrink: 0, marginTop: 40 }}>
-            ‹
-          </button>
-        )}
+      <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        <button onClick={() => setRange(r => ({ ...r, start: Math.max(0, r.start - 1) }))} disabled={isFirst}
+          style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '10px 16px', fontSize: 13, fontWeight: 700, color: isFirst ? 'var(--border2)' : 'var(--text2)', cursor: isFirst ? 'default' : 'pointer', flexShrink: 0, marginTop: 40, whiteSpace: 'nowrap' }}>
+          ‹ Séance précédente
+        </button>
 
-        <div style={{
-          flex: 1, display: expanded ? 'grid' : 'block',
-          gridTemplateColumns: expanded ? `repeat(${visible.length}, minmax(240px, 1fr))` : undefined,
-          gap: 12, maxWidth: expanded ? undefined : 480, margin: expanded ? undefined : '0 auto',
-          overflowX: expanded ? 'auto' : undefined,
-        }}>
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${visible.length}, minmax(280px, 1fr))`, gap: 12 }}>
           {visible.map(s => <SessionMiniCard key={s.id} session={s} />)}
         </div>
 
-        {!expanded && (
-          <button onClick={() => setIndex(i => Math.min(sessions.length - 1, i + 1))} disabled={index === sessions.length - 1}
-            style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: '50%', width: 40, height: 40, fontSize: 20, color: index === sessions.length - 1 ? 'var(--border2)' : 'var(--text2)', cursor: index === sessions.length - 1 ? 'default' : 'pointer', flexShrink: 0, marginTop: 40 }}>
-            ›
-          </button>
-        )}
+        <button onClick={() => setRange(r => ({ ...r, end: Math.min(sessions.length - 1, r.end + 1) }))} disabled={isLast}
+          style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '10px 16px', fontSize: 13, fontWeight: 700, color: isLast ? 'var(--border2)' : 'var(--text2)', cursor: isLast ? 'default' : 'pointer', flexShrink: 0, marginTop: 40, whiteSpace: 'nowrap' }}>
+          Séance suivante ›
+        </button>
       </div>
     </div>
   )
