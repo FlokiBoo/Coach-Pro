@@ -35,11 +35,16 @@ export async function GET(request) {
       }
     }
 
-    if (data?.user && athleteId) {
-      // Lier l'utilisateur à son athlete
-      await supabase.from('athletes').update({ auth_user_id: data.user.id }).eq('id', athleteId)
+    // Le paramètre d'URL peut se perdre pendant la redirection Supabase : on retombe sur
+    // user_metadata (fixé de façon fiable par inviteUserByEmail/generateLink) en secours.
+    const effectiveAthleteId = athleteId || data?.user?.user_metadata?.athlete_id
 
-      const { data: athlete } = await supabase.from('athletes').select('token').eq('id', athleteId).single()
+    if (data?.user && effectiveAthleteId) {
+      // Lier l'utilisateur à son athlete (via le client admin : à ce stade la ligne n'est pas
+      // encore reliée à ce compte, donc les règles de sécurité bloqueraient le client normal)
+      await adminClient.from('athletes').update({ auth_user_id: data.user.id }).eq('id', effectiveAthleteId)
+
+      const { data: athlete } = await adminClient.from('athletes').select('token').eq('id', effectiveAthleteId).single()
       if (athlete?.token) {
         // Marquer ce compte comme client + forcer la création de mot de passe
         await adminClient.auth.admin.updateUserById(data.user.id, {
