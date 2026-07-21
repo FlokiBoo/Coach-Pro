@@ -512,7 +512,15 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
         </button>
 
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${visible.length}, minmax(280px, 1fr))`, gap: 12 }}>
-          {visible.map(s => <SessionMiniCard key={s.id} session={s} />)}
+          {visible.map((s, i) => {
+            const fullIndex = range.start + i
+            const closeCard = () => {
+              if (visible.length === 1) { onClose(); return }
+              if (fullIndex === range.start) setRange(r => ({ ...r, start: r.start + 1 }))
+              else if (fullIndex === range.end) setRange(r => ({ ...r, end: r.end - 1 }))
+            }
+            return <SessionMiniCard key={s.id} session={s} onClose={closeCard} />
+          })}
         </div>
 
         <button onClick={() => setRange(r => ({ ...r, end: Math.min(sessions.length - 1, r.end + 1) }))} disabled={isLast}
@@ -524,7 +532,7 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
   )
 }
 
-function SessionMiniCard({ session }) {
+function SessionMiniCard({ session, onClose }) {
   const isDone = !!session.completion
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16, display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
@@ -534,6 +542,9 @@ function SessionMiniCard({ session }) {
           <span style={{ background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>✓ Faite</span>
         ) : (
           <span style={{ background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>À venir</span>
+        )}
+        {onClose && (
+          <button onClick={onClose} title="Fermer cette séance" style={{ background: 'none', border: 'none', fontSize: 18, color: 'var(--text3)', cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1 }}>×</button>
         )}
       </div>
 
