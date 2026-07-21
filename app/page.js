@@ -34,6 +34,7 @@ export default function Home() {
   const [generatingToken, setGeneratingToken] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [selected, setSelected] = useState(null)
+  const [browserSession, setBrowserSession] = useState(null)
   const [movementsMissingMuscles, setMovementsMissingMuscles] = useState([])
 
   const logout = async () => {
@@ -124,6 +125,8 @@ export default function Home() {
           sortKey: c.completed_at,
           athleteId: c.athlete_id,
           athleteName: c.athletes?.name || '—',
+          programId: c.program_sessions?.program_id,
+          sessionId: c.program_sessions?.id,
           title: c.program_sessions?.title,
           coachNotes: null,
           feedback: { pleasure: c.pleasure, difficulty: c.difficulty, duration_minutes: c.duration_minutes },
@@ -279,13 +282,25 @@ export default function Home() {
                   <div style={{ fontSize: 13 }}>Aucune séance validée pour l'instant.</div>
                 </div>
               ) : completedSessions.map(s => (
-                <SessionCard key={s.id} session={s} onOpen={() => setSelected(s)} />
+                <SessionCard key={s.id} session={s} onOpen={() => {
+                  if (s.type === 'program' && s.programId) setBrowserSession(s)
+                  else setSelected(s)
+                }} />
               ))}
             </>
           )}
         </div>
       </div>
       {selected && <SessionDetailModal session={selected} onClose={() => setSelected(null)} />}
+      {browserSession && (
+        <SessionBrowserModal
+          programId={browserSession.programId}
+          initialSessionId={browserSession.sessionId}
+          athleteId={browserSession.athleteId}
+          athleteName={browserSession.athleteName}
+          onClose={() => setBrowserSession(null)}
+        />
+      )}
     </div>
   )
 }
@@ -423,6 +438,139 @@ function Stat({ label, value }) {
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: 1 }}>
       <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{label}</div>
       <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{value}</div>
+    </div>
+  )
+}
+
+function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteName, onClose }) {
+  const [sessions, setSessions] = useState(null)
+  const [index, setIndex] = useState(0)
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    async function load() {
+      const { data: sessData } = await supabase
+        .from('program_sessions')
+        .select('id, title, order_index, program_exercises(id, name, sets, reps, kg, note, order_index)')
+        .eq('program_id', programId)
+        .order('order_index')
+
+      const sessionIds = (sessData || []).map(s => s.id)
+      const exoIds = (sessData || []).flatMap(s => (s.program_exercises || []).map(e => e.id))
+
+      const [{ data: comps }, { data: logs }] = await Promise.all([
+        sessionIds.length
+          ? supabase.from('program_completions').select('program_session_id, pleasure, difficulty, duration_minutes, completed_at').eq('athlete_id', athleteId).in('program_session_id', sessionIds)
+          : Promise.resolve({ data: [] }),
+        exoIds.length
+          ? supabase.from('program_exercise_logs').select('program_exercise_id, sets_done, reps_done, kg_done, note').eq('athlete_id', athleteId).in('program_exercise_id', exoIds)
+          : Promise.resolve({ data: [] }),
+      ])
+      const compMap = {}
+      ;(comps || []).forEach(c => { compMap[c.program_session_id] = c })
+      const logMap = {}
+      ;(logs || []).forEach(l => { logMap[l.program_exercise_id] = l })
+
+      const list = (sessData || []).map(s => ({
+        ...s,
+        completion: compMap[s.id] || null,
+        exercises: [...(s.program_exercises || [])]
+          .sort((a, b) => a.order_index - b.order_index)
+          .map(e => ({ ...e, log: logMap[e.id] || {} })),
+      }))
+      setSessions(list)
+      const idx = list.findIndex(s => s.id === initialSessionId)
+      setIndex(idx >= 0 ? idx : 0)
+    }
+    load()
+  }, [programId, athleteId, initialSessionId])
+
+  if (sessions === null) return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text3)' }}>
+      Chargement…
+    </div>
+  )
+
+  const visible = expanded ? sessions.slice(index, index + 3) : (sessions[index] ? [sessions[index]] : [])
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 900, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{athleteName}</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>Séance {index + 1} / {sessions.length}</div>
+        </div>
+        <button onClick={() => setExpanded(v => !v)} style={{ background: expanded ? 'var(--green)' : 'var(--bg2)', color: expanded ? '#fff' : 'var(--text2)', border: expanded ? 'none' : '1px solid var(--border2)', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+          {expanded ? 'Vue simple' : '+ 2 séances suivantes'}
+        </button>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+        {!expanded && (
+          <button onClick={() => setIndex(i => Math.max(0, i - 1))} disabled={index === 0}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: '50%', width: 40, height: 40, fontSize: 20, color: index === 0 ? 'var(--border2)' : 'var(--text2)', cursor: index === 0 ? 'default' : 'pointer', flexShrink: 0, marginTop: 40 }}>
+            ‹
+          </button>
+        )}
+
+        <div style={{
+          flex: 1, display: expanded ? 'grid' : 'block',
+          gridTemplateColumns: expanded ? `repeat(${visible.length}, minmax(240px, 1fr))` : undefined,
+          gap: 12, maxWidth: expanded ? undefined : 480, margin: expanded ? undefined : '0 auto',
+          overflowX: expanded ? 'auto' : undefined,
+        }}>
+          {visible.map(s => <SessionMiniCard key={s.id} session={s} />)}
+        </div>
+
+        {!expanded && (
+          <button onClick={() => setIndex(i => Math.min(sessions.length - 1, i + 1))} disabled={index === sessions.length - 1}
+            style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: '50%', width: 40, height: 40, fontSize: 20, color: index === sessions.length - 1 ? 'var(--border2)' : 'var(--text2)', cursor: index === sessions.length - 1 ? 'default' : 'pointer', flexShrink: 0, marginTop: 40 }}>
+            ›
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SessionMiniCard({ session }) {
+  const isDone = !!session.completion
+  return (
+    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16, display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1, fontWeight: 800, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session.title || 'Séance'}</div>
+        {isDone ? (
+          <span style={{ background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>✓ Faite</span>
+        ) : (
+          <span style={{ background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>À venir</span>
+        )}
+      </div>
+
+      {isDone && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {session.completion.pleasure != null && <Stat label="Plaisir" value={`${session.completion.pleasure}/10`} />}
+          {session.completion.difficulty != null && <Stat label="Difficulté" value={`${session.completion.difficulty}/10`} />}
+          {session.completion.duration_minutes && <Stat label="Durée" value={`${session.completion.duration_minutes} min`} />}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {session.exercises.filter(e => e.name).map(e => {
+          const log = e.log || {}
+          const prescribed = [e.sets && `${e.sets} séries`, e.reps && `${e.reps} reps`, e.kg && `${e.kg} kg`].filter(Boolean).join(' · ')
+          const done = [log.sets_done && `${log.sets_done} séries`, log.reps_done && `${log.reps_done} reps`, log.kg_done && `${log.kg_done} kg`].filter(Boolean).join(' · ')
+          return (
+            <div key={e.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 10px' }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>{e.name}</div>
+              {prescribed && <div style={{ fontSize: 11, color: 'var(--text3)' }}>Prescrit : {prescribed}</div>}
+              {done && <div style={{ fontSize: 11, color: '#166534', fontWeight: 700, marginTop: 2 }}>Réalisé : {done}</div>}
+              {e.note && <div style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic', marginTop: 2 }}>Note coach : {e.note}</div>}
+              {log.note && <div style={{ fontSize: 11, color: 'var(--text2)', fontStyle: 'italic', marginTop: 2 }}>« {log.note} »</div>}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
