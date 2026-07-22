@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
 function fmt(d) {
@@ -107,12 +107,46 @@ async function fetchStats(athleteId, start, end) {
   return { kmByLabel, durByLabel, totalKm, totalCardioMin, tonnage }
 }
 
+async function fetchProgressions(athleteId, start, end) {
+  const { data: logs } = await supabase
+    .from('program_exercise_logs')
+    .select('kg_done, logged_at, program_exercises(name)')
+    .eq('athlete_id', athleteId)
+    .lte('logged_at', end + 'T23:59:59')
+    .order('logged_at', { ascending: true })
+
+  const byExercise = {}
+  ;(logs || []).forEach(l => {
+    const name = l.program_exercises?.name
+    const kg = parseNum(l.kg_done)
+    if (!name || !kg) return
+    if (!byExercise[name]) byExercise[name] = []
+    byExercise[name].push({ kg, date: l.logged_at.slice(0, 10) })
+  })
+
+  const results = []
+  Object.entries(byExercise).forEach(([name, entries]) => {
+    const before = entries.filter(e => e.date < start)
+    const during = entries.filter(e => e.date >= start && e.date <= end)
+    if (!before.length || !during.length) return
+    const prevKg = before[before.length - 1].kg
+    const currentKg = Math.max(...during.map(e => e.kg))
+    if (prevKg <= 0) return
+    const pct = ((currentKg - prevKg) / prevKg) * 100
+    if (pct > 0) results.push({ name, prevKg, currentKg, pct })
+  })
+
+  results.sort((a, b) => b.pct - a.pct)
+  return results.slice(0, 8)
+}
+
 export default function WeeklyStatsBlock({ athleteId }) {
   const [mode, setMode] = useState('week')
   const [offset, setOffset] = useState(0)
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
   const [showRecap, setShowRecap] = useState(false)
+  const [progressions, setProgressions] = useState(null)
 
   const changeMode = (m) => { setMode(m); setOffset(0) }
 
@@ -245,7 +279,11 @@ export default function WeeklyStatsBlock({ athleteId }) {
           )}
 
           <div style={{ padding: '0 14px 12px' }}>
-            <button onClick={() => setShowRecap(true)} style={{
+            <button onClick={() => {
+              setProgressions(null)
+              setShowRecap(true)
+              fetchProgressions(athleteId, stats.start, stats.end).then(setProgressions)
+            }} style={{
               width: '100%', background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8',
               borderRadius: 20, padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
             }}>
@@ -263,6 +301,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
           activityLabels={activityLabels}
           kmByLabel={kmByLabel}
           durByLabel={durByLabel}
+          progressions={progressions}
           onClose={() => setShowRecap(false)}
         />
       )}
@@ -270,65 +309,125 @@ export default function WeeklyStatsBlock({ athleteId }) {
   )
 }
 
-function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, onClose }) {
+function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, progressions, onClose }) {
+  const [page, setPage] = useState(0)
+  const touchStartX = useRef(0)
+
+  const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX }
+  const onTouchEnd = (e) => {
+    const delta = e.changedTouches[0].clientX - touchStartX.current
+    if (delta < -40) setPage(1)
+    else if (delta > 40) setPage(0)
+  }
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{
         background: 'var(--bg)', borderRadius: 20, padding: '24px 20px', maxWidth: 420, width: '100%',
-        boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: '90svh', overflowY: 'auto',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: '90svh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 18 }}>
-          <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 8 }}>📊</div>
+          <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 8 }}>{page === 0 ? '📊' : '📈'}</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>
-            Récap {mode === 'week' ? 'de la semaine' : 'du mois'}
+            {page === 0 ? `Récap ${mode === 'week' ? 'de la semaine' : 'du mois'}` : 'Progressions'}
           </div>
           <div style={{ fontSize: 13, color: 'var(--text3)', fontWeight: 600, textTransform: 'capitalize', marginTop: 2 }}>{periodLabel}</div>
         </div>
 
-        {bigStats.length > 0 && (
-          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
-            {bigStats.map((stat, i) => (
-              <div key={i} style={{ flex: 1, background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
-                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)', lineHeight: 1.1 }}>{stat.value}</div>
-                <div style={{ fontSize: 9, color: 'var(--green)', fontWeight: 700, marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{stat.label}</div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+          style={{ overflow: 'hidden', flex: 1, minHeight: 0 }}
+        >
+          <div style={{
+            display: 'flex', width: '200%', transform: `translateX(${page === 0 ? '0' : '-50%'})`,
+            transition: 'transform .25s ease', overflowY: 'auto',
+          }}>
+            <div style={{ width: '50%', paddingRight: 4 }}>
+              {bigStats.length > 0 && (
+                <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+                  {bigStats.map((stat, i) => (
+                    <div key={i} style={{ flex: 1, background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)', lineHeight: 1.1 }}>{stat.value}</div>
+                      <div style={{ fontSize: 9, color: 'var(--green)', fontWeight: 700, marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
-          Activités pratiquées
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
+                Activités pratiquées
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                {activityLabels.map(label => {
+                  const emojiMatch = label.match(/\p{Emoji}/u)
+                  const emoji = emojiMatch ? emojiMatch[0] : '🏅'
+                  const name = label.replace(/\s*\p{Emoji}\s*/gu, '').trim() || label
+                  return (
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
+                      <div style={{ fontSize: 22, flexShrink: 0 }}>{emoji}</div>
+                      <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{name}</div>
+                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                        {kmByLabel[label] > 0 && (
+                          <span style={{ background: 'var(--green-light)', color: 'var(--green)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}>
+                            {fmtKm(Math.round(kmByLabel[label] * 10) / 10)}
+                          </span>
+                        )}
+                        {durByLabel[label] > 0 && (
+                          <span style={{ background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}>
+                            {formatDur(durByLabel[label])}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div style={{ width: '50%', paddingLeft: 4 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
+                Charges en progression
+              </div>
+
+              {progressions === null ? (
+                <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>…</div>
+              ) : progressions.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>
+                  Aucune progression de charge détectée sur cette période.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+                  {progressions.map(p => (
+                    <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{p.prevKg} kg → {p.currentKg} kg</div>
+                      </div>
+                      <span style={{ background: 'var(--green-light)', color: 'var(--green)', borderRadius: 20, padding: '5px 10px', fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
+                        +{Math.round(p.pct)}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-          {activityLabels.map(label => {
-            const emojiMatch = label.match(/\p{Emoji}/u)
-            const emoji = emojiMatch ? emojiMatch[0] : '🏅'
-            const name = label.replace(/\s*\p{Emoji}\s*/gu, '').trim() || label
-            return (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
-                <div style={{ fontSize: 22, flexShrink: 0 }}>{emoji}</div>
-                <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{name}</div>
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  {kmByLabel[label] > 0 && (
-                    <span style={{ background: 'var(--green-light)', color: 'var(--green)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}>
-                      {fmtKm(Math.round(kmByLabel[label] * 10) / 10)}
-                    </span>
-                  )}
-                  {durByLabel[label] > 0 && (
-                    <span style={{ background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}>
-                      {formatDur(durByLabel[label])}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, margin: '14px 0 4px' }}>
+          {[0, 1].map(i => (
+            <button key={i} onClick={() => setPage(i)} style={{
+              width: 7, height: 7, borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer',
+              background: page === i ? 'var(--green)' : 'var(--border2)',
+            }} />
+          ))}
         </div>
 
         <button onClick={onClose} style={{
-          marginTop: 10, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20,
-          padding: '13px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%',
+          marginTop: 6, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20,
+          padding: '13px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%', flexShrink: 0,
         }}>
           Fermer
         </button>
