@@ -96,21 +96,6 @@ export default function AthletesPage() {
     setInviteMsg(json.error ? 'Erreur : ' + json.error : `✓ Invitation envoyée à ${newEmail.trim()}`)
   }
 
-  const copyInviteLink = async () => {
-    if (!createdAthlete || !newEmail.trim()) return
-    setInviting(true)
-    setInviteMsg('')
-    const res = await fetch('/api/invite-link', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: newEmail.trim(), athleteId: createdAthlete.id, athleteName: createdAthlete.name, redirectTo: window.location.origin }),
-    })
-    const json = await res.json()
-    setInviting(false)
-    if (json.error) { setInviteMsg('Erreur : ' + json.error); return }
-    await navigator.clipboard.writeText(json.link)
-    setInviteMsg('✓ Lien copié dans le presse-papiers')
-  }
-
   return (
     <div className="coach-layout" style={{ background: 'var(--bg2)' }}>
       <AthletesSidebar athleteId={null} date={today()} />
@@ -235,19 +220,13 @@ export default function AthletesPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
                 <div style={{ fontSize: 13, color: 'var(--text2)' }}>
-                  <b>{createdAthlete.name}</b> a été créé. {newEmail.trim() ? "Choisis comment l'inviter :" : "Ajoute un email pour l'inviter (ou fais-le plus tard depuis sa fiche)."}
+                  <b>{createdAthlete.name}</b> a été créé. {newEmail.trim() ? "Envoie-lui son invitation :" : "Ajoute un email pour l'inviter (ou fais-le plus tard depuis sa fiche)."}
                 </div>
                 {newEmail.trim() && (
-                  <>
-                    <button onClick={sendInviteEmail} disabled={inviting}
-                      style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                      {inviting ? '…' : '✉️ Envoyer l\'invitation par email'}
-                    </button>
-                    <button onClick={copyInviteLink} disabled={inviting}
-                      style={{ background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-                      {inviting ? '…' : '🔗 Copier le lien d\'invitation'}
-                    </button>
-                  </>
+                  <button onClick={sendInviteEmail} disabled={inviting}
+                    style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                    {inviting ? '…' : '✉️ Envoyer l\'invitation par email'}
+                  </button>
                 )}
                 {inviteMsg && <div style={{ fontSize: 12, color: inviteMsg.startsWith('Erreur') ? '#DC2626' : '#166534', fontWeight: 600 }}>{inviteMsg}</div>}
                 <button onClick={closeAdd} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, cursor: 'pointer', color: 'var(--text3)' }}>

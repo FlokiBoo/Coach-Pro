@@ -112,6 +112,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
   const [offset, setOffset] = useState(0)
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [showRecap, setShowRecap] = useState(false)
 
   const changeMode = (m) => { setMode(m); setOffset(0) }
 
@@ -242,8 +243,96 @@ export default function WeeklyStatsBlock({ athleteId }) {
               ))}
             </div>
           )}
+
+          <div style={{ padding: '0 14px 12px' }}>
+            <button onClick={() => setShowRecap(true)} style={{
+              width: '100%', background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8',
+              borderRadius: 20, padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+              📋 Voir le récap {mode === 'week' ? 'de la semaine' : 'du mois'}
+            </button>
+          </div>
         </>
       )}
+
+      {showRecap && (
+        <WeekRecapModal
+          mode={mode}
+          periodLabel={periodLabel}
+          bigStats={bigStats}
+          activityLabels={activityLabels}
+          kmByLabel={kmByLabel}
+          durByLabel={durByLabel}
+          onClose={() => setShowRecap(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, onClose }) {
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--bg)', borderRadius: 20, padding: '24px 20px', maxWidth: 420, width: '100%',
+        boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: '90svh', overflowY: 'auto',
+      }}>
+        <div style={{ textAlign: 'center', marginBottom: 18 }}>
+          <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 8 }}>📊</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>
+            Récap {mode === 'week' ? 'de la semaine' : 'du mois'}
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text3)', fontWeight: 600, textTransform: 'capitalize', marginTop: 2 }}>{periodLabel}</div>
+        </div>
+
+        {bigStats.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+            {bigStats.map((stat, i) => (
+              <div key={i} style={{ flex: 1, background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 12, padding: '12px 8px', textAlign: 'center' }}>
+                <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)', lineHeight: 1.1 }}>{stat.value}</div>
+                <div style={{ fontSize: 9, color: 'var(--green)', fontWeight: 700, marginTop: 3, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
+          Activités pratiquées
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
+          {activityLabels.map(label => {
+            const emojiMatch = label.match(/\p{Emoji}/u)
+            const emoji = emojiMatch ? emojiMatch[0] : '🏅'
+            const name = label.replace(/\s*\p{Emoji}\s*/gu, '').trim() || label
+            return (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
+                <div style={{ fontSize: 22, flexShrink: 0 }}>{emoji}</div>
+                <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{name}</div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  {kmByLabel[label] > 0 && (
+                    <span style={{ background: 'var(--green-light)', color: 'var(--green)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}>
+                      {fmtKm(Math.round(kmByLabel[label] * 10) / 10)}
+                    </span>
+                  )}
+                  {durByLabel[label] > 0 && (
+                    <span style={{ background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}>
+                      {formatDur(durByLabel[label])}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <button onClick={onClose} style={{
+          marginTop: 10, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20,
+          padding: '13px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%',
+        }}>
+          Fermer
+        </button>
+      </div>
     </div>
   )
 }
