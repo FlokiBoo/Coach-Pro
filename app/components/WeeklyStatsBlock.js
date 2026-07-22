@@ -146,19 +146,35 @@ export default function WeeklyStatsBlock({ athleteId }) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(false)
   const [showRecap, setShowRecap] = useState(false)
+  const [view, setView] = useState('stats')
   const [progressions, setProgressions] = useState(null)
+
+  const openRecap = () => {
+    setShowRecap(true)
+    if (progressions === null) fetchProgressions(athleteId, stats.start, stats.end).then(setProgressions)
+  }
+
+  const toggleView = () => setView(v => v === 'stats' ? 'progression' : 'stats')
 
   const changeMode = (m) => { setMode(m); setOffset(0) }
 
   useEffect(() => {
     if (!athleteId) return
     setLoading(true)
+    setView('stats')
+    setProgressions(null)
     const { start, end } = mode === 'week' ? getWeekRange(offset) : getMonthRange(offset)
     fetchStats(athleteId, start, end).then(s => {
       setStats({ ...s, start, end })
       setLoading(false)
     })
   }, [athleteId, mode, offset])
+
+  useEffect(() => {
+    if (view === 'progression' && stats && progressions === null) {
+      fetchProgressions(athleteId, stats.start, stats.end).then(setProgressions)
+    }
+  }, [view, stats, progressions, athleteId])
 
   if (!stats && !loading) return null
 
@@ -218,6 +234,16 @@ export default function WeeklyStatsBlock({ athleteId }) {
             }}
           >Mois</button>
         </div>
+
+        {hasAny && (
+          <button onClick={toggleView} style={{
+            background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8',
+            borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', flexShrink: 0,
+          }}>
+            {view === 'stats' ? '📈 Progression ›' : '‹ Stats'}
+          </button>
+        )}
       </div>
 
       {/* Navigation période */}
@@ -246,7 +272,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
         </div>
       )}
 
-      {!loading && hasAny && (
+      {!loading && hasAny && view === 'stats' && (
         <>
           <div style={{ display: 'flex', borderBottom: hasBreakdown ? '1px solid var(--border)' : 'none' }}>
             {bigStats.map((stat, i) => (
@@ -279,11 +305,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
           )}
 
           <div style={{ padding: '0 14px 12px' }}>
-            <button onClick={() => {
-              setProgressions(null)
-              setShowRecap(true)
-              fetchProgressions(athleteId, stats.start, stats.end).then(setProgressions)
-            }} style={{
+            <button onClick={openRecap} style={{
               width: '100%', background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8',
               borderRadius: 20, padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
             }}>
@@ -291,6 +313,32 @@ export default function WeeklyStatsBlock({ athleteId }) {
             </button>
           </div>
         </>
+      )}
+
+      {!loading && hasAny && view === 'progression' && (
+        <div style={{ padding: '12px 14px' }}>
+          {progressions === null ? (
+            <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>…</div>
+          ) : progressions.length === 0 ? (
+            <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>
+              Aucune progression de charge détectée sur cette période.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {progressions.map(p => (
+                <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{p.prevKg} kg → {p.currentKg} kg</div>
+                  </div>
+                  <span style={{ background: 'var(--green-light)', color: 'var(--green)', borderRadius: 20, padding: '5px 10px', fontSize: 13, fontWeight: 800, flexShrink: 0 }}>
+                    +{Math.round(p.pct)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
 
       {showRecap && (
@@ -309,8 +357,8 @@ export default function WeeklyStatsBlock({ athleteId }) {
   )
 }
 
-function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, progressions, onClose }) {
-  const [page, setPage] = useState(0)
+function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, progressions, initialPage = 0, onClose }) {
+  const [page, setPage] = useState(initialPage)
   const touchStartX = useRef(0)
 
   const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX }
