@@ -3,12 +3,14 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock from './TrackedMovementsBlock'
+import FaimSatieteBlock from './FaimSatieteBlock'
 
 export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
   const [open, setOpen] = useState(false)
   const [editingWeight, setEditingWeight] = useState(false)
   const [weightVal, setWeightVal] = useState('')
   const [saving, setSaving] = useState(false)
+  const [showFaimSat, setShowFaimSat] = useState(false)
 
   const startEdit = () => {
     setWeightVal(athlete?.weight ?? '')
@@ -87,6 +89,27 @@ export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
             </div>
 
             <TrackedMovementsBlock athleteId={athlete.id} isCoach={false} />
+
+            <button onClick={() => setShowFaimSat(true)} style={{
+              background: '#12181c', color: '#eef0ee', border: '1px solid #2c363c', borderRadius: 'var(--rl)',
+              padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
+            }}>
+              <span style={{ fontSize: 20 }}>🍽️</span>
+              <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Faim & Satiété</span>
+              <span style={{ color: '#7c8a90', fontSize: 18 }}>›</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showFaimSat && (
+        <div style={{ position: 'fixed', inset: 0, background: '#12181c', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: '#1c252b', borderBottom: '1px solid #2c363c', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button onClick={() => setShowFaimSat(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: '#eef0ee', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
+            <div style={{ flex: 1, fontWeight: 800, fontSize: 17, color: '#eef0ee' }}>Faim & Satiété</div>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
+            <FaimSatieteBlock />
           </div>
         </div>
       )}
