@@ -25,6 +25,12 @@ const PRIORITY_OPTIONS = [
   { value: 3, label: '3 - Basse' },
 ]
 
+const PRIORITY_STYLES = {
+  1: { bg: '#FEF2F2', border: '#FCA5A5', text: '#DC2626', textDate: '#B91C1C', bullet: '#DC2626' },
+  2: { bg: '#FFF7ED', border: '#FDBA74', text: '#C2410C', textDate: '#C2410C', bullet: '#EA580C' },
+  3: { bg: '#EFF6FF', border: '#93C5FD', text: '#1D4ED8', textDate: '#1D4ED8', bullet: '#2563EB' },
+}
+
 export default function ObjectivesBlock({ athleteId, objectives, setObjectives }) {
   const [newText, setNewText] = useState('')
   const [newDate, setNewDate] = useState('')
@@ -97,8 +103,9 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives }
         {sorted.map(obj => {
           const isTop = obj.priority === 1
           const isEditing = editingId === obj.id
+          const style = PRIORITY_STYLES[obj.priority] || PRIORITY_STYLES[2]
           return (
-            <div key={obj.id} style={{ background: isTop ? '#FEF2F2' : 'var(--bg2)', border: isTop ? '1px solid #FCA5A5' : '1px solid transparent', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+            <div key={obj.id} style={{ background: style.bg, border: `1px solid ${style.border}`, borderRadius: 'var(--r)', padding: '10px 12px' }}>
               {isEditing ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <input autoFocus value={editForm.text} onChange={e => setEditForm(f => ({ ...f, text: e.target.value }))}
@@ -116,13 +123,13 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives }
                 </div>
               ) : (
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                  <span style={{ color: isTop ? '#DC2626' : 'var(--green)', fontSize: 14, marginTop: 1, flexShrink: 0 }}>▸</span>
+                  <span style={{ color: style.bullet, fontSize: 14, marginTop: 1, flexShrink: 0 }}>▸</span>
                   <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => startEdit(obj)} title="Cliquer pour modifier">
-                    <div style={{ fontSize: isTop ? 16 : 14, fontWeight: isTop ? 800 : 600, color: isTop ? '#DC2626' : 'var(--text)', lineHeight: 1.4, wordBreak: 'break-word' }}>
+                    <div style={{ fontSize: isTop ? 16 : 14, fontWeight: isTop ? 800 : 600, color: style.text, lineHeight: 1.4, wordBreak: 'break-word' }}>
                       {obj.text}
                     </div>
                     {obj.target_date && (
-                      <div style={{ fontSize: 11, color: isTop ? '#B91C1C' : 'var(--text3)', marginTop: 3 }}>
+                      <div style={{ fontSize: 11, color: style.textDate, marginTop: 3 }}>
                         📅 {formatDateFr(obj.target_date)} · {timeRemaining(obj.target_date)}
                       </div>
                     )}

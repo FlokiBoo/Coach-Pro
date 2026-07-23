@@ -766,6 +766,26 @@ const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme �
 function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet }) {
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
+  const [savedIds, setSavedIds] = useState({})
+
+  const handleValidateExercise = (exo) => {
+    const setsEl = document.getElementById(`log-sets-${exo.id}`)
+    const repsEl = document.getElementById(`log-reps-${exo.id}`)
+    const kgEl = document.getElementById(`log-kg-${exo.id}`)
+    const noteEl = document.getElementById(`log-note-${exo.id}`)
+    if (setsEl) onSaveLog(exo.id, exo.name, 'sets_done', setsEl.value)
+    if (repsEl) onSaveLog(exo.id, exo.name, 'reps_done', repsEl.value)
+    if (kgEl) onSaveLog(exo.id, exo.name, 'kg_done', kgEl.value)
+    if (noteEl) onSaveLog(exo.id, exo.name, 'note', noteEl.value)
+    ;(exerciseSets[exo.id] || []).forEach(s => {
+      const repsSetEl = document.getElementById(`log-set-reps-${s.id}`)
+      const kgSetEl = document.getElementById(`log-set-kg-${s.id}`)
+      if (repsSetEl) onSaveExerciseSet(exo.id, s.id, 'reps_done', repsSetEl.value)
+      if (kgSetEl) onSaveExerciseSet(exo.id, s.id, 'kg_done', kgSetEl.value)
+    })
+    setSavedIds(p => ({ ...p, [exo.id]: true }))
+  }
+
   return (
     <div style={{ background: 'var(--bg)', border: `1.5px solid ${isOpen ? (isCompleted ? 'var(--border2)' : 'var(--green)') : 'var(--border)'}`, borderRadius: 'var(--rl)', overflow: 'hidden', opacity: isCompleted ? 0.85 : 1 }}>
       <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', cursor: 'pointer', borderBottom: isOpen ? '1px solid var(--border)' : 'none' }}>
@@ -884,8 +904,9 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                       {exo.sets && (
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Séries</div>
-                          <input type="text" placeholder={exo.sets}
+                          <input id={`log-sets-${exo.id}`} type="text" placeholder={exo.sets}
                             defaultValue={exerciseLogs[exo.id]?.sets_done || ''}
+                            onChange={() => setSavedIds(p => ({ ...p, [exo.id]: false }))}
                             onBlur={e => onSaveLog(exo.id, exo.name, 'sets_done', e.target.value)}
                             style={logInputStyle} />
                         </div>
@@ -893,8 +914,9 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                       {exo.reps && (
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Reps</div>
-                          <input type="text" placeholder={exo.reps}
+                          <input id={`log-reps-${exo.id}`} type="text" placeholder={exo.reps}
                             defaultValue={exerciseLogs[exo.id]?.reps_done || ''}
+                            onChange={() => setSavedIds(p => ({ ...p, [exo.id]: false }))}
                             onBlur={e => onSaveLog(exo.id, exo.name, 'reps_done', e.target.value)}
                             style={logInputStyle} />
                         </div>
@@ -902,8 +924,9 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                       {exo.kg && (
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Charge (kg)</div>
-                          <input type="text" placeholder={`${exo.kg} kg`}
+                          <input id={`log-kg-${exo.id}`} type="text" placeholder={`${exo.kg} kg`}
                             defaultValue={exerciseLogs[exo.id]?.kg_done || ''}
+                            onChange={() => setSavedIds(p => ({ ...p, [exo.id]: false }))}
                             onBlur={e => onSaveLog(exo.id, exo.name, 'kg_done', e.target.value)}
                             style={logInputStyle} />
                         </div>
@@ -919,13 +942,15 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                           </div>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Reps</div>
-                            <input type="text" defaultValue={s.reps_done || ''}
+                            <input id={`log-set-reps-${s.id}`} type="text" defaultValue={s.reps_done || ''}
+                              onChange={() => setSavedIds(p => ({ ...p, [exo.id]: false }))}
                               onBlur={e => onSaveExerciseSet(exo.id, s.id, 'reps_done', e.target.value)}
                               style={logInputStyle} />
                           </div>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Charge (kg)</div>
-                            <input type="text" defaultValue={s.kg_done ?? ''}
+                            <input id={`log-set-kg-${s.id}`} type="text" defaultValue={s.kg_done ?? ''}
+                              onChange={() => setSavedIds(p => ({ ...p, [exo.id]: false }))}
                               onBlur={e => onSaveExerciseSet(exo.id, s.id, 'kg_done', e.target.value)}
                               style={logInputStyle} />
                           </div>
@@ -948,13 +973,22 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                   })()}
                   <div>
                     <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Note</div>
-                    <textarea placeholder="Comment c'était ?"
+                    <textarea id={`log-note-${exo.id}`} placeholder="Comment c'était ?"
                       defaultValue={exerciseLogs[exo.id]?.note || ''}
+                      onChange={() => setSavedIds(p => ({ ...p, [exo.id]: false }))}
                       onBlur={e => onSaveLog(exo.id, exo.name, 'note', e.target.value)}
                       rows={2}
                       style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', resize: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
                     />
                   </div>
+                  <button onClick={() => handleValidateExercise(exo)} style={{
+                    background: savedIds[exo.id] ? '#DCFCE7' : 'var(--green)',
+                    color: savedIds[exo.id] ? '#166534' : '#fff',
+                    border: 'none', borderRadius: 20, padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%',
+                    transition: 'all .15s',
+                  }}>
+                    {savedIds[exo.id] ? '✓ Enregistré' : '✓ Valider cet exercice'}
+                  </button>
                 </div>
               )}
             </div>
