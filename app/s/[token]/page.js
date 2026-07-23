@@ -12,6 +12,7 @@ import MuscleAnatomyDiagram from '@/app/components/MuscleAnatomyDiagram'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import Toast from '@/app/components/Toast'
 import AthleteSidePanel from '@/app/components/AthleteSidePanel'
+import WeeklyPlannerBlock from '@/app/components/WeeklyPlannerBlock'
 import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 
 function computeLabels(exercises) {
@@ -520,6 +521,7 @@ function AthleteView({ params }) {
         ))}
 
         <WeeklyStatsBlock athleteId={athlete.id} />
+        <WeeklyPlannerBlock athleteId={athlete.id} />
         <ProgressBlock athleteId={athlete.id} />
 
         {/* Navigation date bien-être / activité */}

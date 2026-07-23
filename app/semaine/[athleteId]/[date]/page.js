@@ -10,6 +10,7 @@ import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
 import ProgressBlock from '@/app/components/ProgressBlock'
 import ActivityBlock from '@/app/components/ActivityBlock'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
+import WeeklyPlannerBlock from '@/app/components/WeeklyPlannerBlock'
 import TrackedMovementsBlock from '@/app/components/TrackedMovementsBlock'
 
 function today() {
@@ -376,6 +377,10 @@ export default function AthletePage({ params }) {
 
           {/* ── STATS SEMAINE / MOIS ── */}
           <WeeklyStatsBlock athleteId={athleteId} />
+
+          {/* ── PLANNING SEMAINE-TYPE ── */}
+          <WeeklyPlannerBlock athleteId={athleteId} />
+
           <ProgressBlock athleteId={athleteId} />
 
           {/* ── AUJOURD'HUI ── */}
