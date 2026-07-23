@@ -56,7 +56,7 @@ export default function MetricsPage() {
     setSaving(true)
 
     // Lie (ou crée) l'entrée correspondante dans la bibliothèque de mouvements
-    const { data: existingLib } = await supabase.from('movements').select('id').eq('name', label).maybeSingle()
+    const { data: existingLib } = await supabase.from('movements').select('id').ilike('name', label).maybeSingle()
     if (!existingLib) {
       await supabase.from('movements').insert({ name: label })
     }
