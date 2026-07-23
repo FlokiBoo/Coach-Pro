@@ -444,13 +444,13 @@ function Stat({ label, value }) {
 
 function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteName, onClose }) {
   const [sessions, setSessions] = useState(null)
-  const [range, setRange] = useState({ start: 0, end: 0 })
+  const [visibleIndices, setVisibleIndices] = useState([0])
 
   useEffect(() => {
     async function load() {
       const { data: sessData } = await supabase
         .from('program_sessions')
-        .select('id, title, order_index, program_exercises(id, name, sets, reps, kg, note, order_index)')
+        .select('id, title, order_index, coach_notes, program_exercises(id, name, sets, reps, kg, note, order_index)')
         .eq('program_id', programId)
         .order('order_index')
 
@@ -479,8 +479,7 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
       }))
       setSessions(list)
       const idx = list.findIndex(s => s.id === initialSessionId)
-      const start = idx >= 0 ? idx : 0
-      setRange({ start, end: start })
+      setVisibleIndices([idx >= 0 ? idx : 0])
     }
     load()
   }, [programId, athleteId, initialSessionId])
@@ -491,9 +490,11 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
     </div>
   )
 
-  const isFirst = range.start === 0
-  const isLast = range.end === sessions.length - 1
-  const visible = sessions.slice(range.start, range.end + 1)
+  const sorted = [...visibleIndices].sort((a, b) => a - b)
+  const min = sorted[0]
+  const max = sorted[sorted.length - 1]
+  const isFirst = min === 0
+  const isLast = max === sessions.length - 1
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 900, display: 'flex', flexDirection: 'column' }}>
@@ -501,29 +502,27 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
         <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontWeight: 800, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{athleteName}</div>
-          <div style={{ fontSize: 11, color: 'var(--text3)' }}>Séances {range.start + 1} à {range.end + 1} / {sessions.length}</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>{sorted.map(i => i + 1).join(', ')} / {sessions.length}</div>
         </div>
       </div>
 
       <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-        <button onClick={() => setRange(r => ({ ...r, start: Math.max(0, r.start - 1) }))} disabled={isFirst}
+        <button onClick={() => setVisibleIndices(v => [...v, min - 1])} disabled={isFirst}
           style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '10px 16px', fontSize: 13, fontWeight: 700, color: isFirst ? 'var(--border2)' : 'var(--text2)', cursor: isFirst ? 'default' : 'pointer', flexShrink: 0, marginTop: 40, whiteSpace: 'nowrap' }}>
           ‹ Séance précédente
         </button>
 
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${visible.length}, minmax(280px, 1fr))`, gap: 12 }}>
-          {visible.map((s, i) => {
-            const fullIndex = range.start + i
+        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: `repeat(${sorted.length}, minmax(280px, 1fr))`, gap: 12 }}>
+          {sorted.map(fullIndex => {
             const closeCard = () => {
-              if (visible.length === 1) { onClose(); return }
-              if (fullIndex === range.start) setRange(r => ({ ...r, start: r.start + 1 }))
-              else if (fullIndex === range.end) setRange(r => ({ ...r, end: r.end - 1 }))
+              if (sorted.length === 1) { onClose(); return }
+              setVisibleIndices(v => v.filter(i => i !== fullIndex))
             }
-            return <SessionMiniCard key={s.id} session={s} onClose={closeCard} />
+            return <SessionMiniCard key={sessions[fullIndex].id} session={sessions[fullIndex]} onClose={closeCard} />
           })}
         </div>
 
-        <button onClick={() => setRange(r => ({ ...r, end: Math.min(sessions.length - 1, r.end + 1) }))} disabled={isLast}
+        <button onClick={() => setVisibleIndices(v => [...v, max + 1])} disabled={isLast}
           style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '10px 16px', fontSize: 13, fontWeight: 700, color: isLast ? 'var(--border2)' : 'var(--text2)', cursor: isLast ? 'default' : 'pointer', flexShrink: 0, marginTop: 40, whiteSpace: 'nowrap' }}>
           Séance suivante ›
         </button>
@@ -534,6 +533,28 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
 
 function SessionMiniCard({ session, onClose }) {
   const isDone = !!session.completion
+
+  const saveSessionNote = async (value) => {
+    await supabase.from('program_sessions').update({ coach_notes: value }).eq('id', session.id)
+  }
+  const saveExerciseNote = async (exerciseId, value) => {
+    await supabase.from('program_exercises').update({ note: value }).eq('id', exerciseId)
+  }
+  const saveExerciseField = async (exerciseId, field, value) => {
+    await supabase.from('program_exercises').update({ [field]: value }).eq('id', exerciseId)
+  }
+
+  const noteFieldStyle = {
+    width: '100%', boxSizing: 'border-box', padding: '6px 8px', border: '1px solid var(--border2)',
+    borderRadius: 6, fontSize: 11, outline: 'none', background: 'var(--bg)', color: 'var(--text2)',
+    fontStyle: 'italic', resize: 'none', fontFamily: 'inherit', marginTop: 4,
+  }
+  const prescribedFieldStyle = {
+    width: '100%', boxSizing: 'border-box', padding: '5px 6px', border: '1px solid var(--border2)',
+    borderRadius: 6, fontSize: 12, outline: 'none', background: 'var(--bg)', color: 'var(--text)',
+    fontFamily: 'inherit', textAlign: 'center',
+  }
+
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16, display: 'flex', flexDirection: 'column', gap: 10, minWidth: 0 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -559,18 +580,57 @@ function SessionMiniCard({ session, onClose }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {session.exercises.filter(e => e.name).map(e => {
           const log = e.log || {}
-          const prescribed = [e.sets && `${e.sets} séries`, e.reps && `${e.reps} reps`, e.kg && `${e.kg} kg`].filter(Boolean).join(' · ')
           const done = [log.sets_done && `${log.sets_done} séries`, log.reps_done && `${log.reps_done} reps`, log.kg_done && `${log.kg_done} kg`].filter(Boolean).join(' · ')
           return (
             <div key={e.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 10px' }}>
-              <div style={{ fontWeight: 700, fontSize: 13 }}>{e.name}</div>
-              {prescribed && <div style={{ fontSize: 11, color: 'var(--text3)' }}>Prescrit : {prescribed}</div>}
-              {done && <div style={{ fontSize: 11, color: '#166534', fontWeight: 700, marginTop: 2 }}>Réalisé : {done}</div>}
-              {e.note && <div style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic', marginTop: 2 }}>Note coach : {e.note}</div>}
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{e.name}</div>
+
+              <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 600, marginBottom: 2 }}>Séries</div>
+                  <input type="text" defaultValue={e.sets || ''} placeholder="—"
+                    onBlur={ev => saveExerciseField(e.id, 'sets', ev.target.value)}
+                    style={prescribedFieldStyle} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 600, marginBottom: 2 }}>Reps</div>
+                  <input type="text" defaultValue={e.reps || ''} placeholder="—"
+                    onBlur={ev => saveExerciseField(e.id, 'reps', ev.target.value)}
+                    style={prescribedFieldStyle} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 600, marginBottom: 2 }}>Charge (kg)</div>
+                  <input type="text" defaultValue={e.kg || ''} placeholder="—"
+                    onBlur={ev => saveExerciseField(e.id, 'kg', ev.target.value)}
+                    style={prescribedFieldStyle} />
+                </div>
+              </div>
+
+              {done && <div style={{ fontSize: 11, color: '#166534', fontWeight: 700, marginTop: 6 }}>Réalisé : {done}</div>}
               {log.note && <div style={{ fontSize: 11, color: 'var(--text2)', fontStyle: 'italic', marginTop: 2 }}>« {log.note} »</div>}
+              <textarea
+                placeholder="Note coach pour cet exercice…"
+                defaultValue={e.note || ''}
+                onBlur={ev => saveExerciseNote(e.id, ev.target.value)}
+                rows={2}
+                style={noteFieldStyle}
+              />
             </div>
           )
         })}
+      </div>
+
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>
+          Note coach (séance)
+        </div>
+        <textarea
+          placeholder="Ta note pour cette séance…"
+          defaultValue={session.coach_notes || ''}
+          onBlur={ev => saveSessionNote(ev.target.value)}
+          rows={3}
+          style={{ ...noteFieldStyle, fontStyle: 'normal', fontSize: 13, marginTop: 0 }}
+        />
       </div>
     </div>
   )
