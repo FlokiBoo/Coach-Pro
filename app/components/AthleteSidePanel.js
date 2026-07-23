@@ -1,9 +1,43 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import TrackedMovementsBlock from './TrackedMovementsBlock'
+import TrackedMovementsBlock, { estimate1RM, unitOf, formatPerformance } from './TrackedMovementsBlock'
 import FaimSatieteBlock from './FaimSatieteBlock'
+
+function computeRecordEvents(entries) {
+  const byMovement = {}
+  entries.forEach(e => {
+    const mid = e.tracked_movement_id
+    if (!byMovement[mid]) byMovement[mid] = []
+    byMovement[mid].push(e)
+  })
+  const events = []
+  Object.values(byMovement).forEach(list => {
+    const movement = list[0].tracked_movements
+    if (!movement) return
+    const cfg = unitOf(movement)
+    const sorted = [...list].sort((a, b) => a.date.localeCompare(b.date))
+    let best = null
+    sorted.forEach(e => {
+      let val
+      if (!movement.unit || movement.unit === 'kg') {
+        const est = estimate1RM(e)
+        val = est ? est.value : null
+      } else {
+        val = e.value
+      }
+      if (val == null) return
+      const isRecord = best === null || (cfg.betterIsHigher ? val > best : val < best)
+      if (isRecord) {
+        events.push({ movement, value: val, date: e.date, prevValue: best })
+        best = val
+      }
+    })
+  })
+  events.sort((a, b) => b.date.localeCompare(a.date))
+  return events.slice(0, 3)
+}
 
 export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
   const [open, setOpen] = useState(false)
@@ -11,6 +45,16 @@ export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
   const [weightVal, setWeightVal] = useState('')
   const [saving, setSaving] = useState(false)
   const [showFaimSat, setShowFaimSat] = useState(false)
+  const [showMetrics, setShowMetrics] = useState(false)
+  const [recentRecords, setRecentRecords] = useState([])
+
+  useEffect(() => {
+    if (!athlete?.id) return
+    supabase.from('tracked_movement_entries')
+      .select('*, tracked_movements(name, unit)')
+      .eq('athlete_id', athlete.id)
+      .then(({ data }) => setRecentRecords(computeRecordEvents(data || [])))
+  }, [athlete?.id])
 
   const startEdit = () => {
     setWeightVal(athlete?.weight ?? '')
@@ -88,7 +132,40 @@ export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
               </div>
             </div>
 
-            <TrackedMovementsBlock athleteId={athlete.id} isCoach={false} />
+            <button onClick={() => setShowMetrics(true)} style={{
+              background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+              padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
+            }}>
+              <span style={{ fontSize: 20 }}>📈</span>
+              <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Metric</span>
+              <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
+            </button>
+
+            {recentRecords.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '0 4px' }}>
+                {recentRecords.map((r, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                    <span style={{ color: 'var(--text3)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {r.movement.name}
+                    </span>
+                    <span style={{ fontWeight: 700, color: 'var(--text2)', flexShrink: 0 }}>
+                      {formatPerformance(r.movement, r.value)}
+                    </span>
+                    {r.prevValue !== null && (
+                      <span style={{ color: '#16A34A', fontWeight: 700, flexShrink: 0 }}>
+                        {(() => {
+                          const cfg = unitOf(r.movement)
+                          const pct = cfg.betterIsHigher
+                            ? ((r.value - r.prevValue) / r.prevValue) * 100
+                            : ((r.prevValue - r.value) / r.prevValue) * 100
+                          return `+${Math.round(pct)}%`
+                        })()}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
             <button onClick={() => setShowFaimSat(true)} style={{
               background: '#12181c', color: '#eef0ee', border: '1px solid #2c363c', borderRadius: 'var(--rl)',
@@ -98,6 +175,18 @@ export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
               <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Faim & Satiété</span>
               <span style={{ color: '#7c8a90', fontSize: 18 }}>›</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {showMetrics && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button onClick={() => setShowMetrics(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
+            <div style={{ flex: 1, fontWeight: 800, fontSize: 17 }}>Metric</div>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
+            <TrackedMovementsBlock athleteId={athlete.id} isCoach={false} />
           </div>
         </div>
       )}
