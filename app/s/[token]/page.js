@@ -53,6 +53,10 @@ function today() {
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
+function isFinishedFreeSession(p, completions) {
+  return p.title?.startsWith('Séance libre') && p.sessions.length > 0 && p.sessions.every(s => completions.has(s.id))
+}
+
 export default function AthleteViewWrapper({ params }) {
   return (
     <Suspense>
@@ -258,7 +262,7 @@ function AthleteView({ params }) {
   }
 
   useEffect(() => {
-    const boardPrograms = programs.filter(p => p.pinned_board !== false)
+    const boardPrograms = programs.filter(p => p.pinned_board !== false && !isFinishedFreeSession(p, completions))
     if (selectedType || !boardPrograms.length) return
     const withNext = boardPrograms.find(p => p.sessions.some(s => !completions.has(s.id)))
     setSelectedType((withNext || boardPrograms[0]).activity_type || 'Musculation 🏋️')
@@ -566,7 +570,7 @@ function AthleteView({ params }) {
         )}
 
         {(() => {
-          const boardPrograms = programs.filter(p => p.pinned_board !== false)
+          const boardPrograms = programs.filter(p => p.pinned_board !== false && !isFinishedFreeSession(p, completions))
           const allTypes = [...new Set(boardPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
           const commonProps = {
             completions, completionFeedback, validating, exerciseLogs,

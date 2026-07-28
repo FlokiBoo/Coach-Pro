@@ -32,7 +32,11 @@ export default function LancerPage({ params }) {
       const list = (progs || []).map(p => ({
         ...p,
         sessions: [...(p.program_sessions || [])].sort((a, b) => a.order_index - b.order_index).map(s => ({ ...s, done: doneIds.has(s.id) })),
-      }))
+      })).filter(p => {
+        const isFreeSession = p.title?.startsWith('Séance libre')
+        const allDone = p.sessions.length > 0 && p.sessions.every(s => s.done)
+        return !(isFreeSession && allDone)
+      })
       setPrograms(list)
     }
     load()
