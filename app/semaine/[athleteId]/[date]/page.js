@@ -11,6 +11,7 @@ import ProgressBlock from '@/app/components/ProgressBlock'
 import ActivityBlock from '@/app/components/ActivityBlock'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import WeeklyPlannerBlock from '@/app/components/WeeklyPlannerBlock'
+import AthleteQuickNav from '@/app/components/AthleteQuickNav'
 import TrackedMovementsBlock from '@/app/components/TrackedMovementsBlock'
 
 function today() {
@@ -230,6 +231,8 @@ export default function AthletePage({ params }) {
         </div>
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {athlete && <AthleteQuickNav athlete={athlete} onUpdate={setAthlete} />}
 
           {/* ── PROFIL ── */}
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
