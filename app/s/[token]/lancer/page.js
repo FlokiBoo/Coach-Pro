@@ -9,6 +9,7 @@ export default function LancerPage({ params }) {
   const router = useRouter()
   const [athlete, setAthlete] = useState(null)
   const [programs, setPrograms] = useState(null)
+  const [expanded, setExpanded] = useState({})
 
   useEffect(() => {
     async function load() {
@@ -62,37 +63,58 @@ export default function LancerPage({ params }) {
           </div>
         )}
 
-        {(programs || []).map(prog => (
-          <div key={prog.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-            <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ fontWeight: 800, fontSize: 15, flex: 1 }}>{prog.title || prog.activity_type || 'Programme'}</div>
-              {prog.activity_type && <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{prog.activity_type}</div>}
-            </div>
+        {(programs || []).map(prog => {
+          const isExpanded = !!expanded[prog.id]
+          const upcoming = prog.sessions.filter(s => !s.done).slice(0, 2)
+          const visible = isExpanded ? prog.sessions : (upcoming.length > 0 ? upcoming : prog.sessions.slice(-2))
+          const hiddenCount = prog.sessions.length - visible.length
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {prog.sessions.length === 0 && (
-                <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Aucune séance</div>
-              )}
-              {prog.sessions.map((s, i) => (
-                <button key={s.id} onClick={() => launchSession(s.id)} style={{
-                  display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
-                  background: 'none', border: 'none', borderTop: i > 0 ? '1px solid var(--border)' : 'none',
-                  padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit',
-                }}>
-                  <div style={{
-                    width: 24, height: 24, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 11, fontWeight: 800,
-                    background: s.done ? '#DCFCE7' : 'var(--green-light)', color: s.done ? '#166534' : 'var(--green)',
-                  }}>
-                    {s.done ? '✓' : i + 1}
-                  </div>
-                  <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{s.title || `Séance ${i + 1}`}</div>
-                  <span style={{ color: 'var(--green)', fontSize: 13, fontWeight: 700 }}>▶ Lancer</span>
-                </button>
-              ))}
+          return (
+            <div key={prog.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+              <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontWeight: 800, fontSize: 15, flex: 1 }}>{prog.title || prog.activity_type || 'Programme'}</div>
+                {prog.activity_type && <div style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 600 }}>{prog.activity_type}</div>}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                {prog.sessions.length === 0 && (
+                  <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Aucune séance</div>
+                )}
+                {visible.map((s, i) => {
+                  const fullIdx = prog.sessions.indexOf(s)
+                  return (
+                    <button key={s.id} onClick={() => launchSession(s.id)} style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
+                      background: s.done ? '#FEF2F2' : 'none', border: 'none', borderTop: i > 0 ? '1px solid var(--border)' : 'none',
+                      padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                      <div style={{
+                        width: 24, height: 24, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 11, fontWeight: 800,
+                        background: s.done ? '#FEE2E2' : 'var(--green-light)', color: s.done ? '#991B1B' : 'var(--green)',
+                      }}>
+                        {s.done ? '✓' : fullIdx + 1}
+                      </div>
+                      <div style={{ flex: 1, fontSize: 14, fontWeight: 700, color: s.done ? '#991B1B' : 'var(--text)' }}>{s.title || `Séance ${fullIdx + 1}`}</div>
+                      <span style={{ color: 'var(--green)', fontSize: 13, fontWeight: 700 }}>▶ Lancer</span>
+                    </button>
+                  )
+                })}
+
+                {prog.sessions.length > visible.length || isExpanded ? (
+                  <button
+                    onClick={() => setExpanded(e => ({ ...e, [prog.id]: !e[prog.id] }))}
+                    style={{
+                      background: 'none', border: 'none', borderTop: '1px solid var(--border)', padding: '10px 14px',
+                      fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'center', width: '100%',
+                    }}>
+                    {isExpanded ? '▲ Réduire' : `▼ Voir toutes les séances${hiddenCount > 0 ? ` (${hiddenCount} de plus)` : ''}`}
+                  </button>
+                ) : null}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
