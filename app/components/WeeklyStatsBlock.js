@@ -62,14 +62,16 @@ async function fetchStats(athleteId, start, end) {
       .lte('completed_at', end + 'T23:59:59'),
   ])
 
-  const kmByLabel = {}, durByLabel = {}
+  const kmByLabel = {}, durByLabel = {}, countByLabel = {}
   ;(actLogs || []).forEach(l => {
     const key = l.label || l.type || 'Activité'
+    countByLabel[key] = (countByLabel[key] || 0) + 1
     if (l.km) kmByLabel[key] = (kmByLabel[key] || 0) + parseFloat(l.km)
     if (l.duration_minutes) durByLabel[key] = (durByLabel[key] || 0) + parseInt(l.duration_minutes)
   })
   ;(comps || []).forEach(c => {
     const key = c.program_sessions?.programs?.activity_type || 'Musculation 🏋️'
+    countByLabel[key] = (countByLabel[key] || 0) + 1
     if (c.duration_minutes) durByLabel[key] = (durByLabel[key] || 0) + parseInt(c.duration_minutes)
     if (c.distance_km) kmByLabel[key] = (kmByLabel[key] || 0) + parseFloat(c.distance_km)
   })
@@ -104,7 +106,36 @@ async function fetchStats(athleteId, start, end) {
     }
   }
 
-  return { kmByLabel, durByLabel, totalKm, totalCardioMin, tonnage }
+  return { kmByLabel, durByLabel, countByLabel, totalKm, totalCardioMin, tonnage }
+}
+
+const WELLNESS_METRICS = [
+  { key: 'sommeil', label: 'Sommeil', emoji: '🌙', inverse: false },
+  { key: 'stress', label: 'Stress', emoji: '😰', inverse: true },
+  { key: 'courbatures', label: 'Courbatures', emoji: '💪', inverse: true },
+  { key: 'forme', label: 'Forme', emoji: '⚡', inverse: false },
+]
+
+function wellnessColor(val, inverse) {
+  if (!val) return 'var(--text3)'
+  const s = inverse ? (11 - val) : val
+  if (s >= 7) return '#22c55e'
+  if (s >= 4) return '#f59e0b'
+  return '#ef4444'
+}
+
+async function fetchWellnessAverages(athleteId, start, end) {
+  const { data } = await supabase.from('wellness')
+    .select('sommeil, stress, courbatures, forme')
+    .eq('athlete_id', athleteId)
+    .gte('date', start).lte('date', end)
+
+  const rows = data || []
+  return WELLNESS_METRICS.map(m => {
+    const vals = rows.map(r => r[m.key]).filter(v => v != null)
+    const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null
+    return { ...m, avg, count: vals.length }
+  })
 }
 
 async function fetchProgressions(athleteId, start, end) {
@@ -148,10 +179,12 @@ export default function WeeklyStatsBlock({ athleteId }) {
   const [showRecap, setShowRecap] = useState(false)
   const [view, setView] = useState('stats')
   const [progressions, setProgressions] = useState(null)
+  const [wellnessAvg, setWellnessAvg] = useState(null)
 
   const openRecap = () => {
     setShowRecap(true)
     if (progressions === null) fetchProgressions(athleteId, stats.start, stats.end).then(setProgressions)
+    if (wellnessAvg === null) fetchWellnessAverages(athleteId, stats.start, stats.end).then(setWellnessAvg)
   }
 
   const toggleView = () => setView(v => v === 'stats' ? 'progression' : 'stats')
@@ -163,6 +196,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
     setLoading(true)
     setView('stats')
     setProgressions(null)
+    setWellnessAvg(null)
     const { start, end } = mode === 'week' ? getWeekRange(offset) : getMonthRange(offset)
     fetchStats(athleteId, start, end).then(s => {
       setStats({ ...s, start, end })
@@ -190,9 +224,9 @@ export default function WeeklyStatsBlock({ athleteId }) {
     return d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
   })()
 
-  const { kmByLabel = {}, durByLabel = {}, totalKm = 0, totalCardioMin = 0, tonnage = 0 } = stats || {}
+  const { kmByLabel = {}, durByLabel = {}, countByLabel = {}, totalKm = 0, totalCardioMin = 0, tonnage = 0 } = stats || {}
   const totalMin = totalCardioMin
-  const hasAny = tonnage > 0 || totalKm > 0 || totalMin > 0
+  const hasAny = tonnage > 0 || totalKm > 0 || totalMin > 0 || Object.keys(countByLabel).length > 0
 
   const bigStats = [
     tonnage > 0 && { value: Math.round(tonnage).toLocaleString('fr-FR') + ' kg', label: '🏋️ Tonnage' },
@@ -200,7 +234,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
     totalMin > 0 && { value: formatDur(totalMin), label: '⏱️ Temps total' },
   ].filter(Boolean)
 
-  const activityLabels = [...new Set([...Object.keys(kmByLabel), ...Object.keys(durByLabel)])]
+  const activityLabels = [...new Set([...Object.keys(kmByLabel), ...Object.keys(durByLabel), ...Object.keys(countByLabel)])]
   const hasBreakdown = activityLabels.length > 0
 
   return (
@@ -349,7 +383,9 @@ export default function WeeklyStatsBlock({ athleteId }) {
           activityLabels={activityLabels}
           kmByLabel={kmByLabel}
           durByLabel={durByLabel}
+          countByLabel={countByLabel}
           progressions={progressions}
+          wellnessAvg={wellnessAvg}
           onClose={() => setShowRecap(false)}
         />
       )}
@@ -357,7 +393,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
   )
 }
 
-function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, progressions, initialPage = 0, onClose }) {
+function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, countByLabel, progressions, wellnessAvg, initialPage = 0, onClose }) {
   const [page, setPage] = useState(initialPage)
   const touchStartX = useRef(0)
 
@@ -403,35 +439,65 @@ function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel
                 </div>
               )}
 
+              {wellnessAvg && wellnessAvg.some(m => m.avg != null) && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
+                    Bien-être moyen
+                  </div>
+                  <div style={{ display: 'flex', gap: 3, marginBottom: 18 }}>
+                    {wellnessAvg.map(m => (
+                      <div key={m.key} style={{ flex: 1, minWidth: 0, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 1px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, lineHeight: 1 }}>{m.emoji}</div>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: wellnessColor(m.avg, m.inverse), marginTop: 1 }}>
+                          {m.avg != null ? m.avg.toFixed(1) : '—'}
+                        </div>
+                        <div style={{ fontSize: 6.5, color: 'var(--text3)', fontWeight: 700, marginTop: 0, textTransform: 'uppercase', letterSpacing: '0.1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
                 Activités pratiquées
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 8 }}>
-                {activityLabels.map(label => {
-                  const emojiMatch = label.match(/\p{Emoji}/u)
-                  const emoji = emojiMatch ? emojiMatch[0] : '🏅'
-                  const name = label.replace(/\s*\p{Emoji}\s*/gu, '').trim() || label
-                  return (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 14, padding: '12px 14px' }}>
-                      <div style={{ fontSize: 22, flexShrink: 0 }}>{emoji}</div>
-                      <div style={{ flex: 1, fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{name}</div>
-                      <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                        {kmByLabel[label] > 0 && (
-                          <span style={{ background: 'var(--green-light)', color: 'var(--green)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}>
-                            {fmtKm(Math.round(kmByLabel[label] * 10) / 10)}
-                          </span>
-                        )}
-                        {durByLabel[label] > 0 && (
-                          <span style={{ background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700 }}>
-                            {formatDur(durByLabel[label])}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              {(() => {
+                const n = activityLabels.length
+                const size = n <= 3
+                  ? { min: 92, emoji: 22, name: 11, badge: 9.5 }
+                  : n <= 6
+                    ? { min: 74, emoji: 17, name: 9.5, badge: 8.5 }
+                    : { min: 60, emoji: 14, name: 8.5, badge: 7.5 }
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${size.min}px, 1fr))`, gap: 6, marginBottom: 8 }}>
+                    {activityLabels.map(label => {
+                      const emojiMatch = label.match(/\p{Emoji}/u)
+                      const emoji = emojiMatch ? emojiMatch[0] : '🏅'
+                      const name = label.replace(/\s*\p{Emoji}\s*/gu, '').trim() || label
+                      return (
+                        <div key={label} style={{
+                          aspectRatio: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          gap: 2, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '4px 3px', textAlign: 'center', overflow: 'hidden',
+                        }}>
+                          <div style={{ fontSize: size.emoji, lineHeight: 1 }}>{emoji}</div>
+                          <div style={{ fontWeight: 700, fontSize: size.name, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>{name}</div>
+                          {kmByLabel[label] > 0 && (
+                            <span style={{ color: 'var(--green)', fontSize: size.badge, fontWeight: 700 }}>
+                              {fmtKm(Math.round(kmByLabel[label] * 10) / 10)}
+                            </span>
+                          )}
+                          {durByLabel[label] > 0 && (
+                            <span style={{ color: 'var(--text3)', fontSize: size.badge, fontWeight: 700 }}>
+                              {formatDur(durByLabel[label])}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
             </div>
 
             <div style={{ width: '50%', paddingLeft: 4 }}>
