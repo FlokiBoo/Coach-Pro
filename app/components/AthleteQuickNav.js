@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock from './TrackedMovementsBlock'
 import { JOINT_TESTS } from '@/lib/jointTests'
@@ -140,6 +140,122 @@ function InfosSection({ athlete, onUpdate }) {
   )
 }
 
+function getYouTubeId(url) {
+  if (!url) return null
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|v\/|shorts\/))([^&\n?#]+)/)
+  return m ? m[1] : null
+}
+
+function TestsArticulairesSection() {
+  const [byName, setByName] = useState(null)
+  const [editingName, setEditingName] = useState(null)
+  const [urlDraft, setUrlDraft] = useState('')
+  const [playingName, setPlayingName] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  const allTestNames = JOINT_TESTS.flatMap(g => g.tests)
+
+  useEffect(() => {
+    async function load() {
+      const { data: existing } = await supabase.from('movements').select('id, name, youtube_url')
+      const map = {}
+      ;(existing || []).forEach(m => { map[m.name.trim().toLowerCase()] = m })
+
+      const missing = allTestNames.filter(n => !map[n.trim().toLowerCase()])
+      if (missing.length) {
+        const { data: created } = await supabase.from('movements').insert(missing.map(name => ({ name }))).select()
+        ;(created || []).forEach(m => { map[m.name.trim().toLowerCase()] = m })
+      }
+
+      const byNameResult = {}
+      allTestNames.forEach(n => { byNameResult[n] = map[n.trim().toLowerCase()] })
+      setByName(byNameResult)
+    }
+    load()
+  }, [])
+
+  const startEdit = (name) => {
+    setEditingName(name)
+    setUrlDraft(byName[name]?.youtube_url || '')
+  }
+
+  const saveUrl = async () => {
+    const movement = byName[editingName]
+    if (!movement) return
+    setSaving(true)
+    const { data } = await supabase.from('movements').update({ youtube_url: urlDraft.trim() || null }).eq('id', movement.id).select().single()
+    setSaving(false)
+    if (data) setByName(prev => ({ ...prev, [editingName]: data }))
+    setEditingName(null)
+  }
+
+  if (byName === null) {
+    return <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '30px 0' }}>Chargement…</div>
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {JOINT_TESTS.map(group => (
+        <div key={group.joint} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontWeight: 800, fontSize: 14 }}>
+            {group.joint}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {group.tests.map((t, i) => {
+              const movement = byName[t]
+              const hasVideo = !!movement?.youtube_url
+              const isEditing = editingName === t
+              return (
+                <div key={t} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                  <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ flex: 1, fontSize: 13, color: 'var(--text2)' }}>{t}</div>
+                    {hasVideo && (
+                      <button onClick={() => setPlayingName(playingName === t ? null : t)}
+                        style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                        ▶
+                      </button>
+                    )}
+                    <button onClick={() => startEdit(t)}
+                      style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '4px 8px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)', flexShrink: 0 }}>
+                      {hasVideo ? '✏️' : '+ Vidéo'}
+                    </button>
+                  </div>
+
+                  {isEditing && (
+                    <div style={{ padding: '0 14px 12px', display: 'flex', gap: 8 }}>
+                      <input autoFocus value={urlDraft} onChange={e => setUrlDraft(e.target.value)}
+                        placeholder="Lien YouTube…"
+                        style={{ flex: 1, boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+                      <button onClick={() => setEditingName(null)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
+                      <button onClick={saveUrl} disabled={saving} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{saving ? '…' : 'OK'}</button>
+                    </div>
+                  )}
+
+                  {playingName === t && hasVideo && (
+                    <div style={{ padding: '0 14px 12px' }}>
+                      <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, borderRadius: 'var(--r)', overflow: 'hidden' }}>
+                        <iframe
+                          src={`https://www.youtube.com/embed/${getYouTubeId(movement.youtube_url)}`}
+                          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+      <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, fontStyle: 'italic', padding: '8px 0' }}>
+        Chaque test est aussi ajouté à la bibliothèque de mouvements. La saisie des résultats sera ajoutée ensuite.
+      </div>
+    </div>
+  )
+}
+
 function Row({ label, value }) {
   return (
     <div>
@@ -192,25 +308,7 @@ export default function AthleteQuickNav({ athlete, onUpdate }) {
       )}
       {open === 'tests' && (
         <FullscreenSection title="🦴 Tests articulaires" onClose={() => setOpen(null)}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {JOINT_TESTS.map(group => (
-              <div key={group.joint} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-                <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontWeight: 800, fontSize: 14 }}>
-                  {group.joint}
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  {group.tests.map((t, i) => (
-                    <div key={t} style={{ padding: '10px 14px', fontSize: 13, color: 'var(--text2)', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                      {t}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, fontStyle: 'italic', padding: '8px 0' }}>
-              Liste de départ — la saisie des résultats sera ajoutée ensuite.
-            </div>
-          </div>
+          <TestsArticulairesSection />
         </FullscreenSection>
       )}
     </>
