@@ -8,7 +8,8 @@ import ActivityBlock from '@/app/components/ActivityBlock'
 import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
 import ProgressBlock from '@/app/components/ProgressBlock'
 import CelebrationModal, { parseMusclesFromText } from '@/app/components/CelebrationModal'
-import MuscleAnatomyDiagram from '@/app/components/MuscleAnatomyDiagram'
+import MuscleAnatomyDiagram, { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
+import FocusBodyDiagram from '@/app/components/FocusBodyDiagram'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import Toast from '@/app/components/Toast'
 import AthleteSidePanel from '@/app/components/AthleteSidePanel'
@@ -158,7 +159,7 @@ function AthleteView({ params }) {
       const res = await fetch(`/api/athlete-view/${token}`, { cache: 'no-store' })
       if (res.status === 401 || res.status === 403) { router.push('/login'); return }
       if (!res.ok) return
-      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets } = await res.json()
+      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets } = await res.json()
       setAthlete(ath)
       setObjectives(objs || [])
       setNoteBlocks(blocks || [])
@@ -186,7 +187,7 @@ function AthleteView({ params }) {
           .map(s => ({
             ...s,
             exercises: [...(s.program_exercises || [])].sort((a, b) => a.order_index - b.order_index)
-              .map(e => ({ ...e, video_url: (movieMap || {})[e.name] ?? e.video_url }))
+              .map(e => ({ ...e, video_url: (movieMap || {})[e.name] ?? e.video_url, movement_muscles: (musclesMap || {})[e.name?.trim().toLowerCase()] || null }))
           }))
       }))
       setPrograms(progList)
@@ -472,6 +473,7 @@ function AthleteView({ params }) {
               onAddExerciseSet={addExerciseSet}
               onSaveExerciseSet={saveExerciseSet}
               onDeleteExerciseSet={deleteExerciseSet}
+              isCoachView={isCoachView}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
@@ -732,6 +734,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         onAddExerciseSet={onAddExerciseSet}
         onSaveExerciseSet={onSaveExerciseSet}
         onDeleteExerciseSet={onDeleteExerciseSet}
+        isCoachView={isCoachView}
       />
 
       {/* Programme terminé */}
@@ -771,7 +774,17 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, isCoachView }) {
+  const [focusPicker, setFocusPicker] = useState(null) // exercise id being edited
+  const [viewingFocus, setViewingFocus] = useState(null) // zones array being viewed
+  const [focusOverrides, setFocusOverrides] = useState({})
+
+  const saveFocusMuscles = async (exerciseId, zones) => {
+    const value = zones.length ? zones.join(',') : null
+    await supabase.from('program_exercises').update({ focus_muscles: value }).eq('id', exerciseId)
+    setFocusOverrides(prev => ({ ...prev, [exerciseId]: value }))
+    setFocusPicker(null)
+  }
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   const [savedIds, setSavedIds] = useState({})
@@ -885,6 +898,38 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                     style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0 }} />
                 )}
               </div>
+
+              {(() => {
+                const focusValue = focusOverrides[exo.id] !== undefined ? focusOverrides[exo.id] : exo.focus_muscles
+                const manualZones = focusValue ? focusValue.split(',').filter(Boolean) : []
+                const isAuto = manualZones.length === 0
+                const zones = isAuto ? parseMusclesFromText(exo.movement_muscles || '') : manualZones
+                if (zones.length === 0 && !isCoachView) return null
+                return (
+                  <div style={{ marginBottom: 8 }}>
+                    {zones.length > 0 ? (
+                      <button onClick={() => setViewingFocus(zones)} style={{
+                        background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FCA5A5', borderRadius: 20,
+                        padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+                      }}>
+                        🎯 FOCUS · {MUSCLE_GROUPS.filter(z => zones.includes(z.key)).map(z => z.label).join(', ')}
+                        {isAuto && <span style={{ fontWeight: 500, opacity: 0.75 }}>(auto)</span>}
+                        {isCoachView && (
+                          <span onClick={e => { e.stopPropagation(); setFocusPicker(exo.id) }} style={{ marginLeft: 2 }}>✏️</span>
+                        )}
+                      </button>
+                    ) : (
+                      <button onClick={() => setFocusPicker(exo.id)} style={{
+                        background: 'none', border: '1px dashed var(--border2)', borderRadius: 20,
+                        padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: 'var(--text3)',
+                      }}>
+                        + FOCUS
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
+
               {(() => {
                 const flow = getSupersetFlow(exos, ei, labels)
                 return flow ? (
@@ -1013,6 +1058,55 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
           )}
         </div>
       )}
+
+      {focusPicker && (
+        <FocusPicker
+          initial={(() => {
+            const exo = session.exercises.find(e => e.id === focusPicker)
+            const val = focusOverrides[focusPicker] !== undefined ? focusOverrides[focusPicker] : exo?.focus_muscles
+            return val ? val.split(',').filter(Boolean) : []
+          })()}
+          onCancel={() => setFocusPicker(null)}
+          onSave={zones => saveFocusMuscles(focusPicker, zones)}
+        />
+      )}
+
+      {viewingFocus && (
+        <FocusBodyDiagram groups={viewingFocus} onClose={() => setViewingFocus(null)} />
+      )}
+    </div>
+  )
+}
+
+function FocusPicker({ initial, onCancel, onSave }) {
+  const [selected, setSelected] = useState(initial)
+
+  const toggle = (key) => setSelected(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+
+  return (
+    <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 20, padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: '90svh', overflowY: 'auto' }}>
+        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>🎯 Focus</div>
+        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14 }}>Choisis le ou les muscles à ressentir</div>
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+          {MUSCLE_GROUPS.map(g => (
+            <button key={g.key} onClick={() => toggle(g.key)} style={{
+              background: selected.includes(g.key) ? '#FEF2F2' : 'var(--bg2)',
+              border: `1px solid ${selected.includes(g.key) ? '#FCA5A5' : 'var(--border2)'}`,
+              color: selected.includes(g.key) ? '#B91C1C' : 'var(--text2)',
+              borderRadius: 20, padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>
+              {g.label}
+            </button>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={onCancel} style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text3)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: 11, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+          <button onClick={() => onSave(selected)} style={{ flex: 2, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 11, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Enregistrer</button>
+        </div>
+      </div>
     </div>
   )
 }

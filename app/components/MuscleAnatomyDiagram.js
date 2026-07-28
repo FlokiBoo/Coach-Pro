@@ -6,7 +6,7 @@ const NEUTRAL = '#E8C9AE'
 const STROKE = '#C9A47E'
 
 // Groupes musculaires numérotés — mêmes clés que MUSCLE_MAP (CelebrationModal)
-const MUSCLE_GROUPS = [
+export const MUSCLE_GROUPS = [
   { n: 1, key: 'pectoraux', label: 'Pectoraux', color: '#EF4444' },
   { n: 2, key: 'deltoïdes', label: 'Deltoïdes', color: '#F97316' },
   { n: 3, key: 'biceps', label: 'Biceps', color: '#F59E0B' },

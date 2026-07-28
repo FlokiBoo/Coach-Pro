@@ -48,14 +48,17 @@ export async function GET(request, { params }) {
   const exerciseNames = [...new Set(
     (progs || []).flatMap(p => (p.program_sessions || []).flatMap(s => (s.program_exercises || []).map(e => e.name).filter(Boolean)))
   )]
-  let movieMap = {}
+  let movieMap = {}, musclesMap = {}
   if (exerciseNames.length) {
-    const { data: movs } = await supabaseAdmin.from('movements').select('name, youtube_url').in('name', exerciseNames)
-    ;(movs || []).forEach(m => { movieMap[m.name] = m.youtube_url })
+    const { data: movs } = await supabaseAdmin.from('movements').select('name, youtube_url, muscles').in('name', exerciseNames)
+    ;(movs || []).forEach(m => {
+      movieMap[m.name] = m.youtube_url
+      if (m.muscles) musclesMap[m.name.trim().toLowerCase()] = m.muscles
+    })
   }
 
   return NextResponse.json(
-    { athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap, objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [] },
+    { athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap, objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [] },
     { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
   )
 }

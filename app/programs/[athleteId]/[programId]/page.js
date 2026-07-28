@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
+import { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
+import { parseMusclesFromText } from '@/app/components/CelebrationModal'
 
 function today() {
   const n = new Date()
@@ -35,7 +37,7 @@ function getYouTubeId(url) {
 }
 
 function emptyExo(order) {
-  return { _key: Date.now() + Math.random(), order_index: order, name: '', sets: '', reps: '', kg: '', rest: '', note: '', video_url: '' }
+  return { _key: Date.now() + Math.random(), order_index: order, name: '', sets: '', reps: '', kg: '', rest: '', note: '', video_url: '', focus_muscles: '' }
 }
 
 function computeLabels(exercises) {
@@ -147,11 +149,13 @@ function ProgramEditorPage({ params }) {
   const [athlete, setAthlete] = useState(null)
   const [program, setProgram] = useState(null)
   const [sessions, setSessions] = useState([])
+  const [movementMusclesMap, setMovementMusclesMap] = useState({})
   const [openId, setOpenId] = useState(openFromUrl)
   const [suggestions, setSuggestions] = useState({})
   const [videoInputKey, setVideoInputKey] = useState(null)
   const [videoInputVal, setVideoInputVal] = useState('')
   const [videoPreviewKey, setVideoPreviewKey] = useState(null)
+  const [focusPickerKey, setFocusPickerKey] = useState(null)
   const [actVideoSearch, setActVideoSearch] = useState({})
   const [actVideoSuggs, setActVideoSuggs] = useState({})
   const [saving, setSaving] = useState(false)
@@ -188,8 +192,11 @@ function ProgramEditorPage({ params }) {
       const exerciseNames = [...new Set((sess || []).flatMap(s => (s.program_exercises || []).map(e => e.name).filter(Boolean)))]
       let movieMap = {}
       if (exerciseNames.length) {
-        const { data: movs } = await supabase.from('movements').select('name, youtube_url').in('name', exerciseNames)
+        const { data: movs } = await supabase.from('movements').select('name, youtube_url, muscles').in('name', exerciseNames)
         ;(movs || []).forEach(m => { movieMap[m.name] = m.youtube_url })
+        const musclesMap = {}
+        ;(movs || []).forEach(m => { if (m.muscles) musclesMap[m.name.trim().toLowerCase()] = m.muscles })
+        setMovementMusclesMap(musclesMap)
       }
 
       const loaded = (sess || []).map(s => ({
@@ -459,12 +466,14 @@ function ProgramEditorPage({ params }) {
           await supabase.from('program_exercises').update({
             order_index: j, name: e.name, sets: e.sets, reps: e.reps, kg: e.kg,
             rest: e.rest, note: e.note, video_url: e.video_url, superset_group: e.superset_group,
+            focus_muscles: e.focus_muscles || null,
           }).eq('id', existing[j].id)
         } else if (e && !existing[j]) {
           await supabase.from('program_exercises').insert({
             program_session_id: clientSess.id, order_index: j, name: e.name,
             sets: e.sets, reps: e.reps, kg: e.kg, rest: e.rest, note: e.note,
             video_url: e.video_url, superset_group: e.superset_group,
+            focus_muscles: e.focus_muscles || null,
           })
         } else if (!e && existing[j]) {
           await supabase.from('program_exercises').delete().eq('id', existing[j].id)
@@ -498,6 +507,7 @@ function ProgramEditorPage({ params }) {
       note: e.note || null,
       video_url: e.video_url || null,
       superset_group: e.superset_group || null,
+      focus_muscles: e.focus_muscles || null,
     }))
 
     if (toInsert.length) {
@@ -554,6 +564,7 @@ function ProgramEditorPage({ params }) {
       note: e.note || null,
       video_url: e.video_url || null,
       superset_group: e.superset_group || null,
+      focus_muscles: e.focus_muscles || null,
     }))
 
     let insertedExos = []
@@ -1040,21 +1051,21 @@ function ProgramEditorPage({ params }) {
                       const label = labels[exo._key] || String.fromCharCode(65 + ei)
                       return (
                         <div key={exo._key}>
-                        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: videoInputKey === exo._key ? 4 : 6 }}>
+                        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 7 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: videoInputKey === exo._key ? 3 : 5 }}>
                             {/* Flèches de déplacement */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0 }}>
                               <button onClick={() => moveExo(s.id, exo._key, -1)} disabled={ei === 0}
-                                style={{ background: 'none', border: 'none', cursor: ei === 0 ? 'default' : 'pointer', padding: '0 2px', fontSize: 10, color: ei === 0 ? 'var(--border2)' : 'var(--text3)', lineHeight: 1 }}>▲</button>
+                                style={{ background: 'none', border: 'none', cursor: ei === 0 ? 'default' : 'pointer', padding: '0 2px', fontSize: 9, color: ei === 0 ? 'var(--border2)' : 'var(--text3)', lineHeight: 1 }}>▲</button>
                               <button onClick={() => moveExo(s.id, exo._key, 1)} disabled={ei === s.exercises.length - 1}
-                                style={{ background: 'none', border: 'none', cursor: ei === s.exercises.length - 1 ? 'default' : 'pointer', padding: '0 2px', fontSize: 10, color: ei === s.exercises.length - 1 ? 'var(--border2)' : 'var(--text3)', lineHeight: 1 }}>▼</button>
+                                style={{ background: 'none', border: 'none', cursor: ei === s.exercises.length - 1 ? 'default' : 'pointer', padding: '0 2px', fontSize: 9, color: ei === s.exercises.length - 1 ? 'var(--border2)' : 'var(--text3)', lineHeight: 1 }}>▼</button>
                             </div>
-                            <div style={{ minWidth: 22, height: 22, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 800, flexShrink: 0, padding: '0 3px' }}>{label}</div>
+                            <div style={{ minWidth: 19, height: 19, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, flexShrink: 0, padding: '0 3px' }}>{label}</div>
                             <div style={{ position: 'relative', flex: 1 }}>
                               <input placeholder="Nom du mouvement" value={exo.name}
                                 onChange={e => { updateExo(s.id, exo._key, 'name', e.target.value); searchMovements(exo._key, e.target.value) }}
                                 onBlur={() => setTimeout(() => setSuggestions(p => ({ ...p, [exo._key]: [] })), 150)}
-                                style={{ ...inp, fontWeight: 600 }} />
+                                style={{ ...inp, fontWeight: 600, padding: '6px 8px', fontSize: 12 }} />
                               {suggestions[exo._key]?.length > 0 && (
                                 <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
                                   {suggestions[exo._key].map((sug, si) => (
@@ -1077,6 +1088,15 @@ function ProgramEditorPage({ params }) {
                                   title="Ajouter une vidéo">🎥</button>
                               )
                             )}
+                            {exo.name.trim() && (() => {
+                              const autoGroups = parseMusclesFromText(movementMusclesMap[exo.name.trim().toLowerCase()] || '')
+                              const hasFocus = exo.focus_muscles || autoGroups.length > 0
+                              return (
+                                <button onClick={() => setFocusPickerKey(focusPickerKey === exo._key ? null : exo._key)}
+                                  style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1, opacity: hasFocus ? 1 : 0.3 }}
+                                  title="Focus muscles">🎯</button>
+                              )
+                            })()}
                             {!isTemplate && exo.name.trim() && (
                               <button onClick={() => setHistoryExo({ name: exo.name.trim() })}
                                 style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
@@ -1133,13 +1153,54 @@ function ProgramEditorPage({ params }) {
                               </div>
                             )
                           })()}
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 6, marginBottom: 5 }}>
+                          {(() => {
+                            if (focusPickerKey === exo._key) return null
+                            const manualGroups = exo.focus_muscles ? exo.focus_muscles.split(',') : []
+                            const isAuto = manualGroups.length === 0
+                            const groups = isAuto ? parseMusclesFromText(movementMusclesMap[exo.name.trim().toLowerCase()] || '') : manualGroups
+                            if (groups.length === 0) return null
+                            return (
+                              <div style={{ marginBottom: 6, background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 20, padding: '4px 10px', display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#B91C1C' }}>
+                                🎯 {MUSCLE_GROUPS.filter(g => groups.includes(g.key)).map(g => g.label).join(', ')}
+                                {isAuto && <span style={{ fontWeight: 500, opacity: 0.75 }}> (auto)</span>}
+                              </div>
+                            )
+                          })()}
+                          {focusPickerKey === exo._key && (
+                            <div style={{ marginBottom: 8, border: '1px solid var(--border2)', borderRadius: 'var(--r)', background: 'var(--bg2)', padding: 8 }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
+                                🎯 Focus — muscles à ressentir
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                                {MUSCLE_GROUPS.map(g => {
+                                  const current = exo.focus_muscles ? exo.focus_muscles.split(',') : []
+                                  const active = current.includes(g.key)
+                                  return (
+                                    <button key={g.key} onClick={() => {
+                                      const next = active ? current.filter(k => k !== g.key) : [...current, g.key]
+                                      updateExo(s.id, exo._key, 'focus_muscles', next.join(','))
+                                    }}
+                                      style={{
+                                        background: active ? '#FEF2F2' : 'var(--bg)', border: `1px solid ${active ? '#FCA5A5' : 'var(--border2)'}`,
+                                        color: active ? '#B91C1C' : 'var(--text2)', borderRadius: 16, padding: '4px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                                      }}>
+                                      {g.label}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                              <button onClick={() => setFocusPickerKey(null)} style={{ marginTop: 8, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                                OK
+                              </button>
+                            </div>
+                          )}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 5, marginBottom: 4 }}>
                             {[{ f: 'sets', l: 'Séries', t: 'number', ph: '—' }, { f: 'reps', l: 'Reps', t: 'text', ph: '8-12' }, { f: 'kg', l: 'Kg', t: 'number', ph: '—' }, { f: 'rest', l: 'Récup', t: 'text', ph: '90s' }].map(({ f, l, t, ph }) => (
                               <div key={f}>
-                                <div style={{ fontSize: 9, fontWeight: 600, color: 'var(--text3)', marginBottom: 2, textAlign: 'center' }}>{l.toUpperCase()}</div>
+                                <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>{l.toUpperCase()}</div>
                                 <input type={t} placeholder={ph} value={exo[f]}
                                   onChange={e => updateExo(s.id, exo._key, f, e.target.value)}
-                                  style={{ ...inp, textAlign: 'center', padding: '6px 4px', fontSize: 13 }} min="0" step={f === 'kg' ? '0.5' : '1'} />
+                                  style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 12 }} min="0" step={f === 'kg' ? '0.5' : '1'} />
                               </div>
                             ))}
                           </div>
