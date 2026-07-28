@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, use, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -12,9 +12,29 @@ function today() {
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
+const PRIORITY_STYLES = {
+  1: { bg: '#FEF2F2', border: '#FCA5A5', text: '#DC2626' },
+  2: { bg: '#FFF7ED', border: '#FDBA74', text: '#C2410C' },
+  3: { bg: '#EFF6FF', border: '#93C5FD', text: '#1D4ED8' },
+}
+
+function formatDateFr(date) {
+  return new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
 export default function ProgramsPage({ params }) {
+  return (
+    <Suspense>
+      <ProgramsPageInner params={params} />
+    </Suspense>
+  )
+}
+
+function ProgramsPageInner({ params }) {
   const { athleteId } = use(params)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const objectiveId = searchParams.get('objective')
   const [athlete, setAthlete] = useState(null)
   const [programs, setPrograms] = useState([])
   const [allAthletes, setAllAthletes] = useState([])
@@ -31,6 +51,7 @@ export default function ProgramsPage({ params }) {
   const [newActivityType, setNewActivityType] = useState('Musculation 🏋️')
   const [selectedTypes, setSelectedTypes] = useState(new Set())
   const [typesInit, setTypesInit] = useState(false)
+  const [objectives, setObjectives] = useState([])
 
   useEffect(() => {
     supabase.from('activity_definitions').select('label').order('created_at')
@@ -39,17 +60,19 @@ export default function ProgramsPage({ params }) {
 
   useEffect(() => {
     async function load() {
-      const [{ data: a }, { data: ps }, { data: aths }] = await Promise.all([
+      const [{ data: a }, { data: ps }, { data: aths }, { data: objs }] = await Promise.all([
         supabase.from('athletes').select('*').eq('id', athleteId).single(),
         supabase.from('programs')
           .select('*, program_sessions(id)')
           .eq('athlete_id', athleteId)
           .order('created_at', { ascending: false }),
-        supabase.from('athletes').select('id, name').neq('archived', true).order('created_at')
+        supabase.from('athletes').select('id, name').neq('archived', true).order('created_at'),
+        supabase.from('athlete_objectives').select('*').eq('athlete_id', athleteId).order('target_date'),
       ])
       setAthlete(a)
       setPrograms(ps || [])
       setAllAthletes(aths || [])
+      setObjectives(objs || [])
       if (!typesInit && (ps || []).length) {
         setSelectedTypes(new Set((ps || []).map(p => p.activity_type || 'Musculation 🏋️')))
         setTypesInit(true)
@@ -76,7 +99,7 @@ export default function ProgramsPage({ params }) {
     const coachId = await getCoachId()
     const dateLabel = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
     const { data: prog, error } = await supabase.from('programs')
-      .insert({ athlete_id: athleteId, title: `Séance libre — ${dateLabel}`, coach_id: coachId })
+      .insert({ athlete_id: athleteId, title: `Séance libre — ${dateLabel}`, coach_id: coachId, objective_id: objectiveId || null })
       .select().single()
     if (!prog) { alert('Erreur : ' + (error?.message || 'impossible de créer la séance')); setCreating(false); return }
     const { data: sess } = await supabase.from('program_sessions')
@@ -92,7 +115,7 @@ export default function ProgramsPage({ params }) {
     let firstId = null, firstProgId = null
     for (const aid of newAthleteIds) {
       const { data, error } = await supabase.from('programs')
-        .insert({ athlete_id: aid, title: newTitle.trim(), coach_id: coachId, activity_type: newActivityType })
+        .insert({ athlete_id: aid, title: newTitle.trim(), coach_id: coachId, activity_type: newActivityType, objective_id: aid === athleteId ? (objectiveId || null) : null })
         .select().single()
       if (data) {
         await supabase.from('program_sessions')
@@ -197,6 +220,10 @@ export default function ProgramsPage({ params }) {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100svh', color: 'var(--text3)' }}>Chargement…</div>
   )
 
+  const activeObjective = objectives.find(o => o.id === objectiveId)
+  const visiblePrograms = objectiveId ? programs.filter(p => p.objective_id === objectiveId) : programs
+  const otherObjectives = objectives.filter(o => o.id !== objectiveId)
+
   return (
     <div className="coach-layout" style={{ background: 'var(--bg2)' }}>
       <AthletesSidebar athleteId={athleteId} date={today()} />
@@ -214,18 +241,50 @@ export default function ProgramsPage({ params }) {
               ⚡ Séance libre
             </button>
             <button onClick={() => setShowForm(v => !v)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              + Programme
+              {objectiveId ? '+ Micro-cycle' : '+ Programme'}
             </button>
           </div>
         </div>
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
+          {objectiveId && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {activeObjective ? (() => {
+                const style = PRIORITY_STYLES[activeObjective.priority] || PRIORITY_STYLES[2]
+                return (
+                  <div style={{ background: style.bg, border: `1px solid ${style.border}`, borderRadius: 'var(--rl)', padding: '12px 14px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: style.text, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 2 }}>🎯 Objectif</div>
+                    <div style={{ fontWeight: 800, fontSize: 16, color: style.text }}>{activeObjective.text}</div>
+                    {activeObjective.target_date && (
+                      <div style={{ fontSize: 12, color: style.text, marginTop: 2, opacity: 0.85 }}>📅 {formatDateFr(activeObjective.target_date)}</div>
+                    )}
+                  </div>
+                )
+              })() : (
+                <div style={{ color: 'var(--text3)', fontSize: 13, fontStyle: 'italic' }}>Objectif introuvable</div>
+              )}
+
+              {otherObjectives.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button onClick={() => router.push(`/programs/${athleteId}`)} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    Tous les programmes
+                  </button>
+                  {otherObjectives.map(o => (
+                    <button key={o.id} onClick={() => router.push(`/programs/${athleteId}?objective=${o.id}`)} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text3)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {o.text}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {showForm && (
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
               <input
                 autoFocus
-                placeholder="Nom du programme (ex: Prise de masse 8 semaines)"
+                placeholder={objectiveId ? 'Nom du micro-cycle (ex: Base aérobie)' : 'Nom du programme (ex: Prise de masse 8 semaines)'}
                 value={newTitle}
                 onChange={e => setNewTitle(e.target.value)}
                 style={{ padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
@@ -241,28 +300,30 @@ export default function ProgramsPage({ params }) {
                   {activityTypes.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Assigner à</div>
-                  <button type="button" onClick={() => setNewAthleteIds(newAthleteIds.length === allAthletes.length ? [] : allAthletes.map(a => a.id))}
-                    style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: 'var(--green)', cursor: 'pointer', padding: 0 }}>
-                    {newAthleteIds.length === allAthletes.length ? 'Tout décocher' : 'Tout cocher'}
-                  </button>
+              {!objectiveId && (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Assigner à</div>
+                    <button type="button" onClick={() => setNewAthleteIds(newAthleteIds.length === allAthletes.length ? [] : allAthletes.map(a => a.id))}
+                      style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: 'var(--green)', cursor: 'pointer', padding: 0 }}>
+                      {newAthleteIds.length === allAthletes.length ? 'Tout décocher' : 'Tout cocher'}
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    {allAthletes.map(a => (
+                      <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--r)', border: newAthleteIds.includes(a.id) ? '1.5px solid var(--green)' : '1px solid var(--border)', background: newAthleteIds.includes(a.id) ? 'var(--green-light)' : 'var(--bg2)', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={newAthleteIds.includes(a.id)} onChange={() => toggleNewAthlete(a.id)}
+                          style={{ accentColor: 'var(--green)', width: 15, height: 15 }} />
+                        <span style={{ fontSize: 13, fontWeight: 600, color: newAthleteIds.includes(a.id) ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
+                      </label>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {allAthletes.map(a => (
-                    <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--r)', border: newAthleteIds.includes(a.id) ? '1.5px solid var(--green)' : '1px solid var(--border)', background: newAthleteIds.includes(a.id) ? 'var(--green-light)' : 'var(--bg2)', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={newAthleteIds.includes(a.id)} onChange={() => toggleNewAthlete(a.id)}
-                        style={{ accentColor: 'var(--green)', width: 15, height: 15 }} />
-                      <span style={{ fontSize: 13, fontWeight: 600, color: newAthleteIds.includes(a.id) ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
+              )}
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={createProgram} disabled={creating || !newTitle.trim() || newAthleteIds.length === 0}
                   style={{ flex: 1, background: newTitle.trim() && newAthleteIds.length ? 'var(--green)' : 'var(--border)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                  {creating ? '…' : newAthleteIds.length > 1 ? `Créer pour ${newAthleteIds.length} clients` : 'Créer'}
+                  {creating ? '…' : objectiveId ? 'Créer le micro-cycle' : newAthleteIds.length > 1 ? `Créer pour ${newAthleteIds.length} clients` : 'Créer'}
                 </button>
                 <button onClick={() => { setShowForm(false); setNewAthleteIds([athleteId]) }}
                   style={{ background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 14, cursor: 'pointer' }}>
@@ -272,14 +333,14 @@ export default function ProgramsPage({ params }) {
             </div>
           )}
 
-          {programs.length === 0 && !showForm ? (
+          {visiblePrograms.length === 0 && !showForm ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun programme</div>
               <div style={{ fontSize: 13 }}>Crée un programme structuré pour {athlete?.name}</div>
             </div>
           ) : (() => {
-            const allTypes = [...new Set(programs.map(p => p.activity_type || 'Musculation 🏋️'))]
+            const allTypes = [...new Set(visiblePrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
             const visibleTypes = allTypes.filter(t => selectedTypes.has(t))
             return (
               <>
@@ -312,7 +373,7 @@ export default function ProgramsPage({ params }) {
                     gap: 12, overflowX: 'auto', alignItems: 'start',
                   }}>
                     {visibleTypes.map(type => {
-                      const typePrograms = programs.filter(p => (p.activity_type || 'Musculation 🏋️') === type)
+                      const typePrograms = visiblePrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === type)
                       return (
                         <div key={type} style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
                           {allTypes.length > 1 && (

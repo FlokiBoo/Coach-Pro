@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
 function formatDateFr(date) {
@@ -105,7 +106,8 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives }
           const isEditing = editingId === obj.id
           const style = PRIORITY_STYLES[obj.priority] || PRIORITY_STYLES[2]
           return (
-            <div key={obj.id} style={{ background: style.bg, border: `1px solid ${style.border}`, borderRadius: 'var(--r)', padding: '10px 12px' }}>
+            <div key={obj.id} style={{ display: 'flex', alignItems: 'stretch', gap: 6 }}>
+            <div style={{ background: style.bg, border: `1px solid ${style.border}`, borderRadius: 'var(--r)', padding: '10px 12px', flex: 1, minWidth: 0 }}>
               {isEditing ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <input autoFocus value={editForm.text} onChange={e => setEditForm(f => ({ ...f, text: e.target.value }))}
@@ -137,6 +139,13 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives }
                   <button onClick={() => removeObjective(obj.id)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 16, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>×</button>
                 </div>
               )}
+            </div>
+            {!isEditing && (
+              <Link href={`/programs/${athleteId}?objective=${obj.id}`} title="Programmer cet objectif"
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, flexShrink: 0, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 16 }}>
+                📋
+              </Link>
+            )}
             </div>
           )
         })}
