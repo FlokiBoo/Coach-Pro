@@ -288,7 +288,7 @@ export default function AthletePage({ params }) {
                 {/* Lien personnel */}
                 {athlete?.token ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <Link href={`/s/${athlete.token}?coach=1`} target="_blank"
+                    <Link href={`/s/${athlete.token}/lancer`} target="_blank"
                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
                       🏋️ Coaching — lancer une séance
                     </Link>

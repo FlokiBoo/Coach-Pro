@@ -444,7 +444,9 @@ function AthleteView({ params }) {
           </div>
         </div>
 
-        <div style={{ padding: 16 }}>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <WellnessBlock athleteId={athlete.id} date={viewDate} mode="athlete" />
+
           {focusSession ? (
             <SessionCard
               session={focusSession}
