@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock from './TrackedMovementsBlock'
+import { JOINT_TESTS } from '@/lib/jointTests'
 
 function calcAge(birthDate) {
   if (!birthDate) return null
@@ -191,7 +192,25 @@ export default function AthleteQuickNav({ athlete, onUpdate }) {
       )}
       {open === 'tests' && (
         <FullscreenSection title="🦴 Tests articulaires" onClose={() => setOpen(null)}>
-          <ComingSoon label="Tests articulaires" />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {JOINT_TESTS.map(group => (
+              <div key={group.joint} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+                <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontWeight: 800, fontSize: 14 }}>
+                  {group.joint}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  {group.tests.map((t, i) => (
+                    <div key={t} style={{ padding: '10px 14px', fontSize: 13, color: 'var(--text2)', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+                      {t}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, fontStyle: 'italic', padding: '8px 0' }}>
+              Liste de départ — la saisie des résultats sera ajoutée ensuite.
+            </div>
+          </div>
         </FullscreenSection>
       )}
     </>
