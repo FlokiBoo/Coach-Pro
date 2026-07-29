@@ -28,6 +28,8 @@ export default function MetricsPage() {
   const [suggestions, setSuggestions] = useState([])
   const [saving, setSaving] = useState(false)
   const [editingUnitFor, setEditingUnitFor] = useState(null)
+  const [editingNameFor, setEditingNameFor] = useState(null)
+  const [editNameVal, setEditNameVal] = useState('')
 
   async function load() {
     const { data } = await supabase
@@ -81,6 +83,20 @@ export default function MetricsPage() {
     await supabase.from('tracked_movements').update({ unit }).eq('id', id)
     setMovements(prev => prev.map(m => m.id === id ? { ...m, unit } : m))
     setEditingUnitFor(null)
+  }
+
+  const startEditName = (m) => {
+    setEditingNameFor(m.id)
+    setEditNameVal(m.name)
+  }
+
+  const saveName = async (id) => {
+    const name = editNameVal.trim()
+    if (!name) { setEditingNameFor(null); return }
+    const { error } = await supabase.from('tracked_movements').update({ name }).eq('id', id)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setMovements(prev => prev.map(m => m.id === id ? { ...m, name } : m).sort((a, b) => a.name.localeCompare(b.name)))
+    setEditingNameFor(null)
   }
 
   const filtered = movements.filter(m => m.name.toLowerCase().includes(search.trim().toLowerCase()))
@@ -157,14 +173,33 @@ export default function MetricsPage() {
               {filtered.map((m, i) => {
                 const isOpen = expandedId === m.id
                 const isEditingUnit = editingUnitFor === m.id
+                const isEditingName = editingNameFor === m.id
                 const cfg = unitOf(m)
                 return (
                   <div key={m.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                    <div onClick={() => setExpandedId(isOpen ? null : m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}>
+                    <div onClick={() => !isEditingName && setExpandedId(isOpen ? null : m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: isEditingName ? 'default' : 'pointer' }}>
                       <span style={{ fontSize: 11, color: 'var(--text3)', width: 14, flexShrink: 0 }}>{isOpen ? '▼' : '▶'}</span>
-                      <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {m.name}
-                      </div>
+                      {isEditingName ? (
+                        <input
+                          autoFocus
+                          value={editNameVal}
+                          onClick={e => e.stopPropagation()}
+                          onChange={e => setEditNameVal(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') saveName(m.id); if (e.key === 'Escape') setEditingNameFor(null) }}
+                          onBlur={() => saveName(m.id)}
+                          style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, padding: '4px 6px', border: '1px solid var(--border2)', borderRadius: 6, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
+                        />
+                      ) : (
+                        <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.name}
+                        </div>
+                      )}
+                      {!isEditingName && (
+                        <button onClick={e => { e.stopPropagation(); startEditName(m) }}
+                          style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>
+                          ✏️
+                        </button>
+                      )}
                       {isEditingUnit ? (
                         <select
                           autoFocus

@@ -82,6 +82,8 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
   const [saving, setSaving] = useState(false)
   const [detailMovementId, setDetailMovementId] = useState(null)
   const [search, setSearch] = useState('')
+  const [editingNameFor, setEditingNameFor] = useState(null)
+  const [editNameVal, setEditNameVal] = useState('')
 
   useEffect(() => { load() }, [athleteId])
 
@@ -136,6 +138,20 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
     if (!confirm('Supprimer ce mouvement du catalogue global (et tout son historique, pour tous les clients) ?')) return
     await supabase.from('tracked_movements').delete().eq('id', id)
     setMovements(prev => prev.filter(m => m.id !== id))
+  }
+
+  const startEditName = (m) => {
+    setEditingNameFor(m.id)
+    setEditNameVal(m.name)
+  }
+
+  const saveName = async (id) => {
+    const name = editNameVal.trim()
+    if (!name) { setEditingNameFor(null); return }
+    const { error } = await supabase.from('tracked_movements').update({ name }).eq('id', id)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setMovements(prev => prev.map(m => m.id === id ? { ...m, name } : m))
+    setEditingNameFor(null)
   }
 
   const saveEntry = async (movement, form) => {
@@ -257,18 +273,34 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
       {filteredMovements.map(m => {
         const best = bestPerformance(m, m.entries)
 
+        const isEditingName = editingNameFor === m.id
         return (
           <div key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
-            <div onClick={() => setDetailMovementId(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: 'pointer' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
-              </div>
+            <div onClick={() => !isEditingName && setDetailMovementId(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: isEditingName ? 'default' : 'pointer' }}>
+              {isEditingName ? (
+                <input
+                  autoFocus
+                  value={editNameVal}
+                  onClick={e => e.stopPropagation()}
+                  onChange={e => setEditNameVal(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') saveName(m.id); if (e.key === 'Escape') setEditingNameFor(null) }}
+                  onBlur={() => saveName(m.id)}
+                  style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, padding: '4px 6px', border: '1px solid var(--border2)', borderRadius: 6, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
+                />
+              ) : (
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                </div>
+              )}
+              {isCoach && !isEditingName && (
+                <button onClick={e => { e.stopPropagation(); startEditName(m) }} style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>✏️</button>
+              )}
               {best ? (
                 <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--green)', flexShrink: 0 }}>{formatPerformance(m, best.value)}</div>
               ) : (
                 <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
               )}
-              {isCoach && (
+              {isCoach && !isEditingName && (
                 <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>🗑️</button>
               )}
             </div>
