@@ -146,12 +146,145 @@ function getYouTubeId(url) {
   return m ? m[1] : null
 }
 
-function TestsArticulairesSection() {
+function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
+  const [previous, setPrevious] = useState(undefined) // undefined = chargement, null = aucun
+  const [d, setD] = useState('')
+  const [g, setG] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [result, setResult] = useState(null)
+
+  useEffect(() => {
+    supabase.from('joint_test_entries').select('*')
+      .eq('athlete_id', athleteId).eq('test_name', testName)
+      .order('date', { ascending: false }).order('created_at', { ascending: false })
+      .limit(1).maybeSingle()
+      .then(({ data }) => setPrevious(data || null))
+  }, [athleteId, testName])
+
+  const pct = (oldVal, newVal) => {
+    if (oldVal == null || oldVal === 0 || newVal == null) return null
+    return Math.round(((newVal - oldVal) / oldVal) * 1000) / 10
+  }
+
+  const submit = async () => {
+    if (!d.trim() && !g.trim()) return
+    setSaving(true)
+    const valueD = d.trim() ? parseFloat(d) : null
+    const valueG = g.trim() ? parseFloat(g) : null
+    const { data, error } = await supabase.from('joint_test_entries')
+      .insert({ athlete_id: athleteId, test_name: testName, joint, value_d: valueD, value_g: valueG })
+      .select().single()
+    setSaving(false)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setResult({
+      old: previous,
+      new: data,
+      pctD: pct(previous?.value_d, valueD),
+      pctG: pct(previous?.value_g, valueG),
+    })
+  }
+
+  const ytId = movement?.youtube_url ? getYouTubeId(movement.youtube_url) : null
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 700, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
+        <div style={{ fontWeight: 800, fontSize: 16 }}>{testName}</div>
+      </div>
+
+      <div style={{ flex: 1, overflowY: 'auto', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
+        {result ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ textAlign: 'center', fontSize: 40, marginBottom: -4 }}>✅</div>
+            <div style={{ textAlign: 'center', fontWeight: 800, fontSize: 17 }}>Test validé</div>
+
+            {[
+              { label: 'Droite', old: result.old?.value_d, val: result.new.value_d, p: result.pctD },
+              { label: 'Gauche', old: result.old?.value_g, val: result.new.value_g, p: result.pctG },
+            ].filter(r => r.val != null).map(r => (
+              <div key={r.label} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>{r.label}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>Ancien</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text3)' }}>{r.old != null ? `${r.old}°` : '—'}</div>
+                  </div>
+                  <div style={{ fontSize: 18, color: 'var(--text3)' }}>→</div>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>Nouveau</div>
+                    <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--green)' }}>{r.val}°</div>
+                  </div>
+                  <div style={{ flex: 1, textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>Évolution</div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: r.p == null ? 'var(--text3)' : r.p >= 0 ? '#166534' : '#DC2626' }}>
+                      {r.p == null ? '—' : `${r.p > 0 ? '+' : ''}${r.p}%`}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <button onClick={onClose} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+              Terminé
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {ytId && (
+              <div style={{ position: 'relative', paddingBottom: '56.25%', height: 0, borderRadius: 'var(--r)', overflow: 'hidden' }}>
+                <iframe
+                  src={`https://www.youtube.com/embed/${ytId}`}
+                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+            )}
+
+            {previous === undefined ? (
+              <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Chargement…</div>
+            ) : previous ? (
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 12, color: 'var(--text3)' }}>
+                Dernier test ({new Date(previous.date + 'T00:00:00').toLocaleDateString('fr-FR')}) :
+                {previous.value_d != null && ` D ${previous.value_d}°`}
+                {previous.value_g != null && ` · G ${previous.value_g}°`}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, fontStyle: 'italic' }}>Aucun test précédent.</div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Actif Droit (°)</div>
+                <input type="number" step="1" value={d} onChange={e => setD(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 18, fontWeight: 700, textAlign: 'center', outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Actif Gauche (°)</div>
+                <input type="number" step="1" value={g} onChange={e => setG(e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 18, fontWeight: 700, textAlign: 'center', outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+              </div>
+            </div>
+
+            <button onClick={submit} disabled={saving || (!d.trim() && !g.trim())}
+              style={{ background: (d.trim() || g.trim()) ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+              {saving ? '…' : '✓ Valider le test'}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TestsArticulairesSection({ athleteId }) {
   const [byName, setByName] = useState(null)
   const [editingName, setEditingName] = useState(null)
   const [urlDraft, setUrlDraft] = useState('')
   const [playingName, setPlayingName] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [launching, setLaunching] = useState(null) // { name, joint }
 
   const allTestNames = JOINT_TESTS.flatMap(g => g.tests)
 
@@ -209,6 +342,10 @@ function TestsArticulairesSection() {
                 <div key={t} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
                   <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ flex: 1, fontSize: 13, color: 'var(--text2)' }}>{t}</div>
+                    <button onClick={() => setLaunching({ name: t, joint: group.joint })}
+                      style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                      ▶ Lancer
+                    </button>
                     {hasVideo && (
                       <button onClick={() => setPlayingName(playingName === t ? null : t)}
                         style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
@@ -250,8 +387,18 @@ function TestsArticulairesSection() {
         </div>
       ))}
       <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, fontStyle: 'italic', padding: '8px 0' }}>
-        Chaque test est aussi ajouté à la bibliothèque de mouvements. La saisie des résultats sera ajoutée ensuite.
+        Chaque test est aussi ajouté à la bibliothèque de mouvements.
       </div>
+
+      {launching && (
+        <TestLaunchView
+          athleteId={athleteId}
+          testName={launching.name}
+          joint={launching.joint}
+          movement={byName[launching.name]}
+          onClose={() => setLaunching(null)}
+        />
+      )}
     </div>
   )
 }
@@ -308,7 +455,7 @@ export default function AthleteQuickNav({ athlete, onUpdate }) {
       )}
       {open === 'tests' && (
         <FullscreenSection title="🦴 Tests articulaires" onClose={() => setOpen(null)}>
-          <TestsArticulairesSection />
+          <TestsArticulairesSection athleteId={athlete.id} />
         </FullscreenSection>
       )}
     </>
