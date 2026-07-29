@@ -512,7 +512,7 @@ function AthleteView({ params }) {
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {athlete?.id && <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} />}
+        {athlete?.id && <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} isCoach={isCoachView} />}
 
 
         {noteBlocks.map(b => (

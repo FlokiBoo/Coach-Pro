@@ -32,7 +32,7 @@ const PRIORITY_STYLES = {
   3: { bg: '#EFF6FF', border: '#93C5FD', text: '#1D4ED8', textDate: '#1D4ED8', bullet: '#2563EB' },
 }
 
-export default function ObjectivesBlock({ athleteId, objectives, setObjectives }) {
+export default function ObjectivesBlock({ athleteId, objectives, setObjectives, isCoach = true }) {
   const [newText, setNewText] = useState('')
   const [newDate, setNewDate] = useState('')
   const [newPriority, setNewPriority] = useState(2)
@@ -140,7 +140,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives }
                 </div>
               )}
             </div>
-            {!isEditing && (
+            {!isEditing && isCoach && (
               <Link href={`/programs/${athleteId}?objective=${obj.id}`} title="Programmer cet objectif"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, flexShrink: 0, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 16 }}>
                 📋
