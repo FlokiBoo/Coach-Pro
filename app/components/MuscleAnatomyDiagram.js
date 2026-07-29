@@ -21,6 +21,7 @@ export const MUSCLE_GROUPS = [
   { n: 12, key: 'adducteurs', label: 'Adducteurs', color: '#6366F1' },
   { n: 13, key: 'ischio-jambiers', label: 'Ischio-jambiers', color: '#8B5CF6' },
   { n: 14, key: 'mollets', label: 'Mollets', color: '#D946EF' },
+  { n: 15, key: 'tibial', label: 'Tibial', color: '#EC4899' },
 ]
 
 const COLOR_BY_GROUP = Object.fromEntries(MUSCLE_GROUPS.map(g => [g.key, g.color]))

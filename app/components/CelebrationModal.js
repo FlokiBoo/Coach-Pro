@@ -18,6 +18,7 @@ const MUSCLE_MAP = {
   'fessiers':        ['fessier', 'glute', 'fesse', 'glutéaux'],
   'ischio-jambiers': ['ischio', 'hamstring'],
   'mollets':         ['mollet', 'calf', 'calves', 'gastro'],
+  'tibial':          ['tibial', 'tibialis', 'jambier antérieur'],
 }
 
 const CITATIONS = [
