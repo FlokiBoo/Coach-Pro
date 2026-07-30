@@ -1,11 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 export default function UpdatePasswordPage() {
+  return (
+    <Suspense>
+      <UpdatePasswordPageInner />
+    </Suspense>
+  )
+}
+
+function UpdatePasswordPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [showPwd, setShowPwd] = useState(false)
@@ -14,16 +23,26 @@ export default function UpdatePasswordPage() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
-    // Supabase fire PASSWORD_RECOVERY quand le lien du mail est cliqué
+    // Supabase fire PASSWORD_RECOVERY quand le lien du mail est cliqué (flow implicite)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
         setReady(true)
       }
     })
-    // Vérifie si déjà une session active (rechargement de page)
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) setReady(true)
-    })
+
+    // Client en mode PKCE : le lien du mail contient ?code=... à échanger contre une session
+    const code = searchParams.get('code')
+    if (code) {
+      supabase.auth.exchangeCodeForSession(code).then(({ error: err }) => {
+        if (!err) setReady(true)
+        else setError(err.message)
+      })
+    } else {
+      // Vérifie si déjà une session active (rechargement de page)
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) setReady(true)
+      })
+    }
     return () => subscription.unsubscribe()
   }, [])
 
