@@ -5,6 +5,38 @@ import { supabase } from '@/lib/supabase'
 
 const VISIBLE_COUNT = 3
 
+export function DurationHMSInput({ initialMinutes, onSave, inputStyle }) {
+  const initH = initialMinutes ? Math.floor(initialMinutes / 60) : ''
+  const initM = initialMinutes ? initialMinutes % 60 : ''
+  const [h, setH] = useState(initH === '' ? '' : String(initH))
+  const [m, setM] = useState(initM === '' ? '' : String(initM))
+  const [s, setS] = useState('')
+
+  const commit = () => {
+    const totalMin = Math.round(((parseInt(h) || 0) * 3600 + (parseInt(m) || 0) * 60 + (parseInt(s) || 0)) / 60)
+    onSave(totalMin > 0 ? totalMin : null)
+  }
+
+  const fieldStyle = { ...inputStyle, textAlign: 'center', padding: '8px 4px' }
+
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4 }}>
+      <div>
+        <input type="number" min="0" placeholder="h" value={h} onChange={e => setH(e.target.value)} onBlur={commit} style={fieldStyle} />
+        <div style={{ fontSize: 8, color: 'var(--text3)', textAlign: 'center', marginTop: 1 }}>h</div>
+      </div>
+      <div>
+        <input type="number" min="0" max="59" placeholder="min" value={m} onChange={e => setM(e.target.value)} onBlur={commit} style={fieldStyle} />
+        <div style={{ fontSize: 8, color: 'var(--text3)', textAlign: 'center', marginTop: 1 }}>min</div>
+      </div>
+      <div>
+        <input type="number" min="0" max="59" placeholder="s" value={s} onChange={e => setS(e.target.value)} onBlur={commit} style={fieldStyle} />
+        <div style={{ fontSize: 8, color: 'var(--text3)', textAlign: 'center', marginTop: 1 }}>s</div>
+      </div>
+    </div>
+  )
+}
+
 export default function ActivityBlock({ athleteId, date = null, isCoach = false }) {
   const [defs, setDefs]         = useState([])
   const [dayLogs, setDayLogs]   = useState({})
@@ -191,12 +223,13 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false 
                             )}
                             {def.show_duration && (
                               <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>min</div>
-                                <input key={`dur-${def.id}-${date}`} type="number" min="0" placeholder="45"
-                                  defaultValue={log?.duration_minutes ?? ''}
-                                  onBlur={e => saveLog(def.label, 'duration_minutes', e.target.value ? parseInt(e.target.value) : null)}
-                                  onKeyDown={e => e.key === 'Enter' && e.target.blur()}
-                                  style={inp} />
+                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>Durée</div>
+                                <DurationHMSInput
+                                  key={`dur-${def.id}-${date}`}
+                                  initialMinutes={log?.duration_minutes}
+                                  onSave={mins => saveLog(def.label, 'duration_minutes', mins)}
+                                  inputStyle={inp}
+                                />
                               </div>
                             )}
                           </div>

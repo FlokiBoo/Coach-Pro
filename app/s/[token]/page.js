@@ -4,7 +4,7 @@ import { useState, useEffect, use, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import WellnessBlock from '@/app/components/WellnessBlock'
-import ActivityBlock from '@/app/components/ActivityBlock'
+import ActivityBlock, { DurationHMSInput } from '@/app/components/ActivityBlock'
 import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
 import ProgressBlock from '@/app/components/ProgressBlock'
 import CelebrationModal, { parseMusclesFromText } from '@/app/components/CelebrationModal'
@@ -1135,7 +1135,7 @@ function RatingRow({ label, value, onChange }) {
 function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null, isEndurance = false }) {
   const [pleasure, setPleasure] = useState(initial?.pleasure ?? null)
   const [difficulty, setDifficulty] = useState(initial?.difficulty ?? null)
-  const [duration, setDuration] = useState(initial?.duration_minutes ? String(initial.duration_minutes) : '')
+  const [duration, setDuration] = useState(initial?.duration_minutes ?? null)
   const [distanceKm, setDistanceKm] = useState(initial?.distance_km != null ? String(initial.distance_km) : '')
 
   const canSubmit = pleasure !== null && difficulty !== null
@@ -1160,19 +1160,18 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
       <RatingRow label="Difficulté de la séance" value={difficulty} onChange={setDifficulty} />
 
       <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Durée (minutes)</div>
-        <input
-          type="number" min="1" placeholder="ex: 60"
-          value={duration}
-          onChange={e => setDuration(e.target.value)}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Durée</div>
+        <DurationHMSInput
+          initialMinutes={duration}
+          onSave={setDuration}
+          inputStyle={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
         />
       </div>
 
       <button
         onClick={() => onValidate({
           pleasure, difficulty,
-          duration_minutes: duration ? parseInt(duration) : null,
+          duration_minutes: duration || null,
           ...(isEndurance ? { distance_km: distanceKm ? parseFloat(distanceKm) : null } : {}),
         })}
         disabled={validating || !canSubmit}
