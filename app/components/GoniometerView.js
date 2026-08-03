@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react'
 import { supabase } from '@/lib/supabase'
 import { JOINT_TESTS } from '@/lib/jointTests'
 
 const ALL_TESTS = JOINT_TESTS.flatMap(g => g.tests.map(name => ({ joint: g.joint, name })))
+const BUCKET = 'joint-test-photos'
 
 function needsIOSPermission() {
   return typeof window !== 'undefined'
@@ -17,8 +18,246 @@ function today() {
   return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, '0'), String(n.getDate()).padStart(2, '0')].join('-')
 }
 
+function angleBetween(a, b, c) {
+  const v1 = { x: a.x - b.x, y: a.y - b.y }
+  const v2 = { x: c.x - b.x, y: c.y - b.y }
+  const dot = v1.x * v2.x + v1.y * v2.y
+  const mag1 = Math.hypot(v1.x, v1.y)
+  const mag2 = Math.hypot(v2.x, v2.y)
+  const cos = Math.max(-1, Math.min(1, dot / (mag1 * mag2)))
+  return (Math.acos(cos) * 180) / Math.PI
+}
+
+function isCCW(a1, a2) {
+  let diff = a2 - a1
+  while (diff < -Math.PI) diff += 2 * Math.PI
+  while (diff > Math.PI) diff -= 2 * Math.PI
+  return diff < 0
+}
+
+const PhotoCapture = forwardRef(function PhotoCapture({ onAngleChange }, ref) {
+  const canvasRef = useRef(null)
+  const stageRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const imgRef = useRef(null)
+  const pointsRef = useRef([])
+  const dragIndexRef = useRef(-1)
+  const [hasImage, setHasImage] = useState(false)
+  const [pointCount, setPointCount] = useState(0)
+  const [angle, setAngle] = useState(null)
+
+  useImperativeHandle(ref, () => ({
+    getSnapshot() {
+      if (angle == null || !canvasRef.current) return null
+      return new Promise(resolve => {
+        canvasRef.current.toBlob(blob => resolve({ angle, blob }), 'image/jpeg', 0.85)
+      })
+    },
+    reset() {
+      pointsRef.current = []
+      setPointCount(0)
+      setAngle(null)
+      onAngleChange(null)
+      draw()
+    },
+  }))
+
+  useEffect(() => { onAngleChange(angle) }, [angle])
+
+  function draw() {
+    const canvas = canvasRef.current
+    const img = imgRef.current
+    if (!canvas || !img) return
+    const ctx = canvas.getContext('2d')
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+    const points = pointsRef.current
+    if (points.length >= 2) {
+      ctx.strokeStyle = '#3FC1B0'
+      ctx.lineWidth = 2.5
+      ctx.beginPath()
+      ctx.moveTo(points[0].x, points[0].y)
+      ctx.lineTo(points[1].x, points[1].y)
+      ctx.stroke()
+    }
+    if (points.length === 3) {
+      ctx.beginPath()
+      ctx.moveTo(points[1].x, points[1].y)
+      ctx.lineTo(points[2].x, points[2].y)
+      ctx.stroke()
+
+      const angA = Math.atan2(points[0].y - points[1].y, points[0].x - points[1].x)
+      const angC = Math.atan2(points[2].y - points[1].y, points[2].x - points[1].x)
+      ctx.beginPath()
+      ctx.strokeStyle = '#F2A93B'
+      ctx.lineWidth = 2
+      ctx.arc(points[1].x, points[1].y, 34, angA, angC, isCCW(angA, angC))
+      ctx.stroke()
+    }
+
+    const labels = ['A', 'B', 'C']
+    points.forEach((p, i) => {
+      ctx.beginPath()
+      ctx.arc(p.x, p.y, 9, 0, Math.PI * 2)
+      ctx.fillStyle = i === 1 ? '#F2A93B' : '#EDEFF2'
+      ctx.fill()
+      ctx.lineWidth = 2
+      ctx.strokeStyle = '#0D1117'
+      ctx.stroke()
+      ctx.font = '600 13px "IBM Plex Mono", monospace'
+      ctx.fillStyle = '#EDEFF2'
+      ctx.textAlign = 'center'
+      ctx.fillText(labels[i], p.x, p.y - 16)
+    })
+  }
+
+  function setupCanvas() {
+    const canvas = canvasRef.current
+    const stage = stageRef.current
+    const img = imgRef.current
+    const maxW = stage.clientWidth - 2
+    const maxH = stage.clientHeight - 2
+    const ratio = Math.min(maxW / img.width, maxH / img.height, 1) || 1
+    canvas.width = img.width * ratio
+    canvas.height = img.height * ratio
+    pointsRef.current = []
+    setPointCount(0)
+    setAngle(null)
+    onAngleChange(null)
+    setHasImage(true)
+    draw()
+  }
+
+  function handleFile(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      const img = new Image()
+      img.onload = () => { imgRef.current = img; setupCanvas() }
+      img.src = ev.target.result
+    }
+    reader.readAsDataURL(file)
+  }
+
+  function getPos(e) {
+    const canvas = canvasRef.current
+    const rect = canvas.getBoundingClientRect()
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
+  }
+
+  function hitTestPoint(pos) {
+    const points = pointsRef.current
+    for (let i = 0; i < points.length; i++) {
+      if (Math.hypot(points[i].x - pos.x, points[i].y - pos.y) < 22) return i
+    }
+    return -1
+  }
+
+  function computeAngle() {
+    const points = pointsRef.current
+    const a = angleBetween(points[0], points[1], points[2])
+    setAngle(a)
+  }
+
+  function onPointerDown(e) {
+    if (!imgRef.current) return
+    const pos = getPos(e)
+    const hit = hitTestPoint(pos)
+    if (hit !== -1) {
+      dragIndexRef.current = hit
+    } else if (pointsRef.current.length < 3) {
+      pointsRef.current = [...pointsRef.current, pos]
+      setPointCount(pointsRef.current.length)
+      draw()
+      if (pointsRef.current.length === 3) computeAngle()
+    }
+  }
+
+  function onPointerMove(e) {
+    if (dragIndexRef.current === -1) return
+    const pos = getPos(e)
+    pointsRef.current[dragIndexRef.current] = pos
+    draw()
+    if (pointsRef.current.length === 3) computeAngle()
+  }
+
+  function onPointerUp() { dragIndexRef.current = -1 }
+
+  function undoPoint() {
+    pointsRef.current = pointsRef.current.slice(0, -1)
+    setPointCount(pointsRef.current.length)
+    setAngle(null)
+    onAngleChange(null)
+    draw()
+  }
+
+  const hints = [
+    "Place le point A (origine du segment)",
+    "Place le point B (sommet — c'est ici que l'angle se calcule)",
+    "Place le point C (extrémité du deuxième segment)",
+  ]
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, padding: '0 20px' }}>
+      <div ref={stageRef} style={{
+        flex: 1, position: 'relative', borderRadius: 14, overflow: 'hidden', background: '#161B22',
+        border: '1px solid #2A3140', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240,
+      }}>
+        {!hasImage ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: 30, textAlign: 'center' }}>
+            <div style={{ fontSize: 34 }}>📷</div>
+            <p style={{ color: '#7C8493', fontSize: 13, margin: 0, maxWidth: 220, lineHeight: 1.5 }}>
+              Charge une photo, place 3 points : origine → sommet → extrémité. L'angle se calcule au sommet.
+            </p>
+            <button onClick={() => fileInputRef.current?.click()} style={{ background: '#F2A93B', color: '#1a1400', border: 'none', borderRadius: 10, padding: '12px 24px', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Charger une photo
+            </button>
+          </div>
+        ) : (
+          <canvas
+            ref={canvasRef}
+            style={{ maxWidth: '100%', maxHeight: '100%', touchAction: 'none', display: 'block' }}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerLeave={onPointerUp}
+          />
+        )}
+        <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFile} />
+      </div>
+
+      {hasImage && (
+        <>
+          <div style={{ textAlign: 'center', color: '#7C8493', fontSize: 11, padding: '8px 0 0' }}>
+            {pointCount < 3 ? hints[pointCount] : "Glisse les points pour ajuster · angle recalculé en direct"}
+          </div>
+          {angle != null && (
+            <div style={{ textAlign: 'center', marginTop: 4 }}>
+              <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 40, fontWeight: 600 }}>{angle.toFixed(1)}</span>
+              <sup style={{ fontSize: 18, color: '#7C8493' }}>°</sup>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 10, padding: '10px 0 0' }}>
+            <button onClick={undoPoint} disabled={pointCount === 0} style={{ flex: 1, padding: '11px 10px', borderRadius: 10, border: '1px solid #2A3140', background: 'transparent', color: '#7C8493', fontSize: 12, fontWeight: 600, cursor: pointCount === 0 ? 'default' : 'pointer', opacity: pointCount === 0 ? 0.4 : 1, fontFamily: 'inherit' }}>
+              Annuler point
+            </button>
+            <button onClick={() => fileInputRef.current?.click()} style={{ flex: 1, padding: '11px 10px', borderRadius: 10, border: '1px solid #3FC1B0', background: 'transparent', color: '#3FC1B0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Nouvelle photo
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+})
+
 export default function GoniometerView({ athleteId, onClose }) {
   const [permissionState, setPermissionState] = useState(needsIOSPermission() ? 'needed' : 'granted')
+  const [mode, setMode] = useState('sensor') // 'sensor' | 'photo'
   const [side, setSide] = useState('D') // 'D' | 'G'
   const [axis, setAxis] = useState('beta') // 'beta' (sagittal) | 'gamma' (frontal)
   const [testIndex, setTestIndex] = useState(0)
@@ -28,16 +267,19 @@ export default function GoniometerView({ athleteId, onClose }) {
   const [flash, setFlash] = useState(null)
   const [done, setDone] = useState(false)
   const [paused, setPaused] = useState(false)
-  const [history, setHistory] = useState([]) // [{ testIndex, testName, joint, side, value }]
+  const [history, setHistory] = useState([]) // [{ testIndex, testName, joint, side, value, hasPhoto }]
+  const [photoAngle, setPhotoAngle] = useState(null)
+  const [saving, setSaving] = useState(false)
   const liveRawRef = useRef(0)
   const pausedRef = useRef(false)
+  const photoRef = useRef(null)
 
   const test = ALL_TESTS[testIndex]
 
   useEffect(() => { pausedRef.current = paused }, [paused])
 
   useEffect(() => {
-    if (permissionState !== 'granted') return
+    if (permissionState !== 'granted' || mode !== 'sensor') return
     const handler = (e) => {
       if (pausedRef.current) return
       const raw = axis === 'beta' ? e.beta : e.gamma
@@ -47,7 +289,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     }
     window.addEventListener('deviceorientation', handler)
     return () => window.removeEventListener('deviceorientation', handler)
-  }, [permissionState, axis])
+  }, [permissionState, axis, mode])
 
   useEffect(() => {
     setZeroOffset(liveRawRef.current)
@@ -90,20 +332,39 @@ export default function GoniometerView({ athleteId, onClose }) {
 
   const calibrateZero = () => setZeroOffset(liveRawRef.current)
 
+  const canSave = mode === 'sensor' ? true : photoAngle != null
+
   const save = async () => {
-    if (!test) return
-    const value = Math.round(displayAngle * 10) / 10
+    if (!test || saving) return
+    if (mode === 'photo' && photoAngle == null) return
+    setSaving(true)
+
+    const value = mode === 'sensor'
+      ? Math.round(displayAngle * 10) / 10
+      : Math.round(photoAngle * 10) / 10
     const field = side === 'D' ? 'value_d' : 'value_g'
     const prevSideVal = previous?.[field]
+
+    let photoPath = null
+    if (mode === 'photo') {
+      const snapshot = await photoRef.current?.getSnapshot()
+      if (snapshot?.blob) {
+        const slug = test.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)
+        photoPath = `${athleteId}/${slug}-${side}-${Date.now()}.jpg`
+        await supabase.storage.from(BUCKET).upload(photoPath, snapshot.blob, { contentType: 'image/jpeg' })
+      }
+    }
 
     const { data: existingToday } = await supabase.from('joint_test_entries').select('*')
       .eq('athlete_id', athleteId).eq('test_name', test.name).eq('date', today()).maybeSingle()
 
+    const payload = { [field]: value, ...(photoPath ? { photo_path: photoPath } : {}) }
+
     if (existingToday) {
-      await supabase.from('joint_test_entries').update({ [field]: value }).eq('id', existingToday.id)
+      await supabase.from('joint_test_entries').update(payload).eq('id', existingToday.id)
     } else {
       await supabase.from('joint_test_entries').insert({
-        athlete_id: athleteId, test_name: test.name, joint: test.joint, date: today(), [field]: value,
+        athlete_id: athleteId, test_name: test.name, joint: test.joint, date: today(), ...payload,
       })
     }
 
@@ -112,12 +373,16 @@ export default function GoniometerView({ athleteId, onClose }) {
     setTimeout(() => setFlash(null), 1400)
 
     setHistory(prev => {
-      const entry = { testIndex, testName: test.name, joint: test.joint, side, value }
+      const entry = { testIndex, testName: test.name, joint: test.joint, side, value, hasPhoto: !!photoPath }
       const others = prev.filter(h => !(h.testIndex === testIndex && h.side === side))
       return [...others, entry]
     })
 
+    photoRef.current?.reset()
+    setPhotoAngle(null)
     setPaused(false)
+    setSaving(false)
+
     if (testIndex < ALL_TESTS.length - 1) {
       setTestIndex(i => i + 1)
     } else {
@@ -139,7 +404,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     setPaused(false)
   }
 
-  if (permissionState === 'needed') {
+  if (permissionState === 'needed' && mode === 'sensor') {
     return (
       <div style={{ position: 'fixed', inset: 0, background: '#0D1117', zIndex: 800, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 30, textAlign: 'center', gap: 18, fontFamily: "'Space Grotesk', sans-serif" }}>
         <div style={{ fontSize: 40 }}>📐</div>
@@ -150,18 +415,22 @@ export default function GoniometerView({ athleteId, onClose }) {
         <button onClick={requestPermission} style={{ background: '#F2A93B', color: '#1a1400', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
           Activer les capteurs
         </button>
+        <button onClick={() => setMode('photo')} style={{ background: 'none', border: '1px solid #2A3140', color: '#EDEFF2', borderRadius: 10, padding: '12px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          📷 Utiliser le mode photo à la place
+        </button>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7C8493', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>Annuler</button>
       </div>
     )
   }
 
-  if (permissionState === 'denied') {
+  if (permissionState === 'denied' && mode === 'sensor') {
     return (
       <div style={{ position: 'fixed', inset: 0, background: '#0D1117', zIndex: 800, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 30, textAlign: 'center', gap: 14 }}>
         <div style={{ fontSize: 32 }}>🚫</div>
         <div style={{ color: '#EDEFF2', fontWeight: 700 }}>Accès refusé</div>
-        <div style={{ color: '#7C8493', fontSize: 13 }}>Autorise les capteurs de mouvement dans les réglages de ton navigateur pour utiliser le goniomètre.</div>
-        <button onClick={onClose} style={{ background: '#F2A93B', color: '#1a1400', border: 'none', borderRadius: 10, padding: '12px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Fermer</button>
+        <div style={{ color: '#7C8493', fontSize: 13 }}>Autorise les capteurs de mouvement dans les réglages de ton navigateur, ou utilise le mode photo.</div>
+        <button onClick={() => setMode('photo')} style={{ background: '#F2A93B', color: '#1a1400', border: 'none', borderRadius: 10, padding: '12px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>📷 Mode photo</button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7C8493', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>Fermer</button>
       </div>
     )
   }
@@ -171,7 +440,7 @@ export default function GoniometerView({ athleteId, onClose }) {
       <div style={{ padding: '16px 20px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#EDEFF2', fontSize: 22, cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
         <div style={{ flex: 1, fontSize: 13, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          <span style={{ color: '#F2A93B' }}>GONIO</span>MÈTRE
+          <span style={{ color: '#F2A93B' }}>GONIO</span>{mode === 'photo' ? 'PHOTO' : 'MÈTRE'}
         </div>
       </div>
 
@@ -191,6 +460,18 @@ export default function GoniometerView({ athleteId, onClose }) {
         </div>
       ) : (
         <>
+          <div style={{ display: 'flex', gap: 8, padding: '0 20px 8px' }}>
+            {[{ key: 'sensor', label: '📐 Capteur' }, { key: 'photo', label: '📷 Photo' }].map(m => (
+              <button key={m.key} onClick={() => setMode(m.key)} style={{
+                flex: 1, padding: '9px 6px', borderRadius: 8, border: `1px solid ${mode === m.key ? '#3FC1B0' : '#2A3140'}`,
+                background: mode === m.key ? 'rgba(63,193,176,0.08)' : '#161B22', color: mode === m.key ? '#3FC1B0' : '#7C8493',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+              }}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+
           <div style={{ display: 'flex', gap: 8, padding: '0 20px 10px' }}>
             {['D', 'G'].map(sd => (
               <button key={sd} onClick={() => restart(sd)} style={{
@@ -217,61 +498,67 @@ export default function GoniometerView({ athleteId, onClose }) {
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 8, padding: '0 20px 6px' }}>
-            {[{ key: 'beta', label: 'Sagittal (flexion/ext)' }, { key: 'gamma', label: 'Frontal (abd/add)' }].map(a => (
-              <button key={a.key} onClick={() => setAxis(a.key)} style={{
-                flex: 1, padding: '7px 6px', borderRadius: 8, border: `1px solid ${axis === a.key ? '#F2A93B' : '#2A3140'}`,
-                background: axis === a.key ? 'rgba(242,169,59,0.08)' : '#161B22', color: axis === a.key ? '#F2A93B' : '#7C8493',
-                fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
-              }}>
-                {a.label}
-              </button>
-            ))}
-          </div>
+          {mode === 'sensor' ? (
+            <>
+              <div style={{ display: 'flex', gap: 8, padding: '0 20px 6px' }}>
+                {[{ key: 'beta', label: 'Sagittal (flexion/ext)' }, { key: 'gamma', label: 'Frontal (abd/add)' }].map(a => (
+                  <button key={a.key} onClick={() => setAxis(a.key)} style={{
+                    flex: 1, padding: '7px 6px', borderRadius: 8, border: `1px solid ${axis === a.key ? '#F2A93B' : '#2A3140'}`,
+                    background: axis === a.key ? 'rgba(242,169,59,0.08)' : '#161B22', color: axis === a.key ? '#F2A93B' : '#7C8493',
+                    fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
 
-          <div style={{ position: 'relative', margin: '6px auto 4px', width: 'min(78vw, 320px)' }}>
-            <svg viewBox="0 0 300 190" style={{ display: 'block', width: '100%', height: 'auto' }}>
-              <path d="M 20 170 A 130 130 0 0 1 280 170" fill="none" stroke="#1E2530" strokeWidth="3" />
-              {ticks.map((t, i) => (
-                <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
-                  stroke={t.isMajor ? '#7C8493' : '#2A3140'} strokeWidth={t.isMajor ? 2 : 1.5} />
-              ))}
-              <line x1={cx} y1={cy} x2={cx} y2={cy - 120} stroke="#3FC1B0" strokeWidth="2" strokeDasharray="2 3" />
-              <line x1={cx} y1={cy} x2={needleX} y2={needleY} stroke="#F2A93B" strokeWidth="3" strokeLinecap="round" />
-              <circle cx={cx} cy={cy} r="7" fill="#F2A93B" />
-            </svg>
-          </div>
+              <div style={{ position: 'relative', margin: '6px auto 4px', width: 'min(78vw, 320px)' }}>
+                <svg viewBox="0 0 300 190" style={{ display: 'block', width: '100%', height: 'auto' }}>
+                  <path d="M 20 170 A 130 130 0 0 1 280 170" fill="none" stroke="#1E2530" strokeWidth="3" />
+                  {ticks.map((t, i) => (
+                    <line key={i} x1={t.x1} y1={t.y1} x2={t.x2} y2={t.y2}
+                      stroke={t.isMajor ? '#7C8493' : '#2A3140'} strokeWidth={t.isMajor ? 2 : 1.5} />
+                  ))}
+                  <line x1={cx} y1={cy} x2={cx} y2={cy - 120} stroke="#3FC1B0" strokeWidth="2" strokeDasharray="2 3" />
+                  <line x1={cx} y1={cy} x2={needleX} y2={needleY} stroke="#F2A93B" strokeWidth="3" strokeLinecap="round" />
+                  <circle cx={cx} cy={cy} r="7" fill="#F2A93B" />
+                </svg>
+              </div>
 
-          <div style={{ textAlign: 'center', marginTop: -18 }}>
-            <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 56, fontWeight: 600, lineHeight: 1 }}>
-              {displayAngle.toFixed(1)}<sup style={{ fontSize: 22, color: '#7C8493', fontWeight: 400 }}>°</sup>
-            </div>
-            <div style={{ fontSize: 11, color: '#7C8493', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>
-              {axis === 'beta' ? 'Plan sagittal — écran face à toi' : 'Plan frontal — écran de côté'}
-            </div>
-          </div>
+              <div style={{ textAlign: 'center', marginTop: -18 }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 56, fontWeight: 600, lineHeight: 1 }}>
+                  {displayAngle.toFixed(1)}<sup style={{ fontSize: 22, color: '#7C8493', fontWeight: 400 }}>°</sup>
+                </div>
+                <div style={{ fontSize: 11, color: '#7C8493', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>
+                  {axis === 'beta' ? 'Plan sagittal — écran face à toi' : 'Plan frontal — écran de côté'}
+                </div>
+              </div>
 
-          <div style={{ display: 'flex', gap: 10, padding: '18px 20px 0' }}>
-            <button onClick={calibrateZero} style={{ flex: 1, padding: '13px 10px', borderRadius: 10, border: '1px solid #3FC1B0', background: 'transparent', color: '#3FC1B0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Zéro ici
-            </button>
-            <button onClick={() => setZeroOffset(0)} style={{ flex: 1, padding: '13px 10px', borderRadius: 10, border: '1px solid #2A3140', background: 'transparent', color: '#7C8493', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Reset zéro
-            </button>
-          </div>
+              <div style={{ display: 'flex', gap: 10, padding: '18px 20px 0' }}>
+                <button onClick={calibrateZero} style={{ flex: 1, padding: '13px 10px', borderRadius: 10, border: '1px solid #3FC1B0', background: 'transparent', color: '#3FC1B0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Zéro ici
+                </button>
+                <button onClick={() => setZeroOffset(0)} style={{ flex: 1, padding: '13px 10px', borderRadius: 10, border: '1px solid #2A3140', background: 'transparent', color: '#7C8493', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Reset zéro
+                </button>
+              </div>
 
-          <div style={{ padding: '10px 20px 0' }}>
-            <button onClick={() => setPaused(p => !p)} style={{
-              width: '100%', padding: '13px 10px', borderRadius: 10, border: `1px solid ${paused ? '#E5636B' : '#2A3140'}`,
-              background: paused ? 'rgba(229,99,107,0.1)' : 'transparent', color: paused ? '#E5636B' : '#EDEFF2',
-              fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-            }}>
-              {paused ? '▶ Reprendre' : '⏸ Pause'}
-            </button>
-          </div>
+              <div style={{ padding: '10px 20px 0' }}>
+                <button onClick={() => setPaused(p => !p)} style={{
+                  width: '100%', padding: '13px 10px', borderRadius: 10, border: `1px solid ${paused ? '#E5636B' : '#2A3140'}`,
+                  background: paused ? 'rgba(229,99,107,0.1)' : 'transparent', color: paused ? '#E5636B' : '#EDEFF2',
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                }}>
+                  {paused ? '▶ Reprendre' : '⏸ Pause'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <PhotoCapture ref={photoRef} onAngleChange={setPhotoAngle} />
+          )}
 
           {history.length > 0 && (
-            <div style={{ padding: '14px 20px 0', flex: 1, minHeight: 0, overflowY: 'auto' }}>
+            <div style={{ padding: '14px 20px 0', flex: mode === 'sensor' ? 1 : undefined, minHeight: 0, overflowY: 'auto', maxHeight: mode === 'photo' ? 140 : undefined }}>
               <div style={{ fontSize: 10, color: '#7C8493', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
                 Historique de la séance
               </div>
@@ -282,6 +569,7 @@ export default function GoniometerView({ athleteId, onClose }) {
                     background: '#161B22', border: '1px solid #2A3140', borderRadius: 10, padding: '9px 12px',
                     cursor: 'pointer', fontFamily: 'inherit',
                   }}>
+                    {h.hasPhoto && <span style={{ fontSize: 12, flexShrink: 0 }}>📷</span>}
                     <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#EDEFF2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {h.testName} <span style={{ color: '#7C8493' }}>({h.side})</span>
                     </span>
@@ -294,14 +582,17 @@ export default function GoniometerView({ athleteId, onClose }) {
             </div>
           )}
 
-          <div style={{ padding: '14px 20px 24px', marginTop: 'auto' }}>
+          <div style={{ padding: '14px 20px 24px', marginTop: mode === 'sensor' ? 'auto' : undefined }}>
             {flash && (
               <div style={{ textAlign: 'center', marginBottom: 10, fontSize: 13, color: '#3FC1B0', fontWeight: 700 }}>
                 ✓ {flash.value}° noté{flash.pct != null ? ` (${flash.pct > 0 ? '+' : ''}${flash.pct}%)` : ''}
               </div>
             )}
-            <button onClick={save} style={{ width: '100%', background: '#F2A93B', color: '#1a1400', border: 'none', borderRadius: 10, padding: '15px', fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-              Noter →
+            <button onClick={save} disabled={!canSave || saving} style={{
+              width: '100%', background: (canSave && !saving) ? '#F2A93B' : '#2A3140', color: (canSave && !saving) ? '#1a1400' : '#7C8493',
+              border: 'none', borderRadius: 10, padding: '15px', fontSize: 15, fontWeight: 700, cursor: (canSave && !saving) ? 'pointer' : 'default', fontFamily: 'inherit',
+            }}>
+              {saving ? '…' : 'Noter →'}
             </button>
           </div>
         </>
