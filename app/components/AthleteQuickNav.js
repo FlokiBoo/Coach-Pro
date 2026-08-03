@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock from './TrackedMovementsBlock'
 import GoniometerView from './GoniometerView'
+import TorqueProfileSection from './TorqueProfileSection'
 import { JOINT_TESTS } from '@/lib/jointTests'
 import { analyzeEntry } from '@/lib/jointTestThresholds'
 
@@ -22,6 +23,7 @@ const SECTIONS = [
   { key: 'metrics', emoji: '📈', label: 'Metrics' },
   { key: 'mensurations', emoji: '📏', label: 'Mensurations' },
   { key: 'tests', emoji: '🦴', label: 'Tests articulaires' },
+  { key: 'torque', emoji: '⚖️', label: 'Test' },
 ]
 
 function FullscreenSection({ title, onClose, children }) {
@@ -515,6 +517,11 @@ export default function AthleteQuickNav({ athlete, onUpdate }) {
       {open === 'tests' && (
         <FullscreenSection title="🦴 Tests articulaires" onClose={() => setOpen(null)}>
           <TestsArticulairesSection athleteId={athlete.id} />
+        </FullscreenSection>
+      )}
+      {open === 'torque' && (
+        <FullscreenSection title="⚖️ Test Torque" onClose={() => setOpen(null)}>
+          <TorqueProfileSection athleteId={athlete.id} />
         </FullscreenSection>
       )}
     </>
