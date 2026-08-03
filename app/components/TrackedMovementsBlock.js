@@ -1,10 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import MovementDetailView from './MovementDetailView'
+import { RACE_TARGETS, computeRaceEstimates, buildKnownRaces, computeThreshold60, formatDistance, formatPace } from '@/lib/raceEstimates'
 
 const RM_KEYS = [2, 3, 4, 5, 6]
+export const CATEGORIES = ['Lift', 'Gym', 'Cardio', 'Autre']
+const DOT_COLORS = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16']
+const isRunningSubcat = (category, subcat) => category === 'Cardio' && /run|course/i.test(subcat)
 
 export const UNITS = {
   kg:          { label: 'Kg (charge)',       suffix: 'kg',   betterIsHigher: true },
@@ -78,12 +82,16 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [newUnit, setNewUnit] = useState('kg')
+  const [newCategory, setNewCategory] = useState('Lift')
+  const [newSubcategory, setNewSubcategory] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [saving, setSaving] = useState(false)
   const [detailMovementId, setDetailMovementId] = useState(null)
   const [search, setSearch] = useState('')
   const [editingNameFor, setEditingNameFor] = useState(null)
   const [editNameVal, setEditNameVal] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('Lift')
+  const [selectedSubcat, setSelectedSubcat] = useState('all')
 
   useEffect(() => { load() }, [athleteId])
 
@@ -118,7 +126,8 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
       await supabase.from('movements').insert({ name: label })
     }
 
-    const { data, error } = await supabase.from('tracked_movements').insert({ name: label, unit: newUnit }).select().single()
+    const payload = { name: label, unit: newUnit, category: newCategory, subcategory: newSubcategory.trim() || null }
+    const { data, error } = await supabase.from('tracked_movements').insert(payload).select().single()
     if (data) {
       setMovements(prev => [...(prev || []), { ...data, entries: [] }])
     } else if (error?.code === '23505') {
@@ -129,9 +138,17 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
     }
     setNewName('')
     setNewUnit('kg')
+    setNewSubcategory('')
     setSuggestions([])
     setCreating(false)
     setSaving(false)
+  }
+
+  const saveMeta = async (id, category, subcategory) => {
+    const payload = { category, subcategory: subcategory?.trim() || null }
+    const { error } = await supabase.from('tracked_movements').update(payload).eq('id', id)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setMovements(prev => prev.map(m => m.id === id ? { ...m, ...payload } : m))
   }
 
   const deleteMovement = async (id) => {
@@ -197,6 +214,23 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
 
   const filteredMovements = movements.filter(m => m.name.toLowerCase().includes(search.trim().toLowerCase()))
 
+  const categoriesInData = new Set(movements.map(m => m.category || 'À classer'))
+  const tabs = categoriesInData.has('À classer') ? [...CATEGORIES, 'À classer'] : CATEGORIES
+
+  const categoryMovements = filteredMovements.filter(m => (m.category || 'À classer') === selectedCategory)
+  const subcatOrder = []
+  const bySubcat = {}
+  categoryMovements.forEach(m => {
+    const sc = m.subcategory?.trim() || 'Général'
+    if (!bySubcat[sc]) { bySubcat[sc] = []; subcatOrder.push(sc) }
+    bySubcat[sc].push(m)
+  })
+  const visibleSubcats = selectedSubcat === 'all' ? subcatOrder : subcatOrder.filter(sc => sc === selectedSubcat)
+
+  const knownRaces = buildKnownRaces(movements)
+  const raceEstimates = computeRaceEstimates(knownRaces)
+  const threshold60 = computeThreshold60(knownRaces)
+
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
 
@@ -206,7 +240,7 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
           🏆 Records & Tests
         </div>
         {isCoach && (
-          <button onClick={() => { setCreating(v => !v); setNewName(''); setNewUnit('kg') }} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          <button onClick={() => { setCreating(v => !v); setNewName(''); setNewUnit('kg'); setNewCategory(selectedCategory === 'À classer' ? 'Lift' : selectedCategory); setNewSubcategory('') }} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             + Mouvement
           </button>
         )}
@@ -239,6 +273,18 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
             {Object.entries(UNITS).map(([key, cfg]) => <option key={key} value={key}>{cfg.label}</option>)}
           </select>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+            <select value={newCategory} onChange={e => setNewCategory(e.target.value)}
+              style={{ flex: 1, boxSizing: 'border-box', padding: '9px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}>
+              {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input
+              placeholder="Sous-catégorie (ex: Squats)"
+              value={newSubcategory}
+              onChange={e => setNewSubcategory(e.target.value)}
+              style={{ flex: 1, boxSizing: 'border-box', padding: '9px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button onClick={() => setCreating(false)} style={{ flex: 1, background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
             <button onClick={() => createMovement()} disabled={saving || !newName.trim()} style={{ flex: 2, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
               {saving ? '…' : 'Ajouter'}
@@ -265,48 +311,171 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
           {isCoach ? 'Aucun mouvement dans le catalogue — clique sur "+ Mouvement" pour en ajouter un (visible pour tous les clients).' : 'Aucun mouvement suivi pour le moment.'}
         </div>
       )}
-      {movements.length > 0 && filteredMovements.length === 0 && (
-        <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Aucun résultat.</div>
-      )}
 
-      {/* Liste des mouvements */}
-      {filteredMovements.map(m => {
-        const best = bestPerformance(m, m.entries)
-
-        const isEditingName = editingNameFor === m.id
-        return (
-          <div key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
-            <div onClick={() => !isEditingName && setDetailMovementId(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: isEditingName ? 'default' : 'pointer' }}>
-              {isEditingName ? (
-                <input
-                  autoFocus
-                  value={editNameVal}
-                  onClick={e => e.stopPropagation()}
-                  onChange={e => setEditNameVal(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') saveName(m.id); if (e.key === 'Escape') setEditingNameFor(null) }}
-                  onBlur={() => saveName(m.id)}
-                  style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, padding: '4px 6px', border: '1px solid var(--border2)', borderRadius: 6, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
-                />
-              ) : (
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
-                </div>
-              )}
-              {isCoach && !isEditingName && (
-                <button onClick={e => { e.stopPropagation(); startEditName(m) }} style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>✏️</button>
-              )}
-              {best ? (
-                <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--green)', flexShrink: 0 }}>{formatPerformance(m, best.value)}</div>
-              ) : (
-                <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
-              )}
-              {isCoach && !isEditingName && (
-                <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>🗑️</button>
-              )}
-            </div>
+      {movements.length > 0 && (
+        <>
+          {/* Onglets catégories */}
+          <div style={{ display: 'flex', gap: 6, padding: '10px 14px 0', overflowX: 'auto' }}>
+            {tabs.map(cat => (
+              <button key={cat} onClick={() => { setSelectedCategory(cat); setSelectedSubcat('all') }} style={{
+                flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                background: selectedCategory === cat ? 'var(--green)' : 'var(--bg2)',
+                color: selectedCategory === cat ? '#fff' : 'var(--text2)',
+                fontSize: 13, fontWeight: 700,
+              }}>
+                {cat}
+              </button>
+            ))}
           </div>
-        )
-      })}
+
+          {/* Pastilles sous-catégories */}
+          {subcatOrder.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, padding: '10px 14px', overflowX: 'auto' }}>
+              <button onClick={() => setSelectedSubcat('all')} style={{
+                flexShrink: 0, padding: '6px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                border: `1px solid ${selectedSubcat === 'all' ? 'var(--text)' : 'var(--border2)'}`,
+                background: selectedSubcat === 'all' ? 'var(--text)' : 'transparent',
+                color: selectedSubcat === 'all' ? 'var(--bg)' : 'var(--text2)',
+              }}>
+                Tous
+              </button>
+              {subcatOrder.map((sc, i) => {
+                const color = DOT_COLORS[i % DOT_COLORS.length]
+                const active = selectedSubcat === sc
+                return (
+                  <button key={sc} onClick={() => setSelectedSubcat(sc)} style={{
+                    flexShrink: 0, padding: '6px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                    border: `1px solid ${active ? color : 'var(--border2)'}`,
+                    background: active ? `${color}1A` : 'transparent',
+                    color: active ? color : 'var(--text2)',
+                  }}>
+                    {sc}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {categoryMovements.length === 0 && (
+            <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+              Aucun mouvement dans cette catégorie.
+            </div>
+          )}
+
+          {/* Sections par sous-catégorie */}
+          {visibleSubcats.map((sc, i) => {
+            const color = DOT_COLORS[subcatOrder.indexOf(sc) % DOT_COLORS.length]
+            const isRunning = isRunningSubcat(selectedCategory, sc)
+            const list = isRunning
+              ? bySubcat[sc].filter(m => !RACE_TARGETS.some(t => t.match(m.name)))
+              : bySubcat[sc]
+            return (
+              <div key={sc}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 14px 6px' }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, fontWeight: 800 }}>{sc}</span>
+                </div>
+
+                {isRunning && raceEstimates.slice(0, 2).map(re => (
+                  <div key={re.key} style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{re.label}</div>
+                      {!re.measured && re.from?.length > 0 && (
+                        <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Estimation</div>
+                      )}
+                    </div>
+                    {re.timeSec != null ? (
+                      <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatTime(re.timeSec)}</div>
+                    ) : re.distanceM != null ? (
+                      <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatDistance(re.distanceM)}</div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
+                    )}
+                  </div>
+                ))}
+
+                {isRunning && (
+                  <div style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>Seuil 60min</div>
+                      {threshold60 && (
+                        <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Estimation (à partir du 6min et du 20min)</div>
+                      )}
+                    </div>
+                    {threshold60 ? (
+                      <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: '#DC2626' }}>
+                          {threshold60.lowKmh.toFixed(1)}–{threshold60.highKmh.toFixed(1)} km/h
+                        </div>
+                        <div style={{ fontSize: 11, color: '#DC2626', fontWeight: 600, marginTop: 1 }}>
+                          {formatPace(threshold60.highKmh)}–{formatPace(threshold60.lowKmh)} /km
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
+                    )}
+                  </div>
+                )}
+
+                {isRunning && raceEstimates.slice(2).map(re => (
+                  <div key={re.key} style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{re.label}</div>
+                      {!re.measured && re.from?.length > 0 && (
+                        <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Estimation</div>
+                      )}
+                    </div>
+                    {re.timeSec != null ? (
+                      <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatTime(re.timeSec)}</div>
+                    ) : re.distanceM != null ? (
+                      <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatDistance(re.distanceM)}</div>
+                    ) : (
+                      <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
+                    )}
+                  </div>
+                ))}
+
+                {list.map(m => {
+                  const best = bestPerformance(m, m.entries)
+                  const isEditingName = editingNameFor === m.id
+                  return (
+                    <div key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
+                      <div onClick={() => !isEditingName && setDetailMovementId(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: isEditingName ? 'default' : 'pointer' }}>
+                        {isEditingName ? (
+                          <input
+                            autoFocus
+                            value={editNameVal}
+                            onClick={e => e.stopPropagation()}
+                            onChange={e => setEditNameVal(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') saveName(m.id); if (e.key === 'Escape') setEditingNameFor(null) }}
+                            onBlur={() => saveName(m.id)}
+                            style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14, padding: '4px 6px', border: '1px solid var(--border2)', borderRadius: 6, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
+                          />
+                        ) : (
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                          </div>
+                        )}
+                        {isCoach && !isEditingName && (
+                          <button onClick={e => { e.stopPropagation(); startEditName(m) }} style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>✏️</button>
+                        )}
+                        {best ? (
+                          <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--green)', flexShrink: 0 }}>{formatPerformance(m, best.value)}</div>
+                        ) : (
+                          <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
+                        )}
+                        {isCoach && !isEditingName && (
+                          <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>🗑️</button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </>
+      )}
 
       {detailMovementId && (() => {
         const detailMovement = movements.find(m => m.id === detailMovementId)
@@ -318,6 +487,8 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
             onClose={() => setDetailMovementId(null)}
             onSaveEntry={saveEntry}
             onDeleteEntry={isCoach ? (entryId) => deleteEntry(detailMovement.id, entryId) : null}
+            isCoach={isCoach}
+            onSaveMeta={isCoach ? (category, subcategory) => saveMeta(detailMovement.id, category, subcategory) : null}
           />
         )
       })()}

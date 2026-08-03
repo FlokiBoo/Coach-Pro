@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { estimate1RM, bestPerformance, unitOf, formatPerformance, ProgressChart, EntryForm, emptyEntryForm } from './TrackedMovementsBlock'
+import { estimate1RM, bestPerformance, unitOf, formatPerformance, ProgressChart, EntryForm, emptyEntryForm, CATEGORIES } from './TrackedMovementsBlock'
 
 const RM_LIST = [1, 2, 3, 4, 5, 6]
 const PERCENTAGES = [100, 95, 90, 85, 80, 75, 70, 65, 60, 50, 40, 30]
@@ -17,12 +17,13 @@ function formatDateFr(d) {
   return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-export default function MovementDetailView({ movement, athleteId, onClose, onSaveEntry, onDeleteEntry }) {
+export default function MovementDetailView({ movement, athleteId, onClose, onSaveEntry, onDeleteEntry, isCoach, onSaveMeta }) {
   const isKg = movement.unit === 'kg' || !movement.unit
   const [tab, setTab] = useState('record') // 'record' | 'percent'
   const [adding, setAdding] = useState(false)
   const [form, setForm] = useState(emptyEntryForm())
   const [saving, setSaving] = useState(false)
+  const [subcatDraft, setSubcatDraft] = useState(movement.subcategory || '')
 
   const entries = movement.entries || []
   const best = bestPerformance(movement, entries)
@@ -56,6 +57,22 @@ export default function MovementDetailView({ movement, athleteId, onClose, onSav
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box' }}>
+
+        {isCoach && onSaveMeta && (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <select value={movement.category || 'À classer'} onChange={e => onSaveMeta(e.target.value, subcatDraft)}
+              style={{ flex: 1, boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}>
+              {(movement.category && !CATEGORIES.includes(movement.category) ? [...CATEGORIES, movement.category] : CATEGORIES).map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input
+              placeholder="Sous-catégorie"
+              value={subcatDraft}
+              onChange={e => setSubcatDraft(e.target.value)}
+              onBlur={() => onSaveMeta(movement.category || 'Lift', subcatDraft)}
+              style={{ flex: 1, boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+            />
+          </div>
+        )}
 
         {adding && (
           <EntryForm movement={movement} form={form} setForm={setForm} onCancel={() => setAdding(false)} onSave={save} saving={saving} />

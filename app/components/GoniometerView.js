@@ -35,6 +35,17 @@ function isCCW(a1, a2) {
   return diff < 0
 }
 
+// Différence angulaire circulaire (utile pour alpha, qui boucle 0-360°)
+function angleDiff(a, b) {
+  let d = a - b
+  d = ((d + 180) % 360 + 360) % 360 - 180
+  return d
+}
+
+function isSpineRotation(test) {
+  return test?.joint === 'Colonne' && test?.name === 'Rotation'
+}
+
 const PhotoCapture = forwardRef(function PhotoCapture({ onAngleChange }, ref) {
   const canvasRef = useRef(null)
   const stageRef = useRef(null)
@@ -259,7 +270,7 @@ export default function GoniometerView({ athleteId, onClose }) {
   const [permissionState, setPermissionState] = useState(needsIOSPermission() ? 'needed' : 'granted')
   const [mode, setMode] = useState('sensor') // 'sensor' | 'photo'
   const [side, setSide] = useState('D') // 'D' | 'G'
-  const [axis, setAxis] = useState('beta') // 'beta' (sagittal) | 'gamma' (frontal)
+  const [axis, setAxis] = useState('beta') // 'beta' (sagittal) | 'gamma' (frontal) | 'alpha' (rotation colonne)
   const [testIndex, setTestIndex] = useState(0)
   const [liveRaw, setLiveRaw] = useState(0)
   const [zeroOffset, setZeroOffset] = useState(0)
@@ -282,7 +293,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     if (permissionState !== 'granted' || mode !== 'sensor') return
     const handler = (e) => {
       if (pausedRef.current) return
-      const raw = axis === 'beta' ? e.beta : e.gamma
+      const raw = axis === 'beta' ? e.beta : axis === 'gamma' ? e.gamma : e.alpha
       if (raw == null) return
       liveRawRef.current = raw
       setLiveRaw(raw)
@@ -294,6 +305,11 @@ export default function GoniometerView({ athleteId, onClose }) {
   useEffect(() => {
     setZeroOffset(liveRawRef.current)
   }, [axis])
+
+  useEffect(() => {
+    if (!test) return
+    setAxis(isSpineRotation(test) ? 'alpha' : (a => (a === 'alpha' ? 'beta' : a)))
+  }, [test?.name])
 
   useEffect(() => {
     if (!test) return
@@ -311,8 +327,9 @@ export default function GoniometerView({ athleteId, onClose }) {
     }).catch(() => setPermissionState('denied'))
   }
 
-  const displayAngle = Math.abs(liveRaw - zeroOffset)
-  const clamped = Math.max(-90, Math.min(90, liveRaw - zeroOffset))
+  const rawDiff = angleDiff(liveRaw, zeroOffset)
+  const displayAngle = Math.abs(rawDiff)
+  const clamped = Math.max(-90, Math.min(90, rawDiff))
   const rad = (clamped * Math.PI) / 180
   const cx = 150, cy = 170, len = 115
   const needleX = cx + len * Math.sin(rad)
@@ -500,17 +517,26 @@ export default function GoniometerView({ athleteId, onClose }) {
 
           {mode === 'sensor' ? (
             <>
-              <div style={{ display: 'flex', gap: 8, padding: '0 20px 6px' }}>
-                {[{ key: 'beta', label: 'Sagittal (flexion/ext)' }, { key: 'gamma', label: 'Frontal (abd/add)' }].map(a => (
-                  <button key={a.key} onClick={() => setAxis(a.key)} style={{
-                    flex: 1, padding: '7px 6px', borderRadius: 8, border: `1px solid ${axis === a.key ? '#F2A93B' : '#2A3140'}`,
-                    background: axis === a.key ? 'rgba(242,169,59,0.08)' : '#161B22', color: axis === a.key ? '#F2A93B' : '#7C8493',
-                    fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
-                  }}>
-                    {a.label}
-                  </button>
-                ))}
-              </div>
+              {isSpineRotation(test) ? (
+                <div style={{ margin: '0 20px 6px', padding: '10px 12px', borderRadius: 8, border: '1px solid #2A3140', background: '#161B22' }}>
+                  <div style={{ fontSize: 11, color: '#F2A93B', fontWeight: 700, marginBottom: 3 }}>📱 Position du téléphone</div>
+                  <div style={{ fontSize: 11.5, color: '#7C8493', lineHeight: 1.5 }}>
+                    Plaque le bas du téléphone contre ton plexus, à plat, dos vers le sol. Tourne le buste pour mesurer la rotation.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, padding: '0 20px 6px' }}>
+                  {[{ key: 'beta', label: 'Sagittal (flexion/ext)' }, { key: 'gamma', label: 'Frontal (abd/add)' }].map(a => (
+                    <button key={a.key} onClick={() => setAxis(a.key)} style={{
+                      flex: 1, padding: '7px 6px', borderRadius: 8, border: `1px solid ${axis === a.key ? '#F2A93B' : '#2A3140'}`,
+                      background: axis === a.key ? 'rgba(242,169,59,0.08)' : '#161B22', color: axis === a.key ? '#F2A93B' : '#7C8493',
+                      fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div style={{ position: 'relative', margin: '6px auto 4px', width: 'min(78vw, 320px)' }}>
                 <svg viewBox="0 0 300 190" style={{ display: 'block', width: '100%', height: 'auto' }}>
@@ -530,7 +556,7 @@ export default function GoniometerView({ athleteId, onClose }) {
                   {displayAngle.toFixed(1)}<sup style={{ fontSize: 22, color: '#7C8493', fontWeight: 400 }}>°</sup>
                 </div>
                 <div style={{ fontSize: 11, color: '#7C8493', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>
-                  {axis === 'beta' ? 'Plan sagittal — écran face à toi' : 'Plan frontal — écran de côté'}
+                  {axis === 'beta' ? 'Plan sagittal — écran face à toi' : axis === 'gamma' ? 'Plan frontal — écran de côté' : 'Rotation colonne — boussole'}
                 </div>
               </div>
 
