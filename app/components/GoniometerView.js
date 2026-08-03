@@ -27,13 +27,19 @@ export default function GoniometerView({ athleteId, onClose }) {
   const [previous, setPrevious] = useState(undefined)
   const [flash, setFlash] = useState(null)
   const [done, setDone] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const [history, setHistory] = useState([]) // [{ testIndex, testName, joint, side, value }]
   const liveRawRef = useRef(0)
+  const pausedRef = useRef(false)
 
   const test = ALL_TESTS[testIndex]
+
+  useEffect(() => { pausedRef.current = paused }, [paused])
 
   useEffect(() => {
     if (permissionState !== 'granted') return
     const handler = (e) => {
+      if (pausedRef.current) return
       const raw = axis === 'beta' ? e.beta : e.gamma
       if (raw == null) return
       liveRawRef.current = raw
@@ -105,6 +111,13 @@ export default function GoniometerView({ athleteId, onClose }) {
     setFlash({ value, pct })
     setTimeout(() => setFlash(null), 1400)
 
+    setHistory(prev => {
+      const entry = { testIndex, testName: test.name, joint: test.joint, side, value }
+      const others = prev.filter(h => !(h.testIndex === testIndex && h.side === side))
+      return [...others, entry]
+    })
+
+    setPaused(false)
     if (testIndex < ALL_TESTS.length - 1) {
       setTestIndex(i => i + 1)
     } else {
@@ -116,6 +129,14 @@ export default function GoniometerView({ athleteId, onClose }) {
     setSide(newSide)
     setTestIndex(0)
     setDone(false)
+    setPaused(false)
+  }
+
+  const reopenFromHistory = (entry) => {
+    setSide(entry.side)
+    setTestIndex(entry.testIndex)
+    setDone(false)
+    setPaused(false)
   }
 
   if (permissionState === 'needed') {
@@ -238,6 +259,40 @@ export default function GoniometerView({ athleteId, onClose }) {
               Reset zéro
             </button>
           </div>
+
+          <div style={{ padding: '10px 20px 0' }}>
+            <button onClick={() => setPaused(p => !p)} style={{
+              width: '100%', padding: '13px 10px', borderRadius: 10, border: `1px solid ${paused ? '#E5636B' : '#2A3140'}`,
+              background: paused ? 'rgba(229,99,107,0.1)' : 'transparent', color: paused ? '#E5636B' : '#EDEFF2',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              {paused ? '▶ Reprendre' : '⏸ Pause'}
+            </button>
+          </div>
+
+          {history.length > 0 && (
+            <div style={{ padding: '14px 20px 0', flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              <div style={{ fontSize: 10, color: '#7C8493', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                Historique de la séance
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {[...history].reverse().map((h, i) => (
+                  <button key={i} onClick={() => reopenFromHistory(h)} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+                    background: '#161B22', border: '1px solid #2A3140', borderRadius: 10, padding: '9px 12px',
+                    cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#EDEFF2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {h.testName} <span style={{ color: '#7C8493' }}>({h.side})</span>
+                    </span>
+                    <span style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 13, fontWeight: 700, color: '#F2A93B', flexShrink: 0 }}>
+                      {h.value}°
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ padding: '14px 20px 24px', marginTop: 'auto' }}>
             {flash && (
