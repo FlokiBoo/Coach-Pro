@@ -263,7 +263,7 @@ function AthleteView({ params }) {
   }
 
   useEffect(() => {
-    const boardPrograms = programs.filter(p => p.pinned_board !== false && !isFinishedFreeSession(p, completions))
+    const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived && !isFinishedFreeSession(p, completions))
     if (selectedType || !boardPrograms.length) return
     const withNext = boardPrograms.find(p => p.sessions.some(s => !completions.has(s.id)))
     setSelectedType((withNext || boardPrograms[0]).activity_type || 'Musculation 🏋️')
@@ -572,7 +572,7 @@ function AthleteView({ params }) {
         )}
 
         {(() => {
-          const boardPrograms = programs.filter(p => p.pinned_board !== false && !isFinishedFreeSession(p, completions))
+          const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived && !isFinishedFreeSession(p, completions))
           const allTypes = [...new Set(boardPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
           const commonProps = {
             completions, completionFeedback, validating, exerciseLogs,

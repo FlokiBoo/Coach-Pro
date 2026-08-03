@@ -52,6 +52,7 @@ function ProgramsPageInner({ params }) {
   const [selectedTypes, setSelectedTypes] = useState(new Set())
   const [typesInit, setTypesInit] = useState(false)
   const [objectives, setObjectives] = useState([])
+  const [showArchived, setShowArchived] = useState(false)
 
   useEffect(() => {
     supabase.from('activity_definitions').select('label').order('created_at')
@@ -157,6 +158,12 @@ function ProgramsPageInner({ params }) {
     setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, pinned_board: next } : x))
   }
 
+  const toggleArchived = async (p) => {
+    const next = !p.archived
+    await supabase.from('programs').update({ archived: next }).eq('id', p.id)
+    setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, archived: next } : x))
+  }
+
   const openAssign = (p) => {
     setAssignModal(p)
     setSelectedIds([])
@@ -221,7 +228,9 @@ function ProgramsPageInner({ params }) {
   )
 
   const activeObjective = objectives.find(o => o.id === objectiveId)
-  const visiblePrograms = objectiveId ? programs.filter(p => p.objective_id === objectiveId) : programs
+  const scopedPrograms = objectiveId ? programs.filter(p => p.objective_id === objectiveId) : programs
+  const visiblePrograms = scopedPrograms.filter(p => !p.archived)
+  const archivedPrograms = scopedPrograms.filter(p => p.archived)
   const otherObjectives = objectives.filter(o => o.id !== objectiveId)
 
   return (
@@ -406,6 +415,9 @@ function ProgramsPageInner({ params }) {
                                 >
                                   {p.pinned_board === false ? '📌 Épingler' : '📍 Épinglé'}
                                 </button>
+                                <button onClick={() => toggleArchived(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
+                                  📦 Archiver
+                                </button>
                                 <button onClick={() => deleteProgram(p.id)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
                                   🗑 Supprimer
                                 </button>
@@ -420,6 +432,36 @@ function ProgramsPageInner({ params }) {
               </>
             )
           })()}
+
+          {archivedPrograms.length > 0 && (
+            <div>
+              <button onClick={() => setShowArchived(v => !v)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: '6px 0' }}>
+                {showArchived ? '▲' : '▼'} Programmes archivés ({archivedPrograms.length})
+              </button>
+              {showArchived && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 6 }}>
+                  {archivedPrograms.map(p => (
+                    <div key={p.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden', opacity: 0.7 }}>
+                      <Link href={`/programs/${athleteId}/${p.id}`} style={{ display: 'block', padding: '14px 16px', textDecoration: 'none', color: 'inherit' }}>
+                        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{p.title}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                          {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}
+                        </div>
+                      </Link>
+                      <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        <button onClick={() => toggleArchived(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
+                          ♻️ Désarchiver
+                        </button>
+                        <button onClick={() => deleteProgram(p.id)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
+                          🗑 Supprimer
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock from './TrackedMovementsBlock'
+import GoniometerView from './GoniometerView'
 import { JOINT_TESTS } from '@/lib/jointTests'
 
 function calcAge(birthDate) {
@@ -285,6 +286,7 @@ function TestsArticulairesSection({ athleteId }) {
   const [playingName, setPlayingName] = useState(null)
   const [saving, setSaving] = useState(false)
   const [launching, setLaunching] = useState(null) // { name, joint }
+  const [showGonio, setShowGonio] = useState(false)
 
   const allTestNames = JOINT_TESTS.flatMap(g => g.tests)
 
@@ -328,6 +330,15 @@ function TestsArticulairesSection({ athleteId }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <button onClick={() => setShowGonio(true)} style={{
+        background: '#0D1117', color: '#F2A93B', border: '1px solid #2A3140', borderRadius: 'var(--rl)',
+        padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontFamily: 'inherit',
+      }}>
+        <span style={{ fontSize: 20 }}>📐</span>
+        <span style={{ flex: 1, fontWeight: 700, fontSize: 14, textAlign: 'left' }}>Lancer le goniomètre</span>
+        <span style={{ color: '#7C8493', fontSize: 18 }}>›</span>
+      </button>
+
       {JOINT_TESTS.map(group => (
         <div key={group.joint} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontWeight: 800, fontSize: 14 }}>
@@ -398,6 +409,10 @@ function TestsArticulairesSection({ athleteId }) {
           movement={byName[launching.name]}
           onClose={() => setLaunching(null)}
         />
+      )}
+
+      {showGonio && (
+        <GoniometerView athleteId={athleteId} onClose={() => setShowGonio(false)} />
       )}
     </div>
   )

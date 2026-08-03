@@ -25,6 +25,7 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
   const [selectedIds, setSelectedIds] = useState([])
   const [assigning, setAssigning] = useState(false)
   const [assignDone, setAssignDone] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
 
   useEffect(() => { load() }, [athleteId])
 
@@ -116,6 +117,13 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
     const next = p.pinned_board === false ? true : false
     await supabase.from('programs').update({ pinned_board: next }).eq('id', p.id)
     setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, pinned_board: next } : x))
+  }
+
+  async function toggleArchived(p) {
+    const next = !p.archived
+    await supabase.from('programs').update({ archived: next }).eq('id', p.id)
+    setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, archived: next } : x))
+    if (expandedId === p.id) setExpandedId(null)
   }
 
   function openAssign(p) {
@@ -309,14 +317,14 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
       )}
 
       {/* Vide */}
-      {programs.length === 0 && !creating && (
+      {programs.filter(p => !p.archived).length === 0 && !creating && (
         <div style={{ padding: '24px 14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
           Aucun micro-cycle — clique sur "+ Créer" pour commencer
         </div>
       )}
 
       {/* Liste des micro-cycles */}
-      {programs.map((prog, pi) => {
+      {programs.filter(p => !p.archived).map((prog, pi) => {
         const isOpen = expandedId === prog.id
         const isRenaming = renamingId === prog.id
 
@@ -372,6 +380,11 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                   style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
                 >👥</button>
               )}
+              <button
+                onClick={e => { e.stopPropagation(); toggleArchived(prog) }}
+                title="Archiver"
+                style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
+              >📦</button>
               <button
                 onClick={e => { e.stopPropagation(); deleteProgram(prog.id) }}
                 style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
@@ -458,6 +471,31 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
           </div>
         )
       })}
+
+      {programs.some(p => p.archived) && (
+        <div style={{ borderTop: '1px solid var(--border)' }}>
+          <button
+            onClick={() => setShowArchived(v => !v)}
+            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 12, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer' }}
+          >
+            {showArchived ? '▲' : '▼'} Programmes archivés ({programs.filter(p => p.archived).length})
+          </button>
+          {showArchived && programs.filter(p => p.archived).map(prog => (
+            <div key={prog.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderTop: '1px solid var(--border)', opacity: 0.7 }}>
+              <Link href={`/programs/${athleteId}/${prog.id}`} style={{ flex: 1, fontWeight: 600, fontSize: 13, color: 'var(--text)', textDecoration: 'none' }}>
+                {prog.title}
+              </Link>
+              <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>
+                {prog.sessions.length} séance{prog.sessions.length !== 1 ? 's' : ''}
+              </span>
+              <button onClick={() => toggleArchived(prog)} title="Désarchiver"
+                style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--green)', padding: '0 2px', flexShrink: 0 }}>♻️</button>
+              <button onClick={() => deleteProgram(prog.id)} title="Supprimer"
+                style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>🗑️</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Modal copie vers un autre sportif */}
       {assignModal && (

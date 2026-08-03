@@ -21,6 +21,7 @@ export default function LancerPage({ params }) {
         .from('programs')
         .select('id, title, activity_type, pinned_board, program_sessions(id, title, order_index)')
         .eq('athlete_id', ath.id)
+        .neq('archived', true)
         .order('created_at', { ascending: false })
 
       const sessionIds = (progs || []).flatMap(p => (p.program_sessions || []).map(s => s.id))
