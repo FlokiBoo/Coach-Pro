@@ -2,72 +2,18 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { TORQUE_TESTS, PSYCH_QUESTIONNAIRE } from '@/lib/torqueTests'
+import {
+  TORQUE_TESTS, PSYCH_QUESTIONNAIRE,
+  computeVerdict, verdictLabel, verdictColor,
+  computeQuestionnaireVerdict, questionnaireLabel, questionnaireLean,
+  computeSynthesis, computeDiscordance,
+} from '@/lib/torqueTests'
 
 const ALL_QUESTIONS = PSYCH_QUESTIONNAIRE.flatMap(b => b.questions)
-
-function computeQuestionnaireVerdict(answers) {
-  const answered = ALL_QUESTIONS.filter(q => answers[q.key])
-  if (answered.length === 0) return null
-  const countA = answered.filter(q => answers[q.key] === 'A').length
-  const countB = answered.length - countA
-  if (countA >= 14) return 'TI_pur'
-  if (countA >= 10) return 'TI_probable'
-  if (countA === 9 && countB === 9) return 'Mix'
-  if (countB >= 14) return 'TE_pur'
-  if (countB >= 10) return 'TE_probable'
-  return 'Mix'
-}
-
-function questionnaireLabel(v) {
-  if (v === 'TI_pur') return 'TI Dominant pur'
-  if (v === 'TI_probable') return 'TI probable'
-  if (v === 'TE_probable') return 'TE probable'
-  if (v === 'TE_pur') return 'TE Dominant pur'
-  if (v === 'Mix') return 'Mix'
-  return '—'
-}
-
-function questionnaireLean(v) {
-  if (v === 'TI_pur' || v === 'TI_probable') return 'TI'
-  if (v === 'TE_pur' || v === 'TE_probable') return 'TE'
-  if (v === 'Mix') return 'Mix'
-  return null
-}
 
 function today() {
   const n = new Date()
   return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, '0'), String(n.getDate()).padStart(2, '0')].join('-')
-}
-
-function computeVerdict(testConfig, answers) {
-  let ti = 0, te = 0
-  testConfig.criteria.forEach(c => {
-    if (!c.decisive) return
-    const chosenKey = answers[c.key]
-    if (!chosenKey) return
-    const opt = c.options.find(o => o.key === chosenKey)
-    if (opt?.torque === 'TI') ti++
-    else if (opt?.torque === 'TE') te++
-  })
-  if (ti === 0 && te === 0) return null
-  if (ti > te) return 'TI'
-  if (te > ti) return 'TE'
-  return 'Mix'
-}
-
-function verdictLabel(v) {
-  if (v === 'TI') return 'TI Dominant'
-  if (v === 'TE') return 'TE Dominant'
-  if (v === 'Mix') return 'Mix'
-  return '—'
-}
-
-function verdictColor(v) {
-  if (v === 'TI') return { color: '#1D4ED8', bg: '#DBEAFE' }
-  if (v === 'TE') return { color: '#C2410C', bg: '#FFF7ED' }
-  if (v === 'Mix') return { color: '#6B21A8', bg: '#F3E8FF' }
-  return { color: 'var(--text3)', bg: 'var(--bg2)' }
 }
 
 export default function TorqueProfileSection({ athleteId }) {
@@ -97,6 +43,13 @@ export default function TorqueProfileSection({ athleteId }) {
     setForms(prev => ({ ...prev, [testKey]: { ...prev[testKey], [criterionKey]: optionKey } }))
   }
 
+  const pickNote = (testKey, index, text) => {
+    setForms(prev => ({
+      ...prev,
+      [testKey]: { ...prev[testKey], notes: { ...(prev[testKey]?.notes || {}), [index]: text } },
+    }))
+  }
+
   const saveTest = async (testConfig) => {
     setSaving(true)
     const answers = forms[testConfig.key] || {}
@@ -123,7 +76,7 @@ export default function TorqueProfileSection({ athleteId }) {
   const saveQuestionnaire = async () => {
     setSaving(true)
     const answers = forms.questionnaire || {}
-    const verdict = computeQuestionnaireVerdict(answers)
+    const verdict = computeQuestionnaireVerdict(answers, ALL_QUESTIONS)
 
     const { data: existingToday } = await supabase.from('torque_test_entries').select('id')
       .eq('athlete_id', athleteId).eq('test_key', 'questionnaire').eq('date', today()).maybeSingle()
@@ -140,33 +93,12 @@ export default function TorqueProfileSection({ athleteId }) {
   }
 
   const verdicts = TORQUE_TESTS.map(t => latest[t.key]?.verdict).filter(Boolean)
-  const synthesis = (() => {
-    if (verdicts.length === 0) return null
-    const counts = {}
-    verdicts.forEach(v => { counts[v] = (counts[v] || 0) + 1 })
-    const [topVerdict, topCount] = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
-    if (verdicts.length < 3) {
-      return { label: `${topCount}/${verdicts.length} test(s) fait(s) — ${verdictLabel(topVerdict)} pour l'instant`, verdict: topVerdict, partial: true }
-    }
-    if (topCount === 3) return { label: `Profil clair — ${verdictLabel(topVerdict)}`, verdict: topVerdict }
-    if (topCount === 2) return { label: `Profil probable — ${verdictLabel(topVerdict)}`, verdict: topVerdict }
-    return { label: 'Mix ou compensation — à approfondir', verdict: 'Mix' }
-  })()
+  const synthesis = computeSynthesis(verdicts)
 
   const questionnaireEntry = latest.questionnaire
   const questionnaireLeanVal = questionnaireEntry?.verdict ? questionnaireLean(questionnaireEntry.verdict) : null
 
-  const discordance = (() => {
-    if (!questionnaireLeanVal || !synthesis || synthesis.partial) return null
-    const physique = synthesis.verdict
-    if (questionnaireLeanVal === 'TI' && physique === 'TE') {
-      return "Questionnaire TI + Tests physiques TE → TE chronique installé : TI de base mais système nerveux en TE permanent (stress, surcharge). Priorité : récupération SNC avant programmation."
-    }
-    if (questionnaireLeanVal === 'TE' && physique === 'TI') {
-      return "Questionnaire TE + Tests physiques TI → rare : souvent un profil TE qui a développé le TI par l'entraînement (acquis, pas inné). Programmer avec un ratio TI/TE équilibré, pas TI pur."
-    }
-    return null
-  })()
+  const discordance = computeDiscordance(questionnaireLeanVal, synthesis)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -247,7 +179,12 @@ export default function TorqueProfileSection({ athleteId }) {
                     🗣 Questions à poser
                   </div>
                   {t.questions.map((q, i) => (
-                    <div key={i} style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', marginTop: i > 0 ? 3 : 0 }}>{q}</div>
+                    <div key={i} style={{ marginTop: i > 0 ? 10 : 0 }}>
+                      <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', marginBottom: 4 }}>{q}</div>
+                      <input value={form.notes?.[i] || ''} onChange={e => pickNote(t.key, i, e.target.value)}
+                        placeholder="Réponse du sportif…"
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+                    </div>
                   ))}
                 </div>
 

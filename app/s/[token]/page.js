@@ -11,6 +11,7 @@ import CelebrationModal, { parseMusclesFromText } from '@/app/components/Celebra
 import MuscleAnatomyDiagram, { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
 import FocusBodyDiagram from '@/app/components/FocusBodyDiagram'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
+import MobilityRadarBlock from '@/app/components/MobilityRadarBlock'
 import Toast from '@/app/components/Toast'
 import AthleteSidePanel from '@/app/components/AthleteSidePanel'
 import WeeklyPlannerBlock from '@/app/components/WeeklyPlannerBlock'
@@ -513,6 +514,8 @@ function AthleteView({ params }) {
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         {athlete?.id && <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} isCoach={isCoachView} />}
+
+        {athlete?.id && <MobilityRadarBlock athleteId={athlete.id} />}
 
 
         {noteBlocks.map(b => (

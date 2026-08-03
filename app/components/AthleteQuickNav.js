@@ -291,6 +291,8 @@ function TestsArticulairesSection({ athleteId }) {
   const [launching, setLaunching] = useState(null) // { name, joint }
   const [showGonio, setShowGonio] = useState(false)
   const [latestByTest, setLatestByTest] = useState({})
+  const [editingValue, setEditingValue] = useState(null) // { testName, side }
+  const [valueDraft, setValueDraft] = useState('')
 
   const allTestNames = JOINT_TESTS.flatMap(g => g.tests)
 
@@ -313,7 +315,7 @@ function TestsArticulairesSection({ athleteId }) {
     load()
   }, [])
 
-  useEffect(() => {
+  const loadLatestValues = () => {
     if (!athleteId) return
     supabase.from('joint_test_entries').select('*')
       .eq('athlete_id', athleteId)
@@ -323,7 +325,35 @@ function TestsArticulairesSection({ athleteId }) {
         ;(data || []).forEach(e => { if (!map[e.test_name]) map[e.test_name] = e })
         setLatestByTest(map)
       })
-  }, [athleteId, showGonio, launching])
+  }
+
+  useEffect(() => { loadLatestValues() }, [athleteId, showGonio, launching])
+
+  const startEditValue = (testName, side, entry) => {
+    setEditingValue({ testName, side })
+    setValueDraft(side === 'D' ? String(entry.value_d ?? '') : String(entry.value_g ?? ''))
+  }
+
+  const saveValue = async () => {
+    if (!editingValue) return
+    const entry = latestByTest[editingValue.testName]
+    if (!entry) return
+    const field = editingValue.side === 'D' ? 'value_d' : 'value_g'
+    const parsed = valueDraft.trim() ? parseFloat(valueDraft) : null
+    await supabase.from('joint_test_entries').update({ [field]: parsed }).eq('id', entry.id)
+    setEditingValue(null)
+    loadLatestValues()
+  }
+
+  const deleteValue = async () => {
+    if (!editingValue) return
+    const entry = latestByTest[editingValue.testName]
+    if (!entry) return
+    const field = editingValue.side === 'D' ? 'value_d' : 'value_g'
+    await supabase.from('joint_test_entries').update({ [field]: null }).eq('id', entry.id)
+    setEditingValue(null)
+    loadLatestValues()
+  }
 
   const startEdit = (name) => {
     setEditingName(name)
@@ -382,13 +412,15 @@ function TestsArticulairesSection({ athleteId }) {
                     {hasData ? (
                       <>
                         {entry.value_d != null && (
-                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px' }}>
-                            D {entry.value_d}°
+                          <span onClick={() => startEditValue(t, 'D', entry)}
+                            style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
+                            D {entry.value_d}° ✏️
                           </span>
                         )}
                         {entry.value_g != null && (
-                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px' }}>
-                            G {entry.value_g}°
+                          <span onClick={() => startEditValue(t, 'G', entry)}
+                            style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
+                            G {entry.value_g}° ✏️
                           </span>
                         )}
                         {analysis && (
@@ -422,6 +454,18 @@ function TestsArticulairesSection({ athleteId }) {
                         style={{ flex: 1, boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
                       <button onClick={() => setEditingName(null)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
                       <button onClick={saveUrl} disabled={saving} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{saving ? '…' : 'OK'}</button>
+                    </div>
+                  )}
+
+                  {editingValue?.testName === t && (
+                    <div style={{ padding: '0 14px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)' }}>{editingValue.side} :</span>
+                      <input autoFocus type="number" value={valueDraft} onChange={e => setValueDraft(e.target.value)}
+                        placeholder="Degrés"
+                        style={{ width: 90, boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+                      <button onClick={() => setEditingValue(null)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
+                      <button onClick={deleteValue} style={{ background: 'none', border: '1px solid #F1B8B8', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: '#991B1B' }}>Supprimer</button>
+                      <button onClick={saveValue} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Enregistrer</button>
                     </div>
                   )}
 
