@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock from './TrackedMovementsBlock'
 import GoniometerView from './GoniometerView'
 import { JOINT_TESTS } from '@/lib/jointTests'
+import { analyzeEntry } from '@/lib/jointTestThresholds'
 
 function calcAge(birthDate) {
   if (!birthDate) return null
@@ -287,6 +288,7 @@ function TestsArticulairesSection({ athleteId }) {
   const [saving, setSaving] = useState(false)
   const [launching, setLaunching] = useState(null) // { name, joint }
   const [showGonio, setShowGonio] = useState(false)
+  const [latestByTest, setLatestByTest] = useState({})
 
   const allTestNames = JOINT_TESTS.flatMap(g => g.tests)
 
@@ -308,6 +310,18 @@ function TestsArticulairesSection({ athleteId }) {
     }
     load()
   }, [])
+
+  useEffect(() => {
+    if (!athleteId) return
+    supabase.from('joint_test_entries').select('*')
+      .eq('athlete_id', athleteId)
+      .order('date', { ascending: false }).order('created_at', { ascending: false })
+      .then(({ data }) => {
+        const map = {}
+        ;(data || []).forEach(e => { if (!map[e.test_name]) map[e.test_name] = e })
+        setLatestByTest(map)
+      })
+  }, [athleteId, showGonio, launching])
 
   const startEdit = (name) => {
     setEditingName(name)
@@ -349,14 +363,44 @@ function TestsArticulairesSection({ athleteId }) {
               const movement = byName[t]
               const hasVideo = !!movement?.youtube_url
               const isEditing = editingName === t
+              const entry = latestByTest[t]
+              const analysis = analyzeEntry(group.joint, t, entry)
+              const hasData = entry && (entry.value_d != null || entry.value_g != null)
               return (
                 <div key={t} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                  <div style={{ padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ padding: '10px 14px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ flex: 1, fontSize: 13, color: 'var(--text2)' }}>{t}</div>
                     <button onClick={() => setLaunching({ name: t, joint: group.joint })}
                       style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
                       ▶ Lancer
                     </button>
+                  </div>
+
+                  <div style={{ padding: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    {hasData ? (
+                      <>
+                        {entry.value_d != null && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px' }}>
+                            D {entry.value_d}°
+                          </span>
+                        )}
+                        {entry.value_g != null && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px' }}>
+                            G {entry.value_g}°
+                          </span>
+                        )}
+                        {analysis && (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: analysis.color, background: analysis.bg, borderRadius: 20, padding: '3px 8px' }}>
+                            {analysis.label}
+                          </span>
+                        )}
+                      </>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>Aucune donnée</span>
+                    )}
+
+                    <div style={{ flex: 1 }} />
+
                     {hasVideo && (
                       <button onClick={() => setPlayingName(playingName === t ? null : t)}
                         style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
