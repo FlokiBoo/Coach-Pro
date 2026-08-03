@@ -2,7 +2,38 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { TORQUE_TESTS } from '@/lib/torqueTests'
+import { TORQUE_TESTS, PSYCH_QUESTIONNAIRE } from '@/lib/torqueTests'
+
+const ALL_QUESTIONS = PSYCH_QUESTIONNAIRE.flatMap(b => b.questions)
+
+function computeQuestionnaireVerdict(answers) {
+  const answered = ALL_QUESTIONS.filter(q => answers[q.key])
+  if (answered.length === 0) return null
+  const countA = answered.filter(q => answers[q.key] === 'A').length
+  const countB = answered.length - countA
+  if (countA >= 14) return 'TI_pur'
+  if (countA >= 10) return 'TI_probable'
+  if (countA === 9 && countB === 9) return 'Mix'
+  if (countB >= 14) return 'TE_pur'
+  if (countB >= 10) return 'TE_probable'
+  return 'Mix'
+}
+
+function questionnaireLabel(v) {
+  if (v === 'TI_pur') return 'TI Dominant pur'
+  if (v === 'TI_probable') return 'TI probable'
+  if (v === 'TE_probable') return 'TE probable'
+  if (v === 'TE_pur') return 'TE Dominant pur'
+  if (v === 'Mix') return 'Mix'
+  return '—'
+}
+
+function questionnaireLean(v) {
+  if (v === 'TI_pur' || v === 'TI_probable') return 'TI'
+  if (v === 'TE_pur' || v === 'TE_probable') return 'TE'
+  if (v === 'Mix') return 'Mix'
+  return null
+}
 
 function today() {
   const n = new Date()
@@ -55,6 +86,7 @@ export default function TorqueProfileSection({ athleteId }) {
         setLatest(map)
         const f = {}
         TORQUE_TESTS.forEach(t => { f[t.key] = map[t.key]?.answers || {} })
+        f.questionnaire = map.questionnaire?.answers || {}
         setForms(f)
       })
   }
@@ -84,6 +116,29 @@ export default function TorqueProfileSection({ athleteId }) {
     load()
   }
 
+  const pickAnswer = (questionKey, val) => {
+    setForms(prev => ({ ...prev, questionnaire: { ...prev.questionnaire, [questionKey]: val } }))
+  }
+
+  const saveQuestionnaire = async () => {
+    setSaving(true)
+    const answers = forms.questionnaire || {}
+    const verdict = computeQuestionnaireVerdict(answers)
+
+    const { data: existingToday } = await supabase.from('torque_test_entries').select('id')
+      .eq('athlete_id', athleteId).eq('test_key', 'questionnaire').eq('date', today()).maybeSingle()
+
+    if (existingToday) {
+      await supabase.from('torque_test_entries').update({ answers, verdict }).eq('id', existingToday.id)
+    } else {
+      await supabase.from('torque_test_entries').insert({
+        athlete_id: athleteId, test_key: 'questionnaire', date: today(), answers, verdict,
+      })
+    }
+    setSaving(false)
+    load()
+  }
+
   const verdicts = TORQUE_TESTS.map(t => latest[t.key]?.verdict).filter(Boolean)
   const synthesis = (() => {
     if (verdicts.length === 0) return null
@@ -96,6 +151,21 @@ export default function TorqueProfileSection({ athleteId }) {
     if (topCount === 3) return { label: `Profil clair — ${verdictLabel(topVerdict)}`, verdict: topVerdict }
     if (topCount === 2) return { label: `Profil probable — ${verdictLabel(topVerdict)}`, verdict: topVerdict }
     return { label: 'Mix ou compensation — à approfondir', verdict: 'Mix' }
+  })()
+
+  const questionnaireEntry = latest.questionnaire
+  const questionnaireLeanVal = questionnaireEntry?.verdict ? questionnaireLean(questionnaireEntry.verdict) : null
+
+  const discordance = (() => {
+    if (!questionnaireLeanVal || !synthesis || synthesis.partial) return null
+    const physique = synthesis.verdict
+    if (questionnaireLeanVal === 'TI' && physique === 'TE') {
+      return "Questionnaire TI + Tests physiques TE → TE chronique installé : TI de base mais système nerveux en TE permanent (stress, surcharge). Priorité : récupération SNC avant programmation."
+    }
+    if (questionnaireLeanVal === 'TE' && physique === 'TI') {
+      return "Questionnaire TE + Tests physiques TI → rare : souvent un profil TE qui a développé le TI par l'entraînement (acquis, pas inné). Programmer avec un ratio TI/TE équilibré, pas TI pur."
+    }
+    return null
   })()
 
   return (
@@ -111,6 +181,15 @@ export default function TorqueProfileSection({ athleteId }) {
           </div>
         )
       })()}
+
+      {discordance && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 'var(--rl)', padding: '14px 16px' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#991B1B', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>
+            ⚠️ Signal d'alerte — discordance
+          </div>
+          <div style={{ fontSize: 13, color: '#991B1B', lineHeight: 1.5 }}>{discordance}</div>
+        </div>
+      )}
 
       {TORQUE_TESTS.map(t => {
         const isOpen = expanded === t.key
@@ -183,6 +262,73 @@ export default function TorqueProfileSection({ athleteId }) {
           </div>
         )
       })}
+
+      {(() => {
+        const isOpen = expanded === 'questionnaire'
+        const answers = forms.questionnaire || {}
+        const countAnswered = ALL_QUESTIONS.filter(q => answers[q.key]).length
+        const qColor = questionnaireEntry?.verdict ? verdictColor(questionnaireLean(questionnaireEntry.verdict)) : null
+        return (
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+            <div onClick={() => setExpanded(isOpen ? null : 'questionnaire')} style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <span style={{ fontSize: 11, color: 'var(--text3)', width: 14 }}>{isOpen ? '▼' : '▶'}</span>
+              <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>🧠 Questionnaire psychologique</div>
+              {questionnaireEntry?.verdict && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: qColor.color, background: qColor.bg, borderRadius: 20, padding: '3px 10px' }}>
+                  {questionnaireLabel(questionnaireEntry.verdict)}
+                </span>
+              )}
+            </div>
+
+            {isOpen && (
+              <div style={{ borderTop: '1px solid var(--border)', padding: 14, display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {PSYCH_QUESTIONNAIRE.map(block => (
+                  <div key={block.label}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 8 }}>
+                      {block.label}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {block.questions.map(q => (
+                        <div key={q.key}>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 5 }}>{q.text}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            {[{ val: 'A', text: q.a }, { val: 'B', text: q.b }].map(o => {
+                              const active = answers[q.key] === o.val
+                              return (
+                                <button key={o.val} onClick={() => pickAnswer(q.key, o.val)} style={{
+                                  display: 'flex', alignItems: 'flex-start', gap: 8, width: '100%', textAlign: 'left',
+                                  background: active ? 'var(--green-light)' : 'var(--bg2)',
+                                  border: `1px solid ${active ? '#B8EAD8' : 'var(--border2)'}`,
+                                  color: active ? 'var(--green)' : 'var(--text2)',
+                                  borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                                }}>
+                                  <span style={{ fontWeight: 800, flexShrink: 0 }}>{o.val}</span>
+                                  <span>{o.text}</span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+
+                <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>
+                  {countAnswered}/{ALL_QUESTIONS.length} questions répondues
+                </div>
+
+                <button onClick={saveQuestionnaire} disabled={saving} style={{
+                  background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)',
+                  padding: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  {saving ? '…' : '✓ Enregistrer le questionnaire'}
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
