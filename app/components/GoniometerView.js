@@ -280,6 +280,7 @@ export default function GoniometerView({ athleteId, onClose }) {
   const [paused, setPaused] = useState(false)
   const [history, setHistory] = useState([]) // [{ testIndex, testName, joint, side, value, hasPhoto }]
   const [photoAngle, setPhotoAngle] = useState(null)
+  const [manualValue, setManualValue] = useState('')
   const [saving, setSaving] = useState(false)
   const liveRawRef = useRef(0)
   const pausedRef = useRef(false)
@@ -314,6 +315,7 @@ export default function GoniometerView({ athleteId, onClose }) {
   useEffect(() => {
     if (!test) return
     setPrevious(undefined)
+    setManualValue('')
     supabase.from('joint_test_entries').select('*')
       .eq('athlete_id', athleteId).eq('test_name', test.name)
       .order('date', { ascending: false }).order('created_at', { ascending: false })
@@ -357,7 +359,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     setSaving(true)
 
     const value = mode === 'sensor'
-      ? Math.round(displayAngle * 10) / 10
+      ? (manualValue.trim() !== '' ? Math.round(parseFloat(manualValue) * 10) / 10 : Math.round(displayAngle * 10) / 10)
       : Math.round(photoAngle * 10) / 10
     const field = side === 'D' ? 'value_d' : 'value_g'
     const prevSideVal = previous?.[field]
@@ -397,6 +399,7 @@ export default function GoniometerView({ athleteId, onClose }) {
 
     photoRef.current?.reset()
     setPhotoAngle(null)
+    setManualValue('')
     setPaused(false)
     setSaving(false)
 
@@ -577,6 +580,25 @@ export default function GoniometerView({ athleteId, onClose }) {
                 }}>
                   {paused ? '▶ Reprendre' : '⏸ Pause'}
                 </button>
+              </div>
+
+              <div style={{ padding: '14px 20px 0' }}>
+                <div style={{ fontSize: 10, color: '#7C8493', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6, textAlign: 'center' }}>
+                  Ou saisir la valeur manuellement
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="number" inputMode="decimal" step="0.1" value={manualValue}
+                    onChange={e => setManualValue(e.target.value)}
+                    placeholder="ex: 34.2"
+                    style={{
+                      flex: 1, boxSizing: 'border-box', padding: '11px 12px', borderRadius: 10, border: '1px solid #2A3140',
+                      background: '#161B22', color: '#EDEFF2', fontSize: 16, fontWeight: 700, textAlign: 'center',
+                      outline: 'none', fontFamily: "'IBM Plex Mono', monospace",
+                    }}
+                  />
+                  <span style={{ color: '#7C8493', fontSize: 14, fontWeight: 700 }}>°</span>
+                </div>
               </div>
             </>
           ) : (

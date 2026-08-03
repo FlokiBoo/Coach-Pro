@@ -184,7 +184,6 @@ export default function WeeklyStatsBlock({ athleteId }) {
   const openRecap = () => {
     setShowRecap(true)
     if (progressions === null) fetchProgressions(athleteId, stats.start, stats.end).then(setProgressions)
-    if (wellnessAvg === null) fetchWellnessAverages(athleteId, stats.start, stats.end).then(setWellnessAvg)
   }
 
   const toggleView = () => setView(v => v === 'stats' ? 'progression' : 'stats')
@@ -202,6 +201,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
       setStats({ ...s, start, end })
       setLoading(false)
     })
+    fetchWellnessAverages(athleteId, start, end).then(setWellnessAvg)
   }, [athleteId, mode, offset])
 
   useEffect(() => {
@@ -308,42 +308,86 @@ export default function WeeklyStatsBlock({ athleteId }) {
 
       {!loading && hasAny && view === 'stats' && (
         <>
-          <div style={{ display: 'flex', borderBottom: hasBreakdown ? '1px solid var(--border)' : 'none' }}>
-            {bigStats.map((stat, i) => (
-              <div key={i} style={{
-                flex: 1, padding: '14px 10px', textAlign: 'center',
-                borderRight: i < bigStats.length - 1 ? '1px solid var(--border)' : 'none',
-              }}>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', lineHeight: 1.1 }}>{stat.value}</div>
-                <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{stat.label}</div>
-              </div>
-            ))}
-          </div>
-
-          {hasBreakdown && (
-            <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {activityLabels.map(label => (
-                <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text2)', flex: 1 }}>{label}</span>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {kmByLabel[label] > 0 && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)' }}>{fmtKm(Math.round(kmByLabel[label] * 10) / 10)}</span>
-                    )}
-                    {durByLabel[label] > 0 && (
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text3)' }}>{formatDur(durByLabel[label])}</span>
-                    )}
-                  </div>
+          {bigStats.length > 0 && (
+            <div style={{ display: 'flex', gap: 8, padding: '14px 14px 0' }}>
+              {bigStats.map((stat, i) => (
+                <div key={i} style={{ flex: 1, background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 14, padding: '12px 6px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--green)', lineHeight: 1.1 }}>{stat.value}</div>
+                  <div style={{ fontSize: 9, color: 'var(--green)', fontWeight: 700, marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{stat.label}</div>
                 </div>
               ))}
             </div>
           )}
 
-          <div style={{ padding: '0 14px 12px' }}>
+          {wellnessAvg && wellnessAvg.some(m => m.avg != null) && (
+            <div style={{ padding: '14px 14px 0' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
+                Bien-être moyen
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {wellnessAvg.map(m => (
+                  <div key={m.key} style={{ flex: 1, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 2px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 14, lineHeight: 1 }}>{m.emoji}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: wellnessColor(m.avg, m.inverse), marginTop: 3 }}>
+                      {m.avg != null ? m.avg.toFixed(1) : '—'}
+                    </div>
+                    <div style={{ fontSize: 8, color: 'var(--text3)', fontWeight: 700, marginTop: 1, textTransform: 'uppercase', letterSpacing: '0.1px' }}>{m.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {hasBreakdown && (
+            <div style={{ padding: '14px 14px 0' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
+                Activités pratiquées
+              </div>
+              {(() => {
+                const n = activityLabels.length
+                const size = n <= 3
+                  ? { min: 92, emoji: 22, name: 12, badge: 11 }
+                  : n <= 6
+                    ? { min: 74, emoji: 18, name: 11, badge: 10 }
+                    : { min: 60, emoji: 15, name: 10, badge: 9 }
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${size.min}px, 1fr))`, gap: 8 }}>
+                    {activityLabels.map(label => {
+                      const emojiMatch = label.match(/\p{Emoji}/u)
+                      const emoji = emojiMatch ? emojiMatch[0] : '🏅'
+                      const name = label.replace(/\s*\p{Emoji}\s*/gu, '').trim() || label
+                      return (
+                        <div key={label} style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          gap: 2, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 6px', textAlign: 'center', overflow: 'hidden',
+                        }}>
+                          <div style={{ fontSize: size.emoji, lineHeight: 1 }}>{emoji}</div>
+                          <div style={{ fontWeight: 700, fontSize: size.name, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%', marginTop: 2 }}>{name}</div>
+                          {kmByLabel[label] > 0 && (
+                            <span style={{ color: 'var(--green)', fontSize: size.badge, fontWeight: 700 }}>
+                              {fmtKm(Math.round(kmByLabel[label] * 10) / 10)}
+                            </span>
+                          )}
+                          {durByLabel[label] > 0 && (
+                            <span style={{ color: 'var(--text3)', fontSize: size.badge, fontWeight: 700 }}>
+                              {formatDur(durByLabel[label])}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )
+              })()}
+            </div>
+          )}
+
+          <div style={{ padding: '14px 14px 12px' }}>
             <button onClick={openRecap} style={{
               width: '100%', background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8',
               borderRadius: 20, padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
             }}>
-              📋 Voir le récap {mode === 'week' ? 'de la semaine' : 'du mois'}
+              📈 Voir les progressions
             </button>
           </div>
         </>
@@ -386,6 +430,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
           countByLabel={countByLabel}
           progressions={progressions}
           wellnessAvg={wellnessAvg}
+          initialPage={1}
           onClose={() => setShowRecap(false)}
         />
       )}
