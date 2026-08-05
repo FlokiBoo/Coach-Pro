@@ -159,6 +159,7 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
   const [qualityD, setQualityD] = useState(null)
   const [qualityG, setQualityG] = useState(null)
   const [note, setNote] = useState('')
+  const [daf, setDaf] = useState('')
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState(null)
 
@@ -180,7 +181,7 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
       if (!qualityD && !(bilateral && qualityG)) return
       setSaving(true)
       const { data, error } = await supabase.from('joint_test_entries')
-        .insert({ athlete_id: athleteId, test_name: testName, joint, quality_d: qualityD, quality_g: bilateral ? qualityG : null, note: note.trim() || null })
+        .insert({ athlete_id: athleteId, test_name: testName, joint, quality_d: qualityD, quality_g: bilateral ? qualityG : null, note: note.trim() || null, daf: daf.trim() || null })
         .select().single()
       setSaving(false)
       if (error) { alert('Erreur : ' + error.message); return }
@@ -192,7 +193,7 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
     const valueD = d.trim() ? parseFloat(d) : null
     const valueG = g.trim() ? parseFloat(g) : null
     const { data, error } = await supabase.from('joint_test_entries')
-      .insert({ athlete_id: athleteId, test_name: testName, joint, value_d: valueD, value_g: valueG })
+      .insert({ athlete_id: athleteId, test_name: testName, joint, value_d: valueD, value_g: valueG, daf: daf.trim() || null })
       .select().single()
     setSaving(false)
     if (error) { alert('Erreur : ' + error.message); return }
@@ -238,6 +239,9 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
                 {result.new.note && (
                   <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>« {result.new.note} »</div>
                 )}
+                {result.new.daf && (
+                  <div style={{ fontSize: 12, color: '#991B1B' }}>DAF : {result.new.daf}</div>
+                )}
               </div>
             ) : (
               [
@@ -265,6 +269,10 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
                   </div>
                 </div>
               ))
+            )}
+
+            {!qualitative && result.new.daf && (
+              <div style={{ fontSize: 12, color: '#991B1B', textAlign: 'center' }}>DAF : {result.new.daf}</div>
             )}
 
             <button onClick={onClose} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
@@ -342,6 +350,12 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
                     style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }} />
                 </div>
 
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Douleur Angle de Fermeture (DAF)</div>
+                  <textarea value={daf} onChange={e => setDaf(e.target.value)} rows={2}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }} />
+                </div>
+
                 <button onClick={submit} disabled={saving || (!qualityD && !(bilateral && qualityG))}
                   style={{ background: (qualityD || (bilateral && qualityG)) ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                   {saving ? '…' : '✓ Valider le test'}
@@ -372,6 +386,12 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
                     <input type="number" step="1" value={g} onChange={e => setG(e.target.value)}
                       style={{ width: '100%', boxSizing: 'border-box', padding: '12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 18, fontWeight: 700, textAlign: 'center', outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
                   </div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Douleur Angle de Fermeture (DAF)</div>
+                  <textarea value={daf} onChange={e => setDaf(e.target.value)} rows={2}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }} />
                 </div>
 
                 <button onClick={submit} disabled={saving || (!d.trim() && !g.trim())}
@@ -598,6 +618,10 @@ function TestsArticulairesSection({ athleteId }) {
                       {hasVideo ? '✏️' : '+ Vidéo'}
                     </button>
                   </div>
+
+                  {entry?.daf && (
+                    <div style={{ padding: '0 14px 10px', fontSize: 11, color: '#991B1B' }}>DAF : {entry.daf}</div>
+                  )}
 
                   {isEditing && (
                     <div style={{ padding: '0 14px 12px', display: 'flex', gap: 8 }}>

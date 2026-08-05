@@ -281,6 +281,7 @@ export default function GoniometerView({ athleteId, onClose }) {
   const [history, setHistory] = useState([]) // [{ testIndex, testName, joint, side, value, hasPhoto }]
   const [photoAngle, setPhotoAngle] = useState(null)
   const [manualValue, setManualValue] = useState('')
+  const [daf, setDaf] = useState('')
   const [saving, setSaving] = useState(false)
   const liveRawRef = useRef(0)
   const pausedRef = useRef(false)
@@ -316,6 +317,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     if (!test) return
     setPrevious(undefined)
     setManualValue('')
+    setDaf('')
     supabase.from('joint_test_entries').select('*')
       .eq('athlete_id', athleteId).eq('test_name', test.name)
       .order('date', { ascending: false }).order('created_at', { ascending: false })
@@ -377,7 +379,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     const { data: existingToday } = await supabase.from('joint_test_entries').select('*')
       .eq('athlete_id', athleteId).eq('test_name', test.name).eq('date', today()).maybeSingle()
 
-    const payload = { [field]: value, ...(photoPath ? { photo_path: photoPath } : {}) }
+    const payload = { [field]: value, daf: daf.trim() || null, ...(photoPath ? { photo_path: photoPath } : {}) }
 
     if (existingToday) {
       await supabase.from('joint_test_entries').update(payload).eq('id', existingToday.id)
@@ -400,6 +402,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     photoRef.current?.reset()
     setPhotoAngle(null)
     setManualValue('')
+    setDaf('')
     setPaused(false)
     setSaving(false)
 
@@ -629,6 +632,18 @@ export default function GoniometerView({ athleteId, onClose }) {
               </div>
             </div>
           )}
+
+          <div style={{ padding: '0 20px' }}>
+            <div style={{ fontSize: 10, color: '#7C8493', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+              Douleur Angle de Fermeture (DAF)
+            </div>
+            <textarea value={daf} onChange={e => setDaf(e.target.value)} rows={2}
+              placeholder="Optionnel…"
+              style={{
+                width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 10, border: '1px solid #2A3140',
+                background: '#161B22', color: '#EDEFF2', fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit',
+              }} />
+          </div>
 
           <div style={{ padding: '14px 20px 24px', marginTop: mode === 'sensor' ? 'auto' : undefined }}>
             {flash && (
