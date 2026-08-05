@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 're
 import { supabase } from '@/lib/supabase'
 import { JOINT_TESTS } from '@/lib/jointTests'
 
-const ALL_TESTS = JOINT_TESTS.flatMap(g => g.tests.map(name => ({ joint: g.joint, name })))
+const ALL_TESTS = JOINT_TESTS.filter(g => !g.qualitative).flatMap(g => g.tests.map(name => ({ joint: g.joint, name })))
 const BUCKET = 'joint-test-photos'
 
 function needsIOSPermission() {

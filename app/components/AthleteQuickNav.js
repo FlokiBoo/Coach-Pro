@@ -5,8 +5,8 @@ import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock from './TrackedMovementsBlock'
 import GoniometerView from './GoniometerView'
 import TorqueProfileSection from './TorqueProfileSection'
-import { JOINT_TESTS } from '@/lib/jointTests'
-import { analyzeEntry } from '@/lib/jointTestThresholds'
+import { JOINT_TESTS, isBilateralQualitative, isQualitativeJoint, QUALITY_LEVELS, qualityLevel } from '@/lib/jointTests'
+import { isADMPJoint, analyzeADMPRisk, analyzeActifPassifGap } from '@/lib/jointTestThresholds'
 
 function calcAge(birthDate) {
   if (!birthDate) return null
@@ -151,9 +151,14 @@ function getYouTubeId(url) {
 }
 
 function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
+  const qualitative = isQualitativeJoint(joint)
+  const bilateral = qualitative && isBilateralQualitative(testName)
   const [previous, setPrevious] = useState(undefined) // undefined = chargement, null = aucun
   const [d, setD] = useState('')
   const [g, setG] = useState('')
+  const [qualityD, setQualityD] = useState(null)
+  const [qualityG, setQualityG] = useState(null)
+  const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState(null)
 
@@ -171,6 +176,17 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
   }
 
   const submit = async () => {
+    if (qualitative) {
+      if (!qualityD && !(bilateral && qualityG)) return
+      setSaving(true)
+      const { data, error } = await supabase.from('joint_test_entries')
+        .insert({ athlete_id: athleteId, test_name: testName, joint, quality_d: qualityD, quality_g: bilateral ? qualityG : null, note: note.trim() || null })
+        .select().single()
+      setSaving(false)
+      if (error) { alert('Erreur : ' + error.message); return }
+      setResult({ old: previous, new: data })
+      return
+    }
     if (!d.trim() && !g.trim()) return
     setSaving(true)
     const valueD = d.trim() ? parseFloat(d) : null
@@ -203,31 +219,53 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
             <div style={{ textAlign: 'center', fontSize: 40, marginBottom: -4 }}>✅</div>
             <div style={{ textAlign: 'center', fontWeight: 800, fontSize: 17 }}>Test validé</div>
 
-            {[
-              { label: 'Droite', old: result.old?.value_d, val: result.new.value_d, p: result.pctD },
-              { label: 'Gauche', old: result.old?.value_g, val: result.new.value_g, p: result.pctG },
-            ].filter(r => r.val != null).map(r => (
-              <div key={r.label} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>{r.label}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ flex: 1, textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>Ancien</div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text3)' }}>{r.old != null ? `${r.old}°` : '—'}</div>
-                  </div>
-                  <div style={{ fontSize: 18, color: 'var(--text3)' }}>→</div>
-                  <div style={{ flex: 1, textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>Nouveau</div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--green)' }}>{r.val}°</div>
-                  </div>
-                  <div style={{ flex: 1, textAlign: 'center' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>Évolution</div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: r.p == null ? 'var(--text3)' : r.p >= 0 ? '#166534' : '#DC2626' }}>
-                      {r.p == null ? '—' : `${r.p > 0 ? '+' : ''}${r.p}%`}
+            {qualitative ? (
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  { label: bilateral ? 'Droite' : null, val: result.new.quality_d },
+                  { label: 'Gauche', val: result.new.quality_g },
+                ].filter(r => r.val != null).map((r, i) => {
+                  const lvl = qualityLevel(r.val)
+                  return (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      {r.label && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>{r.label} :</span>}
+                      <span style={{ fontSize: 13, fontWeight: 700, color: lvl?.color, background: lvl?.bg, borderRadius: 20, padding: '4px 10px' }}>
+                        {lvl?.label}
+                      </span>
+                    </div>
+                  )
+                })}
+                {result.new.note && (
+                  <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>« {result.new.note} »</div>
+                )}
+              </div>
+            ) : (
+              [
+                { label: 'Droite', old: result.old?.value_d, val: result.new.value_d, p: result.pctD },
+                { label: 'Gauche', old: result.old?.value_g, val: result.new.value_g, p: result.pctG },
+              ].filter(r => r.val != null).map(r => (
+                <div key={r.label} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>{r.label}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>Ancien</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text3)' }}>{r.old != null ? `${r.old}°` : '—'}</div>
+                    </div>
+                    <div style={{ fontSize: 18, color: 'var(--text3)' }}>→</div>
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>Nouveau</div>
+                      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--green)' }}>{r.val}°</div>
+                    </div>
+                    <div style={{ flex: 1, textAlign: 'center' }}>
+                      <div style={{ fontSize: 11, color: 'var(--text3)' }}>Évolution</div>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: r.p == null ? 'var(--text3)' : r.p >= 0 ? '#166534' : '#DC2626' }}>
+                        {r.p == null ? '—' : `${r.p > 0 ? '+' : ''}${r.p}%`}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
 
             <button onClick={onClose} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
               Terminé
@@ -246,35 +284,102 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
               </div>
             )}
 
-            {previous === undefined ? (
-              <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Chargement…</div>
-            ) : previous ? (
-              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 12, color: 'var(--text3)' }}>
-                Dernier test ({new Date(previous.date + 'T00:00:00').toLocaleDateString('fr-FR')}) :
-                {previous.value_d != null && ` D ${previous.value_d}°`}
-                {previous.value_g != null && ` · G ${previous.value_g}°`}
-              </div>
+            {qualitative ? (
+              <>
+                {previous === undefined ? (
+                  <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Chargement…</div>
+                ) : previous ? (
+                  <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 12, color: 'var(--text3)' }}>
+                    Dernier test ({new Date(previous.date + 'T00:00:00').toLocaleDateString('fr-FR')}) :
+                    {previous.quality_d != null && ` ${bilateral ? 'D ' : ''}${qualityLevel(previous.quality_d)?.label}`}
+                    {bilateral && previous.quality_g != null && ` · G ${qualityLevel(previous.quality_g)?.label}`}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, fontStyle: 'italic' }}>Aucun test précédent.</div>
+                )}
+
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
+                    {bilateral ? 'Droite' : 'Évaluation'}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {QUALITY_LEVELS.map(l => (
+                      <button key={l.key} onClick={() => setQualityD(l.key)} style={{
+                        textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                        border: `1px solid ${qualityD === l.key ? l.color : 'var(--border2)'}`,
+                        background: qualityD === l.key ? l.bg : 'var(--bg2)',
+                        color: qualityD === l.key ? l.color : 'var(--text2)',
+                      }}>
+                        {l.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {bilateral && (
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
+                      Gauche
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {QUALITY_LEVELS.map(l => (
+                        <button key={l.key} onClick={() => setQualityG(l.key)} style={{
+                          textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                          border: `1px solid ${qualityG === l.key ? l.color : 'var(--border2)'}`,
+                          background: qualityG === l.key ? l.bg : 'var(--bg2)',
+                          color: qualityG === l.key ? l.color : 'var(--text2)',
+                        }}>
+                          {l.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Note (zone, douleur…)</div>
+                  <textarea value={note} onChange={e => setNote(e.target.value)} rows={2}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }} />
+                </div>
+
+                <button onClick={submit} disabled={saving || (!qualityD && !(bilateral && qualityG))}
+                  style={{ background: (qualityD || (bilateral && qualityG)) ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                  {saving ? '…' : '✓ Valider le test'}
+                </button>
+              </>
             ) : (
-              <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, fontStyle: 'italic' }}>Aucun test précédent.</div>
+              <>
+                {previous === undefined ? (
+                  <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>Chargement…</div>
+                ) : previous ? (
+                  <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 12, color: 'var(--text3)' }}>
+                    Dernier test ({new Date(previous.date + 'T00:00:00').toLocaleDateString('fr-FR')}) :
+                    {previous.value_d != null && ` D ${previous.value_d}°`}
+                    {previous.value_g != null && ` · G ${previous.value_g}°`}
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, fontStyle: 'italic' }}>Aucun test précédent.</div>
+                )}
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Actif Droit (°)</div>
+                    <input type="number" step="1" value={d} onChange={e => setD(e.target.value)}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 18, fontWeight: 700, textAlign: 'center', outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Actif Gauche (°)</div>
+                    <input type="number" step="1" value={g} onChange={e => setG(e.target.value)}
+                      style={{ width: '100%', boxSizing: 'border-box', padding: '12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 18, fontWeight: 700, textAlign: 'center', outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+                  </div>
+                </div>
+
+                <button onClick={submit} disabled={saving || (!d.trim() && !g.trim())}
+                  style={{ background: (d.trim() || g.trim()) ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                  {saving ? '…' : '✓ Valider le test'}
+                </button>
+              </>
             )}
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Actif Droit (°)</div>
-                <input type="number" step="1" value={d} onChange={e => setD(e.target.value)}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 18, fontWeight: 700, textAlign: 'center', outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Actif Gauche (°)</div>
-                <input type="number" step="1" value={g} onChange={e => setG(e.target.value)}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 18, fontWeight: 700, textAlign: 'center', outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
-              </div>
-            </div>
-
-            <button onClick={submit} disabled={saving || (!d.trim() && !g.trim())}
-              style={{ background: (d.trim() || g.trim()) ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-              {saving ? '…' : '✓ Valider le test'}
-            </button>
           </div>
         )}
       </div>
@@ -396,8 +501,31 @@ function TestsArticulairesSection({ athleteId }) {
               const hasVideo = !!movement?.youtube_url
               const isEditing = editingName === t
               const entry = latestByTest[t]
-              const analysis = analyzeEntry(group.joint, t, entry)
-              const hasData = entry && (entry.value_d != null || entry.value_g != null)
+              const hasData = group.qualitative
+                ? entry && (entry.quality_d != null || entry.quality_g != null)
+                : entry && (entry.value_d != null || entry.value_g != null)
+
+              let admpBadge = null
+              if (isADMPJoint(group.joint) && entry) {
+                const variantMatch = t.match(/ \((Passif|Actif)\)$/)
+                const variant = variantMatch?.[1]
+                const baseName = variant ? t.slice(0, -variantMatch[0].length) : t
+                if (variant === 'Passif') {
+                  const rd = analyzeADMPRisk(group.joint, t, entry.value_d)
+                  const rg = analyzeADMPRisk(group.joint, t, entry.value_g)
+                  const worst = [rd, rg].filter(Boolean).sort((a, b) => b.deficit - a.deficit)[0]
+                  if (worst?.atRisk) admpBadge = { label: `⚠️ -${worst.deficit}° vs norme`, color: '#991B1B', bg: '#FEE2E2' }
+                  else if (rd || rg) admpBadge = { label: 'OK', color: '#166534', bg: '#DCFCE7' }
+                } else if (variant === 'Actif') {
+                  const passifEntry = latestByTest[`${baseName} (Passif)`]
+                  if (passifEntry) {
+                    const gd = analyzeActifPassifGap(group.joint, t, passifEntry.value_d, entry.value_d)
+                    const gg = analyzeActifPassifGap(group.joint, t, passifEntry.value_g, entry.value_g)
+                    const worst = [gd, gg].filter(Boolean).sort((a, b) => b.gap - a.gap)[0]
+                    if (worst?.atRisk) admpBadge = { label: `⚠️ Déficit actif -${worst.gap}°`, color: '#991B1B', bg: '#FEE2E2' }
+                  }
+                }
+              }
               return (
                 <div key={t} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
                   <div style={{ padding: '10px 14px 6px', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -410,25 +538,49 @@ function TestsArticulairesSection({ athleteId }) {
 
                   <div style={{ padding: '0 14px 10px', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     {hasData ? (
-                      <>
-                        {entry.value_d != null && (
-                          <span onClick={() => startEditValue(t, 'D', entry)}
-                            style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
-                            D {entry.value_d}° ✏️
-                          </span>
-                        )}
-                        {entry.value_g != null && (
-                          <span onClick={() => startEditValue(t, 'G', entry)}
-                            style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
-                            G {entry.value_g}° ✏️
-                          </span>
-                        )}
-                        {analysis && (
-                          <span style={{ fontSize: 11, fontWeight: 700, color: analysis.color, background: analysis.bg, borderRadius: 20, padding: '3px 8px' }}>
-                            {analysis.label}
-                          </span>
-                        )}
-                      </>
+                      group.qualitative ? (
+                        <>
+                          {entry.quality_d != null && (() => {
+                            const lvl = qualityLevel(entry.quality_d)
+                            return (
+                              <span style={{ fontSize: 11, fontWeight: 700, color: lvl?.color || 'var(--text2)', background: lvl?.bg || 'var(--bg2)', borderRadius: 20, padding: '3px 8px' }}>
+                                {isBilateralQualitative(t) ? 'D : ' : ''}{lvl?.label || entry.quality_d}
+                              </span>
+                            )
+                          })()}
+                          {isBilateralQualitative(t) && entry.quality_g != null && (() => {
+                            const lvl = qualityLevel(entry.quality_g)
+                            return (
+                              <span style={{ fontSize: 11, fontWeight: 700, color: lvl?.color || 'var(--text2)', background: lvl?.bg || 'var(--bg2)', borderRadius: 20, padding: '3px 8px' }}>
+                                G : {lvl?.label || entry.quality_g}
+                              </span>
+                            )
+                          })()}
+                          {entry.note && (
+                            <span style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>« {entry.note} »</span>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {entry.value_d != null && (
+                            <span onClick={() => startEditValue(t, 'D', entry)}
+                              style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
+                              D {entry.value_d}° ✏️
+                            </span>
+                          )}
+                          {entry.value_g != null && (
+                            <span onClick={() => startEditValue(t, 'G', entry)}
+                              style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
+                              G {entry.value_g}° ✏️
+                            </span>
+                          )}
+                          {admpBadge && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: admpBadge.color, background: admpBadge.bg, borderRadius: 20, padding: '3px 8px' }}>
+                              {admpBadge.label}
+                            </span>
+                          )}
+                        </>
+                      )
                     ) : (
                       <span style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>Aucune donnée</span>
                     )}
