@@ -43,7 +43,7 @@ function angleDiff(a, b) {
 }
 
 function isSpineRotation(test) {
-  return test?.joint === 'Colonne' && test?.name === 'Rotation'
+  return test?.joint === 'Colonne' && /^Rotation\b/.test(test?.name || '')
 }
 
 const PhotoCapture = forwardRef(function PhotoCapture({ onAngleChange }, ref) {
@@ -479,7 +479,7 @@ export default function GoniometerView({ athleteId, onClose }) {
           </div>
         </div>
       ) : (
-        <>
+        <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', gap: 8, padding: '0 20px 8px' }}>
             {[{ key: 'sensor', label: '📐 Capteur' }, { key: 'photo', label: '📷 Photo' }].map(m => (
               <button key={m.key} onClick={() => setMode(m.key)} style={{
@@ -643,7 +643,7 @@ export default function GoniometerView({ athleteId, onClose }) {
               {saving ? '…' : 'Noter →'}
             </button>
           </div>
-        </>
+        </div>
       )}
     </div>
   )
