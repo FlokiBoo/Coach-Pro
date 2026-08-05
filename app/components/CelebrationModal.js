@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { FRONT_MUSCLES, BACK_MUSCLES, FRONT_VIEWBOX, BACK_VIEWBOX } from '@/app/data/bodyMap'
+import { shareCardImage } from '@/lib/shareCard'
 
 const MUSCLE_MAP = {
   'pectoraux':       ['pec', 'poitrine', 'chest', 'pectoral'],
@@ -94,6 +95,18 @@ function BodySVG({ active, view }) {
 export default function CelebrationModal({ tonnage, muscles, records = [], onClose }) {
   const hasBody = muscles.length > 0
   const [citation] = useState(() => randomCitation())
+  const [sharing, setSharing] = useState(false)
+  const cardRef = useRef(null)
+
+  const share = async () => {
+    setSharing(true)
+    await shareCardImage(cardRef.current, {
+      filename: 'seance.png',
+      title: 'Séance terminée 💪',
+      text: tonnage > 0 ? `Séance terminée — ${tonnage.toLocaleString('fr-FR')} kg de tonnage 💪` : 'Séance terminée 💪',
+    })
+    setSharing(false)
+  }
 
   return (
     <div
@@ -104,6 +117,7 @@ export default function CelebrationModal({ tonnage, muscles, records = [], onClo
         onClick={e => e.stopPropagation()}
         style={{ background: 'var(--bg)', borderRadius: 20, padding: '24px 20px', maxWidth: 400, width: '100%', textAlign: 'center', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: '92svh', overflowY: 'auto' }}
       >
+      <div ref={cardRef}>
         <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 8 }}>{records.length > 0 ? '🏆' : '🎉'}</div>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Bravo !</div>
         <div style={{ fontSize: 14, color: 'var(--text3)', marginBottom: 18 }}>Séance terminée 💪</div>
@@ -159,13 +173,23 @@ export default function CelebrationModal({ tonnage, muscles, records = [], onClo
             </div>
           </>
         )}
+      </div>
 
-        <button
-          onClick={onClose}
-          style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '13px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%' }}
-        >
-          Super ! 💪
-        </button>
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button
+            onClick={share}
+            disabled={sharing}
+            style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text)', border: '1px solid var(--border2)', borderRadius: 20, padding: '13px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+          >
+            {sharing ? '…' : '📤 Partager'}
+          </button>
+          <button
+            onClick={onClose}
+            style={{ flex: 2, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '13px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}
+          >
+            Super ! 💪
+          </button>
+        </div>
       </div>
     </div>
   )

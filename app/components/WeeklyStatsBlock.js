@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { shareCardImage } from '@/lib/shareCard'
 
 function fmt(d) {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
@@ -440,7 +441,9 @@ export default function WeeklyStatsBlock({ athleteId }) {
 
 function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, countByLabel, progressions, wellnessAvg, initialPage = 0, onClose }) {
   const [page, setPage] = useState(initialPage)
+  const [sharing, setSharing] = useState(false)
   const touchStartX = useRef(0)
+  const cardRef = useRef(null)
 
   const onTouchStart = (e) => { touchStartX.current = e.touches[0].clientX }
   const onTouchEnd = (e) => {
@@ -449,12 +452,24 @@ function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel
     else if (delta > 40) setPage(0)
   }
 
+  const share = async () => {
+    setSharing(true)
+    const statLine = bigStats.map(s => `${s.value} ${s.label}`).join(' · ')
+    await shareCardImage(cardRef.current, {
+      filename: 'bilan.png',
+      title: `Récap ${mode === 'week' ? 'de la semaine' : 'du mois'}`,
+      text: `${periodLabel}${statLine ? ' — ' + statLine : ''}`,
+    })
+    setSharing(false)
+  }
+
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{
         background: 'var(--bg)', borderRadius: 20, padding: '24px 20px', maxWidth: 420, width: '100%',
         boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: '90svh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
       }}>
+      <div ref={cardRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         <div style={{ textAlign: 'center', marginBottom: 18 }}>
           <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 8 }}>{page === 0 ? '📊' : '📈'}</div>
           <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>
@@ -583,13 +598,22 @@ function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel
             }} />
           ))}
         </div>
+      </div>
 
-        <button onClick={onClose} style={{
-          marginTop: 6, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20,
-          padding: '13px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%', flexShrink: 0,
+        <div style={{ display: 'flex', gap: 8, marginTop: 6, flexShrink: 0 }}>
+          <button onClick={share} disabled={sharing} style={{
+            flex: 1, background: 'var(--bg2)', color: 'var(--text)', border: '1px solid var(--border2)', borderRadius: 20,
+            padding: '13px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+          }}>
+            {sharing ? '…' : '📤 Partager'}
+          </button>
+          <button onClick={onClose} style={{
+          flex: 2, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20,
+          padding: '13px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer',
         }}>
           Fermer
         </button>
+      </div>
       </div>
     </div>
   )
