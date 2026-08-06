@@ -17,6 +17,7 @@ import AthleteSidePanel from '@/app/components/AthleteSidePanel'
 import WeeklyPlannerBlock from '@/app/components/WeeklyPlannerBlock'
 import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 import TimerModal from '@/app/components/TimerModal'
+import { buildKnownRaces, annotatePaceReferences, formatPace, isRunMovement, PACE_BASES, computePaceForBasePct } from '@/lib/raceEstimates'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -103,6 +104,7 @@ function AthleteView({ params }) {
   const [toast, setToast] = useState(null)
   const [sessionRecords, setSessionRecords] = useState([])
   const [trackedMovements, setTrackedMovements] = useState([])
+  const [raceKnown, setRaceKnown] = useState({})
 
   const queueKey = `coachpro_offline_queue_${token}`
   const loadQueue = () => { try { return JSON.parse(localStorage.getItem(queueKey) || '[]') } catch { return [] } }
@@ -214,6 +216,14 @@ function AthleteView({ params }) {
     if (!athlete?.id) return
     supabase.from('tracked_movements').select('id, name, unit')
       .then(({ data }) => setTrackedMovements(data || []))
+    supabase.from('tracked_movements').select('id, name, unit, tracked_movement_entries(value, athlete_id)')
+      .then(({ data }) => {
+        const movements = (data || []).map(m => ({
+          ...m,
+          entries: (m.tracked_movement_entries || []).filter(e => e.athlete_id === athlete.id),
+        }))
+        setRaceKnown(buildKnownRaces(movements))
+      })
   }, [athlete?.id])
 
   // Détecte automatiquement un nouveau record (1 à 6 reps) sur un mouvement suivi en kg
@@ -476,6 +486,7 @@ function AthleteView({ params }) {
               onSaveExerciseSet={saveExerciseSet}
               onDeleteExerciseSet={deleteExerciseSet}
               isCoachView={isCoachView}
+              raceKnown={raceKnown}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
@@ -583,6 +594,7 @@ function AthleteView({ params }) {
             athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView,
             trackedMovements, onSaveMetricResult: saveMetricResult,
             exerciseSets, onAddExerciseSet: addExerciseSet, onSaveExerciseSet: saveExerciseSet, onDeleteExerciseSet: deleteExerciseSet,
+            raceKnown,
           }
 
           if (boardPrograms.length === 0) {
@@ -664,7 +676,7 @@ const logInputStyle = {
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
 }
 
-function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet }) {
+function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, raceKnown }) {
   const total = prog.sessions.length
   const done = prog.sessions.filter(s => completions.has(s.id)).length
   const allDone = done === total && total > 0
@@ -739,6 +751,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         onSaveExerciseSet={onSaveExerciseSet}
         onDeleteExerciseSet={onDeleteExerciseSet}
         isCoachView={isCoachView}
+        raceKnown={raceKnown}
       />
 
       {/* Programme terminé */}
@@ -778,7 +791,8 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, isCoachView }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, raceKnown = {} }) {
+  const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
   const [focusPicker, setFocusPicker] = useState(null) // exercise id being edited
   const [viewingFocus, setViewingFocus] = useState(null) // zones array being viewed
   const [focusOverrides, setFocusOverrides] = useState({})
@@ -868,6 +882,20 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
               {session.coach_notes}
             </div>
           )}
+          {paceRefs.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {paceRefs.map((r, i) => (
+                <div key={i} style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 20, padding: '5px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--green)', fontWeight: 600 }}>{r.raw}</span>
+                  <span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 800 }}>
+                    {r.pace.lowKmh.toFixed(1) === r.pace.highKmh.toFixed(1)
+                      ? `${formatPace(r.pace.lowKmh)}/km`
+                      : `${formatPace(r.pace.highKmh)}–${formatPace(r.pace.lowKmh)}/km`}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {(session.circuits || []).map(c => (
             <div key={c.id} style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 'var(--r)', padding: '10px 12px' }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>🔁 Circuit</div>
@@ -946,6 +974,27 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                     {flow}
                   </div>
                 ) : null
+              })()}
+              {isRunMovement(exo.name) && (exo.pace_base || exo.pct_low != null || exo.pct_high != null) && (() => {
+                const pace1 = computePaceForBasePct(exo.pace_base, exo.pct_low, raceKnown)
+                const pace2 = computePaceForBasePct(exo.pace_base, exo.pct_high, raceKnown)
+                const baseLabel = PACE_BASES.find(b => b.key === exo.pace_base)?.label || exo.pace_base
+                return (
+                  <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '8px 10px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)' }}>
+                      {baseLabel} {exo.pct_low}{exo.pct_high != null && exo.pct_high !== exo.pct_low ? `-${exo.pct_high}` : ''}%
+                    </span>
+                    {pace1 || pace2 ? (
+                      <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--green)' }}>
+                        {pace1 && pace2 && pace1.toFixed(1) !== pace2.toFixed(1)
+                          ? `${formatPace(pace2)}–${formatPace(pace1)}/km`
+                          : `${formatPace(pace1 || pace2)}/km`}
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>Tests VMA/Seuil requis</span>
+                    )}
+                  </div>
+                )
               })()}
               {(exo.sets || exo.reps || exo.kg || exo.rest) && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: exo.note ? 6 : 0 }}>

@@ -26,10 +26,32 @@ export async function POST(request) {
   await supabaseAdmin.from('athletes').update({ email }).eq('id', athleteId)
 
   // Envoyer l'invitation Supabase
-  const { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+  let { data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${redirectTo}/auth/callback?athlete_id=${athleteId}`,
     data: { athlete_id: athleteId, athlete_name: athleteName }
   })
+
+  // Déjà invité / déjà inscrit : on retente proprement au lieu de bloquer le coach.
+  if (error && /already registered|already exists/i.test(error.message || '')) {
+    const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 })
+    const existing = list?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase())
+
+    if (existing?.app_metadata?.needs_password) {
+      // N'a jamais fini de créer son mot de passe : on repart de zéro proprement.
+      await supabaseAdmin.auth.admin.deleteUser(existing.id)
+      ;({ data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+        redirectTo: `${redirectTo}/auth/callback?athlete_id=${athleteId}`,
+        data: { athlete_id: athleteId, athlete_name: athleteName }
+      }))
+    } else if (existing) {
+      // A déjà un compte fonctionnel : on lui renvoie un lien de (re)définition de mot de passe.
+      const { error: resetErr } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
+        redirectTo: `${redirectTo}/update-password`,
+      })
+      if (resetErr) return NextResponse.json({ error: resetErr.message }, { status: 400 })
+      return NextResponse.json({ success: true, resent: true })
+    }
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 

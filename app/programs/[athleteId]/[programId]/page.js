@@ -8,6 +8,7 @@ import AthletesSidebar from '@/app/components/AthletesSidebar'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
 import { parseMusclesFromText } from '@/app/components/CelebrationModal'
+import { isRunMovement, PACE_BASES, computePaceForBasePct, buildKnownRaces, formatPace } from '@/lib/raceEstimates'
 
 function today() {
   const n = new Date()
@@ -37,7 +38,7 @@ function getYouTubeId(url) {
 }
 
 function emptyExo(order) {
-  return { _key: Date.now() + Math.random(), order_index: order, name: '', sets: '', reps: '', kg: '', rest: '', note: '', video_url: '', focus_muscles: '' }
+  return { _key: Date.now() + Math.random(), order_index: order, name: '', sets: '', reps: '', kg: '', rest: '', note: '', video_url: '', focus_muscles: '', pace_base: null, pct_low: '', pct_high: '' }
 }
 
 function computeLabels(exercises) {
@@ -174,8 +175,21 @@ function ProgramEditorPage({ params }) {
   const [logsMap, setLogsMap] = useState({})
   const [objectives, setObjectives] = useState([])
   const [noteBlocks, setNoteBlocks] = useState([])
+  const [raceKnown, setRaceKnown] = useState({})
 
   const isTemplate = athleteId === 'templates'
+
+  useEffect(() => {
+    if (isTemplate || !athleteId) return
+    supabase.from('tracked_movements').select('id, name, unit, tracked_movement_entries(value, athlete_id)')
+      .then(({ data }) => {
+        const movements = (data || []).map(m => ({
+          ...m,
+          entries: (m.tracked_movement_entries || []).filter(e => e.athlete_id === athleteId),
+        }))
+        setRaceKnown(buildKnownRaces(movements))
+      })
+  }, [athleteId, isTemplate])
 
   useEffect(() => {
     async function load() {
@@ -204,7 +218,7 @@ function ProgramEditorPage({ params }) {
         ...s,
         exercises: [...(s.program_exercises || [])]
           .sort((a, b) => a.order_index - b.order_index)
-          .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', rest: e.rest ?? '', note: e.note ?? '', video_url: (movieMap[e.name] ?? e.video_url) || '', superset_group: e.superset_group || null })),
+          .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', rest: e.rest ?? '', note: e.note ?? '', video_url: (movieMap[e.name] ?? e.video_url) || '', superset_group: e.superset_group || null, pct_low: e.pct_low ?? '', pct_high: e.pct_high ?? '' })),
         activation_videos: s.activation_videos || [],
         circuits: s.circuits || [],
       }))
@@ -509,6 +523,9 @@ function ProgramEditorPage({ params }) {
       video_url: e.video_url || null,
       superset_group: e.superset_group || null,
       focus_muscles: e.focus_muscles || null,
+      pace_base: e.pace_base || null,
+      pct_low: e.pct_low !== '' && e.pct_low != null ? parseFloat(e.pct_low) : null,
+      pct_high: e.pct_high !== '' && e.pct_high != null ? parseFloat(e.pct_high) : null,
     }))
 
     if (toInsert.length) {
@@ -566,6 +583,9 @@ function ProgramEditorPage({ params }) {
       video_url: e.video_url || null,
       superset_group: e.superset_group || null,
       focus_muscles: e.focus_muscles || null,
+      pace_base: e.pace_base || null,
+      pct_low: e.pct_low !== '' && e.pct_low != null ? parseFloat(e.pct_low) : null,
+      pct_high: e.pct_high !== '' && e.pct_high != null ? parseFloat(e.pct_high) : null,
     }))
 
     let insertedExos = []
@@ -683,6 +703,9 @@ function ProgramEditorPage({ params }) {
         note: e.note || null,
         video_url: e.video_url || null,
         superset_group: e.superset_group || null,
+        pace_base: e.pace_base || null,
+        pct_low: e.pct_low !== '' && e.pct_low != null ? parseFloat(e.pct_low) : null,
+        pct_high: e.pct_high !== '' && e.pct_high != null ? parseFloat(e.pct_high) : null,
       }))
       if (toInsert.length) {
         await supabase.from('program_exercises').insert(toInsert)
@@ -1220,16 +1243,57 @@ function ProgramEditorPage({ params }) {
                               </button>
                             </div>
                           )}
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 5, marginBottom: 4 }}>
-                            {[{ f: 'sets', l: 'Séries', t: 'number', ph: '—' }, { f: 'reps', l: 'Reps', t: 'text', ph: '8-12' }, { f: 'kg', l: 'Kg', t: 'number', ph: '—' }, { f: 'rest', l: 'Récup', t: 'text', ph: '90s' }].map(({ f, l, t, ph }) => (
-                              <div key={f}>
-                                <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>{l.toUpperCase()}</div>
-                                <input type={t} placeholder={ph} value={exo[f]}
-                                  onChange={e => updateExo(s.id, exo._key, f, e.target.value)}
-                                  style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 12 }} min="0" step={f === 'kg' ? '0.5' : '1'} />
+                          {isRunMovement(exo.name) ? (() => {
+                            const pace1 = computePaceForBasePct(exo.pace_base, parseFloat(exo.pct_low), raceKnown)
+                            const pace2 = computePaceForBasePct(exo.pace_base, parseFloat(exo.pct_high), raceKnown)
+                            return (
+                              <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 1fr 1fr', gap: 5, marginBottom: 4 }}>
+                                <div>
+                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>BASE</div>
+                                  <select value={exo.pace_base || ''} onChange={e => updateExo(s.id, exo._key, 'pace_base', e.target.value || null)}
+                                    style={{ ...inp, textAlign: 'center', padding: '5px 2px', fontSize: 11 }}>
+                                    <option value="">—</option>
+                                    {PACE_BASES.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>%1</div>
+                                  <input type="number" placeholder="60" value={exo.pct_low}
+                                    onChange={e => updateExo(s.id, exo._key, 'pct_low', e.target.value)}
+                                    style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 12 }} min="0" step="1" />
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>%2</div>
+                                  <input type="number" placeholder="80" value={exo.pct_high}
+                                    onChange={e => updateExo(s.id, exo._key, 'pct_high', e.target.value)}
+                                    style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 12 }} min="0" step="1" />
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>ALLURE 1</div>
+                                  <div style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 11, fontWeight: 700, color: pace1 ? 'var(--green)' : 'var(--text3)', background: 'var(--bg2)' }}>
+                                    {pace1 ? `${formatPace(pace1)}/km` : '—'}
+                                  </div>
+                                </div>
+                                <div>
+                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>ALLURE 2</div>
+                                  <div style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 11, fontWeight: 700, color: pace2 ? 'var(--green)' : 'var(--text3)', background: 'var(--bg2)' }}>
+                                    {pace2 ? `${formatPace(pace2)}/km` : '—'}
+                                  </div>
+                                </div>
                               </div>
-                            ))}
-                          </div>
+                            )
+                          })() : (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 5, marginBottom: 4 }}>
+                              {[{ f: 'sets', l: 'Séries', t: 'number', ph: '—' }, { f: 'reps', l: 'Reps', t: 'text', ph: '8-12' }, { f: 'kg', l: 'Kg', t: 'number', ph: '—' }, { f: 'rest', l: 'Récup', t: 'text', ph: '90s' }].map(({ f, l, t, ph }) => (
+                                <div key={f}>
+                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>{l.toUpperCase()}</div>
+                                  <input type={t} placeholder={ph} value={exo[f]}
+                                    onChange={e => updateExo(s.id, exo._key, f, e.target.value)}
+                                    style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 12 }} min="0" step={f === 'kg' ? '0.5' : '1'} />
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           <textarea placeholder="Consignes (tempo, récup…)" value={exo.note}
                             onChange={e => updateExo(s.id, exo._key, 'note', e.target.value)}
                             rows={2}
