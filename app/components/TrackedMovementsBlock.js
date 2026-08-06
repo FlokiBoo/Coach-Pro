@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import MovementDetailView from './MovementDetailView'
-import { RACE_TARGETS, computeRaceEstimates, buildKnownRaces, computeThreshold60, formatDistance, formatPace } from '@/lib/raceEstimates'
+import { RACE_TARGETS, computeRaceEstimates, buildKnownRaces, computeThreshold60, computeDeltaZones, formatDistance, formatPace } from '@/lib/raceEstimates'
 
 const RM_KEYS = [2, 3, 4, 5, 6]
 export const CATEGORIES = ['Lift', 'Gym', 'Cardio', 'Autre']
@@ -230,6 +230,7 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
   const knownRaces = buildKnownRaces(movements)
   const raceEstimates = computeRaceEstimates(knownRaces)
   const threshold60 = computeThreshold60(knownRaces)
+  const deltaZones = computeDeltaZones(knownRaces)
 
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
@@ -415,6 +416,40 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
                       <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
                     )}
                   </div>
+                )}
+
+                {isRunning && deltaZones && (
+                  <>
+                    <div style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>VMA</div>
+                        <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Estimation (Demi Cooper, 6min)</div>
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: '#DC2626', flexShrink: 0 }}>{deltaZones.vma.toFixed(1)} km/h</div>
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>Δ (VMA − Seuil60)</div>
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text)', flexShrink: 0 }}>{deltaZones.delta.toFixed(2)} km/h</div>
+                    </div>
+                    {deltaZones.zones.map(z => (
+                      <div key={z.key} style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{z.label}</div>
+                          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginTop: 1 }}>Seuil60 + {Math.round(z.lowPct * 100)}–{Math.round(z.highPct * 100)}%Δ</div>
+                        </div>
+                        <div style={{ flexShrink: 0, textAlign: 'right' }}>
+                          <div style={{ fontWeight: 800, fontSize: 15, color: '#DC2626' }}>
+                            {z.lowKmh.toFixed(1)}–{z.highKmh.toFixed(1)} km/h
+                          </div>
+                          <div style={{ fontSize: 11, color: '#DC2626', fontWeight: 600, marginTop: 1 }}>
+                            {formatPace(z.highKmh)}–{formatPace(z.lowKmh)} /km
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </>
                 )}
 
                 {isRunning && raceEstimates.slice(2).map(re => (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, use, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -144,6 +144,7 @@ export default function ProgramEditorPageWrapper({ params }) {
 
 function ProgramEditorPage({ params }) {
   const { athleteId, programId } = use(params)
+  const router = useRouter()
   const searchParams = useSearchParams()
   const openFromUrl = searchParams.get('open')
   const [athlete, setAthlete] = useState(null)
@@ -628,6 +629,27 @@ function ProgramEditorPage({ params }) {
     if (openId === id) setOpenId(null)
   }
 
+  const deleteWholeProgram = async () => {
+    if (!confirm('Supprimer ce programme et toutes ses séances ? Cette action est définitive.')) return
+
+    const sessionIds = sessions.map(s => s.id)
+    if (sessionIds.length) {
+      const { data: exos } = await supabase.from('program_exercises').select('id').in('program_session_id', sessionIds)
+      const exoIds = (exos || []).map(e => e.id)
+      if (exoIds.length) {
+        await supabase.from('exercise_performance_history').delete().in('program_exercise_id', exoIds)
+        await supabase.from('program_exercise_logs').delete().in('program_exercise_id', exoIds)
+        await supabase.from('program_exercises').delete().in('id', exoIds)
+      }
+      await supabase.from('program_completions').delete().in('program_session_id', sessionIds)
+      await supabase.from('program_sessions').delete().in('id', sessionIds)
+    }
+
+    const { error } = await supabase.from('programs').delete().eq('id', programId)
+    if (error) { alert('Erreur : ' + error.message); return }
+    router.push(isTemplate ? '/programs' : `/programs/${athleteId}`)
+  }
+
   const moveSession = (idx, dir) => {
     setSessions(prev => {
       const next = [...prev]
@@ -700,6 +722,10 @@ function ProgramEditorPage({ params }) {
                 {isTemplate ? '📋 Modèle' : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
               </div>
             </div>
+            <button onClick={deleteWholeProgram} title="Supprimer le programme"
+              style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: '#DC2626', cursor: 'pointer', flexShrink: 0 }}>
+              🗑 Supprimer
+            </button>
             {sessions.length > 1 && (
               <div style={{ display: 'flex', gap: 2, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 2, flexShrink: 0 }}>
                 {[1, 2, 3, 4].map(n => (
