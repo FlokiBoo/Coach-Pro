@@ -278,6 +278,7 @@ export default function GoniometerView({ athleteId, onClose }) {
   const [flash, setFlash] = useState(null)
   const [done, setDone] = useState(false)
   const [paused, setPaused] = useState(false)
+  const [autoPaused, setAutoPaused] = useState(false)
   const [history, setHistory] = useState([]) // [{ testIndex, testName, joint, side, value, hasPhoto }]
   const [photoAngle, setPhotoAngle] = useState(null)
   const [manualValue, setManualValue] = useState('')
@@ -286,19 +287,33 @@ export default function GoniometerView({ athleteId, onClose }) {
   const liveRawRef = useRef(0)
   const pausedRef = useRef(false)
   const photoRef = useRef(null)
+  const stableRef = useRef({ value: null, since: null })
 
   const test = ALL_TESTS[testIndex]
 
+  const resetStability = () => { stableRef.current = { value: null, since: null } }
+
   useEffect(() => { pausedRef.current = paused }, [paused])
+  useEffect(() => { if (!paused) { resetStability(); setAutoPaused(false) } }, [paused])
 
   useEffect(() => {
     if (permissionState !== 'granted' || mode !== 'sensor') return
+    const STABLE_RANGE = 5 // °
+    const STABLE_MS = 2000
     const handler = (e) => {
       if (pausedRef.current) return
       const raw = axis === 'beta' ? e.beta : axis === 'gamma' ? e.gamma : e.alpha
       if (raw == null) return
       liveRawRef.current = raw
       setLiveRaw(raw)
+
+      const st = stableRef.current
+      if (st.value == null || Math.abs(raw - st.value) > STABLE_RANGE) {
+        stableRef.current = { value: raw, since: Date.now() }
+      } else if (Date.now() - st.since >= STABLE_MS) {
+        setPaused(true)
+        setAutoPaused(true)
+      }
     }
     window.addEventListener('deviceorientation', handler)
     return () => window.removeEventListener('deviceorientation', handler)
@@ -306,6 +321,7 @@ export default function GoniometerView({ athleteId, onClose }) {
 
   useEffect(() => {
     setZeroOffset(liveRawRef.current)
+    resetStability()
   }, [axis])
 
   useEffect(() => {
@@ -318,6 +334,8 @@ export default function GoniometerView({ athleteId, onClose }) {
     setPrevious(undefined)
     setManualValue('')
     setDaf('')
+    setPaused(false)
+    resetStability()
     supabase.from('joint_test_entries').select('*')
       .eq('athlete_id', athleteId).eq('test_name', test.name)
       .order('date', { ascending: false }).order('created_at', { ascending: false })
@@ -570,7 +588,7 @@ export default function GoniometerView({ athleteId, onClose }) {
                 <button onClick={calibrateZero} style={{ flex: 1, padding: '13px 10px', borderRadius: 10, border: '1px solid #3FC1B0', background: 'transparent', color: '#3FC1B0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Zéro ici
                 </button>
-                <button onClick={() => setZeroOffset(0)} style={{ flex: 1, padding: '13px 10px', borderRadius: 10, border: '1px solid #2A3140', background: 'transparent', color: '#7C8493', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={() => { setZeroOffset(0); setPaused(false); resetStability() }} style={{ flex: 1, padding: '13px 10px', borderRadius: 10, border: '1px solid #2A3140', background: 'transparent', color: '#7C8493', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Reset zéro
                 </button>
               </div>
@@ -583,6 +601,11 @@ export default function GoniometerView({ athleteId, onClose }) {
                 }}>
                   {paused ? '▶ Reprendre' : '⏸ Pause'}
                 </button>
+                {paused && autoPaused && (
+                  <div style={{ textAlign: 'center', fontSize: 11, color: '#E5636B', marginTop: 6 }}>
+                    Valeur stabilisée — pause automatique
+                  </div>
+                )}
               </div>
 
               <div style={{ padding: '14px 20px 0' }}>
