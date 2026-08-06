@@ -388,7 +388,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
               width: '100%', background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8',
               borderRadius: 20, padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
             }}>
-              📈 Voir les progressions
+              📋 Récap {mode === 'week' ? 'de la semaine' : 'du mois'}
             </button>
           </div>
         </>
@@ -431,7 +431,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
           countByLabel={countByLabel}
           progressions={progressions}
           wellnessAvg={wellnessAvg}
-          initialPage={1}
+          initialPage={0}
           onClose={() => setShowRecap(false)}
         />
       )}
@@ -470,12 +470,20 @@ function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel
         boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: '90svh', overflow: 'hidden', display: 'flex', flexDirection: 'column',
       }}>
       <div ref={cardRef} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-        <div style={{ textAlign: 'center', marginBottom: 18 }}>
-          <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 8 }}>{page === 0 ? '📊' : '📈'}</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>
-            {page === 0 ? `Récap ${mode === 'week' ? 'de la semaine' : 'du mois'}` : 'Progressions'}
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 18 }}>
+          <button onClick={() => setPage(0)} style={{
+            visibility: page === 1 ? 'visible' : 'hidden', background: 'none', border: 'none', fontSize: 22, color: 'var(--text3)', cursor: 'pointer', padding: '2px 6px', lineHeight: 1,
+          }}>‹</button>
+          <div style={{ flex: 1, textAlign: 'center' }}>
+            <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 8 }}>{page === 0 ? '📊' : '📈'}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>
+              {page === 0 ? `Récap ${mode === 'week' ? 'de la semaine' : 'du mois'}` : 'Progressions'}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text3)', fontWeight: 600, textTransform: 'capitalize', marginTop: 2 }}>{periodLabel}</div>
           </div>
-          <div style={{ fontSize: 13, color: 'var(--text3)', fontWeight: 600, textTransform: 'capitalize', marginTop: 2 }}>{periodLabel}</div>
+          <button onClick={() => setPage(1)} style={{
+            visibility: page === 0 ? 'visible' : 'hidden', background: 'none', border: 'none', fontSize: 22, color: 'var(--text3)', cursor: 'pointer', padding: '2px 6px', lineHeight: 1,
+          }}>›</button>
         </div>
 
         <div

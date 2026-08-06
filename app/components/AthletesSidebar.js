@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import TimerModal from './TimerModal'
 
 async function logout() {
   await supabase.auth.signOut()
@@ -41,6 +42,7 @@ export default function AthletesSidebar({ athleteId, date }) {
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [search, setSearch] = useState('')
+  const [showTimer, setShowTimer] = useState(false)
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('coachpro_sidebar_collapsed') === '1')
@@ -156,6 +158,11 @@ export default function AthletesSidebar({ athleteId, date }) {
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>👤 Sportifs</Link>
+        <button onClick={() => setShowTimer(true)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', width: '100%', textAlign: 'left',
+          borderRadius: 'var(--r)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent', fontFamily: 'inherit',
+        }}>⏱ Timer</button>
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
           Library
         </div>
@@ -291,6 +298,8 @@ export default function AthletesSidebar({ athleteId, date }) {
       }}
       title="Afficher le bandeau"
     >»</button>
+
+    {showTimer && <TimerModal onClose={() => setShowTimer(false)} />}
     </>
   )
 }

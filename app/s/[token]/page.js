@@ -16,6 +16,7 @@ import Toast from '@/app/components/Toast'
 import AthleteSidePanel from '@/app/components/AthleteSidePanel'
 import WeeklyPlannerBlock from '@/app/components/WeeklyPlannerBlock'
 import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
+import TimerModal from '@/app/components/TimerModal'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -781,6 +782,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
   const [focusPicker, setFocusPicker] = useState(null) // exercise id being edited
   const [viewingFocus, setViewingFocus] = useState(null) // zones array being viewed
   const [focusOverrides, setFocusOverrides] = useState({})
+  const [showTimer, setShowTimer] = useState(false)
 
   const saveFocusMuscles = async (exerciseId, zones) => {
     const value = zones.length ? zones.join(',') : null
@@ -900,6 +902,10 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                   <VideoButton url={exo.video_url} label="▶"
                     style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0 }} />
                 )}
+                <button onClick={() => setShowTimer(true)}
+                  style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
+                  ⏱
+                </button>
               </div>
 
               {(() => {
@@ -1077,6 +1083,8 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
       {viewingFocus && (
         <FocusBodyDiagram groups={viewingFocus} onClose={() => setViewingFocus(null)} />
       )}
+
+      {showTimer && <TimerModal onClose={() => setShowTimer(false)} />}
     </div>
   )
 }
