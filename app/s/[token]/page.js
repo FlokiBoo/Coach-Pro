@@ -676,6 +676,69 @@ const logInputStyle = {
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
 }
 
+function RunResultLogger({ exo, exerciseLogs, onSaveLog }) {
+  const log = exerciseLogs[exo.id] || {}
+  const [intervals, setIntervals] = useState(log.intervals_done || [])
+
+  useEffect(() => { setIntervals(exerciseLogs[exo.id]?.intervals_done || []) }, [exo.id])
+
+  const addInterval = () => {
+    const next = [...intervals, { distance: '', pace: '' }]
+    setIntervals(next)
+  }
+  const updateInterval = (i, field, val) => {
+    setIntervals(prev => prev.map((it, idx) => idx === i ? { ...it, [field]: val } : it))
+  }
+  const commitIntervals = () => onSaveLog(exo.id, exo.name, 'intervals_done', intervals)
+  const removeInterval = (i) => {
+    const next = intervals.filter((_, idx) => idx !== i)
+    setIntervals(next)
+    onSaveLog(exo.id, exo.name, 'intervals_done', next)
+  }
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ma séance</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Allure moyenne (min/km)</div>
+          <input type="text" placeholder="ex: 5'30" defaultValue={log.avg_pace_done || ''}
+            onBlur={e => onSaveLog(exo.id, exo.name, 'avg_pace_done', e.target.value)}
+            style={logInputStyle} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Distance parcourue (km)</div>
+          <input type="number" step="0.01" min="0" placeholder="ex: 6.5" defaultValue={log.distance_done ?? ''}
+            onBlur={e => onSaveLog(exo.id, exo.name, 'distance_done', e.target.value ? parseFloat(e.target.value) : null)}
+            style={logInputStyle} />
+        </div>
+      </div>
+
+      {intervals.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {intervals.map((it, i) => (
+            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input type="number" step="0.01" min="0" placeholder="Distance (km)" value={it.distance}
+                onChange={e => updateInterval(i, 'distance', e.target.value)}
+                onBlur={commitIntervals}
+                style={{ ...logInputStyle, fontSize: 12 }} />
+              <input type="text" placeholder="Allure (min/km)" value={it.pace}
+                onChange={e => updateInterval(i, 'pace', e.target.value)}
+                onBlur={commitIntervals}
+                style={{ ...logInputStyle, fontSize: 12 }} />
+              <button onClick={() => removeInterval(i)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 16, cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <button onClick={addInterval} style={{ background: 'none', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '7px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
+        + Ajouter un intervalle
+      </button>
+    </div>
+  )
+}
+
 function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, raceKnown }) {
   const total = prog.sessions.length
   const done = prog.sessions.filter(s => completions.has(s.id)).length
@@ -1007,7 +1070,10 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
               {exo.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>{exo.note}</div>}
 
               {/* Log client */}
-              {onSaveLog && (
+              {onSaveLog && isRunMovement(exo.name) && (
+                <RunResultLogger exo={exo} exerciseLogs={exerciseLogs} onSaveLog={onSaveLog} />
+              )}
+              {onSaveLog && !isRunMovement(exo.name) && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ma séance</div>
                   {(exo.sets || exo.reps || exo.kg) && (

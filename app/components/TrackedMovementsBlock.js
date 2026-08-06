@@ -3,12 +3,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import MovementDetailView from './MovementDetailView'
-import { RACE_TARGETS, computeRaceEstimates, buildKnownRaces, computeThreshold60, computeDeltaZones, formatDistance, formatPace } from '@/lib/raceEstimates'
+import { RACE_TARGETS, computeRaceEstimates, buildKnownRaces, computeThreshold60, computeDeltaZones, formatDistance, formatPace, parsePaceInput } from '@/lib/raceEstimates'
 
 const RM_KEYS = [2, 3, 4, 5, 6]
 export const CATEGORIES = ['Lift', 'Gym', 'Cardio', 'Autre']
-const DOT_COLORS = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16']
-const isRunningSubcat = (category, subcat) => category === 'Cardio' && /run|course/i.test(subcat)
+export const DOT_COLORS = ['#EF4444', '#3B82F6', '#F59E0B', '#10B981', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16']
+export const isRunningSubcat = (category, subcat) => category === 'Cardio' && /run|course/i.test(subcat || '')
 
 export const UNITS = {
   kg:          { label: 'Kg (charge)',       suffix: 'kg',   betterIsHigher: true },
@@ -74,7 +74,7 @@ export function formatPerformance(movement, value) {
 }
 
 export function emptyEntryForm() {
-  return { date: new Date().toISOString().slice(0, 10), rm1: '', rm2: '', rm3: '', rm4: '', rm5: '', rm6: '', h: '', m: '', s: '', value: '', note: '' }
+  return { date: new Date().toISOString().slice(0, 10), rm1: '', rm2: '', rm3: '', rm4: '', rm5: '', rm6: '', h: '', m: '', s: '', value: '', note: '', avg_pace: '', distance_km: '', intervals: [] }
 }
 
 export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
@@ -122,11 +122,13 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
 
     // Lie (ou crée) l'entrée correspondante dans la bibliothèque de mouvements
     const { data: existingLib } = await supabase.from('movements').select('id').ilike('name', label).maybeSingle()
-    if (!existingLib) {
-      await supabase.from('movements').insert({ name: label })
+    let libId = existingLib?.id
+    if (!libId) {
+      const { data: newLib } = await supabase.from('movements').insert({ name: label }).select().single()
+      libId = newLib?.id
     }
 
-    const payload = { name: label, unit: newUnit, category: newCategory, subcategory: newSubcategory.trim() || null }
+    const payload = { name: label, unit: newUnit, category: newCategory, subcategory: newSubcategory.trim() || null, movement_id: libId || null }
     const { data, error } = await supabase.from('tracked_movements').insert(payload).select().single()
     if (data) {
       setMovements(prev => [...(prev || []), { ...data, entries: [] }])
@@ -167,6 +169,8 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
     if (!name) { setEditingNameFor(null); return }
     const { error } = await supabase.from('tracked_movements').update({ name }).eq('id', id)
     if (error) { alert('Erreur : ' + error.message); return }
+    const movementId = movements.find(m => m.id === id)?.movement_id
+    if (movementId) await supabase.from('movements').update({ name }).eq('id', movementId)
     setMovements(prev => prev.map(m => m.id === id ? { ...m, name } : m))
     setEditingNameFor(null)
   }
@@ -180,7 +184,20 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
       note: f.note.trim() || null,
     }
 
-    if (movement.unit === 'kg' || !movement.unit) {
+    if (isRunningSubcat(movement.category, movement.subcategory)) {
+      const distanceKm = f.distance_km ? parseFloat(f.distance_km) : null
+      const paceSec = parsePaceInput(f.avg_pace)
+      if (!distanceKm && !paceSec) return
+      payload.avg_pace = f.avg_pace.trim() || null
+      payload.distance_km = distanceKm
+      payload.intervals = (f.intervals || []).filter(it => it.distance || it.pace)
+      if (movement.unit === 'distance_m') {
+        payload.value = distanceKm ? distanceKm * 1000 : null
+      } else {
+        payload.value = (distanceKm && paceSec) ? Math.round(distanceKm * paceSec) : null
+      }
+      if (payload.value == null) return
+    } else if (movement.unit === 'kg' || !movement.unit) {
       RM_KEYS.forEach(r => { payload[`rm${r}`] = f[`rm${r}`] ? parseFloat(f[`rm${r}`]) : null })
       payload.rm1 = f.rm1 ? parseFloat(f.rm1) : null
       if (!Object.keys(payload).some(k => k.startsWith('rm') && payload[k] != null)) return
@@ -231,6 +248,16 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
   const raceEstimates = computeRaceEstimates(knownRaces)
   const threshold60 = computeThreshold60(knownRaces)
   const deltaZones = computeDeltaZones(knownRaces)
+
+  // Mouvement réel derrière chaque cible de course (pour pouvoir cliquer et rentrer une donnée)
+  const raceMovementByKey = {}
+  movements.forEach(m => {
+    const target = RACE_TARGETS.find(t => t.match(m.name))
+    if (!target) return
+    if ((target.kind === 'time' && m.unit === 'time') || (target.kind === 'distance' && m.unit === 'distance_m')) {
+      raceMovementByKey[target.key] = m
+    }
+  })
 
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
@@ -377,30 +404,37 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
                   <span style={{ fontSize: 13, fontWeight: 800 }}>{sc}</span>
                 </div>
 
-                {isRunning && raceEstimates.slice(0, 2).map(re => (
-                  <div key={re.key} style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{re.label}</div>
-                      {!re.measured && re.from?.length > 0 && (
-                        <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Estimation</div>
+                {isRunning && raceEstimates.slice(0, 2).map(re => {
+                  const movement = raceMovementByKey[re.key]
+                  return (
+                    <div key={re.key} onClick={movement ? () => setDetailMovementId(movement.id) : undefined}
+                      style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: movement ? 'pointer' : 'default' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{re.label}</div>
+                        {!re.measured && re.from?.length > 0 && (
+                          <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Estimation</div>
+                        )}
+                        {!movement && (
+                          <div style={{ fontSize: 10, color: 'var(--text3)', fontStyle: 'italic', marginTop: 1 }}>Demande à ton coach de créer ce mouvement</div>
+                        )}
+                      </div>
+                      {re.timeSec != null ? (
+                        <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatTime(re.timeSec)}</div>
+                      ) : re.distanceM != null ? (
+                        <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatDistance(re.distanceM)}</div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
                       )}
                     </div>
-                    {re.timeSec != null ? (
-                      <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatTime(re.timeSec)}</div>
-                    ) : re.distanceM != null ? (
-                      <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatDistance(re.distanceM)}</div>
-                    ) : (
-                      <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
 
                 {isRunning && (
                   <div style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 14 }}>Seuil 60min</div>
                       {threshold60 && (
-                        <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Estimation (à partir du 6min et du 20min)</div>
+                        <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Calcul automatique (à partir du 6min et du 20min)</div>
                       )}
                     </div>
                     {threshold60 ? (
@@ -423,7 +457,7 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
                     <div style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, fontSize: 14 }}>VMA</div>
-                        <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Estimation (Demi Cooper, 6min)</div>
+                        <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Calcul automatique (Demi Cooper, distance 6min ÷ 100)</div>
                       </div>
                       <div style={{ fontWeight: 800, fontSize: 15, color: '#DC2626', flexShrink: 0 }}>{deltaZones.vma.toFixed(1)} km/h</div>
                     </div>
@@ -452,23 +486,30 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
                   </>
                 )}
 
-                {isRunning && raceEstimates.slice(2).map(re => (
-                  <div key={re.key} style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{re.label}</div>
-                      {!re.measured && re.from?.length > 0 && (
-                        <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Estimation</div>
+                {isRunning && raceEstimates.slice(2).map(re => {
+                  const movement = raceMovementByKey[re.key]
+                  return (
+                    <div key={re.key} onClick={movement ? () => setDetailMovementId(movement.id) : undefined}
+                      style={{ borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: movement ? 'pointer' : 'default' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>{re.label}</div>
+                        {!re.measured && re.from?.length > 0 && (
+                          <div style={{ fontSize: 10, color: '#DC2626', fontWeight: 700, marginTop: 1 }}>Estimation</div>
+                        )}
+                        {!movement && (
+                          <div style={{ fontSize: 10, color: 'var(--text3)', fontStyle: 'italic', marginTop: 1 }}>Demande à ton coach de créer ce mouvement</div>
+                        )}
+                      </div>
+                      {re.timeSec != null ? (
+                        <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatTime(re.timeSec)}</div>
+                      ) : re.distanceM != null ? (
+                        <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatDistance(re.distanceM)}</div>
+                      ) : (
+                        <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
                       )}
                     </div>
-                    {re.timeSec != null ? (
-                      <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatTime(re.timeSec)}</div>
-                    ) : re.distanceM != null ? (
-                      <div style={{ fontWeight: 800, fontSize: 15, color: re.measured ? 'var(--green)' : '#DC2626', flexShrink: 0 }}>{formatDistance(re.distanceM)}</div>
-                    ) : (
-                      <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
-                    )}
-                  </div>
-                ))}
+                  )
+                })}
 
                 {list.map(m => {
                   const best = bestPerformance(m, m.entries)
@@ -533,9 +574,15 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
 
 export function EntryForm({ movement, form, setForm, onCancel, onSave, saving }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
-  const isKg = movement.unit === 'kg' || !movement.unit
-  const isTime = movement.unit === 'time'
+  const isRunning = isRunningSubcat(movement.category, movement.subcategory)
+  const isKg = !isRunning && (movement.unit === 'kg' || !movement.unit)
+  const isTime = !isRunning && movement.unit === 'time'
   const cfg = unitOf(movement)
+
+  const intervals = form.intervals || []
+  const addInterval = () => set('intervals', [...intervals, { distance: '', pace: '' }])
+  const updateInterval = (i, field, val) => set('intervals', intervals.map((it, idx) => idx === i ? { ...it, [field]: val } : it))
+  const removeInterval = (i) => set('intervals', intervals.filter((_, idx) => idx !== i))
 
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -582,7 +629,44 @@ export function EntryForm({ movement, form, setForm, onCancel, onSave, saving })
         </div>
       )}
 
-      {!isKg && !isTime && (
+      {isRunning && (
+        <>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Allure moyenne (min/km)</div>
+              <input type="text" placeholder="ex: 5'30" value={form.avg_pace} onChange={e => set('avg_pace', e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Distance parcourue (km)</div>
+              <input type="number" step="0.01" min="0" placeholder="ex: 6.5" value={form.distance_km} onChange={e => set('distance_km', e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+            </div>
+          </div>
+
+          {intervals.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {intervals.map((it, i) => (
+                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <input type="number" step="0.01" min="0" placeholder="Distance (km)" value={it.distance}
+                    onChange={e => updateInterval(i, 'distance', e.target.value)}
+                    style={{ flex: 1, boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+                  <input type="text" placeholder="Allure (min/km)" value={it.pace}
+                    onChange={e => updateInterval(i, 'pace', e.target.value)}
+                    style={{ flex: 1, boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+                  <button onClick={() => removeInterval(i)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 16, cursor: 'pointer', padding: '0 2px' }}>×</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button onClick={addInterval} style={{ background: 'none', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '7px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
+            + Ajouter un intervalle
+          </button>
+        </>
+      )}
+
+      {!isRunning && !isKg && !isTime && (
         <div>
           <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Valeur ({cfg.suffix})</div>
           <input type="number" step="0.1" min="0" placeholder={`ex: 10`} value={form.value} onChange={e => set('value', e.target.value)}

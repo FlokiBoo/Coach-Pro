@@ -116,12 +116,15 @@ export default function MovementsPage() {
   async function saveEdit() {
     if (!editForm.name.trim()) return
     setSaving(true)
+    const name = editForm.name.trim()
     await supabase.from('movements').update({
-      name: editForm.name.trim(),
+      name,
       muscles: editForm.muscles.trim() || null,
       torque: editForm.torque.trim() || null,
       youtube_url: editForm.youtube_url.trim() || null,
     }).eq('id', editingId)
+    // Garde le mouvement suivi (Metrics) lié en synchronisant son nom
+    await supabase.from('tracked_movements').update({ name }).eq('movement_id', editingId)
     setMovements(prev => prev.map(m =>
       m.id === editingId ? { ...m, ...editForm } : m
     ).sort((a, b) => a.name.localeCompare(b.name, 'fr')))
