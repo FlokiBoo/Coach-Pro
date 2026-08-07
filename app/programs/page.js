@@ -110,13 +110,18 @@ export default function ProgramsPage() {
 
     for (const targetId of selectedIds) {
       const { data: newProg } = await supabase.from('programs')
-        .insert({ athlete_id: targetId, title: assignModal.title, coach_id: coachId, source_program_id: assignModal.id })
+        .insert({ athlete_id: targetId, title: assignModal.title, coach_id: coachId, source_program_id: assignModal.id, activity_type: assignModal.activity_type })
         .select().single()
       if (!newProg) continue
 
       for (const sess of (sessions || [])) {
         const { data: newSess } = await supabase.from('program_sessions')
-          .insert({ program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id })
+          .insert({
+            program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id,
+            activation: sess.activation || null, coach_notes: sess.coach_notes || null,
+            activation_videos: sess.activation_videos || [], circuits: sess.circuits || [],
+            session_type: sess.session_type || null,
+          })
           .select().single()
         if (!newSess) continue
 
@@ -130,9 +135,14 @@ export default function ProgramsPage() {
               sets: e.sets,
               reps: e.reps,
               kg: e.kg,
+              rest: e.rest,
               note: e.note,
               video_url: e.video_url,
               superset_group: e.superset_group,
+              focus_muscles: e.focus_muscles || null,
+              pace_base: e.pace_base || null,
+              pct_low: e.pct_low,
+              pct_high: e.pct_high,
               source_exercise_id: e.id,
             }))
           )
