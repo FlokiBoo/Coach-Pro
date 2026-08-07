@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock, { estimate1RM, unitOf, formatPerformance } from './TrackedMovementsBlock'
 import FaimSatieteBlock from './FaimSatieteBlock'
+import PasswordSettingsModal from './PasswordSettingsModal'
 
 function computeRecordEvents(entries) {
   const byMovement = {}
@@ -46,6 +47,7 @@ export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
   const [saving, setSaving] = useState(false)
   const [showFaimSat, setShowFaimSat] = useState(false)
   const [showMetrics, setShowMetrics] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [recentRecords, setRecentRecords] = useState([])
 
   useEffect(() => {
@@ -175,6 +177,23 @@ export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
               <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Faim & Satiété</span>
               <span style={{ color: '#7c8a90', fontSize: 18 }}>›</span>
             </button>
+
+            <div style={{ flex: 1 }} />
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+              <button
+                onClick={() => setShowSettings(true)}
+                style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left' }}
+              >
+                ⚙️ Paramètres
+              </button>
+              <button
+                onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }}
+                style={{ width: '100%', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left' }}
+              >
+                ⎋ Déconnexion
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -202,6 +221,8 @@ export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
           </div>
         </div>
       )}
+
+      {showSettings && <PasswordSettingsModal onClose={() => setShowSettings(false)} />}
     </>
   )
 }

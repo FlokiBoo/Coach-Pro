@@ -32,7 +32,7 @@ export async function POST(request) {
   })
 
   // Déjà invité / déjà inscrit : on retente proprement au lieu de bloquer le coach.
-  if (error && /already registered|already exists/i.test(error.message || '')) {
+  if (error && /already (been )?registered|already exists/i.test(error.message || '')) {
     const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 })
     const existing = list?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase())
 
@@ -48,12 +48,18 @@ export async function POST(request) {
       const { error: resetErr } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
         redirectTo: `${redirectTo}/update-password`,
       })
-      if (resetErr) return NextResponse.json({ error: resetErr.message }, { status: 400 })
+      if (resetErr) {
+        console.error('[invite] resetPasswordForEmail error:', resetErr)
+        return NextResponse.json({ error: resetErr.message || JSON.stringify(resetErr) || 'Erreur inconnue (reset password)' }, { status: 400 })
+      }
       return NextResponse.json({ success: true, resent: true })
     }
   }
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 })
+  if (error) {
+    console.error('[invite] inviteUserByEmail error:', error)
+    return NextResponse.json({ error: error.message || JSON.stringify(error) || 'Erreur inconnue (invite)' }, { status: 400 })
+  }
 
   return NextResponse.json({ success: true, userId: data.user?.id })
 }

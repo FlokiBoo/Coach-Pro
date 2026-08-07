@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import TimerModal from './TimerModal'
+import PasswordSettingsModal from './PasswordSettingsModal'
 
 async function logout() {
   await supabase.auth.signOut()
@@ -43,6 +44,7 @@ export default function AthletesSidebar({ athleteId, date }) {
   const [collapsed, setCollapsed] = useState(false)
   const [search, setSearch] = useState('')
   const [showTimer, setShowTimer] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('coachpro_sidebar_collapsed') === '1')
@@ -275,6 +277,12 @@ export default function AthletesSidebar({ athleteId, date }) {
       {/* Bas de sidebar : déconnexion + accueil */}
       <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         <button
+          onClick={() => setShowSettings(true)}
+          style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left' }}
+        >
+          ⚙️ Paramètres
+        </button>
+        <button
           onClick={logout}
           style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left' }}
         >
@@ -300,6 +308,7 @@ export default function AthletesSidebar({ athleteId, date }) {
     >»</button>
 
     {showTimer && <TimerModal onClose={() => setShowTimer(false)} />}
+    {showSettings && <PasswordSettingsModal onClose={() => setShowSettings(false)} />}
     </>
   )
 }
