@@ -17,7 +17,7 @@ import AthleteSidePanel from '@/app/components/AthleteSidePanel'
 import WeeklyPlannerBlock from '@/app/components/WeeklyPlannerBlock'
 import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 import TimerModal from '@/app/components/TimerModal'
-import { buildKnownRaces, annotatePaceReferences, formatPace, isRunMovement, PACE_BASES, computePaceForBasePct, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
+import { annotatePaceReferences, formatPace, isRunMovement, PACE_BASES, computePaceForBasePct, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -163,10 +163,12 @@ function AthleteView({ params }) {
       const res = await fetch(`/api/athlete-view/${token}`, { cache: 'no-store' })
       if (res.status === 401 || res.status === 403) { router.push('/login'); return }
       if (!res.ok) return
-      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets } = await res.json()
+      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets, raceKnown: rk, trackedMovements: tms } = await res.json()
       setAthlete(ath)
       setObjectives(objs || [])
       setNoteBlocks(blocks || [])
+      setRaceKnown(rk || {})
+      setTrackedMovements(tms || [])
 
       const logsMap = {}
       ;(logs || []).forEach(l => { logsMap[l.program_exercise_id] = l })
@@ -212,25 +214,6 @@ function AthleteView({ params }) {
     load()
   }, [token])
 
-  const loadRaceKnown = () => {
-    if (!athlete?.id) return
-    supabase.from('tracked_movements').select('id, name, unit, tracked_movement_entries(value, athlete_id)')
-      .then(({ data }) => {
-        const movements = (data || []).map(m => ({
-          ...m,
-          entries: (m.tracked_movement_entries || []).filter(e => e.athlete_id === athlete.id),
-        }))
-        setRaceKnown(buildKnownRaces(movements))
-      })
-  }
-
-  useEffect(() => {
-    if (!athlete?.id) return
-    supabase.from('tracked_movements').select('id, name, unit')
-      .then(({ data }) => setTrackedMovements(data || []))
-    loadRaceKnown()
-  }, [athlete?.id])
-
   // Synchronise un résultat de séance (allure + distance) vers le mouvement Metrics correspondant
   // (ex: exercice nommé "6 min (Demi Cooper)" ou "5km Run") pour que VMA/Seuil60/Δ se recalculent.
   const syncRaceMetric = async (exerciseName, distanceKm, avgPaceStr) => {
@@ -255,7 +238,17 @@ function AthleteView({ params }) {
       .eq('athlete_id', athlete.id).eq('tracked_movement_id', tm.id).eq('date', date).maybeSingle()
     if (existing) await supabase.from('tracked_movement_entries').update(payload).eq('id', existing.id)
     else await supabase.from('tracked_movement_entries').insert(payload)
-    loadRaceKnown()
+
+    // Met à jour raceKnown localement (pas de re-fetch : évite les soucis de synchro de session)
+    setRaceKnown(prev => {
+      const cur = prev[target.key]
+      if (target.kind === 'distance') {
+        const D = cur ? Math.max(cur.D, value) : value
+        return { ...prev, [target.key]: { T: target.fixedTimeSec, D } }
+      }
+      const T = cur ? Math.min(cur.T, value) : value
+      return { ...prev, [target.key]: { T, D: target.distanceM } }
+    })
   }
 
   // Détecte automatiquement un nouveau record (1 à 6 reps) sur un mouvement suivi en kg

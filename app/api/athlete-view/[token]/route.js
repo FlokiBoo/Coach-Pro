@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { buildKnownRaces } from '@/lib/raceEstimates'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -31,7 +32,7 @@ export async function GET(request, { params }) {
   }
   if (!isOwner && !isCoach) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
-  const [{ data: progs }, { data: comps }, { data: logs }, { data: objectives }, { data: noteBlocks }, { data: exoSets }] = await Promise.all([
+  const [{ data: progs }, { data: comps }, { data: logs }, { data: objectives }, { data: noteBlocks }, { data: exoSets }, { data: trackedMovs }] = await Promise.all([
     supabaseAdmin.from('programs')
       .select('*, program_sessions(*, program_exercises(*))')
       .eq('athlete_id', athlete.id)
@@ -43,7 +44,15 @@ export async function GET(request, { params }) {
     supabaseAdmin.from('athlete_objectives').select('*').eq('athlete_id', athlete.id).order('created_at'),
     supabaseAdmin.from('athlete_note_blocks').select('*').eq('athlete_id', athlete.id).order('order_index'),
     supabaseAdmin.from('program_exercise_sets').select('*').eq('athlete_id', athlete.id).order('set_index'),
+    supabaseAdmin.from('tracked_movements').select('id, name, unit, tracked_movement_entries(value, athlete_id)'),
   ])
+
+  const raceMovements = (trackedMovs || []).map(m => ({
+    ...m,
+    entries: (m.tracked_movement_entries || []).filter(e => e.athlete_id === athlete.id),
+  }))
+  const raceKnown = buildKnownRaces(raceMovements)
+  const trackedMovements = (trackedMovs || []).map(({ id, name, unit }) => ({ id, name, unit }))
 
   const exerciseNames = [...new Set(
     (progs || []).flatMap(p => (p.program_sessions || []).flatMap(s => (s.program_exercises || []).map(e => e.name).filter(Boolean)))
@@ -58,7 +67,11 @@ export async function GET(request, { params }) {
   }
 
   return NextResponse.json(
-    { athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap, objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [] },
+    {
+      athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap,
+      objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [],
+      raceKnown, trackedMovements,
+    },
     { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
   )
 }
