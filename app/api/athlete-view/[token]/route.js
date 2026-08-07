@@ -25,11 +25,8 @@ export async function GET(request, { params }) {
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
   const isOwner = athlete.auth_user_id === user.id
-  let isCoach = false
-  if (!isOwner) {
-    const { data: coach } = await supabaseAdmin.from('coaches').select('id').eq('id', user.id).single()
-    isCoach = !!coach
-  }
+  const { data: coach } = await supabaseAdmin.from('coaches').select('id').eq('id', user.id).single()
+  const isCoach = !!coach
   if (!isOwner && !isCoach) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const [{ data: progs }, { data: comps }, { data: logs }, { data: objectives }, { data: noteBlocks }, { data: exoSets }, { data: trackedMovs }] = await Promise.all([
@@ -70,7 +67,7 @@ export async function GET(request, { params }) {
     {
       athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap,
       objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [],
-      raceKnown, trackedMovements,
+      raceKnown, trackedMovements, isCoach,
     },
     { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
   )

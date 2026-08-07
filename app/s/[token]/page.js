@@ -84,6 +84,7 @@ function AthleteView({ params }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const isCoachView = searchParams.get('coach') === '1'
+  const [isCoach, setIsCoach] = useState(false)
   const targetSessionId = searchParams.get('session')
   const focusMode = searchParams.get('focus') === '1'
   const [athlete, setAthlete] = useState(null)
@@ -163,12 +164,13 @@ function AthleteView({ params }) {
       const res = await fetch(`/api/athlete-view/${token}`, { cache: 'no-store' })
       if (res.status === 401 || res.status === 403) { router.push('/login'); return }
       if (!res.ok) return
-      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets, raceKnown: rk, trackedMovements: tms } = await res.json()
+      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets, raceKnown: rk, trackedMovements: tms, isCoach: coachFlag } = await res.json()
       setAthlete(ath)
       setObjectives(objs || [])
       setNoteBlocks(blocks || [])
       setRaceKnown(rk || {})
       setTrackedMovements(tms || [])
+      setIsCoach(!!coachFlag)
 
       const logsMap = {}
       ;(logs || []).forEach(l => { logsMap[l.program_exercise_id] = l })
@@ -518,6 +520,7 @@ function AthleteView({ params }) {
               onSaveExerciseSet={saveExerciseSet}
               onDeleteExerciseSet={deleteExerciseSet}
               isCoachView={isCoachView}
+              isCoach={isCoach}
               raceKnown={raceKnown}
               onSyncRaceMetric={syncRaceMetric}
             />
@@ -624,7 +627,7 @@ function AthleteView({ params }) {
           const allTypes = [...new Set(boardPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
           const commonProps = {
             completions, completionFeedback, validating, exerciseLogs,
-            athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView,
+            athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView, isCoach,
             trackedMovements, onSaveMetricResult: saveMetricResult,
             exerciseSets, onAddExerciseSet: addExerciseSet, onSaveExerciseSet: saveExerciseSet, onDeleteExerciseSet: deleteExerciseSet,
             raceKnown, onSyncRaceMetric: syncRaceMetric,
@@ -787,7 +790,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric }) {
   )
 }
 
-function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, raceKnown, onSyncRaceMetric }) {
+function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, isCoach, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, raceKnown, onSyncRaceMetric }) {
   const total = prog.sessions.length
   const done = prog.sessions.filter(s => completions.has(s.id)).length
   const allDone = done === total && total > 0
@@ -862,6 +865,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         onSaveExerciseSet={onSaveExerciseSet}
         onDeleteExerciseSet={onDeleteExerciseSet}
         isCoachView={isCoachView}
+        isCoach={isCoach}
         raceKnown={raceKnown}
         onSyncRaceMetric={onSyncRaceMetric}
       />
@@ -903,7 +907,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, raceKnown = {}, onSyncRaceMetric }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric }) {
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
   const [focusPicker, setFocusPicker] = useState(null) // exercise id being edited
   const [viewingFocus, setViewingFocus] = useState(null) // zones array being viewed
@@ -1053,7 +1057,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                 const manualZones = focusValue ? focusValue.split(',').filter(Boolean) : []
                 const isAuto = manualZones.length === 0
                 const zones = isAuto ? parseMusclesFromText(exo.movement_muscles || '') : manualZones
-                if (zones.length === 0 && !isCoachView) return null
+                if (zones.length === 0 && !isCoach) return null
                 return (
                   <div style={{ marginBottom: 8 }}>
                     {zones.length > 0 ? (
@@ -1063,7 +1067,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                       }}>
                         🎯 FOCUS · {MUSCLE_GROUPS.filter(z => zones.includes(z.key)).map(z => z.label).join(', ')}
                         {isAuto && <span style={{ fontWeight: 500, opacity: 0.75 }}>(auto)</span>}
-                        {isCoachView && (
+                        {isCoach && (
                           <span onClick={e => { e.stopPropagation(); setFocusPicker(exo.id) }} style={{ marginLeft: 2 }}>✏️</span>
                         )}
                       </button>
