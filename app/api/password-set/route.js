@@ -34,5 +34,17 @@ export async function POST() {
     }
   })
 
-  return NextResponse.json({ success: true })
+  // Lie le compte à son profil sportif si ce n'est pas déjà fait (cas : lien de récupération
+  // utilisé à la place du lien d'invitation classique, qui fait normalement cette liaison).
+  const athleteId = user.user_metadata?.athlete_id
+  let athleteToken = null
+  if (athleteId) {
+    const { data: athlete } = await adminClient.from('athletes').select('id, token, auth_user_id').eq('id', athleteId).single()
+    if (athlete && !athlete.auth_user_id) {
+      await adminClient.from('athletes').update({ auth_user_id: user.id }).eq('id', athleteId)
+    }
+    athleteToken = athlete?.token || null
+  }
+
+  return NextResponse.json({ success: true, athleteToken })
 }

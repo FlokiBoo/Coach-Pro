@@ -35,6 +35,18 @@ export default function AthletesPage() {
     setAthletes(data || [])
   }
 
+  const inviteFromMenu = async (a) => {
+    setMenu(null)
+    setBusyId(a.id)
+    const res = await fetch('/api/invite', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: a.email, athleteId: a.id, athleteName: a.name, redirectTo: window.location.origin }),
+    })
+    const json = await res.json()
+    setBusyId(null)
+    alert(json.error ? 'Erreur : ' + json.error : `✓ Invitation envoyée à ${a.email}`)
+  }
+
   const archiveAthlete = async (a) => {
     if (!confirm(`Archiver ${a.name} ?`)) return
     setMenu(null)
@@ -178,6 +190,11 @@ export default function AthletesPage() {
             background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)',
             boxShadow: '0 8px 24px rgba(0,0,0,.2)', overflow: 'hidden', minWidth: 180,
           }}>
+            {menu.athlete.email && (
+              <button onClick={() => inviteFromMenu(menu.athlete)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
+                {menu.athlete.auth_user_id ? '🔑 Renvoyer un lien de connexion' : '✉️ Envoyer l\'invitation'}
+              </button>
+            )}
             <button onClick={() => archiveAthlete(menu.athlete)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#92400E', cursor: 'pointer' }}>
               📦 Archiver
             </button>

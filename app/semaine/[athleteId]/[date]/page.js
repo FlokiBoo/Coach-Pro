@@ -254,11 +254,9 @@ export default function AthletePage({ params }) {
                 <Field label="Email">
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input type="email" placeholder="client@mail.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
-                    {!athlete?.auth_user_id && (
-                      <button onClick={inviteClient} disabled={inviting || !form.email.trim()} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                        {inviting ? '…' : '✉️ Inviter'}
-                      </button>
-                    )}
+                    <button onClick={inviteClient} disabled={inviting || !form.email.trim()} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                      {inviting ? '…' : (athlete?.auth_user_id ? '🔑 Renvoyer un lien' : '✉️ Inviter')}
+                    </button>
                   </div>
                 </Field>
                 {inviteMsg && <div style={{ fontSize: 12, color: inviteMsg.startsWith('Erreur') ? '#DC2626' : '#166534', fontWeight: 600 }}>{inviteMsg}</div>}

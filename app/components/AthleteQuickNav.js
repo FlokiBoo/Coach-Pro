@@ -107,17 +107,15 @@ function InfosSection({ athlete, onUpdate }) {
           <Row label="Adresse postale" value={athlete.address || '—'} />
         </div>
 
-        {!athlete.auth_user_id && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <button onClick={sendInvite} disabled={inviting || !athlete.email} style={{
-              background: athlete.email ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
-              borderRadius: 'var(--r)', padding: 12, fontSize: 14, fontWeight: 700, cursor: athlete.email ? 'pointer' : 'default',
-            }}>
-              {inviting ? '…' : athlete.email ? '✉️ Envoyer le lien d\'invitation' : 'Ajoute un email pour inviter'}
-            </button>
-            {inviteMsg && <div style={{ fontSize: 12, color: inviteMsg.startsWith('Erreur') ? '#DC2626' : '#166534', fontWeight: 600 }}>{inviteMsg}</div>}
-          </div>
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <button onClick={sendInvite} disabled={inviting || !athlete.email} style={{
+            background: athlete.email ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
+            borderRadius: 'var(--r)', padding: 12, fontSize: 14, fontWeight: 700, cursor: athlete.email ? 'pointer' : 'default',
+          }}>
+            {inviting ? '…' : athlete.email ? (athlete.auth_user_id ? '🔑 Renvoyer un lien de connexion' : '✉️ Envoyer le lien d\'invitation') : 'Ajoute un email pour inviter'}
+          </button>
+          {inviteMsg && <div style={{ fontSize: 12, color: inviteMsg.startsWith('Erreur') ? '#DC2626' : '#166534', fontWeight: 600 }}>{inviteMsg}</div>}
+        </div>
 
         <button onClick={() => setEditing(true)} style={{ background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
           ✏️ Modifier

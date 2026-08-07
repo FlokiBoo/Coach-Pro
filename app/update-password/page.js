@@ -23,6 +23,18 @@ function UpdatePasswordPageInner() {
   const [ready, setReady] = useState(false)
 
   useEffect(() => {
+    // Lien expiré / déjà utilisé : Supabase renvoie l'erreur dans le hash de l'URL
+    if (typeof window !== 'undefined' && window.location.hash.includes('error=')) {
+      const hashParams = new URLSearchParams(window.location.hash.slice(1))
+      const desc = hashParams.get('error_description')
+      setError(
+        desc
+          ? decodeURIComponent(desc.replace(/\+/g, ' '))
+          : 'Ce lien a expiré ou a déjà été utilisé. Redemande un lien depuis "mot de passe oublié".'
+      )
+      return
+    }
+
     // Supabase fire PASSWORD_RECOVERY quand le lien du mail est cliqué (flow implicite)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
@@ -54,7 +66,10 @@ function UpdatePasswordPageInner() {
     setError('')
     const { error: err } = await supabase.auth.updateUser({ password })
     if (err) { setError(err.message); setLoading(false); return }
-    router.push('/')
+
+    const res = await fetch('/api/password-set', { method: 'POST' })
+    const { athleteToken } = await res.json().catch(() => ({}))
+    router.push(athleteToken ? `/s/${athleteToken}` : '/')
   }
 
   return (
@@ -66,7 +81,16 @@ function UpdatePasswordPageInner() {
           <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 4 }}>Choisis ton nouveau mot de passe</div>
         </div>
 
-        {!ready ? (
+        {!ready && error ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+              {error}
+            </div>
+            <a href="/login" style={{ textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--green)', textDecoration: 'none' }}>
+              ← Retour à la connexion
+            </a>
+          </div>
+        ) : !ready ? (
           <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '20px 0' }}>Chargement…</div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
