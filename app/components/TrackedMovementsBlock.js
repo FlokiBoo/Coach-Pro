@@ -577,6 +577,8 @@ export function EntryForm({ movement, form, setForm, onCancel, onSave, saving })
   const isRunning = isRunningSubcat(movement.category, movement.subcategory)
   const isKg = !isRunning && (movement.unit === 'kg' || !movement.unit)
   const isTime = !isRunning && movement.unit === 'time'
+  const raceTarget = RACE_TARGETS.find(t => t.match(movement.name))
+  const distanceOnly = raceTarget?.kind === 'distance'
   const cfg = unitOf(movement)
 
   const intervals = form.intervals || []
@@ -632,11 +634,13 @@ export function EntryForm({ movement, form, setForm, onCancel, onSave, saving })
       {isRunning && (
         <>
           <div style={{ display: 'flex', gap: 8 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Allure moyenne (min/km)</div>
-              <input type="text" placeholder="ex: 5'30" value={form.avg_pace} onChange={e => set('avg_pace', e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
-            </div>
+            {!distanceOnly && (
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Allure moyenne (min/km)</div>
+                <input type="text" placeholder="ex: 5'30" value={form.avg_pace} onChange={e => set('avg_pace', e.target.value)}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+              </div>
+            )}
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Distance parcourue (km)</div>
               <input type="number" step="0.01" min="0" placeholder="ex: 6.5" value={form.distance_km} onChange={e => set('distance_km', e.target.value)}
@@ -644,7 +648,7 @@ export function EntryForm({ movement, form, setForm, onCancel, onSave, saving })
             </div>
           </div>
 
-          {intervals.length > 0 && (
+          {!distanceOnly && intervals.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {intervals.map((it, i) => (
                 <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -660,9 +664,11 @@ export function EntryForm({ movement, form, setForm, onCancel, onSave, saving })
             </div>
           )}
 
-          <button onClick={addInterval} style={{ background: 'none', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '7px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
-            + Ajouter un intervalle
-          </button>
+          {!distanceOnly && (
+            <button onClick={addInterval} style={{ background: 'none', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '7px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
+              + Ajouter un intervalle
+            </button>
+          )}
         </>
       )}
 

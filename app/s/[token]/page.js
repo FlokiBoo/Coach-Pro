@@ -17,7 +17,7 @@ import AthleteSidePanel from '@/app/components/AthleteSidePanel'
 import WeeklyPlannerBlock from '@/app/components/WeeklyPlannerBlock'
 import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 import TimerModal from '@/app/components/TimerModal'
-import { buildKnownRaces, annotatePaceReferences, formatPace, isRunMovement, PACE_BASES, computePaceForBasePct } from '@/lib/raceEstimates'
+import { buildKnownRaces, annotatePaceReferences, formatPace, isRunMovement, PACE_BASES, computePaceForBasePct, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -212,10 +212,8 @@ function AthleteView({ params }) {
     load()
   }, [token])
 
-  useEffect(() => {
+  const loadRaceKnown = () => {
     if (!athlete?.id) return
-    supabase.from('tracked_movements').select('id, name, unit')
-      .then(({ data }) => setTrackedMovements(data || []))
     supabase.from('tracked_movements').select('id, name, unit, tracked_movement_entries(value, athlete_id)')
       .then(({ data }) => {
         const movements = (data || []).map(m => ({
@@ -224,7 +222,41 @@ function AthleteView({ params }) {
         }))
         setRaceKnown(buildKnownRaces(movements))
       })
+  }
+
+  useEffect(() => {
+    if (!athlete?.id) return
+    supabase.from('tracked_movements').select('id, name, unit')
+      .then(({ data }) => setTrackedMovements(data || []))
+    loadRaceKnown()
   }, [athlete?.id])
+
+  // Synchronise un résultat de séance (allure + distance) vers le mouvement Metrics correspondant
+  // (ex: exercice nommé "6 min (Demi Cooper)" ou "5km Run") pour que VMA/Seuil60/Δ se recalculent.
+  const syncRaceMetric = async (exerciseName, distanceKm, avgPaceStr) => {
+    if (!athlete) return
+    const target = RACE_TARGETS.find(t => t.match(exerciseName))
+    if (!target) return
+    const tm = trackedMovements.find(m => RACE_TARGETS.find(t => t.match(m.name)) === target)
+    if (!tm) return
+
+    const paceSec = parsePaceInput(avgPaceStr)
+    let value = null
+    if (tm.unit === 'distance_m') value = distanceKm ? Math.round(distanceKm * 1000) : null
+    else if (tm.unit === 'time') value = (distanceKm && paceSec) ? Math.round(distanceKm * paceSec) : null
+    if (value == null) return
+
+    const date = today()
+    const payload = {
+      athlete_id: athlete.id, tracked_movement_id: tm.id, date, value,
+      avg_pace: avgPaceStr?.trim() || null, distance_km: distanceKm || null,
+    }
+    const { data: existing } = await supabase.from('tracked_movement_entries').select('id')
+      .eq('athlete_id', athlete.id).eq('tracked_movement_id', tm.id).eq('date', date).maybeSingle()
+    if (existing) await supabase.from('tracked_movement_entries').update(payload).eq('id', existing.id)
+    else await supabase.from('tracked_movement_entries').insert(payload)
+    loadRaceKnown()
+  }
 
   // Détecte automatiquement un nouveau record (1 à 6 reps) sur un mouvement suivi en kg
   const checkAutoRecord = async (exerciseName, updated) => {
@@ -487,6 +519,7 @@ function AthleteView({ params }) {
               onDeleteExerciseSet={deleteExerciseSet}
               isCoachView={isCoachView}
               raceKnown={raceKnown}
+              onSyncRaceMetric={syncRaceMetric}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
@@ -594,7 +627,7 @@ function AthleteView({ params }) {
             athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView,
             trackedMovements, onSaveMetricResult: saveMetricResult,
             exerciseSets, onAddExerciseSet: addExerciseSet, onSaveExerciseSet: saveExerciseSet, onDeleteExerciseSet: deleteExerciseSet,
-            raceKnown,
+            raceKnown, onSyncRaceMetric: syncRaceMetric,
           }
 
           if (boardPrograms.length === 0) {
@@ -676,11 +709,19 @@ const logInputStyle = {
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
 }
 
-function RunResultLogger({ exo, exerciseLogs, onSaveLog }) {
+function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric }) {
   const log = exerciseLogs[exo.id] || {}
   const [intervals, setIntervals] = useState(log.intervals_done || [])
 
   useEffect(() => { setIntervals(exerciseLogs[exo.id]?.intervals_done || []) }, [exo.id])
+
+  const syncFromLog = (field, value) => {
+    if (!onSyncRaceMetric) return
+    const current = exerciseLogs[exo.id] || {}
+    const distanceKm = field === 'distance_done' ? value : current.distance_done
+    const avgPace = field === 'avg_pace_done' ? value : current.avg_pace_done
+    onSyncRaceMetric(exo.name, distanceKm, avgPace)
+  }
 
   const addInterval = () => {
     const next = [...intervals, { distance: '', pace: '' }]
@@ -696,25 +737,30 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog }) {
     onSaveLog(exo.id, exo.name, 'intervals_done', next)
   }
 
+  const target = RACE_TARGETS.find(t => t.match(exo.name))
+  const distanceOnly = target?.kind === 'distance'
+
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ma séance</div>
       <div style={{ display: 'flex', gap: 8 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Allure moyenne (min/km)</div>
-          <input type="text" placeholder="ex: 5'30" defaultValue={log.avg_pace_done || ''}
-            onBlur={e => onSaveLog(exo.id, exo.name, 'avg_pace_done', e.target.value)}
-            style={logInputStyle} />
-        </div>
+        {!distanceOnly && (
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Allure moyenne (min/km)</div>
+            <input type="text" placeholder="ex: 5'30" defaultValue={log.avg_pace_done || ''}
+              onBlur={e => { onSaveLog(exo.id, exo.name, 'avg_pace_done', e.target.value); syncFromLog('avg_pace_done', e.target.value) }}
+              style={logInputStyle} />
+          </div>
+        )}
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Distance parcourue (km)</div>
           <input type="number" step="0.01" min="0" placeholder="ex: 6.5" defaultValue={log.distance_done ?? ''}
-            onBlur={e => onSaveLog(exo.id, exo.name, 'distance_done', e.target.value ? parseFloat(e.target.value) : null)}
+            onBlur={e => { const v = e.target.value ? parseFloat(e.target.value) : null; onSaveLog(exo.id, exo.name, 'distance_done', v); syncFromLog('distance_done', v) }}
             style={logInputStyle} />
         </div>
       </div>
 
-      {intervals.length > 0 && (
+      {!distanceOnly && intervals.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {intervals.map((it, i) => (
             <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -732,14 +778,16 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog }) {
         </div>
       )}
 
-      <button onClick={addInterval} style={{ background: 'none', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '7px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
-        + Ajouter un intervalle
-      </button>
+      {!distanceOnly && (
+        <button onClick={addInterval} style={{ background: 'none', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '7px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
+          + Ajouter un intervalle
+        </button>
+      )}
     </div>
   )
 }
 
-function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, raceKnown }) {
+function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, raceKnown, onSyncRaceMetric }) {
   const total = prog.sessions.length
   const done = prog.sessions.filter(s => completions.has(s.id)).length
   const allDone = done === total && total > 0
@@ -815,6 +863,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         onDeleteExerciseSet={onDeleteExerciseSet}
         isCoachView={isCoachView}
         raceKnown={raceKnown}
+        onSyncRaceMetric={onSyncRaceMetric}
       />
 
       {/* Programme terminé */}
@@ -854,7 +903,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, raceKnown = {} }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, raceKnown = {}, onSyncRaceMetric }) {
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
   const [focusPicker, setFocusPicker] = useState(null) // exercise id being edited
   const [viewingFocus, setViewingFocus] = useState(null) // zones array being viewed
@@ -1078,7 +1127,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
 
               {/* Log client */}
               {onSaveLog && isRunMovement(exo.name) && (
-                <RunResultLogger exo={exo} exerciseLogs={exerciseLogs} onSaveLog={onSaveLog} />
+                <RunResultLogger exo={exo} exerciseLogs={exerciseLogs} onSaveLog={onSaveLog} onSyncRaceMetric={onSyncRaceMetric} />
               )}
               {onSaveLog && !isRunMovement(exo.name) && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
