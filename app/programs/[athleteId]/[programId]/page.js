@@ -451,7 +451,7 @@ function ProgramEditorPage({ params }) {
       if (!clientSess) {
         // Nouvelle séance côté template, jamais vue par ce client : on la crée
         const { data: created } = await supabase.from('program_sessions')
-          .insert({ program_id: cp.id, order_index: sessOrderIndex, title: fields.title, source_session_id: sessId })
+          .insert({ program_id: cp.id, order_index: sessOrderIndex, title: fields.title, source_session_id: sessId, session_type: fields.session_type || null })
           .select().single()
         clientSess = created
         if (!clientSess) continue
@@ -464,7 +464,7 @@ function ProgramEditorPage({ params }) {
         await supabase.from('program_sessions').update({
           title: fields.title, activation: fields.activation,
           coach_notes: fields.coach_notes, activation_videos: fields.activation_videos,
-          circuits: fields.circuits,
+          circuits: fields.circuits, session_type: fields.session_type || null,
         }).eq('id', clientSess.id)
       }
 
@@ -505,7 +505,7 @@ function ProgramEditorPage({ params }) {
     const sessFields = {
       title: s.title || '', activation: s.activation || null,
       coach_notes: s.coach_notes || null, activation_videos: s.activation_videos || [],
-      circuits: s.circuits || [],
+      circuits: s.circuits || [], session_type: s.session_type || null,
     }
     const { error: sessErr } = await supabase.from('program_sessions').update(sessFields).eq('id', s.id)
     if (sessErr) { alert('Erreur sauvegarde séance : ' + sessErr.message); setSaving(false); return }
@@ -568,7 +568,7 @@ function ProgramEditorPage({ params }) {
         program_id: programId, order_index: forcedIdx !== null ? forcedIdx : sessions.length,
         title: s.title ? `${s.title} (copie)` : '',
         activation: s.activation || null, coach_notes: s.coach_notes || null,
-        activation_videos: s.activation_videos || [],
+        activation_videos: s.activation_videos || [], session_type: s.session_type || null,
       })
       .select().single()
     if (sessErr || !newSession) { alert('Erreur duplication : ' + sessErr?.message); return }
@@ -691,7 +691,7 @@ function ProgramEditorPage({ params }) {
       const s = sessions[i]
       await supabase.from('program_sessions').update({
         order_index: i, title: s.title || '', activation: s.activation || null, coach_notes: s.coach_notes || null,
-        activation_videos: s.activation_videos || [],
+        activation_videos: s.activation_videos || [], session_type: s.session_type || null,
       }).eq('id', s.id)
       await supabase.from('program_exercises').delete().eq('program_session_id', s.id)
       const toInsert = s.exercises.filter(e => e.name.trim()).map((e, j) => ({
@@ -839,6 +839,18 @@ function ProgramEditorPage({ params }) {
                     placeholder={`Séance ${idx + 1}`}
                     style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontWeight: 700, fontSize: 14, color: 'var(--text)', cursor: 'text' }}
                   />
+                  <button
+                    onClick={e => { e.stopPropagation(); updateSession(s.id, 'session_type', s.session_type === 'explication' ? null : 'explication') }}
+                    title="Séance de type explication : validation simple, sans plaisir/difficulté/distance"
+                    style={{
+                      flexShrink: 0, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 9px', cursor: 'pointer',
+                      border: s.session_type === 'explication' ? '1px solid #93C5FD' : '1px solid var(--border2)',
+                      background: s.session_type === 'explication' ? '#EFF6FF' : 'none',
+                      color: s.session_type === 'explication' ? '#1D4ED8' : 'var(--text3)',
+                    }}
+                  >
+                    💡 Explication
+                  </button>
                   <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>
                     {s.exercises.filter(e => e.name.trim()).length} ex.
                   </span>

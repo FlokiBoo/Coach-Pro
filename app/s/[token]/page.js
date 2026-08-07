@@ -1227,7 +1227,19 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
             </div>
           ))}
 
-          {onValidate && (
+          {onValidate && session.session_type === 'explication' && (
+            <button
+              onClick={() => onValidate({})}
+              disabled={validating}
+              style={{
+                marginTop: 8, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)',
+                padding: '15px', fontSize: 15, fontWeight: 700, cursor: validating ? 'default' : 'pointer', width: '100%',
+              }}
+            >
+              {validating ? (isCompleted ? 'Mise à jour…' : 'Validation…') : (isCompleted ? '✓ Mettre à jour' : '✓ Valider la séance')}
+            </button>
+          )}
+          {onValidate && session.session_type !== 'explication' && (
             <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} />
           )}
           {isCompleted && onUnvalidate && (
