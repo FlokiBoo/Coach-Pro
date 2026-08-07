@@ -279,23 +279,30 @@ function AthleteView({ params }) {
     }
   }
 
-  // Enregistre un résultat pour un mouvement suivi non-kg (temps, distance, calories...), uniquement si c'est un nouveau record
+  // Enregistre un résultat pour un mouvement suivi non-kg (temps, distance, calories...) dans Metrics,
+  // et détecte au passage si c'est un nouveau record.
   const saveMetricResult = async (movement, value) => {
     if (!athlete || value == null || isNaN(value)) return
     const cfg = UNITS[movement.unit] || UNITS.kg
+    const date = today()
     const { data: entries } = await supabase.from('tracked_movement_entries')
-      .select('value').eq('tracked_movement_id', movement.id).eq('athlete_id', athlete.id)
+      .select('id, value, date').eq('tracked_movement_id', movement.id).eq('athlete_id', athlete.id)
     const vals = (entries || []).map(e => e.value).filter(v => v != null)
     const currentBest = vals.length ? (cfg.betterIsHigher ? Math.max(...vals) : Math.min(...vals)) : null
     const isNewRecord = currentBest == null || (cfg.betterIsHigher ? value > currentBest : value < currentBest)
-    if (!isNewRecord) return
 
-    const { error } = await supabase.from('tracked_movement_entries').insert({
-      tracked_movement_id: movement.id, athlete_id: athlete.id, date: today(), value,
-    })
-    if (!error) {
+    const existingToday = (entries || []).find(e => e.date === date)
+    const payload = { tracked_movement_id: movement.id, athlete_id: athlete.id, date, value }
+    const { error } = existingToday
+      ? await supabase.from('tracked_movement_entries').update(payload).eq('id', existingToday.id)
+      : await supabase.from('tracked_movement_entries').insert(payload)
+    if (error) return
+
+    if (isNewRecord) {
       setToast(`🏆 Nouveau record : ${formatPerformance(movement, value)} !`)
       setSessionRecords(prev => [...prev, { name: movement.name, label: formatPerformance(movement, value) }])
+    } else {
+      setToast(`Résultat enregistré : ${formatPerformance(movement, value)}`)
     }
   }
 
@@ -1540,7 +1547,7 @@ function MetricResultField({ movement, onSave }) {
   return (
     <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px' }}>
       <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span>🏆 Résultat ({cfg.label})</span>
+        <span>📊 Résultat ({cfg.label})</span>
         {saved && <span>✓ Enregistré</span>}
       </div>
       {isTime ? (
