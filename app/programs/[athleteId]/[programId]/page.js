@@ -1246,7 +1246,32 @@ function ProgramEditorPage({ params }) {
                           {isRunMovement(exo.name) ? (() => {
                             const pace1 = computePaceForBasePct(exo.pace_base, parseFloat(exo.pct_low), raceKnown)
                             const pace2 = computePaceForBasePct(exo.pace_base, parseFloat(exo.pct_high), raceKnown)
+                            const isIntervalOrThreshold = ['run interval', 'run threshold'].includes(exo.name.trim().toLowerCase())
                             return (
+                              <>
+                              {isIntervalOrThreshold ? (
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 5 }}>
+                                  <div>
+                                    <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>ACTION (TEMPS/DISTANCE)</div>
+                                    <input type="text" placeholder="ex: 3min ou 400m" value={exo.sets}
+                                      onChange={e => updateExo(s.id, exo._key, 'sets', e.target.value)}
+                                      style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 12 }} />
+                                  </div>
+                                  <div>
+                                    <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>REPOS (TEMPS/DISTANCE)</div>
+                                    <input type="text" placeholder="ex: 90s" value={exo.rest}
+                                      onChange={e => updateExo(s.id, exo._key, 'rest', e.target.value)}
+                                      style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 12 }} />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div style={{ marginBottom: 5 }}>
+                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>TEMPS DE SÉANCE</div>
+                                  <input type="text" placeholder="ex: 45min" value={exo.rest}
+                                    onChange={e => updateExo(s.id, exo._key, 'rest', e.target.value)}
+                                    style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 12 }} />
+                                </div>
+                              )}
                               <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 1fr 1fr', gap: 5, marginBottom: 4 }}>
                                 <div>
                                   <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>BASE</div>
@@ -1281,6 +1306,7 @@ function ProgramEditorPage({ params }) {
                                   </div>
                                 </div>
                               </div>
+                              </>
                             )
                           })() : (
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 5, marginBottom: 4 }}>

@@ -1059,7 +1059,14 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                   </div>
                 )
               })()}
-              {(exo.sets || exo.reps || exo.kg || exo.rest) && (
+              {isRunMovement(exo.name) ? (
+                (exo.sets || exo.rest) && (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: exo.note ? 6 : 0 }}>
+                    {exo.sets && <Pill value={exo.sets} label="action" />}
+                    {exo.rest && <Pill value={exo.rest} label={exo.sets ? 'repos' : 'temps de séance'} color="#EFF6FF" textColor="#1D4ED8" />}
+                  </div>
+                )
+              ) : (exo.sets || exo.reps || exo.kg || exo.rest) && (
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: exo.note ? 6 : 0 }}>
                   {exo.sets && <Pill value={exo.sets} label="séries" />}
                   {exo.reps && <Pill value={exo.reps} label="reps" />}
