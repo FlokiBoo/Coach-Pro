@@ -1,0 +1,107 @@
+import { supabaseAdmin } from '@/lib/supabase-admin'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+
+async function authenticate(token) {
+  const { data: athlete } = await supabaseAdmin.from('athletes').select('*').eq('token', token).single()
+  if (!athlete) return { error: NextResponse.json({ error: 'introuvable' }, { status: 404 }) }
+
+  const cookieStore = await cookies()
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    { cookies: { getAll() { return cookieStore.getAll() }, setAll() {} } }
+  )
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) }
+
+  const isOwner = athlete.auth_user_id === user.id
+  const { data: coach } = await supabaseAdmin.from('coaches').select('id').eq('id', user.id).single()
+  if (!isOwner && !coach) return { error: NextResponse.json({ error: 'forbidden' }, { status: 403 }) }
+
+  return { athlete, user }
+}
+
+export async function GET(request, { params }) {
+  const { token } = await params
+  const { athlete, error } = await authenticate(token)
+  if (error) return error
+
+  const { data: progs } = await supabaseAdmin
+    .from('programs')
+    .select('id, title, description, activity_type, program_sessions(id)')
+    .is('athlete_id', null)
+    .eq('available_to_clients', true)
+    .order('title')
+
+  const list = (progs || []).map(p => ({
+    id: p.id, title: p.title, description: p.description, activity_type: p.activity_type,
+    sessionCount: (p.program_sessions || []).length,
+  }))
+
+  return NextResponse.json({ programs: list }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } })
+}
+
+export async function POST(request, { params }) {
+  const { token } = await params
+  const { athlete, error } = await authenticate(token)
+  if (error) return error
+
+  const { programId } = await request.json()
+  if (!programId) return NextResponse.json({ error: 'programId requis' }, { status: 400 })
+
+  const { data: template } = await supabaseAdmin.from('programs').select('*').eq('id', programId).is('athlete_id', null).eq('available_to_clients', true).single()
+  if (!template) return NextResponse.json({ error: 'programme introuvable ou non disponible' }, { status: 404 })
+
+  const { data: sessions } = await supabaseAdmin
+    .from('program_sessions')
+    .select('*, program_exercises(*)')
+    .eq('program_id', template.id)
+    .order('order_index')
+
+  const { data: newProg, error: progErr } = await supabaseAdmin.from('programs')
+    .insert({
+      athlete_id: athlete.id, title: template.title, coach_id: template.coach_id,
+      source_program_id: template.id, activity_type: template.activity_type,
+    })
+    .select().single()
+  if (progErr || !newProg) return NextResponse.json({ error: progErr?.message || 'création impossible' }, { status: 400 })
+
+  for (const sess of (sessions || [])) {
+    const { data: newSess } = await supabaseAdmin.from('program_sessions')
+      .insert({
+        program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id,
+        activation: sess.activation || null, coach_notes: sess.coach_notes || null,
+        activation_videos: sess.activation_videos || [], circuits: sess.circuits || [],
+        session_type: sess.session_type || null,
+      })
+      .select().single()
+    if (!newSess) continue
+
+    const exos = (sess.program_exercises || []).sort((a, b) => a.order_index - b.order_index)
+    if (exos.length > 0) {
+      await supabaseAdmin.from('program_exercises').insert(
+        exos.map(e => ({
+          program_session_id: newSess.id,
+          order_index: e.order_index,
+          name: e.name,
+          sets: e.sets,
+          reps: e.reps,
+          kg: e.kg,
+          rest: e.rest,
+          note: e.note,
+          video_url: e.video_url,
+          superset_group: e.superset_group,
+          focus_muscles: e.focus_muscles || null,
+          pace_base: e.pace_base || null,
+          pct_low: e.pct_low,
+          pct_high: e.pct_high,
+          source_exercise_id: e.id,
+        }))
+      )
+    }
+  }
+
+  return NextResponse.json({ success: true, programId: newProg.id })
+}

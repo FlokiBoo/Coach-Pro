@@ -40,7 +40,7 @@ function computeRecordEvents(entries) {
   return events.slice(0, 3)
 }
 
-export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
+export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
   const [open, setOpen] = useState(false)
   const [editingWeight, setEditingWeight] = useState(false)
   const [weightVal, setWeightVal] = useState('')
@@ -48,6 +48,9 @@ export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
   const [showFaimSat, setShowFaimSat] = useState(false)
   const [showMetrics, setShowMetrics] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showPrograms, setShowPrograms] = useState(false)
+  const [availablePrograms, setAvailablePrograms] = useState(null)
+  const [choosingId, setChoosingId] = useState(null)
   const [recentRecords, setRecentRecords] = useState([])
 
   useEffect(() => {
@@ -57,6 +60,26 @@ export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
       .eq('athlete_id', athlete.id)
       .then(({ data }) => setRecentRecords(computeRecordEvents(data || [])))
   }, [athlete?.id])
+
+  const openPrograms = async () => {
+    setShowPrograms(true)
+    if (availablePrograms !== null) return
+    const res = await fetch(`/api/athlete-view/${token}/available-programs`, { cache: 'no-store' })
+    const { programs } = await res.json().catch(() => ({ programs: [] }))
+    setAvailablePrograms(programs || [])
+  }
+
+  const chooseProgram = async (programId) => {
+    setChoosingId(programId)
+    const res = await fetch(`/api/athlete-view/${token}/available-programs`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ programId }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setChoosingId(null)
+    if (json.error) { alert('Erreur : ' + json.error); return }
+    window.location.reload()
+  }
 
   const startEdit = () => {
     setWeightVal(athlete?.weight ?? '')
@@ -134,6 +157,15 @@ export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
               </div>
             </div>
 
+            <button onClick={openPrograms} style={{
+              background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+              padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
+            }}>
+              <span style={{ fontSize: 20 }}>📋</span>
+              <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Programmes</span>
+              <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
+            </button>
+
             <button onClick={() => setShowMetrics(true)} style={{
               background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
               padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
@@ -194,6 +226,40 @@ export default function AthleteSidePanel({ athlete, onWeightUpdate }) {
                 ⎋ Déconnexion
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showPrograms && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button onClick={() => setShowPrograms(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
+            <div style={{ flex: 1, fontWeight: 800, fontSize: 17 }}>Programmes disponibles</div>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {availablePrograms === null ? (
+              <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 0' }}>Chargement…</div>
+            ) : availablePrograms.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
+                <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
+                <div style={{ fontSize: 13 }}>Ton coach n'a rendu aucun programme disponible pour l'instant.</div>
+              </div>
+            ) : (
+              availablePrograms.map(p => (
+                <div key={p.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{p.title}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10 }}>
+                    {p.activity_type && <span>{p.activity_type}</span>}
+                    <span>📅 {p.sessionCount} séance{p.sessionCount !== 1 ? 's' : ''}</span>
+                  </div>
+                  {p.description && <div style={{ fontSize: 13, color: 'var(--text2)' }}>{p.description}</div>}
+                  <button onClick={() => chooseProgram(p.id)} disabled={choosingId === p.id}
+                    style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 4 }}>
+                    {choosingId === p.id ? '…' : '✓ Choisir ce programme'}
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}

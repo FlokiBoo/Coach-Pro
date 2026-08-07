@@ -700,7 +700,7 @@ function AthleteView({ params }) {
       {showFreeForm && (
         <FreeSessionModal onClose={() => setShowFreeForm(false)} onCreate={createFreeSession} />
       )}
-      <AthleteSidePanel athlete={athlete} onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))} />
+      <AthleteSidePanel athlete={athlete} token={token} onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))} />
       <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
     </div>
   )

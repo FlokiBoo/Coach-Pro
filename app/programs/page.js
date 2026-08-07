@@ -81,6 +81,16 @@ export default function ProgramsPage() {
     else setCreating(false)
   }
 
+  const toggleAvailable = async (p) => {
+    const next = !p.available_to_clients
+    setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, available_to_clients: next } : x))
+    const { error } = await supabase.from('programs').update({ available_to_clients: next }).eq('id', p.id)
+    if (error) {
+      setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, available_to_clients: !next } : x))
+      alert('Erreur : ' + error.message)
+    }
+  }
+
   const deleteProgram = async (p) => {
     if (!confirm(`Supprimer "${p.title}" ?`)) return
     await supabase.from('programs').delete().eq('id', p.id)
@@ -241,12 +251,18 @@ export default function ProgramsPage() {
                     <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10 }}>
                       <span>{p.athlete_id ? `👤 ${p.athletes?.name || '—'}` : '📋 Modèle'}</span>
                       <span>📅 {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}</span>
+                      {p.available_to_clients && <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓ Disponible sportifs</span>}
                     </div>
                   </Link>
-                  <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12 }}>
+                  <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                     <Link href={href} style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)', textDecoration: 'none' }}>✏️ Modifier</Link>
                     {athletes.length > 0 && (
                       <button onClick={() => openAssign(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>👥 Assigner</button>
+                    )}
+                    {!p.athlete_id && (
+                      <button onClick={() => toggleAvailable(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: p.available_to_clients ? '#B91C1C' : 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
+                        {p.available_to_clients ? '🚫 Retirer de la sélection' : '📢 Rendre disponible aux sportifs'}
+                      </button>
                     )}
                     <button onClick={() => deleteProgram(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600 }}>🗑 Supprimer</button>
                   </div>
