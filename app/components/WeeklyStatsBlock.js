@@ -117,6 +117,11 @@ const WELLNESS_METRICS = [
   { key: 'forme', label: 'Forme', emoji: '⚡', inverse: false },
 ]
 
+const FEEDBACK_METRICS = [
+  { key: 'pleasure', label: 'Plaisir', emoji: '😄', inverse: false },
+  { key: 'difficulty', label: 'Difficulté', emoji: '🔥', inverse: true },
+]
+
 function wellnessColor(val, inverse) {
   if (!val) return 'var(--text3)'
   const s = inverse ? (11 - val) : val
@@ -137,6 +142,26 @@ async function fetchWellnessAverages(athleteId, start, end) {
     const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null
     return { ...m, avg, count: vals.length }
   })
+}
+
+async function fetchFeedbackAverages(athleteId, start, end) {
+  const [{ data: comps }, { data: actLogs }] = await Promise.all([
+    supabase.from('program_completions')
+      .select('pleasure, difficulty')
+      .eq('athlete_id', athleteId)
+      .gte('completed_at', start + 'T00:00:00').lte('completed_at', end + 'T23:59:59'),
+    supabase.from('activity_logs')
+      .select('difficulty')
+      .eq('athlete_id', athleteId)
+      .gte('date', start).lte('date', end),
+  ])
+  const avg = (arr) => arr.length ? arr.reduce((s, v) => s + v, 0) / arr.length : null
+  const pleasureVals = (comps || []).map(c => c.pleasure).filter(v => v != null)
+  const difficultyVals = [...(comps || []).map(c => c.difficulty), ...(actLogs || []).map(a => a.difficulty)].filter(v => v != null)
+  return {
+    pleasure: avg(pleasureVals), pleasureCount: pleasureVals.length,
+    difficulty: avg(difficultyVals), difficultyCount: difficultyVals.length,
+  }
 }
 
 async function fetchProgressions(athleteId, start, end) {
@@ -181,6 +206,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
   const [view, setView] = useState('stats')
   const [progressions, setProgressions] = useState(null)
   const [wellnessAvg, setWellnessAvg] = useState(null)
+  const [feedbackAvg, setFeedbackAvg] = useState(null)
 
   const openRecap = () => {
     setShowRecap(true)
@@ -197,12 +223,14 @@ export default function WeeklyStatsBlock({ athleteId }) {
     setView('stats')
     setProgressions(null)
     setWellnessAvg(null)
+    setFeedbackAvg(null)
     const { start, end } = mode === 'week' ? getWeekRange(offset) : getMonthRange(offset)
     fetchStats(athleteId, start, end).then(s => {
       setStats({ ...s, start, end })
       setLoading(false)
     })
     fetchWellnessAverages(athleteId, start, end).then(setWellnessAvg)
+    fetchFeedbackAverages(athleteId, start, end).then(setFeedbackAvg)
   }, [athleteId, mode, offset])
 
   useEffect(() => {
@@ -339,6 +367,25 @@ export default function WeeklyStatsBlock({ athleteId }) {
             </div>
           )}
 
+          {feedbackAvg && (feedbackAvg.pleasure != null || feedbackAvg.difficulty != null) && (
+            <div style={{ padding: '14px 14px 0' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
+                Ressenti moyen
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                {FEEDBACK_METRICS.map(m => (
+                  <div key={m.key} style={{ flex: 1, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 10, padding: '8px 2px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 14, lineHeight: 1 }}>{m.emoji}</div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: wellnessColor(feedbackAvg[m.key], m.inverse), marginTop: 3 }}>
+                      {feedbackAvg[m.key] != null ? feedbackAvg[m.key].toFixed(1) : '—'}
+                    </div>
+                    <div style={{ fontSize: 8, color: 'var(--text3)', fontWeight: 700, marginTop: 1, textTransform: 'uppercase', letterSpacing: '0.1px' }}>{m.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {hasBreakdown && (
             <div style={{ padding: '14px 14px 0' }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
@@ -431,6 +478,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
           countByLabel={countByLabel}
           progressions={progressions}
           wellnessAvg={wellnessAvg}
+          feedbackAvg={feedbackAvg}
           initialPage={0}
           onClose={() => setShowRecap(false)}
         />
@@ -439,7 +487,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
   )
 }
 
-function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, countByLabel, progressions, wellnessAvg, initialPage = 0, onClose }) {
+function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, countByLabel, progressions, wellnessAvg, feedbackAvg, initialPage = 0, onClose }) {
   const [page, setPage] = useState(initialPage)
   const [sharing, setSharing] = useState(false)
   const touchStartX = useRef(0)
@@ -518,6 +566,25 @@ function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel
                         <div style={{ fontSize: 10, lineHeight: 1 }}>{m.emoji}</div>
                         <div style={{ fontSize: 11, fontWeight: 800, color: wellnessColor(m.avg, m.inverse), marginTop: 1 }}>
                           {m.avg != null ? m.avg.toFixed(1) : '—'}
+                        </div>
+                        <div style={{ fontSize: 6.5, color: 'var(--text3)', fontWeight: 700, marginTop: 0, textTransform: 'uppercase', letterSpacing: '0.1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {feedbackAvg && (feedbackAvg.pleasure != null || feedbackAvg.difficulty != null) && (
+                <>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
+                    Ressenti moyen
+                  </div>
+                  <div style={{ display: 'flex', gap: 3, marginBottom: 18 }}>
+                    {FEEDBACK_METRICS.map(m => (
+                      <div key={m.key} style={{ flex: 1, minWidth: 0, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 8, padding: '4px 1px', textAlign: 'center' }}>
+                        <div style={{ fontSize: 10, lineHeight: 1 }}>{m.emoji}</div>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: wellnessColor(feedbackAvg[m.key], m.inverse), marginTop: 1 }}>
+                          {feedbackAvg[m.key] != null ? feedbackAvg[m.key].toFixed(1) : '—'}
                         </div>
                         <div style={{ fontSize: 6.5, color: 'var(--text3)', fontWeight: 700, marginTop: 0, textTransform: 'uppercase', letterSpacing: '0.1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.label}</div>
                       </div>

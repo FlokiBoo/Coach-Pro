@@ -454,16 +454,21 @@ function TestsArticulairesSection({ athleteId }) {
 
   const startEditValue = (testName, side, entry) => {
     setEditingValue({ testName, side })
-    setValueDraft(side === 'D' ? String(entry.value_d ?? '') : String(entry.value_g ?? ''))
+    setValueDraft(entry ? String((side === 'D' ? entry.value_d : entry.value_g) ?? '') : '')
   }
 
-  const saveValue = async () => {
+  const saveValue = async (joint) => {
     if (!editingValue) return
-    const entry = latestByTest[editingValue.testName]
-    if (!entry) return
     const field = editingValue.side === 'D' ? 'value_d' : 'value_g'
     const parsed = valueDraft.trim() ? parseFloat(valueDraft) : null
-    await supabase.from('joint_test_entries').update({ [field]: parsed }).eq('id', entry.id)
+    const entry = latestByTest[editingValue.testName]
+    if (entry) {
+      // Une donnée existe déjà : on la remplace directement, pas de nouvel historique.
+      await supabase.from('joint_test_entries').update({ [field]: parsed }).eq('id', entry.id)
+    } else {
+      await supabase.from('joint_test_entries')
+        .insert({ athlete_id: athleteId, test_name: editingValue.testName, joint, [field]: parsed })
+    }
     setEditingValue(null)
     loadLatestValues()
   }
@@ -599,8 +604,19 @@ function TestsArticulairesSection({ athleteId }) {
                           )}
                         </>
                       )
-                    ) : (
+                    ) : group.qualitative ? (
                       <span style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>Aucune donnée</span>
+                    ) : (
+                      <>
+                        <button onClick={() => startEditValue(t, 'D', null)}
+                          style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'none', border: '1px dashed var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
+                          + D
+                        </button>
+                        <button onClick={() => startEditValue(t, 'G', null)}
+                          style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'none', border: '1px dashed var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
+                          + G
+                        </button>
+                      </>
                     )}
 
                     <div style={{ flex: 1 }} />
@@ -638,8 +654,10 @@ function TestsArticulairesSection({ athleteId }) {
                         placeholder="Degrés"
                         style={{ width: 90, boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
                       <button onClick={() => setEditingValue(null)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
-                      <button onClick={deleteValue} style={{ background: 'none', border: '1px solid #F1B8B8', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: '#991B1B' }}>Supprimer</button>
-                      <button onClick={saveValue} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Enregistrer</button>
+                      {latestByTest[t] && (
+                        <button onClick={deleteValue} style={{ background: 'none', border: '1px solid #F1B8B8', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: '#991B1B' }}>Supprimer</button>
+                      )}
+                      <button onClick={() => saveValue(group.joint)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Enregistrer</button>
                     </div>
                   )}
 
