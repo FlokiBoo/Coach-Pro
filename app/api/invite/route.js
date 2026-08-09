@@ -23,6 +23,7 @@ export async function POST(request) {
   if (!me) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   // Sauvegarder l'email sur l'athlete
+  const { data: athleteRow } = await supabaseAdmin.from('athletes').select('auth_user_id').eq('id', athleteId).single()
   await supabaseAdmin.from('athletes').update({ email }).eq('id', athleteId)
 
   // Envoyer l'invitation Supabase
@@ -36,8 +37,11 @@ export async function POST(request) {
     const { data: list } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 })
     const existing = list?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase())
 
-    if (existing?.app_metadata?.needs_password) {
-      // N'a jamais fini de créer son mot de passe : on repart de zéro proprement.
+    // Compte jamais réellement finalisé (pas de mot de passe créé, jamais lié au profil sportif) :
+    // on repart de zéro proprement plutôt que de renvoyer un lien de réinitialisation inutile.
+    const neverCompleted = existing?.app_metadata?.needs_password || !athleteRow?.auth_user_id
+
+    if (existing && neverCompleted) {
       await supabaseAdmin.auth.admin.deleteUser(existing.id)
       ;({ data, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
         redirectTo: `${redirectTo}/auth/callback?athlete_id=${athleteId}`,
