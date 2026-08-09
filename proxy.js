@@ -9,6 +9,7 @@ export async function proxy(request) {
     pathname.startsWith('/login') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/update-password') ||
+    pathname.startsWith('/definir-mot-de-passe') ||
     pathname.startsWith('/s/') ||
     pathname.startsWith('/api/athlete-view') ||
     pathname.startsWith('/api/manifest')

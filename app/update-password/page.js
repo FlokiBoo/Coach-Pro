@@ -21,6 +21,9 @@ function UpdatePasswordPageInner() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [ready, setReady] = useState(false)
+  const [needConfirm, setNeedConfirm] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const tokenHash = searchParams.get('token_hash')
 
   useEffect(() => {
     // Lien expiré / déjà utilisé : Supabase renvoie l'erreur dans le hash de l'URL
@@ -53,10 +56,27 @@ function UpdatePasswordPageInner() {
       // Vérifie si déjà une session active (rechargement de page)
       supabase.auth.getSession().then(({ data: { session } }) => {
         if (session) setReady(true)
+        else if (tokenHash) setNeedConfirm(true)
       })
     }
     return () => subscription.unsubscribe()
   }, [])
+
+  const confirmRecovery = async () => {
+    setConfirming(true)
+    setError('')
+    const { error: err } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'recovery' })
+    setConfirming(false)
+    if (err) {
+      setError(err.message === 'Token has expired or is invalid'
+        ? "Ce lien a expiré ou a déjà été utilisé (souvent car un antivirus/scanner mail l'a ouvert automatiquement). Redemande un lien depuis \"mot de passe oublié\"."
+        : err.message)
+      setNeedConfirm(false)
+      return
+    }
+    setNeedConfirm(false)
+    setReady(true)
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -89,6 +109,16 @@ function UpdatePasswordPageInner() {
             <a href="/login" style={{ textAlign: 'center', fontSize: 13, fontWeight: 700, color: 'var(--green)', textDecoration: 'none' }}>
               ← Retour à la connexion
             </a>
+          </div>
+        ) : !ready && needConfirm ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 13, color: 'var(--text2)', textAlign: 'center', lineHeight: 1.5 }}>
+              Clique ci-dessous pour confirmer et choisir ton nouveau mot de passe.
+            </div>
+            <button onClick={confirmRecovery} disabled={confirming}
+              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)', padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+              {confirming ? '…' : '✓ Confirmer'}
+            </button>
           </div>
         ) : !ready ? (
           <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '20px 0' }}>Chargement…</div>

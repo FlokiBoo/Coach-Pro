@@ -3,7 +3,8 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-export async function POST() {
+export async function POST(request) {
+  const profile = await request.json().catch(() => ({}))
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -40,8 +41,14 @@ export async function POST() {
   let athleteToken = null
   if (athleteId) {
     const { data: athlete } = await adminClient.from('athletes').select('id, token, auth_user_id').eq('id', athleteId).single()
-    if (athlete && !athlete.auth_user_id) {
-      await adminClient.from('athletes').update({ auth_user_id: user.id }).eq('id', athleteId)
+    if (athlete) {
+      const updates = {}
+      if (!athlete.auth_user_id) updates.auth_user_id = user.id
+      if (profile.name?.trim()) updates.name = profile.name.trim()
+      if (profile.birth_date) updates.birth_date = profile.birth_date
+      if (profile.height) updates.height = parseInt(profile.height)
+      if (profile.weight) updates.weight = parseFloat(profile.weight)
+      if (Object.keys(updates).length) await adminClient.from('athletes').update(updates).eq('id', athleteId)
     }
     athleteToken = athlete?.token || null
   }
