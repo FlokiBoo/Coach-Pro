@@ -1,5 +1,6 @@
 import "./globals.css";
 import ServiceWorkerRegistration from "@/app/components/ServiceWorkerRegistration";
+import ChatWidget from "@/app/components/ChatWidget";
 
 export const metadata = {
   title: "CoachPro",
@@ -22,6 +23,7 @@ export default function RootLayout({ children }) {
       <body>
         {children}
         <ServiceWorkerRegistration />
+        <ChatWidget />
       </body>
     </html>
   );
