@@ -12,7 +12,8 @@ export async function proxy(request) {
     pathname.startsWith('/definir-mot-de-passe') ||
     pathname.startsWith('/s/') ||
     pathname.startsWith('/api/athlete-view') ||
-    pathname.startsWith('/api/manifest')
+    pathname.startsWith('/api/manifest') ||
+    pathname.startsWith('/api/stripe/webhook')
   ) {
     return NextResponse.next()
   }

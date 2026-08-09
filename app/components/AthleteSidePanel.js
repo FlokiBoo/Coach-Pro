@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock, { estimate1RM, unitOf, formatPerformance } from './TrackedMovementsBlock'
 import FaimSatieteBlock from './FaimSatieteBlock'
 import PasswordSettingsModal from './PasswordSettingsModal'
+import { SUBSCRIPTION_TIERS } from '@/lib/subscriptionTiers'
 
 function computeRecordEvents(entries) {
   const byMovement = {}
@@ -51,6 +52,9 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
   const [showPrograms, setShowPrograms] = useState(false)
   const [availablePrograms, setAvailablePrograms] = useState(null)
   const [choosingId, setChoosingId] = useState(null)
+  const [showSubscription, setShowSubscription] = useState(false)
+  const [subscribing, setSubscribing] = useState(null)
+  const [portalLoading, setPortalLoading] = useState(false)
   const [recentRecords, setRecentRecords] = useState([])
 
   useEffect(() => {
@@ -79,6 +83,27 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
     setChoosingId(null)
     if (json.error) { alert('Erreur : ' + json.error); return }
     window.location.reload()
+  }
+
+  const subscribe = async (tier) => {
+    setSubscribing(tier)
+    const res = await fetch(`/api/athlete-view/${token}/checkout`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setSubscribing(null)
+    if (json.error) { alert('Erreur : ' + json.error); return }
+    window.location.href = json.url
+  }
+
+  const openPortal = async () => {
+    setPortalLoading(true)
+    const res = await fetch(`/api/athlete-view/${token}/portal`, { method: 'POST' })
+    const json = await res.json().catch(() => ({}))
+    setPortalLoading(false)
+    if (json.error) { alert('Erreur : ' + json.error); return }
+    window.location.href = json.url
   }
 
   const startEdit = () => {
@@ -157,6 +182,22 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
               </div>
             </div>
 
+            <button onClick={() => setShowSubscription(true)} style={{
+              background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+              padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
+            }}>
+              <span style={{ fontSize: 20 }}>💳</span>
+              <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>
+                Abonnement
+                {athlete.subscription_status === 'active' && SUBSCRIPTION_TIERS[athlete.subscription_tier] && (
+                  <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: 'var(--green-light)', color: 'var(--green)', borderRadius: 10, padding: '2px 8px' }}>
+                    {SUBSCRIPTION_TIERS[athlete.subscription_tier].label}
+                  </span>
+                )}
+              </span>
+              <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
+            </button>
+
             <button onClick={openPrograms} style={{
               background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
               padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
@@ -226,6 +267,55 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
                 ⎋ Déconnexion
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showSubscription && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button onClick={() => setShowSubscription(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
+            <div style={{ flex: 1, fontWeight: 800, fontSize: 17 }}>Abonnement</div>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {athlete.subscription_status === 'active' && (
+              <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0D6B4F' }}>
+                  ✓ Abonnement actif — {SUBSCRIPTION_TIERS[athlete.subscription_tier]?.label || athlete.subscription_tier}
+                </div>
+                <button onClick={openPortal} disabled={portalLoading}
+                  style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 700, color: 'var(--text)', cursor: 'pointer' }}>
+                  {portalLoading ? '…' : 'Gérer mon abonnement'}
+                </button>
+              </div>
+            )}
+
+            {Object.values(SUBSCRIPTION_TIERS).map(t => {
+              const isCurrent = athlete.subscription_status === 'active' && athlete.subscription_tier === t.key
+              return (
+                <div key={t.key} style={{
+                  background: 'var(--bg)', border: isCurrent ? '1.5px solid var(--green)' : '1px solid var(--border)',
+                  borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 6,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, flex: 1 }}>{t.label}</div>
+                    <div style={{ fontWeight: 800, fontSize: 16 }}>{t.amount.toFixed(2).replace('.', ',')}€<span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text3)' }}>/mois</span></div>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>{t.description}</div>
+                  {!isCurrent && athlete.subscription_status !== 'active' && (
+                    <button onClick={() => subscribe(t.key)} disabled={subscribing === t.key}
+                      style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 4 }}>
+                      {subscribing === t.key ? '…' : "S'abonner"}
+                    </button>
+                  )}
+                  {!isCurrent && athlete.subscription_status === 'active' && (
+                    <div style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>
+                      Utilise "Gérer mon abonnement" ci-dessus pour changer de formule
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

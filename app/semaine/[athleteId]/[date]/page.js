@@ -293,20 +293,6 @@ export default function AthletePage({ params }) {
                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
                       🏋️ Coaching — lancer une séance
                     </Link>
-                    {!athlete.is_coach && (
-                      <div style={{ background: 'var(--bg2)', borderRadius: 'var(--r)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>Lien personnel</div>
-                          <div style={{ fontSize: 12, color: 'var(--text2)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {`${process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '')}/s/${athlete.token}`}
-                          </div>
-                        </div>
-                        <button onClick={() => navigator.clipboard.writeText(`${process.env.NEXT_PUBLIC_APP_URL || window.location.origin}/s/${athlete.token}`)}
-                          style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '7px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                          Copier
-                        </button>
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <button onClick={async () => {
