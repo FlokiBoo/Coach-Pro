@@ -191,7 +191,7 @@ export default function AthletesSidebar({ athleteId, date }) {
       </div>
 
       {/* Liste sportifs */}
-      <div style={{ padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minHeight: 0, overflowY: 'auto' }}>
+      <div style={{ padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '0 4px', marginBottom: 4 }}>
           Mes sportifs
         </div>
