@@ -51,8 +51,28 @@ export async function GET(request, { params }) {
   const raceKnown = buildKnownRaces(raceMovements)
   const trackedMovements = (trackedMovs || []).map(({ id, name, unit }) => ({ id, name, unit }))
 
+  // Gratuit (pas d'abonnement actif) : les programmes copiés depuis le catalogue en libre-service
+  // sont limités aux N premières séances (free_sessions_count) pour donner envie de passer payant.
+  // Chacun avance à son rythme, pas de notion de semaine.
+  const shouldGateFreeTier = !isCoach && athlete.subscription_status !== 'active'
+  const gatedProgs = shouldGateFreeTier
+    ? (progs || []).map(p => {
+        if (p.free_sessions_count == null) return p
+        const sorted = [...(p.program_sessions || [])].sort((a, b) => a.order_index - b.order_index)
+        const lockedIds = new Set(sorted.slice(p.free_sessions_count).map(s => s.id))
+        return {
+          ...p,
+          program_sessions: (p.program_sessions || []).map(s =>
+            lockedIds.has(s.id)
+              ? { ...s, locked: true, program_exercises: [], activation: null, coach_notes: null, circuits: [], activation_videos: [] }
+              : s
+          ),
+        }
+      })
+    : (progs || [])
+
   const exerciseNames = [...new Set(
-    (progs || []).flatMap(p => (p.program_sessions || []).flatMap(s => (s.program_exercises || []).map(e => e.name).filter(Boolean)))
+    (gatedProgs || []).flatMap(p => (p.program_sessions || []).flatMap(s => (s.program_exercises || []).map(e => e.name).filter(Boolean)))
   )]
   let movieMap = {}, musclesMap = {}
   if (exerciseNames.length) {
@@ -65,7 +85,7 @@ export async function GET(request, { params }) {
 
   return NextResponse.json(
     {
-      athlete, programs: progs || [], completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap,
+      athlete, programs: gatedProgs, completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap,
       objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [],
       raceKnown, trackedMovements, isCoach,
     },

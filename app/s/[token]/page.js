@@ -954,14 +954,15 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
           {isCompleted ? '✓' : idx + 1}
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {session.locked && <span>🔒</span>}
             {session.title || `Séance ${idx + 1}`}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-            {exos.length} exercice{exos.length !== 1 ? 's' : ''}{isCompleted ? ' · déjà validée' : ''}
+            {session.locked ? 'Réservé aux abonnés' : `${exos.length} exercice${exos.length !== 1 ? 's' : ''}${isCompleted ? ' · déjà validée' : ''}`}
           </div>
         </div>
-        {isOpen && !isCompleted && onValidate && (
+        {isOpen && !isCompleted && !session.locked && onValidate && (
           <button onClick={e => { e.stopPropagation(); onValidate() }} disabled={validating}
             style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
             ✓ Validé
@@ -970,7 +971,17 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
         <span style={{ fontSize: 18, color: 'var(--text3)' }}>{isOpen ? '▲' : '▼'}</span>
       </div>
 
-      {isOpen && (
+      {isOpen && session.locked && (
+        <div style={{ padding: '20px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <div style={{ fontSize: 32 }}>🔒</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Cette séance fait partie d'une formule payante</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', maxWidth: 320 }}>
+            L'accès gratuit couvre les premières séances du programme. Passe à une formule payante pour continuer.
+          </div>
+        </div>
+      )}
+
+      {isOpen && !session.locked && (
         <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {(session.activation || (session.activation_videos?.length > 0)) && (
             <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px' }}>

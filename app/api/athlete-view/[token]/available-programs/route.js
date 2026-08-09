@@ -64,6 +64,7 @@ export async function POST(request, { params }) {
     .insert({
       athlete_id: athlete.id, title: template.title, coach_id: template.coach_id,
       source_program_id: template.id, activity_type: template.activity_type,
+      free_sessions_count: template.free_sessions_count,
     })
     .select().single()
   if (progErr || !newProg) return NextResponse.json({ error: progErr?.message || 'création impossible' }, { status: 400 })
@@ -74,7 +75,7 @@ export async function POST(request, { params }) {
         program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id,
         activation: sess.activation || null, coach_notes: sess.coach_notes || null,
         activation_videos: sess.activation_videos || [], circuits: sess.circuits || [],
-        session_type: sess.session_type || null,
+        session_type: sess.session_type || null, week_number: sess.week_number,
       })
       .select().single()
     if (!newSess) continue

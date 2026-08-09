@@ -91,6 +91,12 @@ export default function ProgramsPage() {
     }
   }
 
+  const saveFreeSessionsCount = async (p, value) => {
+    const count = value === '' ? null : Math.max(0, parseInt(value) || 0)
+    setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, free_sessions_count: count } : x))
+    await supabase.from('programs').update({ free_sessions_count: count }).eq('id', p.id)
+  }
+
   const deleteProgram = async (p) => {
     if (!confirm(`Supprimer "${p.title}" ?`)) return
     await supabase.from('programs').delete().eq('id', p.id)
@@ -130,7 +136,7 @@ export default function ProgramsPage() {
             program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id,
             activation: sess.activation || null, coach_notes: sess.coach_notes || null,
             activation_videos: sess.activation_videos || [], circuits: sess.circuits || [],
-            session_type: sess.session_type || null,
+            session_type: sess.session_type || null, week_number: sess.week_number,
           })
           .select().single()
         if (!newSess) continue
@@ -263,6 +269,15 @@ export default function ProgramsPage() {
                       <button onClick={() => toggleAvailable(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: p.available_to_clients ? '#B91C1C' : 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
                         {p.available_to_clients ? '🚫 Retirer de la sélection' : '📢 Rendre disponible aux sportifs'}
                       </button>
+                    )}
+                    {!p.athlete_id && p.available_to_clients && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>
+                        Séances gratuites :
+                        <input type="number" min="0" placeholder="illimité"
+                          defaultValue={p.free_sessions_count ?? ''}
+                          onBlur={e => saveFreeSessionsCount(p, e.target.value)}
+                          style={{ width: 60, boxSizing: 'border-box', padding: '3px 6px', border: '1px solid var(--border2)', borderRadius: 6, fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+                      </label>
                     )}
                     <button onClick={() => deleteProgram(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600 }}>🗑 Supprimer</button>
                   </div>

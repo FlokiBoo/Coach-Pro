@@ -198,7 +198,7 @@ function ProgramsPageInner({ params }) {
           .insert({
             program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id,
             activation: sess.activation, coach_notes: sess.coach_notes, activation_videos: sess.activation_videos || [], circuits: sess.circuits || [],
-            session_type: sess.session_type || null,
+            session_type: sess.session_type || null, week_number: sess.week_number,
           })
           .select().single()
         if (!newSess) continue
