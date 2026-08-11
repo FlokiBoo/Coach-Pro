@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock, { estimate1RM, unitOf, formatPerformance } from './TrackedMovementsBlock'
-import FaimSatieteBlock from './FaimSatieteBlock'
 import PasswordSettingsModal from './PasswordSettingsModal'
 import { SUBSCRIPTION_TIERS } from '@/lib/subscriptionTiers'
 
@@ -46,7 +45,6 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
   const [editingWeight, setEditingWeight] = useState(false)
   const [weightVal, setWeightVal] = useState('')
   const [saving, setSaving] = useState(false)
-  const [showFaimSat, setShowFaimSat] = useState(false)
   const [showMetrics, setShowMetrics] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showPrograms, setShowPrograms] = useState(false)
@@ -94,7 +92,7 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
     const json = await res.json().catch(() => ({}))
     setSubscribing(null)
     if (json.error) { alert('Erreur : ' + json.error); return }
-    window.location.href = json.url
+    window.location.assign(json.url)
   }
 
   const openPortal = async () => {
@@ -103,7 +101,7 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
     const json = await res.json().catch(() => ({}))
     setPortalLoading(false)
     if (json.error) { alert('Erreur : ' + json.error); return }
-    window.location.href = json.url
+    window.location.assign(json.url)
   }
 
   const startEdit = () => {
@@ -242,15 +240,6 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
               </div>
             )}
 
-            <button onClick={() => setShowFaimSat(true)} style={{
-              background: '#12181c', color: '#eef0ee', border: '1px solid #2c363c', borderRadius: 'var(--rl)',
-              padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
-            }}>
-              <span style={{ fontSize: 20 }}>🍽️</span>
-              <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Faim & Satiété</span>
-              <span style={{ color: '#7c8a90', fontSize: 18 }}>›</span>
-            </button>
-
             <div style={{ flex: 1 }} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
@@ -310,7 +299,7 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
                   )}
                   {!isCurrent && athlete.subscription_status === 'active' && (
                     <div style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>
-                      Utilise "Gérer mon abonnement" ci-dessus pour changer de formule
+                      Utilise &quot;Gérer mon abonnement&quot; ci-dessus pour changer de formule
                     </div>
                   )}
                 </div>
@@ -332,7 +321,7 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
             ) : availablePrograms.length === 0 ? (
               <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
                 <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
-                <div style={{ fontSize: 13 }}>Ton coach n'a rendu aucun programme disponible pour l'instant.</div>
+                <div style={{ fontSize: 13 }}>Ton coach n&apos;a rendu aucun programme disponible pour l&apos;instant.</div>
               </div>
             ) : (
               availablePrograms.map(p => (
@@ -362,18 +351,6 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
           </div>
           <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
             <TrackedMovementsBlock athleteId={athlete.id} isCoach={false} />
-          </div>
-        </div>
-      )}
-
-      {showFaimSat && (
-        <div style={{ position: 'fixed', inset: 0, background: '#12181c', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ background: '#1c252b', borderBottom: '1px solid #2c363c', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <button onClick={() => setShowFaimSat(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: '#eef0ee', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
-            <div style={{ flex: 1, fontWeight: 800, fontSize: 17, color: '#eef0ee' }}>Faim & Satiété</div>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
-            <FaimSatieteBlock />
           </div>
         </div>
       )}

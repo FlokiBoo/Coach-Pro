@@ -237,16 +237,16 @@ export default function TimerModal({ onClose }) {
     prevPhaseKeyRef.current = state.phaseKey
   }, [state.phaseKey, running])
 
-  const accent = (type === 'TABATA' || type === 'CUSTOM') && state.isWork === false ? '#3FC1B0' : '#F2A93B'
+  const accent = (type === 'TABATA' || type === 'CUSTOM') && state.isWork === false ? '#1D4ED8' : 'var(--green)'
 
   const customTotal = buildCustomSegments(customSteps, customRounds, customRestBetween).reduce((s, seg) => s + seg.sec, 0)
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: '#0D1117', zIndex: 900, display: 'flex', flexDirection: 'column', color: '#EDEFF2', fontFamily: "'Space Grotesk', sans-serif" }}>
+    <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 900, display: 'flex', flexDirection: 'column', color: 'var(--text)' }}>
       <div style={{ padding: '16px 20px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={() => screen === 'run' ? backToSetup() : onClose()} style={{ background: 'none', border: 'none', color: '#EDEFF2', fontSize: 22, cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
+        <button onClick={() => screen === 'run' ? backToSetup() : onClose()} style={{ background: 'none', border: 'none', color: 'var(--text)', fontSize: 22, cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
         <div style={{ flex: 1, fontSize: 13, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-          <span style={{ color: '#F2A93B' }}>TIMER</span>
+          <span style={{ color: 'var(--green)' }}>TIMER</span>
         </div>
       </div>
 
@@ -256,9 +256,9 @@ export default function TimerModal({ onClose }) {
             {TYPES.map(t => (
               <button key={t.key} onClick={() => setType(t.key)} style={{
                 flex: 1, padding: '11px 6px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                border: `1px solid ${type === t.key ? '#F2A93B' : '#2A3140'}`,
-                background: type === t.key ? 'rgba(242,169,59,0.1)' : '#161B22',
-                color: type === t.key ? '#F2A93B' : '#7C8493',
+                border: `1px solid ${type === t.key ? 'var(--green)' : 'var(--border2)'}`,
+                background: type === t.key ? 'var(--green-light)' : 'var(--bg)',
+                color: type === t.key ? 'var(--green)' : 'var(--text3)',
               }}>
                 {t.label}
               </button>
@@ -269,7 +269,7 @@ export default function TimerModal({ onClose }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <HMSField label="Durée par round" seconds={emomRoundSec} onChange={setEmomRoundSec} min={1} />
               <NumberField label="Nombre de rounds" value={emomRounds} onChange={setEmomRounds} step={1} min={1} />
-              <div style={{ fontSize: 12, color: '#7C8493', textAlign: 'center' }}>Durée totale : {fmt(emomRoundSec * emomRounds)}</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center' }}>Durée totale : {fmt(emomRoundSec * emomRounds)}</div>
             </div>
           )}
 
@@ -284,7 +284,7 @@ export default function TimerModal({ onClose }) {
               <HMSField label="Travail" seconds={tabataWork} onChange={setTabataWork} min={1} />
               <HMSField label="Repos" seconds={tabataRest} onChange={setTabataRest} min={1} />
               <NumberField label="Nombre de rounds" value={tabataRounds} onChange={setTabataRounds} step={1} min={1} />
-              <div style={{ fontSize: 12, color: '#7C8493', textAlign: 'center' }}>Durée totale : {fmt((tabataWork + tabataRest) * tabataRounds)}</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center' }}>Durée totale : {fmt((tabataWork + tabataRest) * tabataRounds)}</div>
             </div>
           )}
 
@@ -292,14 +292,14 @@ export default function TimerModal({ onClose }) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {customPresets.length > 0 && (
                 <div>
-                  <div style={{ fontSize: 11, color: '#7C8493', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Mes chronos enregistrés</div>
+                  <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Mes chronos enregistrés</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {customPresets.map(p => (
-                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#161B22', border: '1px solid #2A3140', borderRadius: 10, padding: '8px 10px' }}>
-                        <button onClick={() => loadCustomPreset(p)} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: '#EDEFF2', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 10, padding: '8px 10px' }}>
+                        <button onClick={() => loadCustomPreset(p)} style={{ flex: 1, textAlign: 'left', background: 'none', border: 'none', color: 'var(--text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                           {p.name}
                         </button>
-                        <button onClick={() => deleteCustomPreset(p.id)} style={{ background: 'none', border: 'none', color: '#7C8493', fontSize: 14, cursor: 'pointer', padding: '0 2px' }}>×</button>
+                        <button onClick={() => deleteCustomPreset(p.id)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 14, cursor: 'pointer', padding: '0 2px' }}>×</button>
                       </div>
                     ))}
                   </div>
@@ -307,34 +307,34 @@ export default function TimerModal({ onClose }) {
               )}
 
               <div>
-                <div style={{ fontSize: 11, color: '#7C8493', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Séquence</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Séquence</div>
                 {customSteps.length === 0 ? (
-                  <div style={{ fontSize: 12, color: '#7C8493', fontStyle: 'italic', padding: '8px 0' }}>Ajoute un ON pour commencer.</div>
+                  <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', padding: '8px 0' }}>Ajoute un ON pour commencer.</div>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
                     {customSteps.map((s, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#161B22', border: '1px solid #2A3140', borderRadius: 10, padding: '6px 8px' }}>
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 10, padding: '6px 8px' }}>
                         <span style={{
                           fontSize: 11, fontWeight: 800, borderRadius: 6, padding: '3px 8px', flexShrink: 0,
-                          background: s.type === 'ON' ? 'rgba(242,169,59,0.15)' : 'rgba(63,193,176,0.15)',
-                          color: s.type === 'ON' ? '#F2A93B' : '#3FC1B0',
+                          background: s.type === 'ON' ? 'var(--green-light)' : '#EFF6FF',
+                          color: s.type === 'ON' ? 'var(--green)' : '#1D4ED8',
                         }}>
                           {s.type === 'ON' ? 'ON' : 'RÉCUP'}
                         </span>
                         <input type="number" value={s.sec} onChange={e => updateCustomStepSec(i, parseInt(e.target.value) || 1)}
-                          style={{ width: 60, boxSizing: 'border-box', padding: '6px', borderRadius: 8, border: '1px solid #2A3140', background: '#0D1117', color: '#EDEFF2', fontSize: 13, fontWeight: 700, textAlign: 'center', outline: 'none', fontFamily: 'inherit' }} />
-                        <span style={{ fontSize: 11, color: '#7C8493' }}>sec</span>
+                          style={{ width: 60, boxSizing: 'border-box', padding: '6px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--bg2)', color: 'var(--text)', fontSize: 13, fontWeight: 700, textAlign: 'center', outline: 'none', fontFamily: 'inherit' }} />
+                        <span style={{ fontSize: 11, color: 'var(--text3)' }}>sec</span>
                         <div style={{ flex: 1 }} />
-                        <button onClick={() => removeCustomStep(i)} style={{ background: 'none', border: 'none', color: '#7C8493', fontSize: 15, cursor: 'pointer', padding: '0 2px' }}>×</button>
+                        <button onClick={() => removeCustomStep(i)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 15, cursor: 'pointer', padding: '0 2px' }}>×</button>
                       </div>
                     ))}
                   </div>
                 )}
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => addCustomStep('ON')} style={{ flex: 1, padding: '10px 6px', borderRadius: 10, border: '1px solid #F2A93B', background: 'rgba(242,169,59,0.08)', color: '#F2A93B', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button onClick={() => addCustomStep('ON')} style={{ flex: 1, padding: '10px 6px', borderRadius: 10, border: '1px solid var(--green)', background: 'var(--green-light)', color: 'var(--green)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     + ON
                   </button>
-                  <button onClick={() => addCustomStep('REST')} style={{ flex: 1, padding: '10px 6px', borderRadius: 10, border: '1px solid #3FC1B0', background: 'rgba(63,193,176,0.08)', color: '#3FC1B0', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <button onClick={() => addCustomStep('REST')} style={{ flex: 1, padding: '10px 6px', borderRadius: 10, border: '1px solid #1D4ED8', background: '#EFF6FF', color: '#1D4ED8', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
                     + Récup
                   </button>
                 </div>
@@ -343,11 +343,11 @@ export default function TimerModal({ onClose }) {
               <NumberField label="Nombre de rounds (répète la séquence)" value={customRounds} onChange={setCustomRounds} step={1} min={1} />
               <HMSField label="Repos entre les rounds" seconds={customRestBetween} onChange={setCustomRestBetween} min={0} />
 
-              <div style={{ fontSize: 12, color: '#7C8493', textAlign: 'center' }}>Durée totale : {fmt(customTotal)}</div>
+              <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center' }}>Durée totale : {fmt(customTotal)}</div>
 
               <button onClick={saveCustomPreset} disabled={!customSteps.length} style={{
-                width: '100%', padding: 12, borderRadius: 10, border: '1px solid #2A3140', background: 'transparent',
-                color: customSteps.length ? '#EDEFF2' : '#4B5260', fontSize: 13, fontWeight: 700, cursor: customSteps.length ? 'pointer' : 'default', fontFamily: 'inherit',
+                width: '100%', padding: 12, borderRadius: 10, border: '1px solid var(--border2)', background: 'transparent',
+                color: customSteps.length ? 'var(--text)' : '#4B5260', fontSize: 13, fontWeight: 700, cursor: customSteps.length ? 'pointer' : 'default', fontFamily: 'inherit',
               }}>
                 💾 Enregistrer cette création
               </button>
@@ -356,8 +356,8 @@ export default function TimerModal({ onClose }) {
 
           <button onClick={start} disabled={type === 'CUSTOM' && !customSteps.length} style={{
             width: '100%', marginTop: 28, border: 'none', borderRadius: 10, padding: 15, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-            background: (type === 'CUSTOM' && !customSteps.length) ? '#2A3140' : '#F2A93B',
-            color: (type === 'CUSTOM' && !customSteps.length) ? '#7C8493' : '#1a1400',
+            background: (type === 'CUSTOM' && !customSteps.length) ? 'var(--border2)' : 'var(--green)',
+            color: (type === 'CUSTOM' && !customSteps.length) ? 'var(--text3)' : '#fff',
           }}>
             Démarrer →
           </button>
@@ -365,7 +365,7 @@ export default function TimerModal({ onClose }) {
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, gap: 10 }}>
           <div style={{ fontSize: 13, color: accent, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{type === 'CUSTOM' ? 'PERSO' : type}</div>
-          <div style={{ fontSize: 15, color: '#7C8493', fontWeight: 600 }}>{state.phaseLabel}</div>
+          <div style={{ fontSize: 15, color: 'var(--text3)', fontWeight: 600 }}>{state.phaseLabel}</div>
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 76, fontWeight: 700, color: accent, margin: '10px 0' }}>
             {fmt(state.remaining)}
           </div>
@@ -374,16 +374,16 @@ export default function TimerModal({ onClose }) {
             {!state.finished && (
               <button onClick={running ? pause : start} style={{
                 flex: 1, padding: '14px 10px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
-                background: '#F2A93B', color: '#1a1400',
+                background: 'var(--green)', color: '#fff',
               }}>
                 {running ? '⏸ Pause' : '▶ Reprendre'}
               </button>
             )}
-            <button onClick={reset} style={{ flex: 1, padding: '14px 10px', borderRadius: 10, border: '1px solid #2A3140', background: 'transparent', color: '#EDEFF2', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <button onClick={reset} style={{ flex: 1, padding: '14px 10px', borderRadius: 10, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
               Reset
             </button>
           </div>
-          <button onClick={backToSetup} style={{ marginTop: 14, background: 'none', border: 'none', color: '#7C8493', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
+          <button onClick={backToSetup} style={{ marginTop: 14, background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>
             Changer de format
           </button>
         </div>
@@ -402,7 +402,7 @@ function HMSField({ label, seconds, onChange, min = 0 }) {
 
   return (
     <div>
-      <div style={{ fontSize: 11, color: '#7C8493', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{label}</div>
       <div style={{ display: 'flex', gap: 8 }}>
         {[
           { unit: 'h', value: h, onChange: v => set(v, m, s) },
@@ -411,8 +411,8 @@ function HMSField({ label, seconds, onChange, min = 0 }) {
         ].map(u => (
           <div key={u.unit} style={{ flex: 1 }}>
             <input type="number" min={0} value={u.value} onChange={e => u.onChange(Math.max(0, parseInt(e.target.value) || 0))}
-              style={{ width: '100%', boxSizing: 'border-box', padding: '10px', borderRadius: 10, border: '1px solid #2A3140', background: '#161B22', color: '#EDEFF2', fontSize: 16, fontWeight: 700, textAlign: 'center', outline: 'none', fontFamily: 'inherit' }} />
-            <div style={{ textAlign: 'center', fontSize: 10, color: '#7C8493', marginTop: 3 }}>{u.unit}</div>
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px', borderRadius: 10, border: '1px solid var(--border2)', background: 'var(--bg)', color: 'var(--text)', fontSize: 16, fontWeight: 700, textAlign: 'center', outline: 'none', fontFamily: 'inherit' }} />
+            <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--text3)', marginTop: 3 }}>{u.unit}</div>
           </div>
         ))}
       </div>
@@ -423,12 +423,12 @@ function HMSField({ label, seconds, onChange, min = 0 }) {
 function NumberField({ label, value, onChange, step = 1, min = 0 }) {
   return (
     <div>
-      <div style={{ fontSize: 11, color: '#7C8493', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>{label}</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={() => onChange(Math.max(min, value - step))} style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid #2A3140', background: '#161B22', color: '#EDEFF2', fontSize: 18, cursor: 'pointer' }}>−</button>
+        <button onClick={() => onChange(Math.max(min, value - step))} style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid var(--border2)', background: 'var(--bg)', color: 'var(--text)', fontSize: 18, cursor: 'pointer' }}>−</button>
         <input type="number" value={value} onChange={e => onChange(Math.max(min, parseInt(e.target.value) || min))}
-          style={{ flex: 1, boxSizing: 'border-box', padding: '10px', borderRadius: 10, border: '1px solid #2A3140', background: '#161B22', color: '#EDEFF2', fontSize: 16, fontWeight: 700, textAlign: 'center', outline: 'none', fontFamily: 'inherit' }} />
-        <button onClick={() => onChange(value + step)} style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid #2A3140', background: '#161B22', color: '#EDEFF2', fontSize: 18, cursor: 'pointer' }}>+</button>
+          style={{ flex: 1, boxSizing: 'border-box', padding: '10px', borderRadius: 10, border: '1px solid var(--border2)', background: 'var(--bg)', color: 'var(--text)', fontSize: 16, fontWeight: 700, textAlign: 'center', outline: 'none', fontFamily: 'inherit' }} />
+        <button onClick={() => onChange(value + step)} style={{ width: 40, height: 40, borderRadius: 10, border: '1px solid var(--border2)', background: 'var(--bg)', color: 'var(--text)', fontSize: 18, cursor: 'pointer' }}>+</button>
       </div>
     </div>
   )

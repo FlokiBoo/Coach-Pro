@@ -30,13 +30,18 @@ function initials(name) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
 
+function today() {
+  const n = new Date()
+  return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, '0'), String(n.getDate()).padStart(2, '0')].join('-')
+}
+
 function formatDateShort(d) {
   return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'short'
   })
 }
 
-export default function AthletesSidebar({ athleteId, date }) {
+export default function AthletesSidebar({ athleteId, date = today() }) {
   const [athletes, setAthletes] = useState([])
   const [wellness, setWellness] = useState({})
   const [done, setDone] = useState(new Set())

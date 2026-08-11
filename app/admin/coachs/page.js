@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
+import AthletesSidebar from '@/app/components/AthletesSidebar'
 
 export default function AdminCoachsPage() {
   const [checking, setChecking] = useState(true)
@@ -78,7 +79,9 @@ export default function AdminCoachsPage() {
   )
 
   return (
-    <div style={{ minHeight: '100svh', background: 'var(--bg2)', padding: '20px 16px' }}>
+    <div className="coach-layout" style={{ background: 'var(--bg2)' }}>
+      <AthletesSidebar athleteId={null} />
+      <div className="coach-main" style={{ padding: '20px 16px' }}>
       <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Link href="/" style={{ color: 'var(--text3)', fontSize: 20, textDecoration: 'none' }}>←</Link>
@@ -144,6 +147,7 @@ export default function AdminCoachsPage() {
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   )

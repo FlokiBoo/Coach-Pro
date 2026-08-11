@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, use, Suspense } from 'react'
+import { useState, useEffect, useRef, use, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import WellnessBlock from '@/app/components/WellnessBlock'
 import ActivityBlock, { DurationHMSInput } from '@/app/components/ActivityBlock'
@@ -98,7 +99,7 @@ function AthleteView({ params }) {
   const [celebration, setCelebration] = useState(null)
   const [showFreeForm, setShowFreeForm] = useState(false)
   const [completionFeedback, setCompletionFeedback] = useState({})
-  const [isOffline, setIsOffline] = useState(false)
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine)
   const [objectives, setObjectives] = useState([])
   const [noteBlocks, setNoteBlocks] = useState([])
   const [selectedType, setSelectedType] = useState(null)
@@ -111,9 +112,25 @@ function AthleteView({ params }) {
   const loadQueue = () => { try { return JSON.parse(localStorage.getItem(queueKey) || '[]') } catch { return [] } }
   const enqueue = (op) => { const q = loadQueue(); q.push(op); localStorage.setItem(queueKey, JSON.stringify(q)) }
 
+  const isTempSetId = id => typeof id === 'string' && id.startsWith('local-')
+  const makeTempSetId = () => `local-${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+  const reloadExerciseSets = async () => {
+    if (!athlete) return
+    const { data } = await supabase.from('program_exercise_sets').select('*')
+      .eq('athlete_id', athlete.id).order('set_index')
+    const grouped = {}
+    ;(data || []).forEach(s => { (grouped[s.program_exercise_id] ||= []).push(s) })
+    setExerciseSets(grouped)
+  }
+
   const flushQueue = async () => {
     const q = loadQueue()
     if (!q.length) return
+    const tempIdMap = {} // tempId -> id réel une fois créé en base
+    const resolveSetId = id => (isTempSetId(id) && tempIdMap[id]) ? tempIdMap[id] : id
+    let hasExerciseSetOps = false
+
     for (const op of q) {
       if (op.type === 'exercise_log') {
         await supabase.from('program_exercise_logs').upsert(
@@ -135,19 +152,35 @@ function AthleteView({ params }) {
           { athlete_id: op.athleteId, program_session_id: op.sessId, ...op.feedback },
           { onConflict: 'athlete_id,program_session_id' }
         )
+      } else if (op.type === 'add_exercise_set') {
+        hasExerciseSetOps = true
+        const { data, error } = await supabase.from('program_exercise_sets')
+          .insert({ athlete_id: op.athleteId, program_exercise_id: op.exerciseId, set_index: op.setIndex })
+          .select().single()
+        if (!error && data) tempIdMap[op.tempId] = data.id
+      } else if (op.type === 'exercise_set_field') {
+        hasExerciseSetOps = true
+        const realId = resolveSetId(op.setId)
+        if (isTempSetId(realId)) continue // la création a échoué, rien à mettre à jour
+        await supabase.from('program_exercise_sets').update({ [op.field]: op.value }).eq('id', realId)
+      } else if (op.type === 'delete_exercise_set') {
+        hasExerciseSetOps = true
+        const realId = resolveSetId(op.setId)
+        if (isTempSetId(realId)) continue
+        await supabase.from('program_exercise_sets').delete().eq('id', realId)
       }
     }
     localStorage.removeItem(queueKey)
     setToast('Synchronisé ✓')
+    if (hasExerciseSetOps) reloadExerciseSets()
   }
 
   useEffect(() => {
-    setIsOffline(typeof navigator !== 'undefined' && !navigator.onLine)
     const goOffline = () => setIsOffline(true)
     const goOnline = () => { setIsOffline(false); flushQueue() }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
-    if (typeof navigator !== 'undefined' && navigator.onLine) flushQueue()
+    if (typeof navigator !== 'undefined' && navigator.onLine) Promise.resolve().then(flushQueue)
     return () => {
       window.removeEventListener('offline', goOffline)
       window.removeEventListener('online', goOnline)
@@ -308,13 +341,6 @@ function AthleteView({ params }) {
     }
   }
 
-  useEffect(() => {
-    const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived && !isFinishedFreeSession(p, completions))
-    if (selectedType || !boardPrograms.length) return
-    const withNext = boardPrograms.find(p => p.sessions.some(s => !completions.has(s.id)))
-    setSelectedType((withNext || boardPrograms[0]).activity_type || 'Musculation 🏋️')
-  }, [programs, completions, selectedType])
-
   const unvalidate = async (sessId, progSessions) => {
     if (!athlete) return
     if (!requireOnline()) return
@@ -426,9 +452,14 @@ function AthleteView({ params }) {
 
   const addExerciseSet = async (exerciseId) => {
     if (!athlete) return
-    if (!requireOnline()) return
     const current = exerciseSets[exerciseId] || []
     const nextIndex = current.length ? Math.max(...current.map(s => s.set_index)) + 1 : 1
+    if (isOffline) {
+      const tempId = makeTempSetId()
+      setExerciseSets(prev => ({ ...prev, [exerciseId]: [...(prev[exerciseId] || []), { id: tempId, athlete_id: athlete.id, program_exercise_id: exerciseId, set_index: nextIndex }] }))
+      enqueue({ type: 'add_exercise_set', tempId, athleteId: athlete.id, exerciseId, setIndex: nextIndex })
+      return
+    }
     const { data, error } = await supabase.from('program_exercise_sets')
       .insert({ athlete_id: athlete.id, program_exercise_id: exerciseId, set_index: nextIndex })
       .select().single()
@@ -436,19 +467,57 @@ function AthleteView({ params }) {
     setExerciseSets(prev => ({ ...prev, [exerciseId]: [...(prev[exerciseId] || []), data] }))
   }
 
+  const ensureExerciseSets = async (exerciseId, count) => {
+    if (!athlete) return
+    const current = exerciseSets[exerciseId] || []
+    const missing = count - current.length
+    if (missing <= 0) return
+    const startIndex = current.length ? Math.max(...current.map(s => s.set_index)) + 1 : 1
+    if (isOffline) {
+      const newRows = []
+      for (let i = 0; i < missing; i++) {
+        const tempId = makeTempSetId()
+        const setIndex = startIndex + i
+        newRows.push({ id: tempId, athlete_id: athlete.id, program_exercise_id: exerciseId, set_index: setIndex })
+        enqueue({ type: 'add_exercise_set', tempId, athleteId: athlete.id, exerciseId, setIndex })
+      }
+      setExerciseSets(prev => ({ ...prev, [exerciseId]: [...(prev[exerciseId] || []), ...newRows] }))
+      return
+    }
+    const rows = Array.from({ length: missing }, (_, i) => ({
+      athlete_id: athlete.id, program_exercise_id: exerciseId, set_index: startIndex + i,
+    }))
+    const { data, error } = await supabase.from('program_exercise_sets').insert(rows).select()
+    if (error) { alert('Erreur : ' + error.message); return }
+    setExerciseSets(prev => ({ ...prev, [exerciseId]: [...(prev[exerciseId] || []), ...data] }))
+  }
+
   const saveExerciseSet = async (exerciseId, setId, field, value) => {
-    if (!requireOnline()) return
     const parsedValue = field === 'kg_done' ? (value === '' ? null : parseFloat(value)) : (value || null)
     setExerciseSets(prev => ({
       ...prev,
       [exerciseId]: (prev[exerciseId] || []).map(s => s.id === setId ? { ...s, [field]: parsedValue } : s),
     }))
+    if (isOffline || isTempSetId(setId)) {
+      enqueue({ type: 'exercise_set_field', setId, field, value: parsedValue })
+      return
+    }
     const { error } = await supabase.from('program_exercise_sets').update({ [field]: parsedValue }).eq('id', setId)
     if (error) alert('Erreur : ' + error.message)
   }
 
   const deleteExerciseSet = async (exerciseId, setId) => {
     setExerciseSets(prev => ({ ...prev, [exerciseId]: (prev[exerciseId] || []).filter(s => s.id !== setId) }))
+    if (isTempSetId(setId)) {
+      // Jamais persistée : on retire juste les opérations en attente qui la concernaient.
+      const q = loadQueue().filter(op => op.tempId !== setId && op.setId !== setId)
+      localStorage.setItem(queueKey, JSON.stringify(q))
+      return
+    }
+    if (isOffline) {
+      enqueue({ type: 'delete_exercise_set', setId })
+      return
+    }
     await supabase.from('program_exercise_sets').delete().eq('id', setId)
   }
 
@@ -517,6 +586,7 @@ function AthleteView({ params }) {
               onSaveMetricResult={saveMetricResult}
               exerciseSets={exerciseSets}
               onAddExerciseSet={addExerciseSet}
+              onEnsureExerciseSets={ensureExerciseSets}
               onSaveExerciseSet={saveExerciseSet}
               onDeleteExerciseSet={deleteExerciseSet}
               isCoachView={isCoachView}
@@ -546,9 +616,9 @@ function AthleteView({ params }) {
           <div style={{ fontWeight: 800, fontSize: 18, flex: 1 }}>{athlete.name}</div>
         </div>
         {isCoachView && (
-          <a href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600 }}>
+          <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600 }}>
             ← Vue coach
-          </a>
+          </Link>
         )}
       </div>
 
@@ -629,7 +699,7 @@ function AthleteView({ params }) {
             completions, completionFeedback, validating, exerciseLogs,
             athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView, isCoach,
             trackedMovements, onSaveMetricResult: saveMetricResult,
-            exerciseSets, onAddExerciseSet: addExerciseSet, onSaveExerciseSet: saveExerciseSet, onDeleteExerciseSet: deleteExerciseSet,
+            exerciseSets, onAddExerciseSet: addExerciseSet, onEnsureExerciseSets: ensureExerciseSets, onSaveExerciseSet: saveExerciseSet, onDeleteExerciseSet: deleteExerciseSet,
             raceKnown, onSyncRaceMetric: syncRaceMetric,
           }
 
@@ -645,6 +715,10 @@ function AthleteView({ params }) {
             return boardPrograms.map(prog => <ProgramSessionsBlock key={prog.id} prog={prog} {...commonProps} />)
           }
 
+          // Type sélectionné par défaut : le premier avec une séance restante, sinon le premier tout court.
+          const effectiveType = (selectedType && allTypes.includes(selectedType)) ? selectedType
+            : ((boardPrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || boardPrograms[0]).activity_type || 'Musculation 🏋️')
+
           return (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(${allTypes.length}, minmax(100px, 1fr))`, gap: 8, overflowX: 'auto' }}>
@@ -654,7 +728,7 @@ function AthleteView({ params }) {
                   const done = typePrograms.reduce((n, p) => n + p.sessions.filter(s => completions.has(s.id)).length, 0)
                   const nextProg = typePrograms.find(p => p.sessions.some(s => !completions.has(s.id)))
                   const nextSess = nextProg?.sessions.find(s => !completions.has(s.id))
-                  const isSelected = selectedType === t
+                  const isSelected = effectiveType === t
                   return (
                     <button
                       key={t}
@@ -681,7 +755,7 @@ function AthleteView({ params }) {
               </div>
 
               {boardPrograms
-                .filter(p => (p.activity_type || 'Musculation 🏋️') === selectedType)
+                .filter(p => (p.activity_type || 'Musculation 🏋️') === effectiveType)
                 .map(prog => <ProgramSessionsBlock key={prog.id} prog={prog} {...commonProps} />)}
             </>
           )
@@ -715,8 +789,6 @@ const logInputStyle = {
 function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric }) {
   const log = exerciseLogs[exo.id] || {}
   const [intervals, setIntervals] = useState(log.intervals_done || [])
-
-  useEffect(() => { setIntervals(exerciseLogs[exo.id]?.intervals_done || []) }, [exo.id])
 
   const syncFromLog = (field, value) => {
     if (!onSyncRaceMetric) return
@@ -790,7 +862,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric }) {
   )
 }
 
-function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, isCoach, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, raceKnown, onSyncRaceMetric }) {
+function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, isCoach, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, raceKnown, onSyncRaceMetric }) {
   const total = prog.sessions.length
   const done = prog.sessions.filter(s => completions.has(s.id)).length
   const allDone = done === total && total > 0
@@ -862,6 +934,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         onSaveMetricResult={onSaveMetricResult}
         exerciseSets={exerciseSets}
         onAddExerciseSet={onAddExerciseSet}
+        onEnsureExerciseSets={onEnsureExerciseSets}
         onSaveExerciseSet={onSaveExerciseSet}
         onDeleteExerciseSet={onDeleteExerciseSet}
         isCoachView={isCoachView}
@@ -907,12 +980,13 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric }) {
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
   const [focusPicker, setFocusPicker] = useState(null) // exercise id being edited
   const [viewingFocus, setViewingFocus] = useState(null) // zones array being viewed
   const [focusOverrides, setFocusOverrides] = useState({})
   const [showTimer, setShowTimer] = useState(false)
+  const provisionedSetsRef = useRef(new Set())
 
   const saveFocusMuscles = async (exerciseId, zones) => {
     const value = zones.length ? zones.join(',') : null
@@ -923,6 +997,20 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   const [savedIds, setSavedIds] = useState({})
+
+  // À l'ouverture, pré-remplit une ligne de série par série prescrite par le coach
+  // (ex. "3 séries" -> 3 lignes Reps/Charge), au lieu d'attendre que le sportif clique "+ Ajouter".
+  useEffect(() => {
+    if (!isOpen || !onEnsureExerciseSets) return
+    exos.forEach(exo => {
+      const wanted = parseInt(exo.sets, 10)
+      if (!wanted || wanted < 1) return
+      if (provisionedSetsRef.current.has(exo.id)) return
+      provisionedSetsRef.current.add(exo.id)
+      if ((exerciseSets[exo.id] || []).length === 0) onEnsureExerciseSets(exo.id, wanted)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
 
   const handleValidateExercise = (exo) => {
     const setsEl = document.getElementById(`log-sets-${exo.id}`)
@@ -974,9 +1062,9 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
       {isOpen && session.locked && (
         <div style={{ padding: '20px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
           <div style={{ fontSize: 32 }}>🔒</div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Cette séance fait partie d'une formule payante</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Cette séance fait partie d&apos;une formule payante</div>
           <div style={{ fontSize: 12, color: 'var(--text3)', maxWidth: 320 }}>
-            L'accès gratuit couvre les premières séances du programme. Passe à une formule payante pour continuer.
+            L&apos;accès gratuit couvre les premières séances du programme. Passe à une formule payante pour continuer.
           </div>
         </div>
       )}
@@ -1142,70 +1230,55 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
 
               {/* Log client */}
               {onSaveLog && isRunMovement(exo.name) && (
-                <RunResultLogger exo={exo} exerciseLogs={exerciseLogs} onSaveLog={onSaveLog} onSyncRaceMetric={onSyncRaceMetric} />
+                <RunResultLogger key={exo.id} exo={exo} exerciseLogs={exerciseLogs} onSaveLog={onSaveLog} onSyncRaceMetric={onSyncRaceMetric} />
               )}
               {onSaveLog && !isRunMovement(exo.name) && (
                 <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Ma séance</div>
-                  {(exo.sets || exo.reps || exo.kg) && (
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      {exo.sets && (
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Séries</div>
-                          <input id={`log-sets-${exo.id}`} type="text" placeholder={exo.sets}
-                            defaultValue={exerciseLogs[exo.id]?.sets_done || ''}
-                            onChange={() => setSavedIds(p => ({ ...p, [exo.id]: false }))}
-                            onBlur={e => onSaveLog(exo.id, exo.name, 'sets_done', e.target.value)}
-                            style={logInputStyle} />
-                        </div>
-                      )}
-                      {exo.reps && (
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Reps</div>
-                          <input id={`log-reps-${exo.id}`} type="text" placeholder={exo.reps}
-                            defaultValue={exerciseLogs[exo.id]?.reps_done || ''}
-                            onChange={() => setSavedIds(p => ({ ...p, [exo.id]: false }))}
-                            onBlur={e => onSaveLog(exo.id, exo.name, 'reps_done', e.target.value)}
-                            style={logInputStyle} />
-                        </div>
-                      )}
-                      {exo.kg && (
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Charge (kg)</div>
-                          <input id={`log-kg-${exo.id}`} type="text" placeholder={`${exo.kg} kg`}
-                            defaultValue={exerciseLogs[exo.id]?.kg_done || ''}
-                            onChange={() => setSavedIds(p => ({ ...p, [exo.id]: false }))}
-                            onBlur={e => onSaveLog(exo.id, exo.name, 'kg_done', e.target.value)}
-                            style={logInputStyle} />
-                        </div>
-                      )}
-                    </div>
-                  )}
                   {onAddExerciseSet && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {(exerciseSets[exo.id] || []).map(s => (
+                      {(exerciseSets[exo.id] || []).map((s, sIdx) => {
+                        const prev = sIdx > 0 ? (exerciseSets[exo.id] || [])[sIdx - 1] : null
+                        const copyPrevious = () => {
+                          if (!prev) return
+                          const repsEl = document.getElementById(`log-set-reps-${s.id}`)
+                          const kgEl = document.getElementById(`log-set-kg-${s.id}`)
+                          const prevReps = document.getElementById(`log-set-reps-${prev.id}`)?.value ?? (prev.reps_done || '')
+                          const prevKg = document.getElementById(`log-set-kg-${prev.id}`)?.value ?? (prev.kg_done ?? '')
+                          if (repsEl) repsEl.value = prevReps
+                          if (kgEl) kgEl.value = prevKg
+                          onSaveExerciseSet(exo.id, s.id, 'reps_done', prevReps)
+                          onSaveExerciseSet(exo.id, s.id, 'kg_done', prevKg)
+                          setSavedIds(p => ({ ...p, [exo.id]: false }))
+                        }
+                        return (
                         <div key={s.id} style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', width: 56, flexShrink: 0, paddingBottom: 8 }}>
                             Série {s.set_index}
                           </div>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Reps</div>
-                            <input id={`log-set-reps-${s.id}`} type="text" defaultValue={s.reps_done || ''}
+                            <input id={`log-set-reps-${s.id}`} type="text" placeholder={exo.reps || ''} defaultValue={s.reps_done || ''}
                               onChange={() => setSavedIds(p => ({ ...p, [exo.id]: false }))}
                               onBlur={e => onSaveExerciseSet(exo.id, s.id, 'reps_done', e.target.value)}
                               style={logInputStyle} />
                           </div>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginBottom: 3 }}>Charge (kg)</div>
-                            <input id={`log-set-kg-${s.id}`} type="text" defaultValue={s.kg_done ?? ''}
+                            <input id={`log-set-kg-${s.id}`} type="text" placeholder={exo.kg ? `${exo.kg} kg` : ''} defaultValue={s.kg_done ?? ''}
                               onChange={() => setSavedIds(p => ({ ...p, [exo.id]: false }))}
                               onBlur={e => onSaveExerciseSet(exo.id, s.id, 'kg_done', e.target.value)}
                               style={logInputStyle} />
                           </div>
+                          {prev && (
+                            <button type="button" onClick={copyPrevious} title="Copier la série précédente"
+                              style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, color: 'var(--text3)', cursor: 'pointer', padding: '8px 9px', flexShrink: 0 }}>⧉</button>
+                          )}
                           <button onClick={() => onDeleteExerciseSet(exo.id, s.id)}
                             style={{ background: 'none', border: 'none', fontSize: 16, color: 'var(--text3)', cursor: 'pointer', padding: '0 2px 8px' }}>×</button>
                         </div>
-                      ))}
+                        )
+                      })}
                       <button onClick={() => onAddExerciseSet(exo.id)}
                         style={{ alignSelf: 'flex-start', background: 'none', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '6px 12px', fontSize: 12, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer' }}>
                         + Ajouter une série
@@ -1346,6 +1419,7 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
   const [difficulty, setDifficulty] = useState(initial?.difficulty ?? null)
   const [duration, setDuration] = useState(initial?.duration_minutes ?? null)
   const [distanceKm, setDistanceKm] = useState(initial?.distance_km != null ? String(initial.distance_km) : '')
+  const [comment, setComment] = useState(initial?.comment || '')
 
   const canSubmit = pleasure !== null && difficulty !== null
 
@@ -1369,6 +1443,15 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
       <RatingRow label="Difficulté de la séance" value={difficulty} onChange={setDifficulty} />
 
       <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Commentaire (optionnel)</div>
+        <textarea
+          value={comment} onChange={e => setComment(e.target.value)} rows={2}
+          placeholder="Comment s'est passée la séance ?"
+          style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
+        />
+      </div>
+
+      <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Durée</div>
         <DurationHMSInput
           initialMinutes={duration}
@@ -1381,6 +1464,7 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
         onClick={() => onValidate({
           pleasure, difficulty,
           duration_minutes: duration || null,
+          comment: comment.trim() || null,
           ...(isEndurance ? { distance_km: distanceKm ? parseFloat(distanceKm) : null } : {}),
         })}
         disabled={validating || !canSubmit}
@@ -1703,7 +1787,7 @@ function FreeSessionModal({ onClose, onCreate }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-          Ajoute tes exercices. Tape le début d'un nom pour retrouver un mouvement existant, ou entre un nom libre.
+          Ajoute tes exercices. Tape le début d&apos;un nom pour retrouver un mouvement existant, ou entre un nom libre.
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

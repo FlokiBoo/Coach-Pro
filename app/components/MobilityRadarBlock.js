@@ -106,8 +106,12 @@ export default function MobilityRadarBlock({ athleteId }) {
             ))}
             {axes.map((a, i) => {
               const labelP = polarPoint(cx, cy, maxR + 20, i * angleStep)
+              const dx = labelP.x - cx
+              // Sur les axes proches de l'horizontale, le texte centré déborde du cadre SVG
+              // (ex. "Poignet"/"Genou") : on ancre le texte vers l'intérieur du côté concerné.
+              const anchor = Math.abs(dx) < 8 ? 'middle' : (dx > 0 ? 'end' : 'start')
               return (
-                <text key={a} x={labelP.x} y={labelP.y} textAnchor="middle" dominantBaseline="middle"
+                <text key={a} x={labelP.x} y={labelP.y} textAnchor={anchor} dominantBaseline="middle"
                   fontSize="11" fontWeight="700" fill="var(--text2)">
                   {a}
                 </text>
