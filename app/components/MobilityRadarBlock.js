@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { JOINT_TESTS } from '@/lib/jointTests'
-import { scoreJoint } from '@/lib/jointTestThresholds'
+import { scoreJoint, scoreQualitativeJoint, jointTestKey } from '@/lib/jointTestThresholds'
 import {
   TORQUE_TESTS, PSYCH_QUESTIONNAIRE,
   verdictLabel, verdictColor,
@@ -31,9 +31,16 @@ export default function MobilityRadarBlock({ athleteId }) {
     supabase.from('joint_test_entries').select('*').eq('athlete_id', athleteId)
       .then(({ data }) => {
         const byTest = {}
-        ;(data || []).forEach(e => { if (!byTest[e.test_name]) byTest[e.test_name] = e })
+        ;(data || []).forEach(e => {
+          const k = jointTestKey(e.joint, e.test_name)
+          if (!byTest[k]) byTest[k] = e
+        })
         const scores = {}
-        JOINT_TESTS.forEach(g => { scores[g.joint] = scoreJoint(g.joint, g.tests, byTest) })
+        JOINT_TESTS.forEach(g => {
+          scores[g.joint] = g.qualitative
+            ? scoreQualitativeJoint(g.joint, g.tests, byTest)
+            : scoreJoint(g.joint, g.tests, byTest)
+        })
         setJoints(scores)
       })
 
@@ -119,6 +126,23 @@ export default function MobilityRadarBlock({ athleteId }) {
               </div>
             ))}
           </div>
+
+          {(() => {
+            const PRIORITY_THRESHOLD = 70
+            const scored = axes.map((a, i) => ({ joint: a, score: values[i] })).filter(x => x.score != null)
+            const weakest = scored.filter(x => x.score < PRIORITY_THRESHOLD).sort((a, b) => a.score - b.score)
+            if (!weakest.length) return null
+            return (
+              <div style={{ width: '100%', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 'var(--r)', padding: '10px 12px', marginTop: 4 }}>
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>
+                  🔧 À travailler en priorité
+                </div>
+                <div style={{ fontSize: 12, color: '#92400E' }}>
+                  {weakest.map(w => `${w.joint} (${Math.round(w.score)})`).join(' · ')}
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 

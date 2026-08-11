@@ -283,6 +283,7 @@ export default function GoniometerView({ athleteId, onClose }) {
   const [photoAngle, setPhotoAngle] = useState(null)
   const [manualValue, setManualValue] = useState('')
   const [daf, setDaf] = useState('')
+  const [dafOui, setDafOui] = useState(false)
   const [saving, setSaving] = useState(false)
   const liveRawRef = useRef(0)
   const pausedRef = useRef(false)
@@ -334,6 +335,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     setPrevious(undefined)
     setManualValue('')
     setDaf('')
+    setDafOui(false)
     setPaused(false)
     resetStability()
     supabase.from('joint_test_entries').select('*')
@@ -397,7 +399,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     const { data: existingToday } = await supabase.from('joint_test_entries').select('*')
       .eq('athlete_id', athleteId).eq('test_name', test.name).eq('date', today()).maybeSingle()
 
-    const payload = { [field]: value, daf: daf.trim() || null, ...(photoPath ? { photo_path: photoPath } : {}) }
+    const payload = { [field]: value, daf: daf.trim() || null, daf_oui: dafOui, ...(photoPath ? { photo_path: photoPath } : {}) }
 
     if (existingToday) {
       await supabase.from('joint_test_entries').update(payload).eq('id', existingToday.id)
@@ -408,11 +410,11 @@ export default function GoniometerView({ athleteId, onClose }) {
     }
 
     const pct = (prevSideVal != null && prevSideVal !== 0) ? Math.round(((value - prevSideVal) / prevSideVal) * 1000) / 10 : null
-    setFlash({ value, pct })
+    setFlash({ value, pct, dafOui })
     setTimeout(() => setFlash(null), 1400)
 
     setHistory(prev => {
-      const entry = { testIndex, testName: test.name, joint: test.joint, side, value, hasPhoto: !!photoPath }
+      const entry = { testIndex, testName: test.name, joint: test.joint, side, value, hasPhoto: !!photoPath, dafOui }
       const others = prev.filter(h => !(h.testIndex === testIndex && h.side === side))
       return [...others, entry]
     })
@@ -421,6 +423,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     setPhotoAngle(null)
     setManualValue('')
     setDaf('')
+    setDafOui(false)
     setPaused(false)
     setSaving(false)
 
@@ -644,6 +647,7 @@ export default function GoniometerView({ athleteId, onClose }) {
                     cursor: 'pointer', fontFamily: 'inherit',
                   }}>
                     {h.hasPhoto && <span style={{ fontSize: 12, flexShrink: 0 }}>📷</span>}
+                    {h.dafOui && <span style={{ fontSize: 12, flexShrink: 0 }}>⚠️</span>}
                     <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#EDEFF2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {h.testName} <span style={{ color: '#7C8493' }}>({h.side})</span>
                     </span>
@@ -660,6 +664,22 @@ export default function GoniometerView({ athleteId, onClose }) {
             <div style={{ fontSize: 10, color: '#7C8493', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
               Douleur Angle de Fermeture (DAF)
             </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <button type="button" onClick={() => setDafOui(true)} style={{
+                flex: 1, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                border: `1px solid ${dafOui ? '#F87171' : '#2A3140'}`,
+                background: dafOui ? '#3B1414' : '#161B22', color: dafOui ? '#F87171' : '#7C8493',
+              }}>
+                Oui
+              </button>
+              <button type="button" onClick={() => setDafOui(false)} style={{
+                flex: 1, padding: '10px 12px', borderRadius: 10, cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                border: `1px solid ${!dafOui ? '#3FC1B0' : '#2A3140'}`,
+                background: !dafOui ? '#0F2A24' : '#161B22', color: !dafOui ? '#3FC1B0' : '#7C8493',
+              }}>
+                Non
+              </button>
+            </div>
             <textarea value={daf} onChange={e => setDaf(e.target.value)} rows={2}
               placeholder="Optionnel…"
               style={{
@@ -670,8 +690,8 @@ export default function GoniometerView({ athleteId, onClose }) {
 
           <div style={{ padding: '14px 20px 24px', marginTop: mode === 'sensor' ? 'auto' : undefined }}>
             {flash && (
-              <div style={{ textAlign: 'center', marginBottom: 10, fontSize: 13, color: '#3FC1B0', fontWeight: 700 }}>
-                ✓ {flash.value}° noté{flash.pct != null ? ` (${flash.pct > 0 ? '+' : ''}${flash.pct}%)` : ''}
+              <div style={{ textAlign: 'center', marginBottom: 10, fontSize: 13, color: flash.dafOui ? '#F87171' : '#3FC1B0', fontWeight: 700 }}>
+                {flash.dafOui ? '⚠️' : '✓'} {flash.value}° noté{flash.pct != null ? ` (${flash.pct > 0 ? '+' : ''}${flash.pct}%)` : ''}{flash.dafOui ? ' — DAF présente' : ''}
               </div>
             )}
             <button onClick={save} disabled={!canSave || saving} style={{

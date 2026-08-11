@@ -6,7 +6,7 @@ import TrackedMovementsBlock from './TrackedMovementsBlock'
 import GoniometerView from './GoniometerView'
 import TorqueProfileSection from './TorqueProfileSection'
 import { JOINT_TESTS, isBilateralQualitative, isQualitativeJoint, QUALITY_LEVELS, qualityLevel } from '@/lib/jointTests'
-import { isADMPJoint, analyzeADMPRisk, analyzeActifPassifGap } from '@/lib/jointTestThresholds'
+import { ADMP_NORMS, isADMPJoint, analyzeADMPRisk, analyzeActifPassifGap } from '@/lib/jointTestThresholds'
 
 function calcAge(birthDate) {
   if (!birthDate) return null
@@ -148,7 +148,36 @@ function getYouTubeId(url) {
   return m ? m[1] : null
 }
 
-function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
+function DafField({ dafOui, setDafOui, daf, setDaf }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>
+        Douleur Angle de Fermeture (DAF)
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+        <button type="button" onClick={() => setDafOui(true)} style={{
+          flex: 1, padding: '10px 12px', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+          border: `1px solid ${dafOui ? '#991B1B' : 'var(--border2)'}`,
+          background: dafOui ? '#FEE2E2' : 'var(--bg2)', color: dafOui ? '#991B1B' : 'var(--text2)',
+        }}>
+          Oui
+        </button>
+        <button type="button" onClick={() => setDafOui(false)} style={{
+          flex: 1, padding: '10px 12px', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+          border: `1px solid ${!dafOui ? 'var(--green)' : 'var(--border2)'}`,
+          background: !dafOui ? 'var(--green-light)' : 'var(--bg2)', color: !dafOui ? 'var(--green)' : 'var(--text2)',
+        }}>
+          Non
+        </button>
+      </div>
+      <textarea value={daf} onChange={e => setDaf(e.target.value)} rows={2}
+        placeholder="Précisions (optionnel)…"
+        style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }} />
+    </div>
+  )
+}
+
+function TestLaunchView({ athleteId, testName, joint, movement, onClose, onPrev, onNext, hasPrev, hasNext }) {
   const qualitative = isQualitativeJoint(joint)
   const bilateral = qualitative && isBilateralQualitative(testName)
   const [previous, setPrevious] = useState(undefined) // undefined = chargement, null = aucun
@@ -158,16 +187,17 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
   const [qualityG, setQualityG] = useState(null)
   const [note, setNote] = useState('')
   const [daf, setDaf] = useState('')
+  const [dafOui, setDafOui] = useState(false)
   const [saving, setSaving] = useState(false)
   const [result, setResult] = useState(null)
 
   useEffect(() => {
     supabase.from('joint_test_entries').select('*')
-      .eq('athlete_id', athleteId).eq('test_name', testName)
+      .eq('athlete_id', athleteId).eq('test_name', testName).eq('joint', joint)
       .order('date', { ascending: false }).order('created_at', { ascending: false })
       .limit(1).maybeSingle()
       .then(({ data }) => setPrevious(data || null))
-  }, [athleteId, testName])
+  }, [athleteId, testName, joint])
 
   const pct = (oldVal, newVal) => {
     if (oldVal == null || oldVal === 0 || newVal == null) return null
@@ -179,7 +209,7 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
       if (!qualityD && !(bilateral && qualityG)) return
       setSaving(true)
       const { data, error } = await supabase.from('joint_test_entries')
-        .insert({ athlete_id: athleteId, test_name: testName, joint, quality_d: qualityD, quality_g: bilateral ? qualityG : null, note: note.trim() || null, daf: daf.trim() || null })
+        .insert({ athlete_id: athleteId, test_name: testName, joint, quality_d: qualityD, quality_g: bilateral ? qualityG : null, note: note.trim() || null, daf: daf.trim() || null, daf_oui: dafOui })
         .select().single()
       setSaving(false)
       if (error) { alert('Erreur : ' + error.message); return }
@@ -191,7 +221,7 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
     const valueD = d.trim() ? parseFloat(d) : null
     const valueG = g.trim() ? parseFloat(g) : null
     const { data, error } = await supabase.from('joint_test_entries')
-      .insert({ athlete_id: athleteId, test_name: testName, joint, value_d: valueD, value_g: valueG, daf: daf.trim() || null })
+      .insert({ athlete_id: athleteId, test_name: testName, joint, value_d: valueD, value_g: valueG, daf: daf.trim() || null, daf_oui: dafOui })
       .select().single()
     setSaving(false)
     if (error) { alert('Erreur : ' + error.message); return }
@@ -201,6 +231,15 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
       pctD: pct(previous?.value_d, valueD),
       pctG: pct(previous?.value_g, valueG),
     })
+  }
+
+  // Sauvegarde la saisie en cours (si non déjà validée) avant de changer de test.
+  const navigate = async (goTo) => {
+    const hasUnsavedInput = !result && (qualitative
+      ? (qualityD || (bilateral && qualityG))
+      : (d.trim() || g.trim()))
+    if (hasUnsavedInput) await submit()
+    goTo()
   }
 
   const ytId = movement?.youtube_url ? getYouTubeId(movement.youtube_url) : null
@@ -215,8 +254,14 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
       <div style={{ flex: 1, overflowY: 'auto', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
         {result ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ textAlign: 'center', fontSize: 40, marginBottom: -4 }}>✅</div>
+            <div style={{ textAlign: 'center', fontSize: 40, marginBottom: -4 }}>{result.new.daf_oui ? '⚠️' : '✅'}</div>
             <div style={{ textAlign: 'center', fontWeight: 800, fontSize: 17 }}>Test validé</div>
+
+            {result.new.daf_oui && (
+              <div style={{ background: '#FEE2E2', border: '1px solid #F1B8B8', borderRadius: 'var(--r)', padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#991B1B', fontSize: 13 }}>
+                ⚠️ DAF présente — signal de danger
+              </div>
+            )}
 
             {qualitative ? (
               <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -348,11 +393,7 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
                     style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }} />
                 </div>
 
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Douleur Angle de Fermeture (DAF)</div>
-                  <textarea value={daf} onChange={e => setDaf(e.target.value)} rows={2}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }} />
-                </div>
+                <DafField dafOui={dafOui} setDafOui={setDafOui} daf={daf} setDaf={setDaf} />
 
                 <button onClick={submit} disabled={saving || (!qualityD && !(bilateral && qualityG))}
                   style={{ background: (qualityD || (bilateral && qualityG)) ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
@@ -386,17 +427,26 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose }) {
                   </div>
                 </div>
 
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Douleur Angle de Fermeture (DAF)</div>
-                  <textarea value={daf} onChange={e => setDaf(e.target.value)} rows={2}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }} />
-                </div>
+                <DafField dafOui={dafOui} setDafOui={setDafOui} daf={daf} setDaf={setDaf} />
 
                 <button onClick={submit} disabled={saving || (!d.trim() && !g.trim())}
                   style={{ background: (d.trim() || g.trim()) ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                   {saving ? '…' : '✓ Valider le test'}
                 </button>
               </>
+            )}
+
+            {(onPrev || onNext) && (
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => navigate(onPrev)} disabled={!hasPrev || saving}
+                  style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: 16, fontSize: 22, fontWeight: 700, color: hasPrev ? 'var(--text)' : 'var(--text3)', cursor: hasPrev ? 'pointer' : 'default', opacity: hasPrev ? 1 : 0.4 }}>
+                  ←
+                </button>
+                <button onClick={() => navigate(onNext)} disabled={!hasNext || saving}
+                  style={{ flex: 1, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: 16, fontSize: 22, fontWeight: 700, color: hasNext ? 'var(--text)' : 'var(--text3)', cursor: hasNext ? 'pointer' : 'default', opacity: hasNext ? 1 : 0.4 }}>
+                  →
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -416,8 +466,22 @@ function TestsArticulairesSection({ athleteId }) {
   const [latestByTest, setLatestByTest] = useState({})
   const [editingValue, setEditingValue] = useState(null) // { testName, side }
   const [valueDraft, setValueDraft] = useState('')
+  const [disciplines, setDisciplines] = useState([])
+  const [disciplineId, setDisciplineId] = useState(null)
+  const [norms, setNorms] = useState(ADMP_NORMS)
+  const [savingDiscipline, setSavingDiscipline] = useState(false)
 
   const allTestNames = JOINT_TESTS.flatMap(g => g.tests)
+  const allTestEntries = JOINT_TESTS.flatMap(g => g.tests.map(t => ({ joint: g.joint, name: t })))
+
+  const navigateLaunching = (dir) => {
+    if (!launching) return
+    const idx = allTestEntries.findIndex(e => e.joint === launching.joint && e.name === launching.name)
+    if (idx === -1) return
+    const nextIdx = idx + dir
+    if (nextIdx < 0 || nextIdx >= allTestEntries.length) return
+    setLaunching(allTestEntries[nextIdx])
+  }
 
   useEffect(() => {
     async function load() {
@@ -438,6 +502,11 @@ function TestsArticulairesSection({ athleteId }) {
     load()
   }, [])
 
+  // Plusieurs articulations partagent les mêmes noms de test (ex. "Rotation externe (Passif)"
+  // existe pour Épaule ET Hanche) : la clé doit combiner articulation + nom de test, sinon
+  // une saisie sur l'un écrase la valeur de l'autre.
+  const testKey = (joint, testName) => `${joint}::${testName}`
+
   const loadLatestValues = () => {
     if (!athleteId) return
     supabase.from('joint_test_entries').select('*')
@@ -445,15 +514,46 @@ function TestsArticulairesSection({ athleteId }) {
       .order('date', { ascending: false }).order('created_at', { ascending: false })
       .then(({ data }) => {
         const map = {}
-        ;(data || []).forEach(e => { if (!map[e.test_name]) map[e.test_name] = e })
+        ;(data || []).forEach(e => { const k = testKey(e.joint, e.test_name); if (!map[k]) map[k] = e })
         setLatestByTest(map)
       })
   }
 
   useEffect(() => { loadLatestValues() }, [athleteId, showGonio, launching])
 
-  const startEditValue = (testName, side, entry) => {
-    setEditingValue({ testName, side })
+  useEffect(() => {
+    supabase.from('disciplines').select('id, name').order('name').then(({ data }) => setDisciplines(data || []))
+  }, [])
+
+  useEffect(() => {
+    if (!athleteId) return
+    supabase.from('athletes').select('discipline_id').eq('id', athleteId).single()
+      .then(({ data }) => setDisciplineId(data?.discipline_id || null))
+  }, [athleteId])
+
+  useEffect(() => {
+    if (!disciplineId) return
+    supabase.from('discipline_standards').select('joint, test_name, value_deg').eq('discipline_id', disciplineId)
+      .then(({ data }) => {
+        if (!data || !data.length) { setNorms(ADMP_NORMS); return }
+        const built = {}
+        data.forEach(row => {
+          if (!built[row.joint]) built[row.joint] = {}
+          built[row.joint][row.test_name] = row.value_deg
+        })
+        setNorms(built)
+      })
+  }, [disciplineId])
+
+  const changeDiscipline = async (id) => {
+    setSavingDiscipline(true)
+    await supabase.from('athletes').update({ discipline_id: id || null }).eq('id', athleteId)
+    setSavingDiscipline(false)
+    setDisciplineId(id || null)
+  }
+
+  const startEditValue = (joint, testName, side, entry) => {
+    setEditingValue({ joint, testName, side })
     setValueDraft(entry ? String((side === 'D' ? entry.value_d : entry.value_g) ?? '') : '')
   }
 
@@ -461,7 +561,7 @@ function TestsArticulairesSection({ athleteId }) {
     if (!editingValue) return
     const field = editingValue.side === 'D' ? 'value_d' : 'value_g'
     const parsed = valueDraft.trim() ? parseFloat(valueDraft) : null
-    const entry = latestByTest[editingValue.testName]
+    const entry = latestByTest[testKey(editingValue.joint, editingValue.testName)]
     if (entry) {
       // Une donnée existe déjà : on la remplace directement, pas de nouvel historique.
       await supabase.from('joint_test_entries').update({ [field]: parsed }).eq('id', entry.id)
@@ -475,7 +575,7 @@ function TestsArticulairesSection({ athleteId }) {
 
   const deleteValue = async () => {
     if (!editingValue) return
-    const entry = latestByTest[editingValue.testName]
+    const entry = latestByTest[testKey(editingValue.joint, editingValue.testName)]
     if (!entry) return
     const field = editingValue.side === 'D' ? 'value_d' : 'value_g'
     await supabase.from('joint_test_entries').update({ [field]: null }).eq('id', entry.id)
@@ -513,6 +613,20 @@ function TestsArticulairesSection({ athleteId }) {
         <span style={{ color: '#7C8493', fontSize: 18 }}>›</span>
       </button>
 
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 2px' }}>
+        <span style={{ fontSize: 12, color: 'var(--text3)' }}>Standard :</span>
+        <select
+          value={disciplineId || ''}
+          onChange={e => changeDiscipline(e.target.value || null)}
+          disabled={savingDiscipline}
+          style={{
+            flex: 1, fontSize: 12, fontWeight: 700, color: 'var(--text)', background: 'var(--bg)',
+            border: '1px solid var(--border2)', borderRadius: 20, padding: '5px 10px', cursor: 'pointer',
+          }}>
+          {disciplines.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+        </select>
+      </div>
+
       {JOINT_TESTS.map(group => (
         <div key={group.joint} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontWeight: 800, fontSize: 14 }}>
@@ -523,27 +637,27 @@ function TestsArticulairesSection({ athleteId }) {
               const movement = byName[t]
               const hasVideo = !!movement?.youtube_url
               const isEditing = editingName === t
-              const entry = latestByTest[t]
+              const entry = latestByTest[testKey(group.joint, t)]
               const hasData = group.qualitative
                 ? entry && (entry.quality_d != null || entry.quality_g != null)
                 : entry && (entry.value_d != null || entry.value_g != null)
 
               let admpBadge = null
-              if (isADMPJoint(group.joint) && entry) {
+              if (isADMPJoint(group.joint, norms) && entry) {
                 const variantMatch = t.match(/ \((Passif|Actif)\)$/)
                 const variant = variantMatch?.[1]
                 const baseName = variant ? t.slice(0, -variantMatch[0].length) : t
                 if (variant === 'Passif') {
-                  const rd = analyzeADMPRisk(group.joint, t, entry.value_d)
-                  const rg = analyzeADMPRisk(group.joint, t, entry.value_g)
+                  const rd = analyzeADMPRisk(group.joint, t, entry.value_d, norms)
+                  const rg = analyzeADMPRisk(group.joint, t, entry.value_g, norms)
                   const worst = [rd, rg].filter(Boolean).sort((a, b) => b.deficit - a.deficit)[0]
                   if (worst?.atRisk) admpBadge = { label: `⚠️ -${worst.deficit}° vs norme`, color: '#991B1B', bg: '#FEE2E2' }
                   else if (rd || rg) admpBadge = { label: 'OK', color: '#166534', bg: '#DCFCE7' }
                 } else if (variant === 'Actif') {
-                  const passifEntry = latestByTest[`${baseName} (Passif)`]
+                  const passifEntry = latestByTest[testKey(group.joint, `${baseName} (Passif)`)]
                   if (passifEntry) {
-                    const gd = analyzeActifPassifGap(group.joint, t, passifEntry.value_d, entry.value_d)
-                    const gg = analyzeActifPassifGap(group.joint, t, passifEntry.value_g, entry.value_g)
+                    const gd = analyzeActifPassifGap(group.joint, t, passifEntry.value_d, entry.value_d, norms)
+                    const gg = analyzeActifPassifGap(group.joint, t, passifEntry.value_g, entry.value_g, norms)
                     const worst = [gd, gg].filter(Boolean).sort((a, b) => b.gap - a.gap)[0]
                     if (worst?.atRisk) admpBadge = { label: `⚠️ Déficit actif -${worst.gap}°`, color: '#991B1B', bg: '#FEE2E2' }
                   }
@@ -586,13 +700,13 @@ function TestsArticulairesSection({ athleteId }) {
                       ) : (
                         <>
                           {entry.value_d != null && (
-                            <span onClick={() => startEditValue(t, 'D', entry)}
+                            <span onClick={() => startEditValue(group.joint, t, 'D', entry)}
                               style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
                               D {entry.value_d}° ✏️
                             </span>
                           )}
                           {entry.value_g != null && (
-                            <span onClick={() => startEditValue(t, 'G', entry)}
+                            <span onClick={() => startEditValue(group.joint, t, 'G', entry)}
                               style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
                               G {entry.value_g}° ✏️
                             </span>
@@ -608,15 +722,21 @@ function TestsArticulairesSection({ athleteId }) {
                       <span style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>Aucune donnée</span>
                     ) : (
                       <>
-                        <button onClick={() => startEditValue(t, 'D', null)}
+                        <button onClick={() => startEditValue(group.joint, t, 'D', null)}
                           style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'none', border: '1px dashed var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
                           + D
                         </button>
-                        <button onClick={() => startEditValue(t, 'G', null)}
+                        <button onClick={() => startEditValue(group.joint, t, 'G', null)}
                           style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'none', border: '1px dashed var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
                           + G
                         </button>
                       </>
+                    )}
+
+                    {entry?.daf_oui && (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#991B1B', background: '#FEE2E2', borderRadius: 20, padding: '3px 8px' }}>
+                        ⚠️ DAF
+                      </span>
                     )}
 
                     <div style={{ flex: 1 }} />
@@ -647,14 +767,14 @@ function TestsArticulairesSection({ athleteId }) {
                     </div>
                   )}
 
-                  {editingValue?.testName === t && (
+                  {editingValue?.joint === group.joint && editingValue?.testName === t && (
                     <div style={{ padding: '0 14px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
                       <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)' }}>{editingValue.side} :</span>
                       <input autoFocus type="number" value={valueDraft} onChange={e => setValueDraft(e.target.value)}
                         placeholder="Degrés"
                         style={{ width: 90, boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
                       <button onClick={() => setEditingValue(null)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
-                      {latestByTest[t] && (
+                      {entry && (
                         <button onClick={deleteValue} style={{ background: 'none', border: '1px solid #F1B8B8', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', color: '#991B1B' }}>Supprimer</button>
                       )}
                       <button onClick={() => saveValue(group.joint)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Enregistrer</button>
@@ -685,11 +805,16 @@ function TestsArticulairesSection({ athleteId }) {
 
       {launching && (
         <TestLaunchView
+          key={`${launching.joint}::${launching.name}`}
           athleteId={athleteId}
           testName={launching.name}
           joint={launching.joint}
           movement={byName[launching.name]}
           onClose={() => setLaunching(null)}
+          onPrev={() => navigateLaunching(-1)}
+          onNext={() => navigateLaunching(1)}
+          hasPrev={allTestEntries.findIndex(e => e.joint === launching.joint && e.name === launching.name) > 0}
+          hasNext={allTestEntries.findIndex(e => e.joint === launching.joint && e.name === launching.name) < allTestEntries.length - 1}
         />
       )}
 

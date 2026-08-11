@@ -586,6 +586,15 @@ export function EntryForm({ movement, form, setForm, onCancel, onSave, saving })
   const updateInterval = (i, field, val) => set('intervals', intervals.map((it, idx) => idx === i ? { ...it, [field]: val } : it))
   const removeInterval = (i) => set('intervals', intervals.filter((_, idx) => idx !== i))
 
+  // TM (Training Max) = 90% du 1RM (saisi ou estimé via Epley depuis 2RM-6RM), recalculé en direct pendant la saisie.
+  const formTM = (() => {
+    if (!isKg) return null
+    const parsed = { rm1: form.rm1 ? parseFloat(form.rm1) : null }
+    RM_KEYS.forEach(r => { parsed[`rm${r}`] = form[`rm${r}`] ? parseFloat(form[`rm${r}`]) : null })
+    const est = estimate1RM(parsed)
+    return est ? Math.round(est.value * 0.9 * 10) / 10 : null
+  })()
+
   return (
     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div>
@@ -596,6 +605,12 @@ export function EntryForm({ movement, form, setForm, onCancel, onSave, saving })
 
       {isKg && (
         <>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>TM (Training Max — 90% du 1RM)</div>
+            <div style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, background: 'var(--bg3, #f0f0f0)', color: formTM != null ? 'var(--text)' : 'var(--text3)' }}>
+              {formTM != null ? `${formTM} kg` : '—'}
+            </div>
+          </div>
           <div>
             <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>1RM (optionnel — remplace l'estimation)</div>
             <input type="number" step="0.5" min="0" placeholder="ex: 100" value={form.rm1} onChange={e => set('rm1', e.target.value)}
