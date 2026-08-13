@@ -16,15 +16,41 @@ export default function TipsPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [newForm, setNewForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [userId, setUserId] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [hiddenIds, setHiddenIds] = useState(new Set())
   const titleRef = useRef(null)
 
-  useEffect(() => { load() }, [])
-  useEffect(() => { if (showCreate) titleRef.current?.focus() }, [showCreate])
+  async function loadUser() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    setUserId(user.id)
+    const { data: coach } = await supabase.from('coaches').select('is_admin').eq('id', user.id).single()
+    setIsAdmin(!!coach?.is_admin)
+  }
+
+  async function loadHidden() {
+    const { data } = await supabase.from('coach_hidden_content').select('content_id').eq('content_type', 'tip')
+    setHiddenIds(new Set((data || []).map(r => r.content_id)))
+  }
+
+  async function toggleHidden(tipId, hidden) {
+    if (hidden) {
+      await supabase.from('coach_hidden_content').delete().eq('content_type', 'tip').eq('content_id', tipId)
+      setHiddenIds(prev => { const next = new Set(prev); next.delete(tipId); return next })
+    } else {
+      await supabase.from('coach_hidden_content').insert({ coach_id: userId, content_type: 'tip', content_id: tipId })
+      setHiddenIds(prev => new Set(prev).add(tipId))
+    }
+  }
 
   async function load() {
     const { data } = await supabase.from('tips').select('*').order('order_index')
     setTips(data || [])
   }
+
+  useEffect(() => { Promise.resolve().then(() => { loadUser(); load(); loadHidden() }) }, [])
+  useEffect(() => { if (showCreate) titleRef.current?.focus() }, [showCreate])
 
   async function create() {
     if (!newForm.title.trim()) return
@@ -34,6 +60,7 @@ export default function TipsPage() {
       content: newForm.content.trim() || null,
       order_index: tips.length,
       diagram: newForm.diagram ? 'muscle_anatomy' : null,
+      coach_id: isAdmin ? null : userId,
     }).select().single()
     if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
     setTips(prev => [...prev, data])
@@ -177,13 +204,31 @@ export default function TipsPage() {
                         style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: idx === tips.length - 1 ? 'var(--border2)' : 'var(--text3)', cursor: idx === tips.length - 1 ? 'default' : 'pointer' }}>▼</button>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: (t.content || t.diagram) ? 4 : 0 }}>{t.title}</div>
+                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: (t.content || t.diagram) ? 4 : 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {t.title}
+                        {t.coach_id === userId && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', background: 'var(--green-light)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Perso</span>
+                        )}
+                        {t.coach_id === null && hiddenIds.has(t.id) && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Masqué</span>
+                        )}
+                      </div>
                       {t.content && <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5, whiteSpace: 'pre-wrap', marginBottom: t.diagram ? 10 : 0 }}>{t.content}</div>}
                       {t.diagram === 'muscle_anatomy' && <MuscleAnatomyDiagram />}
                     </div>
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                      <button onClick={() => startEdit(t)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>✎</button>
-                      <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                      {(isAdmin || t.coach_id === userId) ? (
+                        <>
+                          <button onClick={() => startEdit(t)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>✎</button>
+                          <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                        </>
+                      ) : (
+                        <button onClick={() => toggleHidden(t.id, hiddenIds.has(t.id))}
+                          title={hiddenIds.has(t.id) ? 'Afficher à mes clients' : 'Masquer à mes clients'}
+                          style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>
+                          {hiddenIds.has(t.id) ? '🙈' : '👁️'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

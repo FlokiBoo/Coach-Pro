@@ -31,15 +31,26 @@ export async function GET(request, { params }) {
 
   const { data: progs } = await supabaseAdmin
     .from('programs')
-    .select('id, title, description, activity_type, program_sessions(id)')
+    .select('id, title, description, activity_type, coach_id, program_sessions(id)')
     .is('athlete_id', null)
     .eq('available_to_clients', true)
     .order('title')
 
-  const list = (progs || []).map(p => ({
-    id: p.id, title: p.title, description: p.description, activity_type: p.activity_type,
-    sessionCount: (p.program_sessions || []).length,
-  }))
+  // Visible : modèles Owner (coach_id null) + modèles de son propre coach, moins ceux que
+  // son coach a choisi de masquer parmi les modèles Owner.
+  const { data: hidden } = await supabaseAdmin
+    .from('coach_hidden_content')
+    .select('content_id')
+    .eq('coach_id', athlete.coach_id)
+    .eq('content_type', 'program')
+  const hiddenIds = new Set((hidden || []).map(h => h.content_id))
+
+  const list = (progs || [])
+    .filter(p => (p.coach_id === null || p.coach_id === athlete.coach_id) && !(p.coach_id === null && hiddenIds.has(p.id)))
+    .map(p => ({
+      id: p.id, title: p.title, description: p.description, activity_type: p.activity_type,
+      sessionCount: (p.program_sessions || []).length,
+    }))
 
   return NextResponse.json({ programs: list }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } })
 }

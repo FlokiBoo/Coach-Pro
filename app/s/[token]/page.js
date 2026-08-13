@@ -1502,8 +1502,12 @@ function TipsButton() {
     e.stopPropagation()
     setOpen(true)
     setSelected(null)
-    const { data } = await supabase.from('tips').select('*').order('order_index')
-    setTips(data || [])
+    const [{ data }, { data: hidden }] = await Promise.all([
+      supabase.from('tips').select('*').order('order_index'),
+      supabase.from('coach_hidden_content').select('content_id').eq('content_type', 'tip'),
+    ])
+    const hiddenIds = new Set((hidden || []).map(h => h.content_id))
+    setTips((data || []).filter(t => !hiddenIds.has(t.id)))
   }
 
   return (

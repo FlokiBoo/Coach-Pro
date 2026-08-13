@@ -102,21 +102,48 @@ export default function ActivationsLibraryPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [newForm, setNewForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [userId, setUserId] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [hiddenIds, setHiddenIds] = useState(new Set())
   const nameRef = useRef(null)
 
-  useEffect(() => { load() }, [])
-  useEffect(() => { if (showCreate) nameRef.current?.focus() }, [showCreate])
+  async function loadUser() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    setUserId(user.id)
+    const { data: coach } = await supabase.from('coaches').select('is_admin').eq('id', user.id).single()
+    setIsAdmin(!!coach?.is_admin)
+  }
+
+  async function loadHidden() {
+    const { data } = await supabase.from('coach_hidden_content').select('content_id').eq('content_type', 'activation_preset')
+    setHiddenIds(new Set((data || []).map(r => r.content_id)))
+  }
+
+  async function toggleHidden(itemId, hidden) {
+    if (hidden) {
+      await supabase.from('coach_hidden_content').delete().eq('content_type', 'activation_preset').eq('content_id', itemId)
+      setHiddenIds(prev => { const next = new Set(prev); next.delete(itemId); return next })
+    } else {
+      await supabase.from('coach_hidden_content').insert({ coach_id: userId, content_type: 'activation_preset', content_id: itemId })
+      setHiddenIds(prev => new Set(prev).add(itemId))
+    }
+  }
 
   async function load() {
     const { data } = await supabase.from('activation_presets').select('*').order('name')
     setItems(data || [])
   }
 
+  useEffect(() => { Promise.resolve().then(() => { loadUser(); load(); loadHidden() }) }, [])
+  useEffect(() => { if (showCreate) nameRef.current?.focus() }, [showCreate])
+
   async function create() {
     if (!newForm.name.trim()) return
     setSaving(true)
     const { data, error } = await supabase.from('activation_presets').insert({
       name: newForm.name.trim(), text: newForm.text.trim() || null, videos: newForm.videos,
+      coach_id: isAdmin ? null : userId,
     }).select().single()
     if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
     setItems(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
@@ -161,7 +188,7 @@ export default function ActivationsLibraryPage() {
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>⚡ Activations</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>
-              Protocoles d'activation réutilisables — texte + vidéos
+              Protocoles d&apos;activation réutilisables — texte + vidéos
             </div>
           </div>
           <button onClick={() => setShowCreate(v => !v)} style={{
@@ -226,7 +253,15 @@ export default function ActivationsLibraryPage() {
                 ) : (
                   <div style={{ display: 'flex', gap: 10 }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: item.text ? 4 : 0 }}>{item.name}</div>
+                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: item.text ? 4 : 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {item.name}
+                        {item.coach_id === userId && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', background: 'var(--green-light)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Perso</span>
+                        )}
+                        {item.coach_id === null && hiddenIds.has(item.id) && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Masqué</span>
+                        )}
+                      </div>
                       {item.text && <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{item.text}</div>}
                       {item.videos?.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
@@ -237,8 +272,18 @@ export default function ActivationsLibraryPage() {
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-                      <button onClick={() => startEdit(item)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>✎</button>
-                      <button onClick={() => remove(item.id)} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                      {(isAdmin || item.coach_id === userId) ? (
+                        <>
+                          <button onClick={() => startEdit(item)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>✎</button>
+                          <button onClick={() => remove(item.id)} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                        </>
+                      ) : (
+                        <button onClick={() => toggleHidden(item.id, hiddenIds.has(item.id))}
+                          title={hiddenIds.has(item.id) ? 'Afficher à mes clients' : 'Masquer à mes clients'}
+                          style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>
+                          {hiddenIds.has(item.id) ? '🙈' : '👁️'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}

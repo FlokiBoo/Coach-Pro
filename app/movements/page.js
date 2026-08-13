@@ -86,15 +86,41 @@ export default function MovementsPage() {
   const [newForm, setNewForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
   const [sort, setSort] = useState({ key: 'name', dir: 'asc' })
+  const [userId, setUserId] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [hiddenIds, setHiddenIds] = useState(new Set())
   const nameRef = useRef(null)
 
-  useEffect(() => { load() }, [])
-  useEffect(() => { if (showCreate) nameRef.current?.focus() }, [showCreate])
+  async function loadUser() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    setUserId(user.id)
+    const { data: coach } = await supabase.from('coaches').select('is_admin').eq('id', user.id).single()
+    setIsAdmin(!!coach?.is_admin)
+  }
+
+  async function loadHidden() {
+    const { data } = await supabase.from('coach_hidden_content').select('content_id').eq('content_type', 'movement')
+    setHiddenIds(new Set((data || []).map(r => r.content_id)))
+  }
+
+  async function toggleHidden(movementId, hidden) {
+    if (hidden) {
+      await supabase.from('coach_hidden_content').delete().eq('content_type', 'movement').eq('content_id', movementId)
+      setHiddenIds(prev => { const next = new Set(prev); next.delete(movementId); return next })
+    } else {
+      await supabase.from('coach_hidden_content').insert({ coach_id: userId, content_type: 'movement', content_id: movementId })
+      setHiddenIds(prev => new Set(prev).add(movementId))
+    }
+  }
 
   async function load() {
     const { data } = await supabase.from('movements').select('*').order('name')
     setMovements(data || [])
   }
+
+  useEffect(() => { Promise.resolve().then(() => { loadUser(); load(); loadHidden() }) }, [])
+  useEffect(() => { if (showCreate) nameRef.current?.focus() }, [showCreate])
 
   async function create() {
     if (!newForm.name.trim()) return
@@ -104,6 +130,7 @@ export default function MovementsPage() {
       muscles: newForm.muscles.trim() || null,
       torque: newForm.torque.trim() || null,
       youtube_url: newForm.youtube_url.trim() || null,
+      coach_id: isAdmin ? null : userId,
     }).select().single()
     if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
     if (!data) { alert('Mouvement non créé — exécute "ALTER TABLE movements DISABLE ROW LEVEL SECURITY;" dans Supabase'); setSaving(false); return }
@@ -295,8 +322,14 @@ export default function MovementsPage() {
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg2)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
-                  <div style={{ flex: 3, fontWeight: 600, fontSize: 14, color: 'var(--text)', paddingRight: 12 }}>
+                  <div style={{ flex: 3, fontWeight: 600, fontSize: 14, color: 'var(--text)', paddingRight: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
                     {m.name}
+                    {m.coach_id === userId && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', background: 'var(--green-light)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Perso</span>
+                    )}
+                    {m.coach_id === null && hiddenIds.has(m.id) && (
+                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Masqué</span>
+                    )}
                   </div>
                   <div style={{ flex: 2, fontSize: 13, color: 'var(--text2)', paddingRight: 12 }}>
                     {m.muscles || <span style={{ color: 'var(--border2)' }}>—</span>}
@@ -315,10 +348,20 @@ export default function MovementsPage() {
                     }
                   </div>
                   <div style={{ width: 72, display: 'flex', gap: 4, justifyContent: 'flex-end', flexShrink: 0 }}>
-                    <button onClick={e => { e.stopPropagation(); setEditingId(m.id); setEditForm({ name: m.name, muscles: m.muscles || '', torque: m.torque || '', youtube_url: m.youtube_url || '' }) }}
-                      style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 15, cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}>✏️</button>
-                    <button onClick={e => { e.stopPropagation(); remove(m.id) }}
-                      style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 14, cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}>🗑️</button>
+                    {(isAdmin || m.coach_id === userId) ? (
+                      <>
+                        <button onClick={e => { e.stopPropagation(); setEditingId(m.id); setEditForm({ name: m.name, muscles: m.muscles || '', torque: m.torque || '', youtube_url: m.youtube_url || '' }) }}
+                          style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 15, cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}>✏️</button>
+                        <button onClick={e => { e.stopPropagation(); remove(m.id) }}
+                          style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 14, cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}>🗑️</button>
+                      </>
+                    ) : (
+                      <button onClick={e => { e.stopPropagation(); toggleHidden(m.id, hiddenIds.has(m.id)) }}
+                        title={hiddenIds.has(m.id) ? 'Afficher à mes clients' : 'Masquer à mes clients'}
+                        style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 14, cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}>
+                        {hiddenIds.has(m.id) ? '🙈' : '👁️'}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
