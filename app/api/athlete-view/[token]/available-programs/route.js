@@ -17,8 +17,9 @@ async function authenticate(token) {
   if (!user) return { error: NextResponse.json({ error: 'unauthorized' }, { status: 401 }) }
 
   const isOwner = athlete.auth_user_id === user.id
-  const { data: coach } = await supabaseAdmin.from('coaches').select('id').eq('id', user.id).single()
-  if (!isOwner && !coach) return { error: NextResponse.json({ error: 'forbidden' }, { status: 403 }) }
+  const { data: coach } = await supabaseAdmin.from('coaches').select('id, is_admin').eq('id', user.id).single()
+  const isCoach = !!coach && (coach.is_admin || athlete.coach_id === user.id)
+  if (!isOwner && !isCoach) return { error: NextResponse.json({ error: 'forbidden' }, { status: 403 }) }
 
   return { athlete, user }
 }

@@ -23,8 +23,8 @@ export async function POST(request, { params }) {
   const isOwner = athlete.auth_user_id === user.id
   let isCoach = false
   if (!isOwner) {
-    const { data: coach } = await supabaseAdmin.from('coaches').select('id').eq('id', user.id).single()
-    isCoach = !!coach
+    const { data: coach } = await supabaseAdmin.from('coaches').select('id, is_admin').eq('id', user.id).single()
+    isCoach = !!coach && (coach.is_admin || athlete.coach_id === user.id)
   }
   if (!isOwner && !isCoach) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 

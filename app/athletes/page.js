@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
+import { getCoachId } from '@/lib/coach'
 
 function today() {
   const n = new Date()
@@ -88,7 +89,8 @@ export default function AthletesPage() {
   const createClient = async () => {
     if (!newName.trim()) return
     setCreating(true)
-    const { data, error } = await supabase.from('athletes').insert({ name: newName.trim(), email: newEmail.trim() || null }).select().single()
+    const coachId = await getCoachId()
+    const { data, error } = await supabase.from('athletes').insert({ name: newName.trim(), email: newEmail.trim() || null, coach_id: coachId }).select().single()
     setCreating(false)
     if (error) { alert('Erreur : ' + error.message); return }
     setAthletes(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))

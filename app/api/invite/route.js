@@ -19,11 +19,13 @@ export async function POST(request) {
   )
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  const { data: me } = await supabaseAdmin.from('coaches').select('id').eq('id', user.id).single()
+  const { data: me } = await supabaseAdmin.from('coaches').select('id, is_admin').eq('id', user.id).single()
   if (!me) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   // Sauvegarder l'email sur l'athlete
-  const { data: athleteRow } = await supabaseAdmin.from('athletes').select('auth_user_id').eq('id', athleteId).single()
+  const { data: athleteRow } = await supabaseAdmin.from('athletes').select('auth_user_id, coach_id').eq('id', athleteId).single()
+  if (!athleteRow) return NextResponse.json({ error: 'introuvable' }, { status: 404 })
+  if (!me.is_admin && athleteRow.coach_id !== user.id) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
   await supabaseAdmin.from('athletes').update({ email }).eq('id', athleteId)
 
   // Envoyer l'invitation Supabase

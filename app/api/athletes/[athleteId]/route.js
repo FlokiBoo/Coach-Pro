@@ -16,11 +16,12 @@ export async function DELETE(request, { params }) {
   )
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
-  const { data: coach } = await supabaseAdmin.from('coaches').select('id').eq('id', user.id).single()
+  const { data: coach } = await supabaseAdmin.from('coaches').select('id, is_admin').eq('id', user.id).single()
   if (!coach) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
-  const { data: athlete } = await supabaseAdmin.from('athletes').select('id').eq('id', athleteId).single()
+  const { data: athlete } = await supabaseAdmin.from('athletes').select('id, coach_id').eq('id', athleteId).single()
   if (!athlete) return NextResponse.json({ error: 'introuvable' }, { status: 404 })
+  if (!coach.is_admin && athlete.coach_id !== user.id) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   // Programmes (nouveau système) : exercise_performance_history -> program_exercise_logs -> program_exercises -> program_completions -> program_sessions -> programs
   const { data: programs } = await supabaseAdmin.from('programs').select('id').eq('athlete_id', athleteId)
