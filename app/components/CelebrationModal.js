@@ -6,7 +6,10 @@ import { shareCardImage } from '@/lib/shareCard'
 
 const MUSCLE_MAP = {
   'pectoraux':       ['pec', 'poitrine', 'chest', 'pectoral'],
-  'deltoïdes':       ['delt', 'épaule', 'epaule', 'shoulder'],
+  'deltoïde-antérieur': ['delt', 'épaule', 'epaule', 'shoulder'],
+  'deltoïde-latéral':   ['delt', 'épaule', 'epaule', 'shoulder'],
+  'deltoïde-postérieur': ['delt', 'épaule', 'epaule', 'shoulder'],
+  'cou':             ['cou', 'neck', 'cervical'],
   'biceps':          ['bicep', 'bras'],
   'abdominaux':      ['abdo', 'abs', 'core', 'gainage', 'ventre'],
   'obliques':        ['oblique', 'gainage latéral'],

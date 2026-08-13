@@ -410,6 +410,10 @@ function AthleteView({ params }) {
         const allText = (movData || []).map(m => m.muscles || '').join(', ')
         muscles = parseMusclesFromText(allText)
       }
+      // Cible manuellement choisie sur un exercice (picker "Focus") : toujours reprise dans le résumé,
+      // même si le texte de la bibliothèque de mouvements ne mentionne pas ce muscle.
+      const manualMuscles = exos.flatMap(e => e.focus_muscles ? e.focus_muscles.split(',') : [])
+      muscles = [...new Set([...muscles, ...manualMuscles])]
       setCelebration({ tonnage: Math.round(tonnage), muscles, records: sessionRecords })
       setSessionRecords([])
     }
