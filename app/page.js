@@ -210,7 +210,7 @@ export default function Home() {
                 cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5
               }}
             >
-              👤 Vue sportif
+              👤 Switch to athlete
             </button>
           )}
           {isAdmin && (
