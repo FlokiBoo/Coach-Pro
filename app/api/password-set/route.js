@@ -53,5 +53,16 @@ export async function POST(request) {
     athleteToken = athlete?.token || null
   }
 
+  // Filet de sécurité : si l'ID n'a pas permis de retrouver l'athlète (ex. lien de
+  // réinitialisation reçu au lieu de l'invitation), on retombe sur le token déjà
+  // posé en app_metadata par /auth/callback, puis sur une recherche directe par auth_user_id.
+  if (!athleteToken) {
+    athleteToken = user.app_metadata?.athlete_token || null
+  }
+  if (!athleteToken) {
+    const { data: linked } = await adminClient.from('athletes').select('token').eq('auth_user_id', user.id).single()
+    athleteToken = linked?.token || null
+  }
+
   return NextResponse.json({ success: true, athleteToken })
 }

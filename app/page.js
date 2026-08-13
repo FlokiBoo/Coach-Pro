@@ -44,6 +44,18 @@ export default function Home() {
 
   useEffect(() => {
     async function load() {
+      // Verrou d'accès : cette page est réservée aux coachs. Un sportif mal aiguillé ici
+      // (ex. lien d'invitation) est renvoyé vers son propre espace, pas vers le dashboard coach.
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { router.push('/login'); return }
+      const { data: me } = await supabase.from('coaches').select('id, is_admin').eq('id', user.id).single()
+      if (!me) {
+        const { data: athlete } = await supabase.from('athletes').select('token').eq('auth_user_id', user.id).single()
+        router.push(athlete?.token ? `/s/${athlete.token}` : '/login')
+        return
+      }
+      if (me.is_admin) setIsAdmin(true)
+
       const [{ data: aths }, { data: sessions }, { data: progComps }, { data: actValidated }] = await Promise.all([
         supabase.from('athletes').select('*').neq('archived', true).order('created_at'),
         supabase
@@ -79,12 +91,6 @@ export default function Home() {
         .or('muscles.is.null,muscles.eq.')
         .order('name')
       setMovementsMissingMuscles(missingMuscles || [])
-
-      const coachId = await getCoachId()
-      if (coachId) {
-        const { data: me } = await supabase.from('coaches').select('is_admin').eq('id', coachId).single()
-        if (me?.is_admin) setIsAdmin(true)
-      }
 
       // La ligne athletes marquée is_coach = le profil perso de ce coach (RLS la scope déjà à lui).
       const coach = athList.find(a => a.is_coach)
@@ -155,7 +161,7 @@ export default function Home() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [router])
 
   const createAthlete = async () => {
     const name = newName.trim()
@@ -279,7 +285,7 @@ export default function Home() {
                 <div style={{ color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>Chargement…</div>
               ) : completedSessions.length === 0 ? (
                 <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-                  <div style={{ fontSize: 13 }}>Aucune séance validée pour l'instant.</div>
+                  <div style={{ fontSize: 13 }}>Aucune séance validée pour l&apos;instant.</div>
                 </div>
               ) : completedSessions.map(s => (
                 <SessionCard key={s.id} session={s} onOpen={() => {
