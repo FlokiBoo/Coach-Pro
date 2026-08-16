@@ -510,11 +510,11 @@ function ProgramEditorPage({ params }) {
     const { error: sessErr } = await supabase.from('program_sessions').update(sessFields).eq('id', s.id)
     if (sessErr) { alert('Erreur sauvegarde séance : ' + sessErr.message); setSaving(false); return }
 
-    const { error: delErr } = await supabase.from('program_exercises').delete().eq('program_session_id', s.id)
-    if (delErr) { alert('Erreur suppression exercices : ' + delErr.message); setSaving(false); return }
-
-    const toInsert = s.exercises.filter(e => e.name.trim()).map((e, j) => ({
-      program_session_id: s.id, order_index: j, name: e.name.trim(),
+    // Met à jour les exercices EN PLACE (par position) pour ne pas casser l'historique
+    // lié à l'id de chaque exercice (program_exercise_logs, exercise_performance_history)
+    const toKeep = s.exercises.filter(e => e.name.trim())
+    const fields = (e, j) => ({
+      order_index: j, name: e.name.trim(),
       sets: e.sets !== '' ? parseInt(e.sets) : null,
       reps: e.reps || null,
       kg: e.kg !== '' && !isNaN(parseFloat(e.kg)) ? parseFloat(e.kg) : null,
@@ -526,16 +526,42 @@ function ProgramEditorPage({ params }) {
       pace_base: e.pace_base || null,
       pct_low: e.pct_low !== '' && e.pct_low != null ? parseFloat(e.pct_low) : null,
       pct_high: e.pct_high !== '' && e.pct_high != null ? parseFloat(e.pct_high) : null,
-    }))
+    })
 
+    const { data: existingExos } = await supabase.from('program_exercises')
+      .select('id').eq('program_session_id', s.id).order('order_index')
+    const existing = existingExos || []
+    const maxLen = Math.max(existing.length, toKeep.length)
+    const results = []
+
+    for (let j = 0; j < maxLen; j++) {
+      const e = toKeep[j]
+      if (e && existing[j]) {
+        const { error } = await supabase.from('program_exercises').update(fields(e, j)).eq('id', existing[j].id)
+        if (error) { alert('Erreur mise à jour exercices : ' + error.message); setSaving(false); return }
+        results[j] = { id: existing[j].id }
+      } else if (e && !existing[j]) {
+        const { data: created, error } = await supabase.from('program_exercises')
+          .insert({ program_session_id: s.id, ...fields(e, j) }).select().single()
+        if (error) { alert('Erreur insertion exercices : ' + error.message); setSaving(false); return }
+        results[j] = created
+      } else if (!e && existing[j]) {
+        const { error } = await supabase.from('program_exercises').delete().eq('id', existing[j].id)
+        if (error) {
+          alert(error.code === '23503'
+            ? 'Impossible de supprimer cet exercice : un sportif a déjà enregistré une performance dessus.'
+            : 'Erreur suppression exercices : ' + error.message)
+          setSaving(false); return
+        }
+      }
+    }
+
+    const toInsert = toKeep.map((e, j) => fields(e, j))
     if (toInsert.length) {
-      const { data: inserted, error: insErr } = await supabase.from('program_exercises').insert(toInsert).select()
-      if (insErr) { alert('Erreur insertion exercices : ' + insErr.message); setSaving(false); return }
-      if (!inserted?.length) { alert('Erreur : les exercices n\'ont pas été enregistrés. Vérifiez la console.'); setSaving(false); return }
       setSessions(prev => prev.map(sess => sess.id !== sessId ? sess : {
         ...sess,
-        exercises: sess.exercises.filter(e => e.name.trim()).map((e, j) => ({
-          ...e, _key: inserted[j]?.id || e._key, id: inserted[j]?.id || e.id
+        exercises: toKeep.map((e, j) => ({
+          ...e, _key: results[j]?.id || e._key, id: results[j]?.id || e.id
         }))
       }))
       await supabase.from('movements').upsert(toInsert.map(e => ({ name: e.name })), { onConflict: 'name', ignoreDuplicates: true })
