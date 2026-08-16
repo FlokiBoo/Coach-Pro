@@ -167,6 +167,8 @@ function ProgramEditorPage({ params }) {
   const [layoutCols, setLayoutCols] = useState(1)
   const [historyExo, setHistoryExo] = useState(null)
   const [selectedSessions, setSelectedSessions] = useState(new Set())
+  const [hiddenSessions, setHiddenSessions] = useState(new Set())
+  const [pinnedSessions, setPinnedSessions] = useState(new Set())
   const [duplicatingSelected, setDuplicatingSelected] = useState(false)
   const [titleSaving, setTitleSaving] = useState(false)
   const [actPresetSearch, setActPresetSearch] = useState({})
@@ -178,6 +180,33 @@ function ProgramEditorPage({ params }) {
   const [raceKnown, setRaceKnown] = useState({})
 
   const isTemplate = athleteId === 'templates'
+
+  useEffect(() => {
+    const raw = localStorage.getItem(`coachpro_hidden_sessions_${programId}`)
+    if (raw) setHiddenSessions(new Set(JSON.parse(raw)))
+    const rawPinned = localStorage.getItem(`coachpro_pinned_sessions_${programId}`)
+    if (rawPinned) setPinnedSessions(new Set(JSON.parse(rawPinned)))
+  }, [programId])
+
+  const toggleHiddenSession = (id) => {
+    setHiddenSessions(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      localStorage.setItem(`coachpro_hidden_sessions_${programId}`, JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  const togglePinnedSession = (id) => {
+    setPinnedSessions(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      localStorage.setItem(`coachpro_pinned_sessions_${programId}`, JSON.stringify([...next]))
+      return next
+    })
+  }
 
   useEffect(() => {
     if (isTemplate || !athleteId) return
@@ -836,17 +865,36 @@ function ProgramEditorPage({ params }) {
           </div>
         )}
 
+        {hiddenSessions.size > 0 && (
+          <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--bg2)', border: '1px solid var(--border)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)' }}>🙈 Masquées :</span>
+            {sessions.filter(s => hiddenSessions.has(s.id)).map(s => (
+              <button key={s.id} onClick={() => toggleHiddenSession(s.id)}
+                title="Réafficher cette séance"
+                style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer' }}>
+                {s.title || `Séance ${sessions.indexOf(s) + 1}`} 👁
+              </button>
+            ))}
+          </div>
+        )}
+
         <div style={{ padding: 16, display: layoutCols > 1 ? 'grid' : 'flex', flexDirection: layoutCols > 1 ? undefined : 'column', gridTemplateColumns: layoutCols > 1 ? `repeat(${layoutCols}, minmax(280px, 1fr))` : undefined, overflowX: layoutCols > 1 ? 'auto' : undefined, gap: 8, alignItems: 'start' }}>
 
           {sessions.map((s, idx) => {
+            if (hiddenSessions.has(s.id)) return null
             const isOpen = layoutCols > 1 ? true : openId === s.id
             const labels = computeLabels(s.exercises)
             const completion = completionsMap[s.id]
+            const isPinned = pinnedSessions.has(s.id)
             return (
-              <div key={s.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+              <div key={s.id} style={{
+                background: 'var(--bg)', border: isPinned ? '1px solid var(--green)' : '1px solid var(--border)', borderRadius: 'var(--rl)',
+                overflowX: 'hidden', overflowY: isPinned ? 'auto' : 'hidden',
+                ...(isPinned ? { position: 'sticky', top: 12, maxHeight: 'calc(100svh - 24px)', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' } : {}),
+              }}>
 
                 {/* En-tête séance */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: isOpen ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: isOpen ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
                   onClick={() => setOpenId(isOpen ? null : s.id)}>
                   <input
                     type="checkbox"
@@ -896,6 +944,17 @@ function ProgramEditorPage({ params }) {
                   <button onClick={e => { e.stopPropagation(); duplicateSession(s.id) }}
                     title="Dupliquer la séance"
                     style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>⧉</button>
+                  <button onClick={e => { e.stopPropagation(); togglePinnedSession(s.id) }}
+                    title={isPinned ? 'Détacher cette séance' : 'Figer cette séance à l’écran pendant que tu fais défiler les autres'}
+                    style={{
+                      background: isPinned ? 'var(--green-light)' : 'none',
+                      border: isPinned ? '1px solid var(--green)' : '1px solid var(--border2)',
+                      borderRadius: 4, padding: '2px 6px', fontSize: 11,
+                      color: isPinned ? 'var(--green)' : 'var(--text3)', cursor: 'pointer',
+                    }}>📌</button>
+                  <button onClick={e => { e.stopPropagation(); toggleHiddenSession(s.id) }}
+                    title="Masquer cette séance (n'affecte pas son ordre)"
+                    style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>🙈</button>
                   <button onClick={e => { e.stopPropagation(); deleteSession(s.id) }}
                     style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>×</button>
                   <span style={{ fontSize: 14, color: 'var(--text3)' }}>{isOpen ? '▲' : '▼'}</span>
