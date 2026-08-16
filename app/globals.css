@@ -37,29 +37,20 @@ input, textarea, button, select {
   min-height: 100svh;
 }
 
-/* Sidebar masquée par défaut (mobile) */
-.coach-sidebar {
-  display: none;
-}
-
-/* Sidebar ouverte en overlay mobile */
+/* Sidebar affichée en permanence, sur tous les écrans */
+.coach-sidebar,
 .coach-sidebar--open {
   display: flex;
   flex-direction: column;
-  position: fixed;
-  top: 0; left: 0;
-  width: 260px;
-  height: 100svh;
+  width: 220px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
   background: var(--bg);
-  z-index: 300;
+  position: sticky;
+  top: 0;
+  height: 100svh;
   overflow-y: auto;
-  box-shadow: 4px 0 24px rgba(0,0,0,0.15);
-  animation: slideIn .2s ease;
-}
-
-@keyframes slideIn {
-  from { transform: translateX(-100%); }
-  to   { transform: translateX(0); }
+  overflow-x: hidden;
 }
 
 /* Contenu principal */
@@ -69,37 +60,14 @@ input, textarea, button, select {
   min-height: 100svh;
 }
 
-/* Bouton hamburger visible sur mobile */
-.sidebar-toggle { display: flex; }
-.sidebar-close  { display: block; }
+/* Bouton hamburger : plus nécessaire, sidebar toujours visible */
+.sidebar-toggle { display: none !important; }
+.sidebar-close  { display: none !important; }
 
-/* ── Desktop (≥ 900px) ── */
-@media (min-width: 900px) {
-  .coach-sidebar,
-  .coach-sidebar--open {
-    display: flex;
-    flex-direction: column;
-    width: 220px;
-    flex-shrink: 0;
-    border-right: 1px solid var(--border);
-    background: var(--bg);
-    position: sticky;
-    top: 0;
-    height: 100svh;
-    overflow-y: auto;
-    overflow-x: hidden;
-    box-shadow: none;
-    animation: none;
-  }
-
-  .sidebar-toggle { display: none !important; }
-  .sidebar-close  { display: none !important; }
-
-  .coach-sidebar--collapsed {
-    width: 0;
-    border-right: none;
-  }
-
-  .sidebar-collapse-btn { display: flex !important; }
-  .coach-sidebar--collapsed + .sidebar-reopen-btn { display: flex !important; }
+.coach-sidebar--collapsed {
+  width: 0;
+  border-right: none;
 }
+
+.sidebar-collapse-btn { display: flex !important; }
+.coach-sidebar--collapsed + .sidebar-reopen-btn { display: flex !important; }

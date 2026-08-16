@@ -154,30 +154,50 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
-        }}>🏠 Dashboard</Link>
-        <Link href="/programs" onClick={() => setOpen(false)} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>📋 Programmes</Link>
+        }}>🏠 Tableau de bord</Link>
         <Link href="/athletes" onClick={() => setOpen(false)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>👤 Sportifs</Link>
+        <Link href="/abonnements" onClick={() => setOpen(false)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent',
+        }}>💳 Abonnements</Link>
         <button onClick={() => setShowTimer(true)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', width: '100%', textAlign: 'left',
           borderRadius: 'var(--r)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent', fontFamily: 'inherit',
         }}>⏱ Timer</button>
+
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
-          Library
+          Nutrition
         </div>
-        <Link href="/movements" onClick={() => setOpen(false)} style={{
+        <Link href="/nutrition/plans" onClick={() => setOpen(false)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
-        }}>📚 Mouvements</Link>
+        }}>🗓 Plans</Link>
+        <Link href="/nutrition/recettes" onClick={() => setOpen(false)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent',
+        }}>🍳 Recettes</Link>
+        <Link href="/nutrition/aliments" onClick={() => setOpen(false)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent',
+        }}>🍎 Aliments</Link>
+
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
+          Coaching
+        </div>
+        <Link href="/programs" onClick={() => setOpen(false)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent',
+        }}>📋 Programmes</Link>
         <Link href="/metrics" onClick={() => setOpen(false)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
@@ -188,6 +208,15 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>💡 Tips</Link>
+
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
+          Exercice
+        </div>
+        <Link href="/movements" onClick={() => setOpen(false)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent',
+        }}>📚 Mouvements</Link>
         <Link href="/library/activations" onClick={() => setOpen(false)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,

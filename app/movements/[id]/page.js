@@ -244,7 +244,7 @@ export default function MovementDetailPage({ params }) {
         <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={() => router.push('/movements')}
             style={{ background: 'none', border: 'none', color: '#6B7280', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
-            ← Bibliothèque
+            ← Exercice
           </button>
         </div>
 
