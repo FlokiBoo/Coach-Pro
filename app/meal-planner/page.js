@@ -124,35 +124,20 @@ export default function MealPlannerPage() {
     snacksPerDay: 1,
     weeks: 4,
     fixedPortion: 150,
-    snackVariantsCount: 2,
   })
 
   const [pools, setPools] = useState({
-    breakfast: { protein: null, carb: null, fruit: null, fat: OLIVE_OIL },
-    lunchDinner: {
-      proteins: [null, null, null],
-      carbs: [null, null, null],
-      vegetables: [null, null, null],
-      fats: [OLIVE_OIL, null, null],
-    },
-    snackVariants: [
-      { protein: null, carb: null, fruit: null, fat: OLIVE_OIL },
-      { protein: null, carb: null, fruit: null, fat: OLIVE_OIL },
-    ],
+    proteins: [null, null, null],
+    fats: [OLIVE_OIL, null, null],
+    vegetables: [null, null, null],
+    carbs: [null, null, null],
+    breakfastProtein: null,
   })
+  const [showBreakfastProtein, setShowBreakfastProtein] = useState(false)
 
   const [plan, setPlan] = useState(null)
 
   const pctTotal = Number(profile.pctProtein) + Number(profile.pctFat) + Number(profile.pctCarbs)
-
-  function updateSnackVariantsCount(n) {
-    setStructure(s => ({ ...s, snackVariantsCount: n }))
-    setPools(p => {
-      const current = p.snackVariants
-      const next = Array.from({ length: n }, (_, i) => current[i] || { protein: null, carb: null, fruit: null, fat: OLIVE_OIL })
-      return { ...p, snackVariants: next }
-    })
-  }
 
   function generate() {
     setPlan(generatePlan(profile, structure, pools))
@@ -294,22 +279,16 @@ export default function MealPlannerPage() {
                   <input type="number" min={0} value={structure.snacksPerDay} onChange={e => setStructure(s => ({ ...s, snacksPerDay: Math.max(0, Number(e.target.value)) }))} style={inputStyle} />
                 </div>
                 <div style={{ flex: 1 }}>
-                  <div style={labelStyle}>Variantes de collation</div>
-                  <input type="number" min={1} value={structure.snackVariantsCount} onChange={e => updateSnackVariantsCount(Math.max(1, Number(e.target.value)))} style={inputStyle} />
-                </div>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-                Ex : 2 collations/jour avec 2 variantes = 2 recettes de collation différentes qui alternent au fil du plan. Le petit déj et les repas déj/dîner ne comptent qu&apos;une seule structure (fixe pour le petit déj, tirage aléatoire dans les pools pour déj/dîner).
-              </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1 }}>
                   <div style={labelStyle}>Durée du plan (semaines)</div>
                   <input type="number" min={1} value={structure.weeks} onChange={e => setStructure(s => ({ ...s, weeks: Math.max(1, Number(e.target.value)) }))} style={inputStyle} />
                 </div>
-                <div style={{ flex: 1 }}>
-                  <div style={labelStyle}>Portion fixe fruit/légume (g)</div>
-                  <input type="number" value={structure.fixedPortion} onChange={e => setStructure(s => ({ ...s, fixedPortion: e.target.value }))} style={inputStyle} />
-                </div>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                Tous les repas (petit déj, déjeuner, dîner, collations) piochent au hasard chaque jour dans les mêmes pools de 3 aliments par rôle, définis à l&apos;étape suivante.
+              </div>
+              <div>
+                <div style={labelStyle}>Portion fixe légume (g)</div>
+                <input type="number" value={structure.fixedPortion} onChange={e => setStructure(s => ({ ...s, fixedPortion: e.target.value }))} style={inputStyle} />
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => setStep(1)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', color: 'var(--text3)' }}>← Retour</button>
@@ -321,41 +300,44 @@ export default function MealPlannerPage() {
           {step === 3 && (
             <div style={{ maxWidth: 640, display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🌅 Petit déjeuner (fixe, pas de rotation)</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <FoodPicker label="Protéine" value={pools.breakfast.protein} onChange={v => setPools(p => ({ ...p, breakfast: { ...p.breakfast, protein: v } }))} />
-                  <FoodPicker label="Glucide" value={pools.breakfast.carb} onChange={v => setPools(p => ({ ...p, breakfast: { ...p.breakfast, carb: v } }))} />
-                  <FoodPicker label="Fruit" value={pools.breakfast.fruit} onChange={v => setPools(p => ({ ...p, breakfast: { ...p.breakfast, fruit: v } }))} />
-                  <FoodPicker label="Lipide" value={pools.breakfast.fat} onChange={v => setPools(p => ({ ...p, breakfast: { ...p.breakfast, fat: v } }))} />
-                </div>
+              <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                Un seul pool d&apos;aliments, utilisé pour tous les repas : chaque jour, un aliment est tiré au sort par rôle (protéine, lipide, légume, glucide).
               </div>
 
               <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🍽 Déjeuner / Dîner (pools, tirage aléatoire chaque jour)</div>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🍗 Protéines</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  <PoolPicker label="Protéines" items={pools.lunchDinner.proteins} onChange={v => setPools(p => ({ ...p, lunchDinner: { ...p.lunchDinner, proteins: v } }))} />
-                  <PoolPicker label="Glucides" items={pools.lunchDinner.carbs} onChange={v => setPools(p => ({ ...p, lunchDinner: { ...p.lunchDinner, carbs: v } }))} />
-                  <PoolPicker label="Légumes" items={pools.lunchDinner.vegetables} onChange={v => setPools(p => ({ ...p, lunchDinner: { ...p.lunchDinner, vegetables: v } }))} />
-                  <PoolPicker label="Lipides (huile d'olive par défaut)" items={pools.lunchDinner.fats} onChange={v => setPools(p => ({ ...p, lunchDinner: { ...p.lunchDinner, fats: v } }))} />
+                  <PoolPicker label="Protéines" items={pools.proteins} onChange={v => setPools(p => ({ ...p, proteins: v }))} />
+
+                  {!showBreakfastProtein ? (
+                    <button onClick={() => setShowBreakfastProtein(true)} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                      + Ajouter une protéine dédiée au petit déj
+                    </button>
+                  ) : (
+                    <div>
+                      <FoodPicker label="Protéine dédiée petit déj (4e choix)" value={pools.breakfastProtein} onChange={v => setPools(p => ({ ...p, breakfastProtein: v }))} />
+                      <button onClick={() => { setPools(p => ({ ...p, breakfastProtein: null })); setShowBreakfastProtein(false) }}
+                        style={{ marginTop: 6, background: 'none', border: 'none', color: 'var(--text3)', fontSize: 11, cursor: 'pointer', padding: 0 }}>
+                        Retirer — revenir au tirage parmi les 3 protéines
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
               <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🥜 Collations ({pools.snackVariants.length} variante{pools.snackVariants.length > 1 ? 's' : ''}, structure fixe comme le petit déj)</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                  {pools.snackVariants.map((variant, i) => (
-                    <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: 'var(--bg)' }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Variante {i + 1}</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <FoodPicker label="Protéine" value={variant.protein} onChange={v => setPools(p => { const next = [...p.snackVariants]; next[i] = { ...next[i], protein: v }; return { ...p, snackVariants: next } })} />
-                        <FoodPicker label="Glucide" value={variant.carb} onChange={v => setPools(p => { const next = [...p.snackVariants]; next[i] = { ...next[i], carb: v }; return { ...p, snackVariants: next } })} />
-                        <FoodPicker label="Fruit" value={variant.fruit} onChange={v => setPools(p => { const next = [...p.snackVariants]; next[i] = { ...next[i], fruit: v }; return { ...p, snackVariants: next } })} />
-                        <FoodPicker label="Lipide" value={variant.fat} onChange={v => setPools(p => { const next = [...p.snackVariants]; next[i] = { ...next[i], fat: v }; return { ...p, snackVariants: next } })} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🫒 Lipides (huile d&apos;olive par défaut)</div>
+                <PoolPicker label="Lipides" items={pools.fats} onChange={v => setPools(p => ({ ...p, fats: v }))} />
+              </div>
+
+              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🥦 Légumes</div>
+                <PoolPicker label="Légumes" items={pools.vegetables} onChange={v => setPools(p => ({ ...p, vegetables: v }))} />
+              </div>
+
+              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🍞 Glucides</div>
+                <PoolPicker label="Glucides" items={pools.carbs} onChange={v => setPools(p => ({ ...p, carbs: v }))} />
               </div>
 
               <div style={{ display: 'flex', gap: 8 }}>
