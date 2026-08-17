@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
-import { searchFood, generatePlan, OLIVE_OIL } from '@/lib/mealPlanner'
+import { searchFood, generatePlan, OLIVE_OIL, ACTIVITY_LEVELS, GOALS, computeCalorieTarget } from '@/lib/mealPlanner'
 
 function today() {
   const n = new Date()
@@ -103,7 +103,21 @@ function PoolPicker({ label, items, onChange, max = 3 }) {
 export default function MealPlannerPage() {
   const [step, setStep] = useState(1)
 
-  const [profile, setProfile] = useState({ weight: '', height: '', calories: 2200, pctProtein: 30, pctFat: 30, pctCarbs: 40 })
+  const [profile, setProfile] = useState({
+    weight: '', height: '', calories: 2200, pctProtein: 30, pctFat: 30, pctCarbs: 40,
+    sex: 'H', age: '', activityKey: 'modere', goalKey: 'maintenir',
+  })
+  const [calorieResult, setCalorieResult] = useState(null)
+
+  function calculateCalories() {
+    if (!profile.weight || !profile.height || !profile.age) return
+    const result = computeCalorieTarget({
+      sex: profile.sex, weight: profile.weight, height: profile.height, age: profile.age,
+      activityKey: profile.activityKey, goalKey: profile.goalKey,
+    })
+    setCalorieResult(result)
+    setProfile(p => ({ ...p, calories: result.target }))
+  }
 
   const [structure, setStructure] = useState({
     mealsEnabled: { petitDej: true, dejeuner: true, diner: true },
@@ -189,6 +203,45 @@ export default function MealPlannerPage() {
                   <input type="number" value={profile.height} onChange={e => setProfile(p => ({ ...p, height: e.target.value }))} style={inputStyle} />
                 </div>
               </div>
+
+              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 800 }}>🔢 Calculateur de besoin calorique</div>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={labelStyle}>Sexe</div>
+                    <select value={profile.sex} onChange={e => setProfile(p => ({ ...p, sex: e.target.value }))} style={inputStyle}>
+                      <option value="H">Homme</option>
+                      <option value="F">Femme</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={labelStyle}>Âge</div>
+                    <input type="number" value={profile.age} onChange={e => setProfile(p => ({ ...p, age: e.target.value }))} style={inputStyle} />
+                  </div>
+                </div>
+                <div>
+                  <div style={labelStyle}>Niveau d&apos;activité</div>
+                  <select value={profile.activityKey} onChange={e => setProfile(p => ({ ...p, activityKey: e.target.value }))} style={inputStyle}>
+                    {ACTIVITY_LEVELS.map(a => <option key={a.key} value={a.key}>{a.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={labelStyle}>Objectif</div>
+                  <select value={profile.goalKey} onChange={e => setProfile(p => ({ ...p, goalKey: e.target.value }))} style={inputStyle}>
+                    {GOALS.map(g => <option key={g.key} value={g.key}>{g.label}</option>)}
+                  </select>
+                </div>
+                <button onClick={calculateCalories} disabled={!profile.weight || !profile.height || !profile.age}
+                  style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '8px', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: !profile.weight || !profile.height || !profile.age ? 0.5 : 1 }}>
+                  Calculer les calories cibles
+                </button>
+                {calorieResult && (
+                  <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                    Métabolisme de base : {calorieResult.bmr} kcal · Maintenance : {calorieResult.tdee} kcal → Cible appliquée ci-dessous : {calorieResult.target} kcal
+                  </div>
+                )}
+              </div>
+
               <div>
                 <div style={labelStyle}>Calories cibles / jour</div>
                 <input type="number" value={profile.calories} onChange={e => setProfile(p => ({ ...p, calories: e.target.value }))} style={inputStyle} />
