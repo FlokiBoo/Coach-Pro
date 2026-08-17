@@ -29,6 +29,12 @@ export default function RecettesPage() {
   const [saving, setSaving] = useState(false)
   const nameRef = useRef(null)
 
+  const [spoonQuery, setSpoonQuery] = useState('')
+  const [spoonResults, setSpoonResults] = useState(null)
+  const [spoonSearching, setSpoonSearching] = useState(false)
+  const [spoonError, setSpoonError] = useState('')
+  const [importingId, setImportingId] = useState(null)
+
   async function load() {
     const { data } = await supabase.from('recettes').select('*').order('name')
     setRecettes(data || [])
@@ -63,6 +69,36 @@ export default function RecettesPage() {
     setRecettes(prev => prev.filter(r => r.id !== id))
   }
 
+  async function spoonSearch() {
+    if (!spoonQuery.trim()) return
+    setSpoonSearching(true)
+    setSpoonError('')
+    setSpoonResults(null)
+    const res = await fetch(`/api/spoonacular/search?query=${encodeURIComponent(spoonQuery.trim())}`)
+    const json = await res.json()
+    setSpoonSearching(false)
+    if (json.error) { setSpoonError(json.error); return }
+    setSpoonResults(json.results)
+  }
+
+  async function importSpoonRecipe(r) {
+    setImportingId(r.id)
+    const coachId = await getCoachId()
+    const { data, error } = await supabase.from('recettes').insert({
+      name: r.title,
+      description: r.sourceUrl || null,
+      kcal: r.kcal != null ? Math.round(r.kcal) : null,
+      proteines: r.proteines != null ? Math.round(r.proteines) : null,
+      glucides: r.glucides != null ? Math.round(r.glucides) : null,
+      lipides: r.lipides != null ? Math.round(r.lipides) : null,
+      coach_id: coachId,
+    }).select().single()
+    setImportingId(null)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setRecettes(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name, 'fr')))
+    setSpoonResults(prev => prev.filter(x => x.id !== r.id))
+  }
+
   const filtered = recettes.filter(r => r.name.toLowerCase().includes(search.toLowerCase()))
 
   return (
@@ -82,6 +118,46 @@ export default function RecettesPage() {
           >
             + Ajouter
           </button>
+        </div>
+
+        <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>🥄 Importer depuis Spoonacular</div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input
+              value={spoonQuery}
+              onChange={e => setSpoonQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), spoonSearch())}
+              placeholder="Ex: chicken bowl, salmon salad…"
+              style={inputStyle}
+            />
+            <button onClick={spoonSearch} disabled={spoonSearching || !spoonQuery.trim()}
+              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '0 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+              {spoonSearching ? '…' : '🔍 Chercher'}
+            </button>
+          </div>
+          {spoonError && <div style={{ fontSize: 12, color: '#DC2626' }}>{spoonError}</div>}
+          {spoonResults && spoonResults.length === 0 && (
+            <div style={{ fontSize: 12, color: 'var(--text3)' }}>Aucun résultat.</div>
+          )}
+          {spoonResults && spoonResults.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {spoonResults.map(r => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                  {r.image && <img src={r.image} alt="" width={40} height={40} style={{ borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                      {r.kcal != null ? `${Math.round(r.kcal)} kcal` : '—'} · P {r.proteines != null ? Math.round(r.proteines) : '—'}g · G {r.glucides != null ? Math.round(r.glucides) : '—'}g · L {r.lipides != null ? Math.round(r.lipides) : '—'}g
+                    </div>
+                  </div>
+                  <button onClick={() => importSpoonRecipe(r)} disabled={importingId === r.id}
+                    style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                    {importingId === r.id ? '…' : '+ Importer'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {showCreate && (
