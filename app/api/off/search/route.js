@@ -17,7 +17,7 @@ export async function GET(request) {
   const query = new URL(request.url).searchParams.get('query')?.trim()
   if (!query) return NextResponse.json({ error: 'query requis' }, { status: 400 })
 
-  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&json=1&page_size=8&fields=product_name,nutriments,code`
+  const url = `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(query)}&page_size=8&fields=product_name,nutriments,code`
 
   let res
   try {
