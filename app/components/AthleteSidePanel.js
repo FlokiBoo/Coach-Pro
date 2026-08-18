@@ -53,6 +53,7 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
   const [showSubscription, setShowSubscription] = useState(false)
   const [subscribing, setSubscribing] = useState(null)
   const [portalLoading, setPortalLoading] = useState(false)
+  const [changingPlan, setChangingPlan] = useState(null)
   const [recentRecords, setRecentRecords] = useState([])
 
   useEffect(() => {
@@ -93,6 +94,18 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
     setSubscribing(null)
     if (json.error) { alert('Erreur : ' + json.error); return }
     window.location.assign(json.url)
+  }
+
+  const changePlan = async (tier) => {
+    setChangingPlan(tier)
+    const res = await fetch(`/api/athlete-view/${token}/change-plan`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tier }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setChangingPlan(null)
+    if (json.error) { alert('Erreur : ' + json.error); return }
+    window.location.reload()
   }
 
   const openPortal = async () => {
@@ -298,9 +311,10 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
                     </button>
                   )}
                   {!isCurrent && athlete.subscription_status === 'active' && (
-                    <div style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>
-                      Utilise &quot;Gérer mon abonnement&quot; ci-dessus pour changer de formule
-                    </div>
+                    <button onClick={() => changePlan(t.key)} disabled={changingPlan === t.key}
+                      style={{ background: 'var(--bg2)', color: 'var(--text)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 4 }}>
+                      {changingPlan === t.key ? '…' : 'Passer à cette formule'}
+                    </button>
                   )}
                 </div>
               )
