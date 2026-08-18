@@ -3,6 +3,7 @@
 import { useState, useRef } from 'react'
 import { FRONT_MUSCLES, BACK_MUSCLES, FRONT_VIEWBOX, BACK_VIEWBOX } from '@/app/data/bodyMap'
 import { shareCardImage } from '@/lib/shareCard'
+import { MUSCLE_GROUPS, COLOR_BY_GROUP } from './MuscleAnatomyDiagram'
 
 const MUSCLE_MAP = {
   'pectoraux':       ['pec', 'poitrine', 'chest', 'pectoral'],
@@ -66,11 +67,12 @@ export function parseMusclesFromText(text) {
 }
 
 const NEUTRAL = '#E8C9AE'
-const ACTIVE  = '#FF5A36'
 const STROKE  = '#C9A47E'
 
 // Schéma anatomique adapté de "body-muscles" (Ivan Vulović, Apache 2.0)
 // https://github.com/vulovix/body-muscles
+// Même code couleur/numérotation que MuscleAnatomyDiagram (Tips) : chaque groupe travaillé
+// garde sa couleur dédiée au lieu d'un simple surlignage binaire.
 function BodySVG({ active, view }) {
   const isFront = view === 'front'
   const list = isFront ? FRONT_MUSCLES : BACK_MUSCLES
@@ -82,7 +84,7 @@ function BodySVG({ active, view }) {
         <path
           key={m.id}
           d={m.path}
-          fill={m.group && active.includes(m.group) ? ACTIVE : NEUTRAL}
+          fill={m.group && active.includes(m.group) ? (COLOR_BY_GROUP[m.group] || NEUTRAL) : NEUTRAL}
           stroke={STROKE}
           strokeWidth="0.15"
           strokeLinejoin="round"
@@ -167,10 +169,13 @@ export default function CelebrationModal({ tonnage, muscles, records = [], onClo
               <BodySVG active={muscles} view="front" />
               <BodySVG active={muscles} view="back" />
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginBottom: 18 }}>
-              {muscles.map(m => (
-                <span key={m} style={{ background: '#FEE2E2', color: '#DC2626', borderRadius: 20, padding: '3px 10px', fontSize: 12, fontWeight: 600 }}>
-                  {m}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 18 }}>
+              {MUSCLE_GROUPS.filter(g => muscles.includes(g.key)).map(g => (
+                <span key={g.key} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 20, padding: '3px 10px 3px 3px' }}>
+                  <span style={{ width: 18, height: 18, borderRadius: '50%', background: g.color, color: '#fff', fontSize: 10, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {g.n}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{g.label}</span>
                 </span>
               ))}
             </div>

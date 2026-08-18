@@ -27,7 +27,7 @@ export const MUSCLE_GROUPS = [
   { n: 18, key: 'tibial', label: 'Tibial', color: '#EC4899' },
 ]
 
-const COLOR_BY_GROUP = Object.fromEntries(MUSCLE_GROUPS.map(g => [g.key, g.color]))
+export const COLOR_BY_GROUP = Object.fromEntries(MUSCLE_GROUPS.map(g => [g.key, g.color]))
 
 function BodySVG({ view, width }) {
   const isFront = view === 'front'
