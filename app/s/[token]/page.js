@@ -525,7 +525,7 @@ function AthleteView({ params }) {
     await supabase.from('program_exercise_sets').delete().eq('id', setId)
   }
 
-  const createFreeSession = async (exos, markDone) => {
+  const createFreeSession = async (exos) => {
     if (!athlete) return
     if (!requireOnline()) return
     const res = await fetch(`/api/athlete-view/${token}/free-session`, {
@@ -541,13 +541,10 @@ function AthleteView({ params }) {
       sessions: [{ ...json.session, exercises: (json.session.exercises || []).sort((a, b) => a.order_index - b.order_index) }],
     }
     setPrograms(prev => [newProg, ...prev])
+    // Ouvre directement la séance : ajout de séries (reps/charge) et note libre par exercice,
+    // puis validation via le bouton standard "Terminer la séance" — même flux qu'une séance planifiée.
+    setOpenSessionId(json.session.id)
     setShowFreeForm(false)
-
-    if (markDone) {
-      await validate(json.session.id, newProg.sessions, {})
-    } else {
-      setToast('Séance sauvegardée — à faire plus tard')
-    }
   }
 
   if (!athlete) return (
@@ -1755,7 +1752,7 @@ function ExerciseHistoryButton({ athleteId, exerciseName }) {
 }
 
 function emptyFreeExo() {
-  return { _key: Date.now() + Math.random(), name: '', reps: '' }
+  return { _key: Date.now() + Math.random(), name: '' }
 }
 
 function FreeSessionModal({ onClose, onCreate }) {
@@ -1783,9 +1780,9 @@ function FreeSessionModal({ onClose, onCreate }) {
 
   const canSave = exos.some(e => e.name.trim())
 
-  const save = async (markDone) => {
-    setSaving(markDone ? 'done' : 'later')
-    await onCreate(exos, markDone)
+  const save = async () => {
+    setSaving(true)
+    await onCreate(exos)
     setSaving(false)
   }
 
@@ -1800,7 +1797,7 @@ function FreeSessionModal({ onClose, onCreate }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-          Ajoute tes exercices au fur et à mesure : mouvement et répétitions. Tape le début d&apos;un nom pour retrouver un mouvement existant, ou entre un nom libre.
+          Ajoute les mouvements de ta séance. Tape le début d&apos;un nom pour retrouver un mouvement existant, ou entre un nom libre — tu rentreras séries, reps et charge au fur et à mesure une fois la séance ouverte.
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1828,8 +1825,6 @@ function FreeSessionModal({ onClose, onCreate }) {
                 </div>
                 <button onClick={() => removeExo(exo._key)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 18, padding: '0 2px', cursor: 'pointer', flexShrink: 0 }}>×</button>
               </div>
-              <input placeholder="Répétitions" value={exo.reps} onChange={e => updateExo(exo._key, 'reps', e.target.value)}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
             </div>
           ))}
         </div>
@@ -1838,20 +1833,12 @@ function FreeSessionModal({ onClose, onCreate }) {
           + Ajouter un mouvement
         </button>
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => save(false)} disabled={!canSave || saving} style={{
-            flex: 1, background: 'var(--bg2)', color: 'var(--text)', border: '1px solid var(--border2)',
-            borderRadius: 'var(--rl)', padding: 14, fontSize: 14, fontWeight: 700, cursor: canSave ? 'pointer' : 'default', opacity: canSave ? 1 : 0.5,
-          }}>
-            {saving === 'later' ? '…' : '🕓 À faire plus tard'}
-          </button>
-          <button onClick={() => save(true)} disabled={!canSave || saving} style={{
-            flex: 1, background: canSave ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
-            borderRadius: 'var(--rl)', padding: 14, fontSize: 14, fontWeight: 700, cursor: canSave ? 'pointer' : 'default',
-          }}>
-            {saving === 'done' ? '…' : '✅ Valider comme terminée'}
-          </button>
-        </div>
+        <button onClick={save} disabled={!canSave || saving} style={{
+          background: canSave ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
+          borderRadius: 'var(--rl)', padding: 14, fontSize: 15, fontWeight: 700, cursor: canSave ? 'pointer' : 'default'
+        }}>
+          {saving ? 'Création…' : 'Créer la séance'}
+        </button>
       </div>
     </div>
   )
