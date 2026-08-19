@@ -50,6 +50,9 @@ const CITATIONS = [
   { texte: "Il m'a fallu 17 ans et 114 jours pour devenir une star en une nuit.", auteur: "Lionel Messi" },
   { texte: "Plus dure sera la lutte, plus grande sera la victoire.", auteur: "Thomas Paine" },
   { texte: "Repoussez vos limites ou elles vous repousseront.", auteur: "Anonyme" },
+  { texte: "Si vous êtes nuls, vous avez intérêt à être fort.", auteur: "Anonyme" },
+  { texte: "Échouer sans essayer, est-ce vraiment échouer ?", auteur: "Anonyme" },
+  { texte: "Don't be average, chase excellence.", auteur: "Anonyme" },
 ]
 
 function randomCitation() {
