@@ -689,6 +689,11 @@ function ProgramEditorPage({ params }) {
     setTitleSaving(false)
   }
 
+  const saveCategory = async () => {
+    if (!program) return
+    await supabase.from('programs').update({ category: program.category?.trim() || null }).eq('id', programId)
+  }
+
   const deleteSession = async (id) => {
     if (!confirm('Supprimer cette séance ? Elle sera aussi supprimée chez les clients à qui ce programme est lié (sauf s\'ils l\'ont déjà validée).')) return
 
@@ -797,8 +802,18 @@ function ProgramEditorPage({ params }) {
               />
               {titleSaving && <div style={{ fontSize: 10, color: 'var(--text3)' }}>Enregistrement…</div>}
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-                {isTemplate ? '📋 Modèle' : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
+                {isTemplate ? '📋 Template' : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
               </div>
+              {isTemplate && (
+                <input
+                  value={program?.category || ''}
+                  onChange={e => setProgram(p => ({ ...p, category: e.target.value }))}
+                  onBlur={saveCategory}
+                  onKeyDown={e => e.key === 'Enter' && e.target.blur()}
+                  placeholder="+ Catégorie (ex: Force, Hypertrophie, Perte de poids…)"
+                  style={{ marginTop: 4, fontSize: 12, fontWeight: 600, border: '1px solid var(--border2)', borderRadius: 20, outline: 'none', background: 'var(--bg2)', color: 'var(--text2)', padding: '4px 10px', width: '100%', boxSizing: 'border-box' }}
+                />
+              )}
             </div>
             <button onClick={deleteWholeProgram} title="Supprimer le programme"
               style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: '#DC2626', cursor: 'pointer', flexShrink: 0 }}>

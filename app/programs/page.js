@@ -25,6 +25,8 @@ export default function ProgramsPage() {
   const [selectedIds, setSelectedIds] = useState([])
   const [assigning, setAssigning] = useState(false)
   const [assignDone, setAssignDone] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState([])
+  const [showCategoryFilter, setShowCategoryFilter] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -51,7 +53,7 @@ export default function ProgramsPage() {
     const coachId = await getCoachId()
 
     if (newAthleteIds.length === 0) {
-      // Modèle sans client
+      // Template sans client
       const { data, error } = await supabase.from('programs')
         .insert({ title: newTitle.trim(), coach_id: coachId })
         .select().single()
@@ -111,6 +113,10 @@ export default function ProgramsPage() {
 
   const toggleAthlete = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+
+  const toggleCategoryFilter = (cat) => {
+    setCategoryFilter(prev => prev.includes(cat) ? prev.filter(x => x !== cat) : [...prev, cat])
   }
 
   const assignProgram = async () => {
@@ -231,7 +237,7 @@ export default function ProgramsPage() {
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={createProgram} disabled={creating || !newTitle.trim()} style={{ flex: 1, background: newTitle.trim() ? 'var(--green)' : 'var(--border)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                  {creating ? '…' : newAthleteIds.length === 0 ? 'Créer comme modèle' : newAthleteIds.length > 1 ? `Créer pour ${newAthleteIds.length} clients` : 'Créer'}
+                  {creating ? '…' : newAthleteIds.length === 0 ? 'Créer comme template' : newAthleteIds.length > 1 ? `Créer pour ${newAthleteIds.length} clients` : 'Créer'}
                 </button>
                 <button onClick={() => { setShowForm(false); setNewAthleteIds([]) }} style={{ background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 14, cursor: 'pointer' }}>
                   Annuler
@@ -243,11 +249,13 @@ export default function ProgramsPage() {
           {programs.filter(p => !p.athlete_id).length === 0 && !showForm ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
               <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun modèle</div>
-              <div style={{ fontSize: 13 }}>Clique sur "+ Programme" pour créer ton premier modèle</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun template</div>
+              <div style={{ fontSize: 13 }}>Clique sur "+ Programme" pour créer ton premier template</div>
             </div>
           ) : (() => {
-            const templates = programs.filter(p => !p.athlete_id)
+            const allTemplates = programs.filter(p => !p.athlete_id)
+            const allCategories = [...new Set(allTemplates.map(p => p.category).filter(Boolean))].sort()
+            const templates = categoryFilter.length === 0 ? allTemplates : allTemplates.filter(p => categoryFilter.includes(p.category))
             const renderProgram = (p) => {
               const href = p.athlete_id ? `/programs/${p.athlete_id}/${p.id}` : `/programs/templates/${p.id}`
               return (
@@ -255,8 +263,9 @@ export default function ProgramsPage() {
                   <Link href={href} style={{ display: 'block', padding: '14px 16px', textDecoration: 'none', color: 'inherit' }}>
                     <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{p.title}</div>
                     <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10 }}>
-                      <span>{p.athlete_id ? `👤 ${p.athletes?.name || '—'}` : '📋 Modèle'}</span>
+                      <span>{p.athlete_id ? `👤 ${p.athletes?.name || '—'}` : '📋 Template'}</span>
                       <span>📅 {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}</span>
+                      {p.category && <span style={{ color: 'var(--green)' }}>🏷 {p.category}</span>}
                       {p.available_to_clients && <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓ Disponible sportifs</span>}
                     </div>
                   </Link>
@@ -286,8 +295,42 @@ export default function ProgramsPage() {
             }
             return (
               <>
-                {templates.length > 0 && (
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 2px' }}>📋 Modèles</div>
+                {allTemplates.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', position: 'relative' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1 }}>📋 Templates</div>
+                    {allCategories.length > 0 && (
+                      <>
+                        <button onClick={() => setShowCategoryFilter(v => !v)} style={{
+                          background: categoryFilter.length ? 'var(--green-light)' : 'var(--bg)',
+                          color: categoryFilter.length ? 'var(--green)' : 'var(--text2)',
+                          border: '1px solid ' + (categoryFilter.length ? 'var(--green)' : 'var(--border2)'),
+                          borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        }}>
+                          🏷 Catégories{categoryFilter.length > 0 ? ` (${categoryFilter.length})` : ''}
+                        </button>
+                        {showCategoryFilter && (
+                          <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,.15)', zIndex: 50, padding: 10, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {allCategories.map(cat => (
+                              <label key={cat} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                                <input type="checkbox" checked={categoryFilter.includes(cat)} onChange={() => toggleCategoryFilter(cat)} style={{ accentColor: 'var(--green)', width: 15, height: 15 }} />
+                                {cat}
+                              </label>
+                            ))}
+                            {categoryFilter.length > 0 && (
+                              <button onClick={() => setCategoryFilter([])} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 0 0', textAlign: 'left' }}>
+                                Réinitialiser
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
+                {templates.length === 0 && categoryFilter.length > 0 && (
+                  <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '20px', fontSize: 13 }}>
+                    Aucun template dans {categoryFilter.length > 1 ? 'ces catégories' : 'cette catégorie'}
+                  </div>
                 )}
                 {templates.map(renderProgram)}
               </>
