@@ -97,7 +97,6 @@ function AthleteView({ params }) {
   const [exerciseSets, setExerciseSets] = useState({})
   const [viewDate, setViewDate] = useState(today())
   const [celebration, setCelebration] = useState(null)
-  const [showFreeForm, setShowFreeForm] = useState(false)
   const [completionFeedback, setCompletionFeedback] = useState({})
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine)
   const [objectives, setObjectives] = useState([])
@@ -525,26 +524,52 @@ function AthleteView({ params }) {
     await supabase.from('program_exercise_sets').delete().eq('id', setId)
   }
 
-  const createFreeSession = async (exos) => {
+  // Crée une séance libre vide et ouvre directement la vue plein écran (comme "▶ Lancer"),
+  // où les exercices sont ajoutés un par un via FreeExerciseAdder.
+  const startFreeSession = async () => {
     if (!athlete) return
     if (!requireOnline()) return
     const res = await fetch(`/api/athlete-view/${token}/free-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exercises: exos }),
+      body: JSON.stringify({ exercises: [] }),
     })
     const json = await res.json()
     if (!res.ok) { alert('Erreur : ' + (json?.error || 'impossible de créer la séance')); return }
 
-    const newProg = {
-      ...json.program,
-      sessions: [{ ...json.session, exercises: (json.session.exercises || []).sort((a, b) => a.order_index - b.order_index) }],
-    }
+    const newProg = { ...json.program, sessions: [{ ...json.session, exercises: [] }] }
     setPrograms(prev => [newProg, ...prev])
-    // Ouvre directement la séance : ajout de séries (reps/charge) et note libre par exercice,
-    // puis validation via le bouton standard "Terminer la séance" — même flux qu'une séance planifiée.
-    setOpenSessionId(json.session.id)
-    setShowFreeForm(false)
+    router.push(`/s/${token}?session=${json.session.id}&focus=1${isCoachView ? '&coach=1' : ''}`)
+  }
+
+  const addFreeExercise = async (sessionId, { name, sets, reps, kg }) => {
+    if (!requireOnline()) return
+    const res = await fetch(`/api/athlete-view/${token}/free-session/exercise`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, name, sets, reps, kg }),
+    })
+    const json = await res.json()
+    if (!res.ok) { alert('Erreur : ' + (json?.error || 'impossible d\'ajouter l\'exercice')); return }
+    setPrograms(prev => prev.map(p => ({
+      ...p,
+      sessions: p.sessions.map(s => s.id === sessionId ? { ...s, exercises: [...s.exercises, json.exercise] } : s),
+    })))
+  }
+
+  const toggleFreeSuperset = async (sessionId, exoA, exoB) => {
+    if (!requireOnline()) return
+    const group = (exoA.superset_group && exoA.superset_group === exoB.superset_group) ? null : (exoA.superset_group || exoB.superset_group || Math.random().toString(36).slice(2, 8))
+    await Promise.all([
+      supabase.from('program_exercises').update({ superset_group: group }).eq('id', exoA.id),
+      supabase.from('program_exercises').update({ superset_group: group }).eq('id', exoB.id),
+    ])
+    setPrograms(prev => prev.map(p => ({
+      ...p,
+      sessions: p.sessions.map(s => s.id === sessionId
+        ? { ...s, exercises: s.exercises.map(e => (e.id === exoA.id || e.id === exoB.id) ? { ...e, superset_group: group } : e) }
+        : s),
+    })))
   }
 
   if (!athlete) return (
@@ -552,10 +577,10 @@ function AthleteView({ params }) {
   )
 
   if (focusMode && targetSessionId) {
-    let focusSession = null, focusProgSessions = [], focusActivityType = null
+    let focusSession = null, focusProgSessions = [], focusActivityType = null, focusIsFreeSession = false
     for (const p of programs) {
       const idx = p.sessions.findIndex(s => s.id === targetSessionId)
-      if (idx !== -1) { focusSession = p.sessions[idx]; focusProgSessions = p.sessions; focusActivityType = p.activity_type; break }
+      if (idx !== -1) { focusSession = p.sessions[idx]; focusProgSessions = p.sessions; focusActivityType = p.activity_type; focusIsFreeSession = !!p.title?.startsWith('Séance libre'); break }
     }
     const isDone = focusSession ? completions.has(focusSession.id) : false
     const backHref = `/s/${token}${isCoachView ? '?coach=1' : ''}`
@@ -599,6 +624,9 @@ function AthleteView({ params }) {
               isCoach={isCoach}
               raceKnown={raceKnown}
               onSyncRaceMetric={syncRaceMetric}
+              isFreeSession={focusIsFreeSession}
+              onAddExercise={addFreeExercise}
+              onToggleSuperset={toggleFreeSuperset}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
@@ -686,7 +714,7 @@ function AthleteView({ params }) {
         <ActivityBlock athleteId={athlete.id} date={viewDate} />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={() => setShowFreeForm(true)} style={{ background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          <button onClick={startFreeSession} style={{ background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             ⚡ Séance libre
           </button>
         </div>
@@ -777,9 +805,6 @@ function AthleteView({ params }) {
         />
       )}
 
-      {showFreeForm && (
-        <FreeSessionModal onClose={() => setShowFreeForm(false)} onCreate={createFreeSession} />
-      )}
       <AthleteSidePanel athlete={athlete} token={token} onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))} />
       <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
     </div>
@@ -986,7 +1011,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, isFreeSession = false, onAddExercise, onToggleSuperset }) {
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
   const [focusPicker, setFocusPicker] = useState(null) // exercise id being edited
   const [viewingFocus, setViewingFocus] = useState(null) // zones array being viewed
@@ -1320,6 +1345,10 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
               )}
             </div>
           ))}
+
+          {isFreeSession && (
+            <FreeExerciseAdder sessionId={session.id} exos={exos} onAdd={onAddExercise} onToggleSuperset={onToggleSuperset} />
+          )}
 
           {onValidate && session.session_type === 'explication' && (
             <button
@@ -1751,95 +1780,128 @@ function ExerciseHistoryButton({ athleteId, exerciseName }) {
   )
 }
 
-function emptyFreeExo() {
-  return { _key: Date.now() + Math.random(), name: '' }
-}
-
-function FreeSessionModal({ onClose, onCreate }) {
-  const [exos, setExos] = useState([emptyFreeExo()])
-  const [suggestions, setSuggestions] = useState({})
+// Ajout d'exercices en direct dans une séance libre : nom (bibliothèque ou texte libre, non
+// sauvegardé dans la bibliothèque si inexistant), puis choix explicite entre un objectif à faire
+// plus tard (séries/reps/charge cibles) ou une saisie en direct (séries réelles juste en dessous,
+// via l'UI standard "+ Ajouter une série"). Supersérie possible avec l'exercice précédent.
+function FreeExerciseAdder({ sessionId, exos, onAdd, onToggleSuperset }) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [mode, setMode] = useState('live') // 'live' | 'later'
+  const [sets, setSets] = useState('')
+  const [reps, setReps] = useState('')
+  const [kg, setKg] = useState('')
+  const [suggestions, setSuggestions] = useState([])
   const [saving, setSaving] = useState(false)
+  const [togglingSuperset, setTogglingSuperset] = useState(false)
 
-  const updateExo = (key, field, value) => {
-    setExos(prev => prev.map(e => e._key === key ? { ...e, [field]: value } : e))
-  }
-
-  const searchMovements = async (key, val) => {
-    if (val.trim().length < 2) { setSuggestions(prev => ({ ...prev, [key]: [] })); return }
+  const searchMovements = async (val) => {
+    if (val.trim().length < 2) { setSuggestions([]); return }
     const { data } = await supabase.from('movements').select('name').ilike('name', `%${val.trim()}%`).limit(6)
-    setSuggestions(prev => ({ ...prev, [key]: (data || []).map(m => m.name) }))
+    setSuggestions((data || []).map(m => m.name))
   }
 
-  const pickSuggestion = (key, name) => {
-    updateExo(key, 'name', name)
-    setSuggestions(prev => ({ ...prev, [key]: [] }))
-  }
+  const reset = () => { setName(''); setMode('live'); setSets(''); setReps(''); setKg(''); setSuggestions([]); setOpen(false) }
 
-  const addExo = () => setExos(prev => [...prev, emptyFreeExo()])
-  const removeExo = (key) => setExos(prev => prev.length > 1 ? prev.filter(e => e._key !== key) : prev)
-
-  const canSave = exos.some(e => e.name.trim())
-
-  const save = async () => {
+  const add = async () => {
+    if (!name.trim()) return
     setSaving(true)
-    await onCreate(exos)
+    await onAdd(sessionId, mode === 'later' ? { name, sets, reps, kg } : { name })
     setSaving(false)
+    reset()
+  }
+
+  const last = exos[exos.length - 1]
+  const prevLast = exos[exos.length - 2]
+  const lastPairGrouped = last && prevLast && last.superset_group && last.superset_group === prevLast.superset_group
+
+  const toggleSuperset = async () => {
+    setTogglingSuperset(true)
+    await onToggleSuperset(sessionId, prevLast, last)
+    setTogglingSuperset(false)
   }
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div onClick={e => e.stopPropagation()} style={{
-        background: 'var(--bg)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480,
-        maxHeight: '85vh', overflowY: 'auto', padding: 18, display: 'flex', flexDirection: 'column', gap: 12
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontWeight: 800, fontSize: 17, flex: 1 }}>⚡ Séance libre</div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-          Ajoute les mouvements de ta séance. Tape le début d&apos;un nom pour retrouver un mouvement existant, ou entre un nom libre — tu rentreras séries, reps et charge au fur et à mesure une fois la séance ouverte.
-        </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {exos.map((exo, i) => (
-            <div key={exo._key} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ position: 'relative', flex: 1 }}>
-                  <input
-                    placeholder="Nom du mouvement"
-                    value={exo.name}
-                    onChange={e => { updateExo(exo._key, 'name', e.target.value); searchMovements(exo._key, e.target.value) }}
-                    onBlur={() => setTimeout(() => setSuggestions(p => ({ ...p, [exo._key]: [] })), 150)}
-                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, fontWeight: 600, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
-                  />
-                  {suggestions[exo._key]?.length > 0 && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
-                      {suggestions[exo._key].map((sug, si) => (
-                        <button key={si} onMouseDown={() => pickSuggestion(exo._key, sug)}
-                          style={{ display: 'block', width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: si < suggestions[exo._key].length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
-                          {sug}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <button onClick={() => removeExo(exo._key)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 18, padding: '0 2px', cursor: 'pointer', flexShrink: 0 }}>×</button>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <button onClick={addExo} style={{ background: 'none', border: '2px dashed var(--border2)', borderRadius: 'var(--r)', padding: 10, fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
-          + Ajouter un mouvement
-        </button>
-
-        <button onClick={save} disabled={!canSave || saving} style={{
-          background: canSave ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
-          borderRadius: 'var(--rl)', padding: 14, fontSize: 15, fontWeight: 700, cursor: canSave ? 'pointer' : 'default'
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {exos.length >= 2 && (
+        <button onClick={toggleSuperset} disabled={togglingSuperset} style={{
+          alignSelf: 'flex-start', background: lastPairGrouped ? '#EEF2FF' : 'none', color: '#6366f1',
+          border: '1px solid #C7D2FE', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
         }}>
-          {saving ? 'Création…' : 'Créer la séance'}
+          {togglingSuperset ? '…' : lastPairGrouped ? '✕ Retirer la supersérie' : '🔗 Supersérie avec le précédent'}
         </button>
-      </div>
+      )}
+
+      {!open ? (
+        <button onClick={() => setOpen(true)} style={{ background: 'none', border: '2px dashed var(--border2)', borderRadius: 'var(--r)', padding: 10, fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
+          + Ajouter un exercice
+        </button>
+      ) : (
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ position: 'relative' }}>
+            <input
+              placeholder="Nom du mouvement"
+              value={name}
+              autoFocus
+              onChange={e => { setName(e.target.value); searchMovements(e.target.value) }}
+              onBlur={() => setTimeout(() => setSuggestions([]), 150)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, fontWeight: 600, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+            />
+            {suggestions.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
+                {suggestions.map((sug, si) => (
+                  <button key={si} onMouseDown={() => { setName(sug); setSuggestions([]) }}
+                    style={{ display: 'block', width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: si < suggestions.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
+                    {sug}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => setMode('live')} style={{
+              flex: 1, background: mode === 'live' ? 'var(--green)' : 'var(--bg)', color: mode === 'live' ? '#fff' : 'var(--text2)',
+              border: '1px solid ' + (mode === 'live' ? 'var(--green)' : 'var(--border2)'), borderRadius: 20, padding: '7px 4px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>
+              🔴 En direct
+            </button>
+            <button onClick={() => setMode('later')} style={{
+              flex: 1, background: mode === 'later' ? 'var(--green)' : 'var(--bg)', color: mode === 'later' ? '#fff' : 'var(--text2)',
+              border: '1px solid ' + (mode === 'later' ? 'var(--green)' : 'var(--border2)'), borderRadius: 20, padding: '7px 4px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>
+              🕓 Objectif, plus tard
+            </button>
+          </div>
+
+          {mode === 'live' ? (
+            <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+              Les séries (reps + charge) s&apos;ajoutent juste en dessous une fois l&apos;exercice créé.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input placeholder="Séries" value={sets} onChange={e => setSets(e.target.value)}
+                style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+              <input placeholder="Reps" value={reps} onChange={e => setReps(e.target.value)}
+                style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+              <input placeholder="Kg" value={kg} onChange={e => setKg(e.target.value)}
+                style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={reset} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, padding: '9px 14px', fontSize: 13, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer' }}>
+              Annuler
+            </button>
+            <button onClick={add} disabled={!name.trim() || saving} style={{
+              flex: 1, background: name.trim() ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
+              borderRadius: 20, padding: '9px', fontSize: 13, fontWeight: 700, cursor: name.trim() ? 'pointer' : 'default',
+            }}>
+              {saving ? '…' : '+ Ajouter'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
