@@ -525,7 +525,7 @@ function AthleteView({ params }) {
     await supabase.from('program_exercise_sets').delete().eq('id', setId)
   }
 
-  const createFreeSession = async (exos) => {
+  const createFreeSession = async (exos, markDone) => {
     if (!athlete) return
     if (!requireOnline()) return
     const res = await fetch(`/api/athlete-view/${token}/free-session`, {
@@ -541,8 +541,13 @@ function AthleteView({ params }) {
       sessions: [{ ...json.session, exercises: (json.session.exercises || []).sort((a, b) => a.order_index - b.order_index) }],
     }
     setPrograms(prev => [newProg, ...prev])
-    setOpenSessionId(json.session.id)
     setShowFreeForm(false)
+
+    if (markDone) {
+      await validate(json.session.id, newProg.sessions, {})
+    } else {
+      setToast('Séance sauvegardée — à faire plus tard')
+    }
   }
 
   if (!athlete) return (
@@ -1750,7 +1755,7 @@ function ExerciseHistoryButton({ athleteId, exerciseName }) {
 }
 
 function emptyFreeExo() {
-  return { _key: Date.now() + Math.random(), name: '', sets: '', reps: '', kg: '' }
+  return { _key: Date.now() + Math.random(), name: '', reps: '' }
 }
 
 function FreeSessionModal({ onClose, onCreate }) {
@@ -1778,9 +1783,9 @@ function FreeSessionModal({ onClose, onCreate }) {
 
   const canSave = exos.some(e => e.name.trim())
 
-  const save = async () => {
-    setSaving(true)
-    await onCreate(exos)
+  const save = async (markDone) => {
+    setSaving(markDone ? 'done' : 'later')
+    await onCreate(exos, markDone)
     setSaving(false)
   }
 
@@ -1795,7 +1800,7 @@ function FreeSessionModal({ onClose, onCreate }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-          Ajoute tes exercices. Tape le début d&apos;un nom pour retrouver un mouvement existant, ou entre un nom libre.
+          Ajoute tes exercices au fur et à mesure : mouvement et répétitions. Tape le début d&apos;un nom pour retrouver un mouvement existant, ou entre un nom libre.
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1823,28 +1828,30 @@ function FreeSessionModal({ onClose, onCreate }) {
                 </div>
                 <button onClick={() => removeExo(exo._key)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 18, padding: '0 2px', cursor: 'pointer', flexShrink: 0 }}>×</button>
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input placeholder="Séries" value={exo.sets} onChange={e => updateExo(exo._key, 'sets', e.target.value)}
-                  style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
-                <input placeholder="Reps" value={exo.reps} onChange={e => updateExo(exo._key, 'reps', e.target.value)}
-                  style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
-                <input placeholder="Kg" value={exo.kg} onChange={e => updateExo(exo._key, 'kg', e.target.value)}
-                  style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
-              </div>
+              <input placeholder="Répétitions" value={exo.reps} onChange={e => updateExo(exo._key, 'reps', e.target.value)}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
             </div>
           ))}
         </div>
 
         <button onClick={addExo} style={{ background: 'none', border: '2px dashed var(--border2)', borderRadius: 'var(--r)', padding: 10, fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
-          + Ajouter un exercice
+          + Ajouter un mouvement
         </button>
 
-        <button onClick={save} disabled={!canSave || saving} style={{
-          background: canSave ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
-          borderRadius: 'var(--rl)', padding: 14, fontSize: 15, fontWeight: 700, cursor: canSave ? 'pointer' : 'default'
-        }}>
-          {saving ? 'Création…' : 'Créer la séance'}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => save(false)} disabled={!canSave || saving} style={{
+            flex: 1, background: 'var(--bg2)', color: 'var(--text)', border: '1px solid var(--border2)',
+            borderRadius: 'var(--rl)', padding: 14, fontSize: 14, fontWeight: 700, cursor: canSave ? 'pointer' : 'default', opacity: canSave ? 1 : 0.5,
+          }}>
+            {saving === 'later' ? '…' : '🕓 À faire plus tard'}
+          </button>
+          <button onClick={() => save(true)} disabled={!canSave || saving} style={{
+            flex: 1, background: canSave ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
+            borderRadius: 'var(--rl)', padding: 14, fontSize: 14, fontWeight: 700, cursor: canSave ? 'pointer' : 'default',
+          }}>
+            {saving === 'done' ? '…' : '✅ Valider comme terminée'}
+          </button>
+        </div>
       </div>
     </div>
   )
