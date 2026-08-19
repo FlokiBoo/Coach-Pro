@@ -29,6 +29,17 @@ export async function GET(request, { params }) {
   const isCoach = !!coach && (coach.is_admin || athlete.coach_id === user.id)
   if (!isOwner && !isCoach) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
+  // Limite 2 appareils/compte sportif : le sportif lui-même (pas le coach en aperçu) doit avoir
+  // un appareil déjà validé par email. Sinon, redirection côté client vers /verify-device.
+  if (isOwner) {
+    const deviceId = cookieStore.get('cp_device')?.value
+    const { data: device } = deviceId
+      ? await supabaseAdmin.from('athlete_devices').select('id').eq('athlete_id', athlete.id).eq('device_id', deviceId).maybeSingle()
+      : { data: null }
+    if (!device) return NextResponse.json({ error: 'device_unverified' }, { status: 403 })
+    await supabaseAdmin.from('athlete_devices').update({ last_seen_at: new Date().toISOString() }).eq('id', device.id)
+  }
+
   const [{ data: progs }, { data: comps }, { data: logs }, { data: objectives }, { data: noteBlocks }, { data: exoSets }, { data: trackedMovs }] = await Promise.all([
     supabaseAdmin.from('programs')
       .select('*, program_sessions(*, program_exercises(*))')

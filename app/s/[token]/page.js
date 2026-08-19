@@ -70,6 +70,14 @@ export default function AthleteViewWrapper({ params }) {
   )
 }
 
+function ensureDeviceCookie() {
+  const match = document.cookie.match(/(?:^|; )cp_device=([^;]+)/)
+  if (match) return decodeURIComponent(match[1])
+  const id = crypto.randomUUID()
+  document.cookie = `cp_device=${id}; path=/; max-age=${60 * 60 * 24 * 365 * 2}; SameSite=Lax`
+  return id
+}
+
 function offsetDate(date, days) {
   const d = new Date(date + 'T00:00:00')
   d.setDate(d.getDate() + days)
@@ -193,8 +201,14 @@ function AthleteView({ params }) {
 
   useEffect(() => {
     async function load() {
+      ensureDeviceCookie()
       const res = await fetch(`/api/athlete-view/${token}`, { cache: 'no-store' })
-      if (res.status === 401 || res.status === 403) { router.push('/login'); return }
+      if (res.status === 401) { router.push('/login'); return }
+      if (res.status === 403) {
+        const body = await res.json().catch(() => ({}))
+        router.push(body.error === 'device_unverified' ? `/verify-device?token=${token}` : '/login')
+        return
+      }
       if (!res.ok) return
       const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets, raceKnown: rk, trackedMovements: tms, isCoach: coachFlag } = await res.json()
       setAthlete(ath)

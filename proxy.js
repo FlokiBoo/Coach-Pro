@@ -54,6 +54,12 @@ export async function proxy(request) {
     return response
   }
 
+  // Validation d'un nouvel appareil (limite 2 appareils/compte sportif) : accessible même
+  // en dehors de l'espace /s/[token] scopé, sinon boucle de redirection.
+  if (pathname.startsWith('/verify-device')) {
+    return response
+  }
+
   // Si c'est un compte client (pas le coach), le cantonner à son espace
   if (athleteToken && !pathname.startsWith(`/s/${athleteToken}`)) {
     return NextResponse.redirect(new URL(`/s/${athleteToken}`, request.url))
