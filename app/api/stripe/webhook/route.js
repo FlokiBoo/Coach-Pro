@@ -1,6 +1,8 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
+import { pushPaymentToNotion } from '@/lib/notion'
+import { SUBSCRIPTION_TIERS } from '@/lib/subscriptionTiers'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +16,22 @@ async function syncFromSubscription(subscription) {
     subscription_tier: tier,
     subscription_status: subscription.status,
   }).eq('id', athleteId)
+}
+
+async function syncInvoiceToNotion(invoice, status) {
+  if (!invoice.customer) return
+  const { data: athlete } = await supabaseAdmin.from('athletes')
+    .select('name, subscription_tier').eq('stripe_customer_id', invoice.customer).maybeSingle()
+  if (!athlete) return
+
+  await pushPaymentToNotion({
+    athleteName: athlete.name,
+    amount: (invoice.amount_paid || invoice.amount_due || 0) / 100,
+    date: new Date(invoice.created * 1000).toISOString().slice(0, 10),
+    status,
+    tier: SUBSCRIPTION_TIERS[athlete.subscription_tier]?.label,
+    invoiceId: invoice.id,
+  })
 }
 
 export async function POST(request) {
@@ -49,6 +67,14 @@ export async function POST(request) {
           subscription_status: 'canceled', subscription_tier: null,
         }).eq('id', athleteId)
       }
+      break
+    }
+    case 'invoice.paid': {
+      await syncInvoiceToNotion(event.data.object, 'Payé')
+      break
+    }
+    case 'invoice.payment_failed': {
+      await syncInvoiceToNotion(event.data.object, 'Échoué')
       break
     }
   }
