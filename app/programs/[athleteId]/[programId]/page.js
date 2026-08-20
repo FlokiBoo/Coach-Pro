@@ -72,10 +72,14 @@ function SessionSummaryBlock({ exercises }) {
 
   const names = exercises.map(e => e.name.trim()).filter(Boolean)
   const namesKey = names.join('|')
+  const namesLower = new Set(names.map(n => n.toLowerCase()))
 
   useEffect(() => {
     if (names.length === 0) { setSummary(null); return }
-    supabase.from('movements').select('name, muscles, torque').in('name', names).then(({ data: movs }) => {
+    // Bibliothèque récupérée en entier plutôt que filtrée par .in('name', …), sensible à la casse
+    // côté Postgres — sinon un nom mal accordé (ex. casse différente) est raté silencieusement.
+    supabase.from('movements').select('name, muscles, torque').then(({ data: allMovs }) => {
+      const movs = (allMovs || []).filter(m => namesLower.has(m.name.trim().toLowerCase()))
       if (!movs?.length) { setSummary(null); return }
 
       const seen = new Set()
@@ -233,11 +237,13 @@ function ProgramEditorPage({ params }) {
       setAthlete(a)
       setProgram(prog)
 
-      const exerciseNames = [...new Set((sess || []).flatMap(s => (s.program_exercises || []).map(e => e.name).filter(Boolean)))]
+      const hasExercises = (sess || []).some(s => (s.program_exercises || []).some(e => e.name))
       let movieMap = {}
-      if (exerciseNames.length) {
-        const { data: movs } = await supabase.from('movements').select('name, youtube_url, muscles').in('name', exerciseNames)
-        ;(movs || []).forEach(m => { movieMap[m.name] = m.youtube_url })
+      if (hasExercises) {
+        // Bibliothèque récupérée en entier (petit volume) plutôt que filtrée par .in('name', …), qui
+        // est sensible à la casse côté Postgres et raterait silencieusement un nom mal accordé.
+        const { data: movs } = await supabase.from('movements').select('name, youtube_url, muscles')
+        ;(movs || []).forEach(m => { movieMap[m.name.trim().toLowerCase()] = m.youtube_url })
         const musclesMap = {}
         ;(movs || []).forEach(m => { if (m.muscles) musclesMap[m.name.trim().toLowerCase()] = m.muscles })
         setMovementMusclesMap(musclesMap)
@@ -247,7 +253,7 @@ function ProgramEditorPage({ params }) {
         ...s,
         exercises: [...(s.program_exercises || [])]
           .sort((a, b) => a.order_index - b.order_index)
-          .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', rest: e.rest ?? '', note: e.note ?? '', video_url: (movieMap[e.name] ?? e.video_url) || '', superset_group: e.superset_group || null, pct_low: e.pct_low ?? '', pct_high: e.pct_high ?? '' })),
+          .map(e => ({ ...e, _key: e.id, sets: e.sets ?? '', reps: e.reps ?? '', kg: e.kg ?? '', rest: e.rest ?? '', note: e.note ?? '', video_url: (movieMap[e.name?.trim().toLowerCase()] ?? e.video_url) || '', superset_group: e.superset_group || null, pct_low: e.pct_low ?? '', pct_high: e.pct_high ?? '' })),
         activation_videos: s.activation_videos || [],
         circuits: s.circuits || [],
       }))

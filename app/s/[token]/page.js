@@ -246,7 +246,7 @@ function AthleteView({ params }) {
           .map(s => ({
             ...s,
             exercises: [...(s.program_exercises || [])].sort((a, b) => a.order_index - b.order_index)
-              .map(e => ({ ...e, video_url: (movieMap || {})[e.name] ?? e.video_url, movement_muscles: (musclesMap || {})[e.name?.trim().toLowerCase()] || null }))
+              .map(e => ({ ...e, video_url: (movieMap || {})[e.name?.trim().toLowerCase()] ?? e.video_url, movement_muscles: (musclesMap || {})[e.name?.trim().toLowerCase()] || null }))
           }))
       }))
       setPrograms(progList)
@@ -421,11 +421,13 @@ function AthleteView({ params }) {
           tonnage += (parseFloat(log.kg_done) || 0) * (parseInt(log.sets_done) || 0) * (parseInt(log.reps_done) || 0)
         }
       })
-      const exerciseNames = [...new Set(exos.map(e => e.name.trim()).filter(Boolean))]
+      const exerciseNames = new Set(exos.map(e => e.name.trim().toLowerCase()).filter(Boolean))
       let muscles = []
-      if (exerciseNames.length > 0) {
-        const { data: movData } = await supabase.from('movements').select('name, muscles').in('name', exerciseNames)
-        const allText = (movData || []).map(m => m.muscles || '').join(', ')
+      if (exerciseNames.size > 0) {
+        // Bibliothèque récupérée en entier plutôt que filtrée par .in('name', …), sensible à la
+        // casse côté Postgres — sinon un nom mal accordé (ex. casse différente) est raté silencieusement.
+        const { data: movData } = await supabase.from('movements').select('name, muscles')
+        const allText = (movData || []).filter(m => exerciseNames.has(m.name.trim().toLowerCase())).map(m => m.muscles || '').join(', ')
         muscles = parseMusclesFromText(allText)
       }
       // Cible manuellement choisie sur un exercice (picker "Focus") : toujours reprise dans le résumé,

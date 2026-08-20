@@ -83,14 +83,14 @@ export async function GET(request, { params }) {
       })
     : (progs || [])
 
-  const exerciseNames = [...new Set(
-    (gatedProgs || []).flatMap(p => (p.program_sessions || []).flatMap(s => (s.program_exercises || []).map(e => e.name).filter(Boolean)))
-  )]
+  const hasExercises = (gatedProgs || []).some(p => (p.program_sessions || []).some(s => (s.program_exercises || []).some(e => e.name)))
   let movieMap = {}, musclesMap = {}
-  if (exerciseNames.length) {
-    const { data: movs } = await supabaseAdmin.from('movements').select('name, youtube_url, muscles').in('name', exerciseNames)
+  if (hasExercises) {
+    // Bibliothèque récupérée en entier (petit volume) plutôt que filtrée par .in('name', …), qui
+    // est sensible à la casse côté Postgres et raterait silencieusement un nom mal accordé.
+    const { data: movs } = await supabaseAdmin.from('movements').select('name, youtube_url, muscles')
     ;(movs || []).forEach(m => {
-      movieMap[m.name] = m.youtube_url
+      movieMap[m.name.trim().toLowerCase()] = m.youtube_url
       if (m.muscles) musclesMap[m.name.trim().toLowerCase()] = m.muscles
     })
   }
