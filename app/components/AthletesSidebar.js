@@ -165,6 +165,11 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>💳 Abonnements</Link>
+        <Link href="/finances" onClick={() => setOpen(false)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent',
+        }}>💰 Finances</Link>
         <button onClick={() => setShowTimer(true)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', width: '100%', textAlign: 'left',
           borderRadius: 'var(--r)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
