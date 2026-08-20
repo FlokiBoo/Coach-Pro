@@ -17,7 +17,7 @@ const MUSCLE_MAP = {
   'quadriceps':      ['quad', 'quadricep', 'cuisse'],
   'adducteurs':      ['adducteur', 'psoas', 'fléchisseur de hanche', 'flechisseur de hanche'],
   'trapèzes':        ['trap', 'trapèze', 'trapeze'],
-  'grand dorsal':    ['dorsal', 'dorsaux', 'dos', 'lat'],
+  'grand dorsal':    ['dorsal', 'dorsaux', 'dos'],
   'triceps':         ['tricep', 'triceps'],
   'lombaires':       ['lombaire', 'bas du dos', 'lower back', 'érecteur', 'erecteur'],
   'fessiers':        ['fessier', 'glute', 'fesse', 'glutéaux', 'rotateur', 'piriforme'],
