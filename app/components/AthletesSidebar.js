@@ -160,16 +160,6 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>👤 Sportifs</Link>
-        <Link href="/abonnements" onClick={() => setOpen(false)} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>💳 Abonnements</Link>
-        <Link href="/finances" onClick={() => setOpen(false)} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>💰 Finances</Link>
         <button onClick={() => setShowTimer(true)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', width: '100%', textAlign: 'left',
           borderRadius: 'var(--r)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
@@ -237,6 +227,15 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>⚡ Activations</Link>
+
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
+          Business
+        </div>
+        <Link href="/finances" onClick={() => setOpen(false)} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent',
+        }}>💰 Finances</Link>
       </div>
 
       {/* Liste sportifs */}

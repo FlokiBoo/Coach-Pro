@@ -31,7 +31,8 @@ export async function GET() {
 
   const { data: athletes } = await supabaseAdmin.from('athletes')
     .select('id, name, subscription_status, subscription_tier, stripe_customer_id')
-    .not('stripe_customer_id', 'is', null)
+    .neq('archived', true)
+    .order('name')
 
   const now = new Date()
   const startOfMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) / 1000
@@ -65,10 +66,6 @@ export async function GET() {
         ...invoiceLabel(invoice),
       } : null,
     }
-  }).sort((a, b) => {
-    const da = a.lastPayment?.date || ''
-    const db = b.lastPayment?.date || ''
-    return db.localeCompare(da)
   })
 
   return NextResponse.json({

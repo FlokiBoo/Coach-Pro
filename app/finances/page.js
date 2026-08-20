@@ -36,6 +36,59 @@ const PAYMENT_LABELS = {
   void: { color: 'var(--text3)', bg: 'var(--bg2)' },
 }
 
+function Row({ a }) {
+  const status = STATUS_LABELS[a.subscriptionStatus]
+  const tier = a.tier && SUBSCRIPTION_TIERS[a.tier]
+  const pay = a.lastPayment
+  const payStyle = pay ? PAYMENT_LABELS[pay.status] : null
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
+      <div style={{
+        width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+        background: 'var(--green-light)', color: 'var(--green)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800,
+      }}>
+        {initials(a.name)}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+        <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+          {tier?.label || '—'}
+          {pay && ` · ${formatEur(pay.amount / 100)} le ${new Date(pay.date).toLocaleDateString('fr-FR')}`}
+        </div>
+      </div>
+      {pay && payStyle && (
+        <span style={{ fontSize: 11, fontWeight: 700, color: payStyle.color, background: payStyle.bg, borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
+          {pay.label}
+        </span>
+      )}
+      {status ? (
+        <span style={{ fontSize: 11, fontWeight: 700, color: status.color, background: status.bg, borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
+          {status.label}
+        </span>
+      ) : (
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
+          Jamais abonné
+        </span>
+      )}
+    </div>
+  )
+}
+
+function Group({ title, items }) {
+  if (items.length === 0) return null
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>
+        {title} ({items.length})
+      </div>
+      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+        {items.map((a, i) => <div key={a.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}><Row a={a} /></div>)}
+      </div>
+    </div>
+  )
+}
+
 export default function FinancesPage() {
   const [checking, setChecking] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -71,6 +124,9 @@ export default function FinancesPage() {
   )
 
   const athletes = (data?.athletes || []).filter(a => a.name.toLowerCase().includes(search.trim().toLowerCase()))
+  const actifs = athletes.filter(a => a.subscriptionStatus === 'active')
+  const arretes = athletes.filter(a => a.subscriptionStatus && a.subscriptionStatus !== 'active')
+  const jamais = athletes.filter(a => !a.subscriptionStatus)
   const failedCount = (data?.athletes || []).filter(a => a.lastPayment?.status === 'failed').length
 
   return (
@@ -125,44 +181,9 @@ export default function FinancesPage() {
                 style={{ padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
               />
 
-              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-                {athletes.length === 0 ? (
-                  <div style={{ fontSize: 13, color: 'var(--text3)', padding: '20px 14px' }}>Aucun sportif avec un abonnement.</div>
-                ) : athletes.map((a, i) => {
-                  const status = STATUS_LABELS[a.subscriptionStatus]
-                  const tier = a.tier && SUBSCRIPTION_TIERS[a.tier]
-                  const pay = a.lastPayment
-                  const payStyle = pay ? PAYMENT_LABELS[pay.status] : null
-                  return (
-                    <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-                      <div style={{
-                        width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                        background: 'var(--green-light)', color: 'var(--green)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800,
-                      }}>
-                        {initials(a.name)}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-                          {tier?.label || '—'}
-                          {pay && ` · ${formatEur(pay.amount / 100)} le ${new Date(pay.date).toLocaleDateString('fr-FR')}`}
-                        </div>
-                      </div>
-                      {pay && payStyle && (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: payStyle.color, background: payStyle.bg, borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
-                          {pay.label}
-                        </span>
-                      )}
-                      {status && (
-                        <span style={{ fontSize: 11, fontWeight: 700, color: status.color, background: status.bg, borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
-                          {status.label}
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
+              <Group title="✅ Actifs" items={actifs} />
+              <Group title="⛔ Arrêtés / en souci" items={arretes} />
+              <Group title="⚪ Jamais abonnés" items={jamais} />
             </>
           )}
         </div>
