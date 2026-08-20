@@ -103,6 +103,7 @@ function AthleteView({ params }) {
   const [validating, setValidating] = useState(false)
   const [exerciseLogs, setExerciseLogs] = useState({})
   const [exerciseSets, setExerciseSets] = useState({})
+  const [circuitLogs, setCircuitLogs] = useState({})
   const [viewDate, setViewDate] = useState(today())
   const [celebration, setCelebration] = useState(null)
   const [completionFeedback, setCompletionFeedback] = useState({})
@@ -210,7 +211,7 @@ function AthleteView({ params }) {
         return
       }
       if (!res.ok) return
-      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets, raceKnown: rk, trackedMovements: tms, isCoach: coachFlag } = await res.json()
+      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets, raceKnown: rk, trackedMovements: tms, isCoach: coachFlag, circuitLogs: cLogs } = await res.json()
       setAthlete(ath)
       setObjectives(objs || [])
       setNoteBlocks(blocks || [])
@@ -221,6 +222,10 @@ function AthleteView({ params }) {
       const logsMap = {}
       ;(logs || []).forEach(l => { logsMap[l.program_exercise_id] = l })
       setExerciseLogs(logsMap)
+
+      const circuitLogsMap = {}
+      ;(cLogs || []).forEach(l => { circuitLogsMap[`${l.program_session_id}::${l.circuit_id}`] = l })
+      setCircuitLogs(circuitLogsMap)
 
       const setsMap = {}
       ;(exoSets || []).forEach(s => {
@@ -586,6 +591,17 @@ function AthleteView({ params }) {
     })))
   }
 
+  const saveCircuitLog = async (programSessionId, circuitId, fields) => {
+    if (!requireOnline()) return
+    const res = await fetch(`/api/athlete-view/${token}/circuit-log`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ programSessionId, circuitId, ...fields }),
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) return
+    setCircuitLogs(prev => ({ ...prev, [`${programSessionId}::${circuitId}`]: json.log }))
+  }
+
   if (!athlete) return (
     <div style={{ padding: 40, textAlign: 'center', color: 'var(--text3)' }}>Chargement…</div>
   )
@@ -641,6 +657,8 @@ function AthleteView({ params }) {
               isFreeSession={focusIsFreeSession}
               onAddExercise={addFreeExercise}
               onToggleSuperset={toggleFreeSuperset}
+              circuitLogs={circuitLogs}
+              onSaveCircuitLog={saveCircuitLog}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
@@ -749,6 +767,7 @@ function AthleteView({ params }) {
             trackedMovements, onSaveMetricResult: saveMetricResult,
             exerciseSets, onAddExerciseSet: addExerciseSet, onEnsureExerciseSets: ensureExerciseSets, onSaveExerciseSet: saveExerciseSet, onDeleteExerciseSet: deleteExerciseSet,
             raceKnown, onSyncRaceMetric: syncRaceMetric,
+            circuitLogs, onSaveCircuitLog: saveCircuitLog,
           }
 
           if (boardPrograms.length === 0) {
@@ -831,6 +850,63 @@ const logInputStyle = {
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
 }
 
+const CIRCUIT_MODES = [
+  { key: 'temps', label: 'Temps' },
+  { key: 'tours', label: 'Nombre de tours' },
+  { key: 'reps', label: 'Reps' },
+  { key: 'tours_reps', label: 'Tours & Reps' },
+]
+
+// Résultat libre d'un circuit : le sportif choisit ce qu'il veut renseigner (temps, tours,
+// reps, ou tours + reps), plus une note. Un seul log par (séance, circuit) — sauvegarde
+// au blur, comme le reste des saisies de séance.
+function CircuitLogger({ programSessionId, circuitId, log, onSave }) {
+  const [mode, setMode] = useState(log?.mode || null)
+  const [temps, setTemps] = useState(log?.temps || '')
+  const [tours, setTours] = useState(log?.tours ?? '')
+  const [reps, setReps] = useState(log?.reps || '')
+  const [note, setNote] = useState(log?.note || '')
+
+  const save = (patch = {}) => {
+    onSave(programSessionId, circuitId, { mode, temps, tours, reps, note, ...patch })
+  }
+
+  const chooseMode = (m) => {
+    setMode(m)
+    save({ mode: m })
+  }
+
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #C7D2FE', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Mon résultat</div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {CIRCUIT_MODES.map(m => (
+          <button key={m.key} onClick={() => chooseMode(m.key)} style={{
+            background: mode === m.key ? '#4338CA' : 'var(--bg)', color: mode === m.key ? '#fff' : '#4338CA',
+            border: '1px solid #C7D2FE', borderRadius: 20, padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          }}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+      {mode === 'temps' && (
+        <input placeholder="Ex : 12:30" value={temps} onChange={e => setTemps(e.target.value)} onBlur={() => save()} style={logInputStyle} />
+      )}
+      {(mode === 'tours' || mode === 'tours_reps') && (
+        <input type="number" min="0" placeholder="Nombre de tours" value={tours} onChange={e => setTours(e.target.value)} onBlur={() => save()} style={logInputStyle} />
+      )}
+      {(mode === 'reps' || mode === 'tours_reps') && (
+        <input placeholder="Reps" value={reps} onChange={e => setReps(e.target.value)} onBlur={() => save()} style={logInputStyle} />
+      )}
+      {mode && (
+        <textarea placeholder="Comment c'était ?" value={note} onChange={e => setNote(e.target.value)} onBlur={() => save()} rows={2}
+          style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', resize: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
+        />
+      )}
+    </div>
+  )
+}
+
 function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric }) {
   const log = exerciseLogs[exo.id] || {}
   const [intervals, setIntervals] = useState(log.intervals_done || [])
@@ -907,7 +983,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric }) {
   )
 }
 
-function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, isCoach, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, raceKnown, onSyncRaceMetric }) {
+function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, isCoach, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, raceKnown, onSyncRaceMetric, circuitLogs, onSaveCircuitLog }) {
   const total = prog.sessions.length
   const done = prog.sessions.filter(s => completions.has(s.id)).length
   const allDone = done === total && total > 0
@@ -986,6 +1062,8 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         isCoach={isCoach}
         raceKnown={raceKnown}
         onSyncRaceMetric={onSyncRaceMetric}
+        circuitLogs={circuitLogs}
+        onSaveCircuitLog={onSaveCircuitLog}
       />
 
       {/* Programme terminé */}
@@ -1025,7 +1103,7 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, isFreeSession = false, onAddExercise, onToggleSuperset }) {
+function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, isFreeSession = false, onAddExercise, onToggleSuperset, circuitLogs = {}, onSaveCircuitLog }) {
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
   const [focusPicker, setFocusPicker] = useState(null) // exercise id being edited
   const [viewingFocus, setViewingFocus] = useState(null) // zones array being viewed
@@ -1174,6 +1252,14 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
                     </div>
                   ))}
                 </div>
+              )}
+              {onSaveCircuitLog && (
+                <CircuitLogger
+                  programSessionId={session.id}
+                  circuitId={c.id}
+                  log={circuitLogs[`${session.id}::${c.id}`]}
+                  onSave={onSaveCircuitLog}
+                />
               )}
             </div>
           ))}

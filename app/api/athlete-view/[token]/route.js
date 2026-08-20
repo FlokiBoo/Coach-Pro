@@ -40,7 +40,7 @@ export async function GET(request, { params }) {
     await supabaseAdmin.from('athlete_devices').update({ last_seen_at: new Date().toISOString() }).eq('id', device.id)
   }
 
-  const [{ data: progs }, { data: comps }, { data: logs }, { data: objectives }, { data: noteBlocks }, { data: exoSets }, { data: trackedMovs }] = await Promise.all([
+  const [{ data: progs }, { data: comps }, { data: logs }, { data: objectives }, { data: noteBlocks }, { data: exoSets }, { data: trackedMovs }, { data: circuitLogsData }] = await Promise.all([
     supabaseAdmin.from('programs')
       .select('*, program_sessions(*, program_exercises(*))')
       .eq('athlete_id', athlete.id)
@@ -53,6 +53,7 @@ export async function GET(request, { params }) {
     supabaseAdmin.from('athlete_note_blocks').select('*').eq('athlete_id', athlete.id).order('order_index'),
     supabaseAdmin.from('program_exercise_sets').select('*').eq('athlete_id', athlete.id).order('set_index'),
     supabaseAdmin.from('tracked_movements').select('id, name, unit, tracked_movement_entries(value, athlete_id)'),
+    supabaseAdmin.from('circuit_logs').select('*').eq('athlete_id', athlete.id),
   ])
 
   const raceMovements = (trackedMovs || []).map(m => ({
@@ -98,7 +99,7 @@ export async function GET(request, { params }) {
     {
       athlete, programs: gatedProgs, completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap,
       objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [],
-      raceKnown, trackedMovements, isCoach,
+      raceKnown, trackedMovements, isCoach, circuitLogs: circuitLogsData || [],
     },
     { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
   )
