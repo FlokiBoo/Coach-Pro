@@ -45,6 +45,7 @@ export async function POST(request, { params }) {
     cancel_url: `${origin}/s/${token}`,
     metadata: { athlete_id: athlete.id, tier },
     subscription_data: { metadata: { athlete_id: athlete.id, tier } },
+    allow_promotion_codes: true,
   })
 
   return NextResponse.json({ url: session.url })

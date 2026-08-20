@@ -75,6 +75,169 @@ function Row({ a }) {
   )
 }
 
+const DURATION_LABELS = { once: 'une fois', forever: 'à vie', repeating: 'récurrent' }
+
+function discountLabel(coupon) {
+  const value = coupon.percent_off ? `${coupon.percent_off}%` : `${(coupon.amount_off / 100).toFixed(2).replace('.00', '')}€`
+  const duration = coupon.duration === 'repeating' ? `${coupon.duration_in_months} mois` : DURATION_LABELS[coupon.duration]
+  return `${value} · ${duration}`
+}
+
+function PromoCodesSection() {
+  const [codes, setCodes] = useState(null)
+  const [error, setError] = useState('')
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ code: '', type: 'percent', value: '', duration: 'once', durationInMonths: '3', maxRedemptions: '', expiresAt: '' })
+
+  const load = async () => {
+    const res = await fetch('/api/finances/promo-codes', { cache: 'no-store' })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) { setError(json.error || 'Erreur de chargement'); return }
+    setCodes(json.codes)
+  }
+
+  useEffect(() => { load() }, [])
+
+  const create = async () => {
+    setSaving(true)
+    setError('')
+    const res = await fetch('/api/finances/promo-codes', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    })
+    const json = await res.json().catch(() => ({}))
+    setSaving(false)
+    if (!res.ok) { setError(json.error || 'Erreur de création'); return }
+    setForm({ code: '', type: 'percent', value: '', duration: 'once', durationInMonths: '3', maxRedemptions: '', expiresAt: '' })
+    setOpen(false)
+    load()
+  }
+
+  const toggleActive = async (id, active) => {
+    await fetch(`/api/finances/promo-codes/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active }),
+    })
+    load()
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1 }}>
+          🏷 Codes promo {codes ? `(${codes.length})` : ''}
+        </div>
+        <button onClick={() => setOpen(v => !v)} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+          {open ? 'Annuler' : '+ Nouveau code'}
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 10 }}>
+          {error}
+        </div>
+      )}
+
+      {open && (
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <input
+            placeholder="Code (ex: SUMMER20)"
+            value={form.code}
+            onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))}
+            style={{ padding: '9px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, fontWeight: 700, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
+          />
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => setForm(f => ({ ...f, type: 'percent' }))} style={{
+              flex: 1, background: form.type === 'percent' ? 'var(--green)' : 'var(--bg2)', color: form.type === 'percent' ? '#fff' : 'var(--text2)',
+              border: '1px solid var(--border2)', borderRadius: 20, padding: '7px 4px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>%</button>
+            <button onClick={() => setForm(f => ({ ...f, type: 'amount' }))} style={{
+              flex: 1, background: form.type === 'amount' ? 'var(--green)' : 'var(--bg2)', color: form.type === 'amount' ? '#fff' : 'var(--text2)',
+              border: '1px solid var(--border2)', borderRadius: 20, padding: '7px 4px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>Montant €</button>
+            <input
+              type="number" min="0" placeholder={form.type === 'percent' ? 'Ex: 20' : 'Ex: 10'}
+              value={form.value} onChange={e => setForm(f => ({ ...f, value: e.target.value }))}
+              style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
+            />
+          </div>
+
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Durée d&apos;application</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[['once', 'Une fois'], ['repeating', 'X mois'], ['forever', 'À vie']].map(([k, l]) => (
+                <button key={k} onClick={() => setForm(f => ({ ...f, duration: k }))} style={{
+                  flex: 1, background: form.duration === k ? 'var(--green)' : 'var(--bg2)', color: form.duration === k ? '#fff' : 'var(--text2)',
+                  border: '1px solid var(--border2)', borderRadius: 20, padding: '7px 4px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                }}>{l}</button>
+              ))}
+            </div>
+            {form.duration === 'repeating' && (
+              <input type="number" min="1" placeholder="Nombre de mois" value={form.durationInMonths}
+                onChange={e => setForm(f => ({ ...f, durationInMonths: e.target.value }))}
+                style={{ marginTop: 6, width: '100%', boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Utilisations max</div>
+              <input type="number" min="1" placeholder="Illimité" value={form.maxRedemptions}
+                onChange={e => setForm(f => ({ ...f, maxRedemptions: e.target.value }))}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 4 }}>Expire le</div>
+              <input type="date" value={form.expiresAt}
+                onChange={e => setForm(f => ({ ...f, expiresAt: e.target.value }))}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+            </div>
+          </div>
+
+          <button onClick={create} disabled={saving || !form.code.trim() || !form.value} style={{
+            background: form.code.trim() && form.value ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
+            borderRadius: 'var(--r)', padding: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+          }}>
+            {saving ? 'Création…' : 'Créer le code'}
+          </button>
+        </div>
+      )}
+
+      {codes === null ? (
+        <div style={{ fontSize: 13, color: 'var(--text3)', padding: '10px 0' }}>Chargement…</div>
+      ) : codes.length === 0 ? (
+        <div style={{ fontSize: 13, color: 'var(--text3)', padding: '10px 0' }}>Aucun code promo pour l&apos;instant.</div>
+      ) : (
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+          {codes.map((pc, i) => (
+            <div key={pc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{pc.code}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+                  {discountLabel(pc.coupon)}
+                  {pc.max_redemptions ? ` · ${pc.times_redeemed}/${pc.max_redemptions} utilisations` : pc.times_redeemed > 0 ? ` · ${pc.times_redeemed} utilisation${pc.times_redeemed > 1 ? 's' : ''}` : ''}
+                  {pc.expires_at ? ` · expire le ${new Date(pc.expires_at * 1000).toLocaleDateString('fr-FR')}` : ''}
+                </div>
+              </div>
+              <span style={{
+                fontSize: 11, fontWeight: 700, borderRadius: 10, padding: '3px 10px', flexShrink: 0,
+                color: pc.active ? '#166534' : 'var(--text3)', background: pc.active ? '#DCFCE7' : 'var(--bg2)',
+              }}>
+                {pc.active ? 'Actif' : 'Désactivé'}
+              </span>
+              <button onClick={() => toggleActive(pc.id, !pc.active)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                {pc.active ? 'Désactiver' : 'Réactiver'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Group({ title, items }) {
   if (items.length === 0) return null
   return (
@@ -184,6 +347,8 @@ export default function FinancesPage() {
               <Group title="✅ Actifs" items={actifs} />
               <Group title="⛔ Arrêtés / en souci" items={arretes} />
               <Group title="⚪ Jamais abonnés" items={jamais} />
+
+              <PromoCodesSection />
             </>
           )}
         </div>
