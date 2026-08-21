@@ -148,6 +148,13 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
         aria-label="Mon profil"
       >
         👤
+        {athlete.subscription_status === 'active' && (
+          <span title="Abonnement actif" style={{
+            position: 'absolute', top: -2, right: -2, width: 16, height: 16, borderRadius: '50%',
+            background: 'var(--green)', border: '2px solid var(--bg)', color: '#fff',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800,
+          }}>✓</span>
+        )}
       </button>
 
       {open && (
