@@ -757,7 +757,8 @@ function ProgramEditorPage({ params }) {
 
   const saveCategory = async () => {
     if (!program) return
-    await supabase.from('programs').update({ category: program.category?.trim() || null }).eq('id', programId)
+    const { error } = await supabase.from('programs').update({ category: program.category?.trim() || null }).eq('id', programId)
+    if (error) alert('Erreur lors de l\'enregistrement de la catégorie : ' + error.message)
   }
 
   const deleteSession = async (id) => {
