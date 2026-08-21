@@ -37,7 +37,7 @@ export function DurationHMSInput({ initialMinutes, onSave, inputStyle }) {
   )
 }
 
-export default function ActivityBlock({ athleteId, date = null, isCoach = false }) {
+export default function ActivityBlock({ athleteId, date = null, isCoach = false, onSaved }) {
   const [defs, setDefs]         = useState([])
   const [dayLogs, setDayLogs]   = useState({})
   const [open, setOpen]         = useState(false)
@@ -115,7 +115,10 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false 
       .upsert(payload, { onConflict: 'athlete_id,date,type,label' })
       .select().single()
     if (error) { alert("Erreur d'enregistrement de l'activité : " + error.message); return }
-    if (data) setDayLogs(prev => ({ ...prev, [label]: data }))
+    if (data) {
+      setDayLogs(prev => ({ ...prev, [label]: data }))
+      onSaved?.()
+    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

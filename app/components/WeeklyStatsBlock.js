@@ -197,7 +197,7 @@ async function fetchProgressions(athleteId, start, end) {
   return results.slice(0, 8)
 }
 
-export default function WeeklyStatsBlock({ athleteId }) {
+export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
   const [mode, setMode] = useState('week')
   const [offset, setOffset] = useState(0)
   const [stats, setStats] = useState(null)
@@ -231,7 +231,7 @@ export default function WeeklyStatsBlock({ athleteId }) {
     })
     fetchWellnessAverages(athleteId, start, end).then(setWellnessAvg)
     fetchFeedbackAverages(athleteId, start, end).then(setFeedbackAvg)
-  }, [athleteId, mode, offset])
+  }, [athleteId, mode, offset, refreshKey])
 
   useEffect(() => {
     if (view === 'progression' && stats && progressions === null) {

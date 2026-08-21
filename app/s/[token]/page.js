@@ -104,6 +104,7 @@ function AthleteView({ params }) {
   const [exerciseLogs, setExerciseLogs] = useState({})
   const [exerciseSets, setExerciseSets] = useState({})
   const [circuitLogs, setCircuitLogs] = useState({})
+  const [activityRefreshKey, setActivityRefreshKey] = useState(0)
   const [viewDate, setViewDate] = useState(today())
   const [celebration, setCelebration] = useState(null)
   const [completionFeedback, setCompletionFeedback] = useState({})
@@ -717,7 +718,7 @@ function AthleteView({ params }) {
           </div>
         ))}
 
-        <WeeklyStatsBlock athleteId={athlete.id} />
+        <WeeklyStatsBlock athleteId={athlete.id} refreshKey={activityRefreshKey} />
         <WeeklyPlannerBlock athleteId={athlete.id} />
         <ProgressBlock athleteId={athlete.id} />
 
@@ -745,7 +746,7 @@ function AthleteView({ params }) {
         </div>
 
         <WellnessBlock athleteId={athlete.id} date={viewDate} mode="athlete" />
-        <ActivityBlock athleteId={athlete.id} date={viewDate} />
+        <ActivityBlock athleteId={athlete.id} date={viewDate} onSaved={() => setActivityRefreshKey(k => k + 1)} />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button onClick={startFreeSession} style={{ background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
