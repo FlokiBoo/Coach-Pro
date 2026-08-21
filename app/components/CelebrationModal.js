@@ -15,7 +15,7 @@ const MUSCLE_MAP = {
   'abdominaux':      ['abdo', 'abs', 'core', 'gainage', 'ventre'],
   'obliques':        ['oblique', 'gainage latéral'],
   'quadriceps':      ['quad', 'quadricep', 'cuisse'],
-  'adducteurs':      ['adducteur', 'psoas', 'fléchisseur de hanche', 'flechisseur de hanche'],
+  'adducteurs':      ['adducteur'],
   'trapèzes':        ['trap', 'trapèze', 'trapeze'],
   'grand dorsal':    ['dorsal', 'dorsaux', 'dos'],
   'triceps':         ['tricep', 'triceps'],
@@ -24,6 +24,7 @@ const MUSCLE_MAP = {
   'ischio-jambiers': ['ischio', 'hamstring', 'ij'],
   'mollets':         ['mollet', 'calf', 'calves', 'gastro', 'soléaire', 'soleaire'],
   'tibial':          ['tibial', 'tibialis', 'jambier antérieur'],
+  'psoas':           ['psoas', 'fléchisseur de hanche', 'flechisseur de hanche'],
 }
 
 const CITATIONS = [
