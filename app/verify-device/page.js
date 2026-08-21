@@ -43,15 +43,36 @@ function VerifyDevicePage() {
   }
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
+    async function resolveIdentity() {
+      // Revérifie que la session active correspond bien au sportif de ce token, plutôt que de
+      // faire confiance à supabase.auth.getUser() seul — la session du navigateur peut avoir
+      // basculé entre-temps (ex. plusieurs comptes testés dans le même navigateur), et on ne
+      // veut jamais envoyer le code de vérification à la mauvaise adresse en silence.
+      if (token) {
+        const res = await fetch(`/api/athlete-view/${token}/identity`, { cache: 'no-store' })
+        const json = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          setError(
+            res.status === 403
+              ? "Cette session ne correspond pas à ce compte sportif — probablement un autre compte connecté dans ce même navigateur. Déconnecte-toi puis reconnecte-toi avec l'email du sportif."
+              : "Impossible de vérifier l'identité du compte."
+          )
+          return
+        }
+        setEmail(json.email)
+        if (!autoSent.current) { autoSent.current = true; sendCode(json.email) }
+        return
+      }
+      const { data } = await supabase.auth.getUser()
       const addr = data?.user?.email
       if (addr) {
         setEmail(addr)
         if (!autoSent.current) { autoSent.current = true; sendCode(addr) }
       }
-    })
+    }
+    resolveIdentity()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [token])
 
   const verify = async (e) => {
     e.preventDefault()
