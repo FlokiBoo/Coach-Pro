@@ -15,6 +15,11 @@ function initials(name) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
 
+const TIER_BADGES = {
+  A: { label: 'Silver', color: '#57606F', bg: '#E2E8F0' },
+  B: { label: 'Gold', color: '#92400E', bg: '#FDE68A' },
+}
+
 export default function AthletesPage() {
   const router = useRouter()
   const [athletes, setAthletes] = useState(null)
@@ -158,6 +163,18 @@ export default function AthletesPage() {
                       {a.name}
                       {a.is_coach && (
                         <span style={{ fontSize: 9, fontWeight: 800, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>COACH</span>
+                      )}
+                      {a.subscription_status === 'active' && TIER_BADGES[a.subscription_tier] ? (
+                        <span style={{
+                          fontSize: 9, fontWeight: 800, borderRadius: 10, padding: '1px 6px', flexShrink: 0,
+                          color: TIER_BADGES[a.subscription_tier].color, background: TIER_BADGES[a.subscription_tier].bg,
+                        }}>
+                          🏅 {TIER_BADGES[a.subscription_tier].label}
+                        </span>
+                      ) : a.subscription_status !== 'active' && !a.is_coach && (
+                        <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 10, padding: '1px 6px', flexShrink: 0 }}>
+                          Non abonné
+                        </span>
                       )}
                     </div>
                   </div>

@@ -36,40 +36,101 @@ const PAYMENT_LABELS = {
   void: { color: 'var(--text3)', bg: 'var(--bg2)' },
 }
 
-function Row({ a }) {
+function Row({ a, promoCodes, onAction }) {
+  const [showPromoPicker, setShowPromoPicker] = useState(false)
+  const [selectedPromo, setSelectedPromo] = useState('')
+  const [busy, setBusy] = useState(false)
+
   const status = STATUS_LABELS[a.subscriptionStatus]
   const tier = a.tier && SUBSCRIPTION_TIERS[a.tier]
   const pay = a.lastPayment
   const payStyle = pay ? PAYMENT_LABELS[pay.status] : null
+  const isActive = a.subscriptionStatus === 'active'
+
+  const run = async (action, extra) => {
+    setBusy(true)
+    await onAction(a.id, action, extra)
+    setBusy(false)
+    setShowPromoPicker(false)
+    setSelectedPromo('')
+  }
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px' }}>
-      <div style={{
-        width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-        background: 'var(--green-light)', color: 'var(--green)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800,
-      }}>
-        {initials(a.name)}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
-        <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-          {tier?.label || '—'}
-          {pay && ` · ${formatEur(pay.amount / 100)} le ${new Date(pay.date).toLocaleDateString('fr-FR')}`}
+    <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8, opacity: busy ? 0.6 : 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{
+          width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+          background: 'var(--green-light)', color: 'var(--green)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800,
+        }}>
+          {initials(a.name)}
         </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+            {tier?.label || '—'}
+            {pay && ` · ${formatEur(pay.amount / 100)} le ${new Date(pay.date).toLocaleDateString('fr-FR')}`}
+            {a.discountCode && ` · 🏷 ${a.discountCode}`}
+          </div>
+        </div>
+        {pay && payStyle && (
+          <span style={{ fontSize: 11, fontWeight: 700, color: payStyle.color, background: payStyle.bg, borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
+            {pay.label}
+          </span>
+        )}
+        {a.paused ? (
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#92400E', background: '#FEF3C7', borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
+            Suspendu
+          </span>
+        ) : status ? (
+          <span style={{ fontSize: 11, fontWeight: 700, color: status.color, background: status.bg, borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
+            {status.label}
+          </span>
+        ) : (
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
+            Jamais abonné
+          </span>
+        )}
       </div>
-      {pay && payStyle && (
-        <span style={{ fontSize: 11, fontWeight: 700, color: payStyle.color, background: payStyle.bg, borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
-          {pay.label}
-        </span>
+
+      {isActive && (
+        <div style={{ display: 'flex', gap: 12, paddingLeft: 42, flexWrap: 'wrap' }}>
+          {a.discountCode ? (
+            <button onClick={() => run('remove_promo')} disabled={busy} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              Retirer le code promo
+            </button>
+          ) : (
+            <button onClick={() => setShowPromoPicker(v => !v)} disabled={busy} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              🏷 Appliquer un code promo
+            </button>
+          )}
+          {a.paused ? (
+            <button onClick={() => run('resume')} disabled={busy} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              ▶ Reprendre la facturation
+            </button>
+          ) : (
+            <button onClick={() => { if (confirm(`Suspendre la facturation de ${a.name} ? Il gardera son accès, mais ne sera plus prélevé jusqu'à la reprise.`)) run('pause') }}
+              disabled={busy} style={{ background: 'none', border: 'none', color: '#92400E', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+              ⏸ Suspendre
+            </button>
+          )}
+        </div>
       )}
-      {status ? (
-        <span style={{ fontSize: 11, fontWeight: 700, color: status.color, background: status.bg, borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
-          {status.label}
-        </span>
-      ) : (
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 10, padding: '3px 10px', flexShrink: 0 }}>
-          Jamais abonné
-        </span>
+
+      {isActive && showPromoPicker && (
+        <div style={{ display: 'flex', gap: 6, paddingLeft: 42 }}>
+          <select value={selectedPromo} onChange={e => setSelectedPromo(e.target.value)}
+            style={{ flex: 1, padding: '6px 8px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}>
+            <option value="">Choisir un code…</option>
+            {(promoCodes || []).filter(pc => pc.active).map(pc => (
+              <option key={pc.id} value={pc.id}>{pc.code} ({discountLabel(pc.coupon)})</option>
+            ))}
+          </select>
+          <button onClick={() => run('apply_promo', { promotionCodeId: selectedPromo })} disabled={busy || !selectedPromo}
+            style={{ background: selectedPromo ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '6px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+            Appliquer
+          </button>
+        </div>
       )}
     </div>
   )
@@ -85,23 +146,13 @@ function discountLabel(coupon) {
 
 const emptyPromoForm = { code: '', type: 'percent', value: '', duration: 'once', durationInMonths: '3', maxRedemptions: '', expiresAt: '' }
 
-function PromoCodesSection() {
-  const [codes, setCodes] = useState(null)
+function PromoCodesSection({ codes, onReload }) {
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [editingId, setEditingId] = useState(null)
   const [form, setForm] = useState(emptyPromoForm)
-
-  const load = async () => {
-    const res = await fetch('/api/finances/promo-codes', { cache: 'no-store' })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(json.error || 'Erreur de chargement'); return }
-    setCodes(json.codes)
-  }
-
-  useEffect(() => { load() }, [])
 
   const closeForm = () => { setOpen(false); setEditingId(null); setForm(emptyPromoForm) }
 
@@ -131,7 +182,7 @@ function PromoCodesSection() {
     setSaving(false)
     if (!res.ok) { setError(json.error || 'Erreur d\'enregistrement'); return }
     closeForm()
-    load()
+    onReload()
   }
 
   const toggleActive = async (id, active) => {
@@ -139,7 +190,7 @@ function PromoCodesSection() {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ active }),
     })
-    load()
+    onReload()
   }
 
   const remove = async (pc) => {
@@ -148,7 +199,7 @@ function PromoCodesSection() {
     const res = await fetch(`/api/finances/promo-codes/${pc.id}`, { method: 'DELETE' })
     setDeletingId(null)
     if (!res.ok) { const json = await res.json().catch(() => ({})); alert('Erreur : ' + (json.error || '')); return }
-    load()
+    onReload()
   }
 
   return (
@@ -278,7 +329,7 @@ function PromoCodesSection() {
   )
 }
 
-function Group({ title, items }) {
+function Group({ title, items, promoCodes, onAction }) {
   if (items.length === 0) return null
   return (
     <div>
@@ -286,7 +337,7 @@ function Group({ title, items }) {
         {title} ({items.length})
       </div>
       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-        {items.map((a, i) => <div key={a.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}><Row a={a} /></div>)}
+        {items.map((a, i) => <div key={a.id} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}><Row a={a} promoCodes={promoCodes} onAction={onAction} /></div>)}
       </div>
     </div>
   )
@@ -296,8 +347,31 @@ export default function FinancesPage() {
   const [checking, setChecking] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
   const [data, setData] = useState(null)
+  const [promoCodes, setPromoCodes] = useState(null)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
+
+  const loadFinances = async () => {
+    const res = await fetch('/api/finances', { cache: 'no-store' })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok) { setError(json.error || 'Erreur de chargement'); return }
+    setData(json)
+  }
+
+  const loadPromoCodes = async () => {
+    const res = await fetch('/api/finances/promo-codes', { cache: 'no-store' })
+    const json = await res.json().catch(() => ({}))
+    if (res.ok) setPromoCodes(json.codes)
+  }
+
+  const handleAthleteAction = async (athleteId, action, extra = {}) => {
+    const res = await fetch(`/api/finances/athletes/${athleteId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, ...extra }),
+    })
+    if (!res.ok) { const json = await res.json().catch(() => ({})); alert('Erreur : ' + (json.error || '')); return }
+    loadFinances()
+  }
 
   useEffect(() => {
     async function load() {
@@ -308,10 +382,8 @@ export default function FinancesPage() {
       setIsAdmin(true)
       setChecking(false)
 
-      const res = await fetch('/api/finances', { cache: 'no-store' })
-      const json = await res.json().catch(() => ({}))
-      if (!res.ok) { setError(json.error || 'Erreur de chargement'); return }
-      setData(json)
+      await loadFinances()
+      await loadPromoCodes()
     }
     load()
   }, [])
@@ -384,11 +456,11 @@ export default function FinancesPage() {
                 style={{ padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
               />
 
-              <Group title="✅ Actifs" items={actifs} />
-              <Group title="⛔ Arrêtés / en souci" items={arretes} />
-              <Group title="⚪ Jamais abonnés" items={jamais} />
+              <Group title="✅ Actifs" items={actifs} promoCodes={promoCodes} onAction={handleAthleteAction} />
+              <Group title="⛔ Arrêtés / en souci" items={arretes} promoCodes={promoCodes} onAction={handleAthleteAction} />
+              <Group title="⚪ Jamais abonnés" items={jamais} promoCodes={promoCodes} onAction={handleAthleteAction} />
 
-              <PromoCodesSection />
+              <PromoCodesSection codes={promoCodes} onReload={loadPromoCodes} />
             </>
           )}
         </div>
