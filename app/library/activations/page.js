@@ -175,6 +175,18 @@ export default function ActivationsLibraryPage() {
     setItems(prev => prev.filter(i => i.id !== id))
   }
 
+  async function duplicate(item) {
+    setSaving(true)
+    const { data, error } = await supabase.from('activation_presets').insert({
+      name: `${item.name} (copie)`, text: item.text, videos: item.videos || [],
+      coach_id: isAdmin ? null : userId,
+    }).select().single()
+    if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
+    setItems(prev => [...prev, data].sort((a, b) => a.name.localeCompare(b.name)))
+    setSaving(false)
+    startEdit(data)
+  }
+
   return (
     <div className="coach-layout" style={{ background: 'var(--bg2)' }}>
       <AthletesSidebar athleteId={null} />
@@ -272,6 +284,8 @@ export default function ActivationsLibraryPage() {
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                      <button onClick={() => duplicate(item)} disabled={saving} title="Dupliquer"
+                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>⧉</button>
                       {(isAdmin || item.coach_id === userId) ? (
                         <>
                           <button onClick={() => startEdit(item)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>✎</button>
