@@ -63,15 +63,18 @@ export async function GET(request, { params }) {
   const raceKnown = buildKnownRaces(raceMovements)
   const trackedMovements = (trackedMovs || []).map(({ id, name, unit }) => ({ id, name, unit }))
 
-  // Gratuit (pas d'abonnement actif) : les programmes copiés depuis le catalogue en libre-service
-  // sont limités aux N premières séances (free_sessions_count) pour donner envie de passer payant.
+  // Gratuit (pas d'abonnement actif) : les programmes choisis par le sportif lui-même dans le
+  // catalogue en libre-service sont limités aux 3 premières séances (ou free_sessions_count si le
+  // coach l'a personnalisé) pour donner envie de passer payant. Un programme donné directement par
+  // le coach (is_self_service = false) reste toujours accessible en entier, quel que soit l'abonnement.
   // Chacun avance à son rythme, pas de notion de semaine.
   const shouldGateFreeTier = !isCoach && athlete.subscription_status !== 'active'
   const gatedProgs = shouldGateFreeTier
     ? (progs || []).map(p => {
-        if (p.free_sessions_count == null) return p
+        if (!p.is_self_service) return p
+        const limit = p.free_sessions_count ?? 3
         const sorted = [...(p.program_sessions || [])].sort((a, b) => a.order_index - b.order_index)
-        const lockedIds = new Set(sorted.slice(p.free_sessions_count).map(s => s.id))
+        const lockedIds = new Set(sorted.slice(limit).map(s => s.id))
         return {
           ...p,
           program_sessions: (p.program_sessions || []).map(s =>

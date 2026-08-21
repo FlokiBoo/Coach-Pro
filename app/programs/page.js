@@ -301,7 +301,7 @@ export default function ProgramsPage() {
                     {!p.athlete_id && p.available_to_clients && (
                       <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>
                         Séances gratuites :
-                        <input type="number" min="0" placeholder="illimité"
+                        <input type="number" min="0" placeholder="3 par défaut"
                           defaultValue={p.free_sessions_count ?? ''}
                           onBlur={e => saveFreeSessionsCount(p, e.target.value)}
                           style={{ width: 60, boxSizing: 'border-box', padding: '3px 6px', border: '1px solid var(--border2)', borderRadius: 6, fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />

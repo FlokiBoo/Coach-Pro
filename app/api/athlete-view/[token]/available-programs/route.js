@@ -76,7 +76,8 @@ export async function POST(request, { params }) {
     .insert({
       athlete_id: athlete.id, title: template.title, coach_id: template.coach_id,
       source_program_id: template.id, activity_type: template.activity_type,
-      free_sessions_count: template.free_sessions_count,
+      free_sessions_count: template.free_sessions_count ?? 3,
+      is_self_service: true,
     })
     .select().single()
   if (progErr || !newProg) return NextResponse.json({ error: progErr?.message || 'création impossible' }, { status: 400 })
