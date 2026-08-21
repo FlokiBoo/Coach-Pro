@@ -10,6 +10,7 @@ import { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
 import { parseMusclesFromText } from '@/app/components/CelebrationModal'
 import { isRunMovement, PACE_BASES, computePaceForBasePct, buildKnownRaces, formatPace } from '@/lib/raceEstimates'
 import { setUnsavedChanges, guardNavigation } from '@/lib/unsavedChanges'
+import { getCoachId } from '@/lib/coach'
 
 function today() {
   const n = new Date()
@@ -215,20 +216,25 @@ function ProgramEditorPage({ params }) {
   const isTemplate = athleteId === 'templates'
 
   useEffect(() => {
-    const raw = localStorage.getItem(`coachpro_hidden_sessions_${programId}`)
-    if (raw) setHiddenSessions(new Set(JSON.parse(raw)))
+    // Masquage propre au coach : stocké côté serveur (comme les mouvements/tips masqués) plutôt
+    // qu'en localStorage, pour que ça survive à un changement d'appareil ou un nettoyage du
+    // navigateur, tout en restant strictement privé (jamais vu par les clients).
+    supabase.from('coach_hidden_content').select('content_id').eq('content_type', 'program_session')
+      .then(({ data }) => setHiddenSessions(new Set((data || []).map(r => r.content_id))))
     const rawPinned = localStorage.getItem(`coachpro_pinned_sessions_${programId}`)
     if (rawPinned) setPinnedSessions(new Set(JSON.parse(rawPinned)))
   }, [programId])
 
-  const toggleHiddenSession = (id) => {
-    setHiddenSessions(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      localStorage.setItem(`coachpro_hidden_sessions_${programId}`, JSON.stringify([...next]))
-      return next
-    })
+  const toggleHiddenSession = async (id) => {
+    const isHidden = hiddenSessions.has(id)
+    if (isHidden) {
+      await supabase.from('coach_hidden_content').delete().eq('content_type', 'program_session').eq('content_id', id)
+      setHiddenSessions(prev => { const next = new Set(prev); next.delete(id); return next })
+    } else {
+      const coachId = await getCoachId()
+      await supabase.from('coach_hidden_content').insert({ coach_id: coachId, content_type: 'program_session', content_id: id })
+      setHiddenSessions(prev => new Set(prev).add(id))
+    }
   }
 
   const togglePinnedSession = (id) => {
