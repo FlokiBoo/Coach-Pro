@@ -32,7 +32,6 @@ export default function Home() {
   const [saving, setSaving] = useState(false)
   const [coachToken, setCoachToken] = useState(null)
   const [generatingToken, setGeneratingToken] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
   const [selected, setSelected] = useState(null)
   const [browserSession, setBrowserSession] = useState(null)
   const [movementsMissingMuscles, setMovementsMissingMuscles] = useState([])
@@ -48,13 +47,12 @@ export default function Home() {
       // (ex. lien d'invitation) est renvoyé vers son propre espace, pas vers le dashboard coach.
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
-      const { data: me } = await supabase.from('coaches').select('id, is_admin').eq('id', user.id).single()
+      const { data: me } = await supabase.from('coaches').select('id').eq('id', user.id).single()
       if (!me) {
         const { data: athlete } = await supabase.from('athletes').select('token').eq('auth_user_id', user.id).single()
         router.push(athlete?.token ? `/s/${athlete.token}` : '/login')
         return
       }
-      if (me.is_admin) setIsAdmin(true)
 
       const [{ data: aths }, { data: sessions }, { data: progComps }, { data: actValidated }] = await Promise.all([
         supabase.from('athletes').select('*').neq('archived', true).order('created_at'),
@@ -213,16 +211,6 @@ export default function Home() {
               👤 Switch to athlete
             </button>
           )}
-          {isAdmin && (
-            <Link href="/admin/coachs" style={{
-              background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)',
-              borderRadius: 20, padding: '8px 14px', fontSize: 12, fontWeight: 600, textDecoration: 'none', flexShrink: 0
-            }}>🛡️ Coachs</Link>
-          )}
-          <a href="https://tracker-nutrition.netlify.app/coach.html" target="_blank" rel="noreferrer" style={{
-            background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)',
-            borderRadius: 20, padding: '8px 14px', fontSize: 12, fontWeight: 600, textDecoration: 'none', flexShrink: 0
-          }}>🥗 Nutrition</a>
           <button onClick={() => setShowForm(v => !v)} style={{
             background: 'var(--green)', color: '#fff', border: 'none',
             borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
