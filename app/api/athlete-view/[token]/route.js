@@ -46,7 +46,7 @@ export async function GET(request, { params }) {
       .eq('athlete_id', athlete.id)
       .order('created_at', { ascending: false }),
     supabaseAdmin.from('program_completions')
-      .select('program_session_id, pleasure, difficulty, duration_minutes')
+      .select('program_session_id, pleasure, difficulty, duration_minutes, skipped')
       .eq('athlete_id', athlete.id),
     supabaseAdmin.from('program_exercise_logs').select('*').eq('athlete_id', athlete.id),
     supabaseAdmin.from('athlete_objectives').select('*').eq('athlete_id', athlete.id).order('created_at'),

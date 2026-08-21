@@ -99,6 +99,7 @@ function AthleteView({ params }) {
   const [athlete, setAthlete] = useState(null)
   const [programs, setPrograms] = useState([])
   const [completions, setCompletions] = useState(new Set())
+  const [skippedSessions, setSkippedSessions] = useState(new Set())
   const [openSessionId, setOpenSessionId] = useState(null)
   const [validating, setValidating] = useState(false)
   const [exerciseLogs, setExerciseLogs] = useState({})
@@ -158,7 +159,7 @@ function AthleteView({ params }) {
         }
       } else if (op.type === 'validate') {
         await supabase.from('program_completions').upsert(
-          { athlete_id: op.athleteId, program_session_id: op.sessId, ...op.feedback },
+          { athlete_id: op.athleteId, program_session_id: op.sessId, skipped: false, ...op.feedback },
           { onConflict: 'athlete_id,program_session_id' }
         )
       } else if (op.type === 'add_exercise_set') {
@@ -236,6 +237,7 @@ function AthleteView({ params }) {
       setExerciseSets(setsMap)
       const completionSet = new Set((comps || []).map(c => c.program_session_id))
       setCompletions(completionSet)
+      setSkippedSessions(new Set((comps || []).filter(c => c.skipped).map(c => c.program_session_id)))
       const feedbackMap = {}
       ;(comps || []).forEach(c => { feedbackMap[c.program_session_id] = c })
       setCompletionFeedback(feedbackMap)
@@ -381,8 +383,41 @@ function AthleteView({ params }) {
     const newSet = new Set([...completions])
     newSet.delete(sessId)
     setCompletions(newSet)
+    setSkippedSessions(prev => { const n = new Set(prev); n.delete(sessId); return n })
     setOpenSessionId(sessId)
     setValidating(false)
+  }
+
+  const skipSession = async (sessId, progSessions) => {
+    if (!athlete) return
+    if (!requireOnline()) return
+    setValidating(true)
+    await supabase.from('program_completions').upsert(
+      { athlete_id: athlete.id, program_session_id: sessId, skipped: true },
+      { onConflict: 'athlete_id,program_session_id' }
+    )
+    setCompletions(new Set([...completions, sessId]))
+    setSkippedSessions(prev => new Set([...prev, sessId]))
+    setValidating(false)
+  }
+
+  const postponeSession = async (sessId, offset) => {
+    if (!athlete) return
+    if (!requireOnline()) return
+    setValidating(true)
+    const res = await fetch(`/api/athlete-view/${token}/postpone-session`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: sessId, offset }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setValidating(false)
+    if (!res.ok) { alert('Erreur : ' + (json.error || 'report impossible')); return }
+    const orderById = new Map(json.order.map(o => [o.id, o.order_index]))
+    setPrograms(prev => prev.map(p => {
+      if (!p.sessions.some(s => s.id === sessId)) return p
+      const reordered = [...p.sessions].sort((a, b) => (orderById.get(a.id) ?? a.order_index) - (orderById.get(b.id) ?? b.order_index))
+      return { ...p, sessions: reordered }
+    }))
   }
 
   const validate = async (sessId, progSessions, feedback = {}, opts = {}) => {
@@ -394,6 +429,7 @@ function AthleteView({ params }) {
       enqueue({ type: 'validate', athleteId: athlete.id, sessId, feedback })
       const newSet = new Set([...completions, sessId])
       setCompletions(newSet)
+      setSkippedSessions(prev => { const n = new Set(prev); n.delete(sessId); return n })
       setCompletionFeedback(prev => ({ ...prev, [sessId]: { program_session_id: sessId, ...feedback } }))
       if (!isUpdate) {
         const next = progSessions.find(s => !newSet.has(s.id))
@@ -405,11 +441,12 @@ function AthleteView({ params }) {
     }
 
     await supabase.from('program_completions').upsert(
-      { athlete_id: athlete.id, program_session_id: sessId, ...feedback },
+      { athlete_id: athlete.id, program_session_id: sessId, skipped: false, ...feedback },
       { onConflict: 'athlete_id,program_session_id' }
     )
     const newSet = new Set([...completions, sessId])
     setCompletions(newSet)
+    setSkippedSessions(prev => { const n = new Set(prev); n.delete(sessId); return n })
     setCompletionFeedback(prev => ({ ...prev, [sessId]: { program_session_id: sessId, ...feedback } }))
     if (!isUpdate) {
       const next = progSessions.find(s => !newSet.has(s.id))
@@ -625,8 +662,17 @@ function AthleteView({ params }) {
       const idx = p.sessions.findIndex(s => s.id === targetSessionId)
       if (idx !== -1) { focusSession = p.sessions[idx]; focusProgSessions = p.sessions; focusActivityType = p.activity_type; focusIsFreeSession = !!p.title?.startsWith('Séance libre'); break }
     }
-    const isDone = focusSession ? completions.has(focusSession.id) : false
+    const isDone = focusSession ? completions.has(focusSession.id) && !skippedSessions.has(focusSession.id) : false
+    const isFocusSkipped = focusSession ? skippedSessions.has(focusSession.id) : false
+    const isFocusFree = focusIsFreeSession
     const backHref = `/s/${token}${isCoachView ? '?coach=1' : ''}`
+
+    const handleFocusSkip = () => {
+      const currentIdx = focusProgSessions.findIndex(s => s.id === focusSession.id)
+      const next = focusProgSessions.find((s, i) => i > currentIdx && !completions.has(s.id))
+      skipSession(focusSession.id, focusProgSessions)
+      router.push(next ? `/s/${token}?session=${next.id}&focus=1${isCoachView ? '&coach=1' : ''}` : backHref)
+    }
 
     return (
       <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 60 }}>
@@ -647,9 +693,12 @@ function AthleteView({ params }) {
               idx={0}
               isOpen={true}
               isCompleted={isDone}
+              isSkipped={isFocusSkipped}
               onToggle={() => {}}
               onValidate={(fb) => validate(focusSession.id, focusProgSessions, fb, { isUpdate: isDone })}
-              onUnvalidate={isDone ? () => unvalidate(focusSession.id, focusProgSessions) : null}
+              onUnvalidate={(isDone || isFocusSkipped) ? () => unvalidate(focusSession.id, focusProgSessions) : null}
+              onSkip={(!isCoachView && !isDone && !isFocusSkipped && !isFocusFree) ? handleFocusSkip : null}
+              onPostpone={(!isCoachView && !isDone && !isFocusSkipped && !isFocusFree) ? (offset) => postponeSession(focusSession.id, offset) : null}
               initialFeedback={completionFeedback[focusSession.id]}
               validating={validating}
               exerciseLogs={exerciseLogs}
@@ -777,8 +826,8 @@ function AthleteView({ params }) {
           const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived && !isFinishedFreeSession(p, completions))
           const allTypes = [...new Set(boardPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
           const commonProps = {
-            completions, completionFeedback, validating, exerciseLogs,
-            athleteId: athlete.id, validate, unvalidate, saveExerciseLog, router, token, isCoachView, isCoach,
+            completions, skippedSessions, completionFeedback, validating, exerciseLogs,
+            athleteId: athlete.id, validate, unvalidate, onSkip: skipSession, onPostpone: postponeSession, saveExerciseLog, router, token, isCoachView, isCoach,
             trackedMovements, onSaveMetricResult: saveMetricResult,
             exerciseSets, onAddExerciseSet: addExerciseSet, onEnsureExerciseSets: ensureExerciseSets, onSaveExerciseSet: saveExerciseSet, onDeleteExerciseSet: deleteExerciseSet,
             raceKnown, onSyncRaceMetric: syncRaceMetric,
@@ -808,7 +857,7 @@ function AthleteView({ params }) {
                 {allTypes.map(t => {
                   const typePrograms = boardPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === t)
                   const total = typePrograms.reduce((n, p) => n + p.sessions.length, 0)
-                  const done = typePrograms.reduce((n, p) => n + p.sessions.filter(s => completions.has(s.id)).length, 0)
+                  const done = typePrograms.reduce((n, p) => n + p.sessions.filter(s => completions.has(s.id) && !skippedSessions.has(s.id)).length, 0)
                   const nextProg = typePrograms.find(p => p.sessions.some(s => !completions.has(s.id)))
                   const nextSess = nextProg?.sessions.find(s => !completions.has(s.id))
                   const isSelected = effectiveType === t
@@ -1017,11 +1066,12 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
   )
 }
 
-function ProgramSessionsBlock({ prog, completions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, saveExerciseLog, router, token, isCoachView, isCoach, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, raceKnown, onSyncRaceMetric, targetPaces, onSaveTargetPace, circuitLogs, onSaveCircuitLog }) {
+function ProgramSessionsBlock({ prog, completions, skippedSessions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, onSkip, onPostpone, saveExerciseLog, router, token, isCoachView, isCoach, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, raceKnown, onSyncRaceMetric, targetPaces, onSaveTargetPace, circuitLogs, onSaveCircuitLog }) {
   const total = prog.sessions.length
-  const done = prog.sessions.filter(s => completions.has(s.id)).length
+  const done = prog.sessions.filter(s => completions.has(s.id) && !skippedSessions.has(s.id)).length
   const allDone = done === total && total > 0
   const firstIncompleteIdx = prog.sessions.findIndex(s => !completions.has(s.id))
+  const isFreeProgram = !!prog.title?.startsWith('Séance libre')
 
   const [selectedIdx, setSelectedIdx] = useState(firstIncompleteIdx !== -1 ? firstIncompleteIdx : 0)
   const [showValidated, setShowValidated] = useState(false)
@@ -1029,10 +1079,17 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
   if (total === 0) return null
   const session = prog.sessions[selectedIdx]
-  const isCompleted = completions.has(session.id)
+  const isCompleted = completions.has(session.id) && !skippedSessions.has(session.id)
+  const isSkipped = skippedSessions.has(session.id)
   const validatedSessions = prog.sessions
     .map((s, i) => ({ s, i }))
-    .filter(({ s }) => completions.has(s.id))
+    .filter(({ s }) => completions.has(s.id) && !skippedSessions.has(s.id))
+
+  const handleSkip = () => {
+    onSkip(session.id, prog.sessions)
+    setSelectedIdx(i => Math.min(total - 1, i + 1))
+    setIsOpen(true)
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1076,9 +1133,12 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
         idx={selectedIdx}
         isOpen={isOpen}
         isCompleted={isCompleted}
+        isSkipped={isSkipped}
         onToggle={() => setIsOpen(v => !v)}
         onValidate={(fb) => validate(session.id, prog.sessions, fb, { isUpdate: isCompleted })}
-        onUnvalidate={isCompleted ? () => unvalidate(session.id, prog.sessions) : null}
+        onUnvalidate={(isCompleted || isSkipped) ? () => unvalidate(session.id, prog.sessions) : null}
+        onSkip={(!isCoachView && !isCompleted && !isSkipped && !isFreeProgram) ? handleSkip : null}
+        onPostpone={(!isCoachView && !isCompleted && !isSkipped && !isFreeProgram && selectedIdx < total - 1) ? (offset) => onPostpone(session.id, offset) : null}
         initialFeedback={completionFeedback[session.id]}
         validating={validating}
         exerciseLogs={exerciseLogs}
@@ -1139,7 +1199,8 @@ function ProgramSessionsBlock({ prog, completions, completionFeedback, validatin
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, onUnvalidate, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, circuitLogs = {}, onSaveCircuitLog }) {
+function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, circuitLogs = {}, onSaveCircuitLog }) {
+  const [showPostpone, setShowPostpone] = useState(false)
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
   const [focusPicker, setFocusPicker] = useState(null) // exercise id being edited
   const [viewingFocus, setViewingFocus] = useState(null) // zones array being viewed
@@ -1190,15 +1251,15 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
   }
 
   return (
-    <div style={{ background: 'var(--bg)', border: `1.5px solid ${isOpen ? (isCompleted ? 'var(--border2)' : 'var(--green)') : 'var(--border)'}`, borderRadius: 'var(--rl)', overflow: 'hidden', opacity: isCompleted ? 0.85 : 1 }}>
+    <div style={{ background: 'var(--bg)', border: `1.5px solid ${isOpen ? (isCompleted ? 'var(--border2)' : 'var(--green)') : 'var(--border)'}`, borderRadius: 'var(--rl)', overflow: 'hidden', opacity: (isCompleted || isSkipped) ? 0.85 : 1 }}>
       <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', cursor: 'pointer', borderBottom: isOpen ? '1px solid var(--border)' : 'none' }}>
         <div style={{
           width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-          background: isCompleted ? '#DCFCE7' : (isOpen ? 'var(--green)' : 'var(--green-light)'),
-          color: isCompleted ? '#166534' : (isOpen ? '#fff' : 'var(--green)'),
+          background: isCompleted ? '#DCFCE7' : isSkipped ? 'var(--bg2)' : (isOpen ? 'var(--green)' : 'var(--green-light)'),
+          color: isCompleted ? '#166534' : isSkipped ? 'var(--text3)' : (isOpen ? '#fff' : 'var(--green)'),
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800
         }}>
-          {isCompleted ? '✓' : idx + 1}
+          {isCompleted ? '✓' : isSkipped ? '⏭' : idx + 1}
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -1206,7 +1267,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
             {session.title || `Séance ${idx + 1}`}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-            {session.locked ? 'Réservé aux abonnés' : `${exos.length} exercice${exos.length !== 1 ? 's' : ''}${isCompleted ? ' · déjà validée' : ''}`}
+            {session.locked ? 'Réservé aux abonnés' : `${exos.length} exercice${exos.length !== 1 ? 's' : ''}${isCompleted ? ' · déjà validée' : isSkipped ? ' · sautée' : ''}`}
           </div>
         </div>
         {isOpen && !isCompleted && !session.locked && onValidate && (
@@ -1490,27 +1551,79 @@ function SessionCard({ session, idx, isOpen, isCompleted, onToggle, onValidate, 
             <FreeExerciseAdder sessionId={session.id} exos={exos} onAdd={onAddExercise} onToggleSuperset={onToggleSuperset} />
           )}
 
-          {onValidate && session.session_type === 'explication' && (
-            <button
-              onClick={() => onValidate({})}
-              disabled={validating}
-              style={{
-                marginTop: 8, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)',
-                padding: '15px', fontSize: 15, fontWeight: 700, cursor: validating ? 'default' : 'pointer', width: '100%',
-              }}
-            >
-              {validating ? (isCompleted ? 'Mise à jour…' : 'Validation…') : (isCompleted ? '✓ Mettre à jour' : '✓ Valider la séance')}
-            </button>
+          {isSkipped ? (
+            <>
+              <div style={{ textAlign: 'center', padding: '10px 0', color: 'var(--text3)', fontSize: 13, fontWeight: 600 }}>
+                ⏭ Séance sautée
+              </div>
+              {onUnvalidate && (
+                <button onClick={onUnvalidate} disabled={validating}
+                  style={{ background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--rl)', padding: '12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
+                  {validating ? '…' : '↩ Annuler le saut'}
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              {onValidate && session.session_type === 'explication' && (
+                <button
+                  onClick={() => onValidate({})}
+                  disabled={validating}
+                  style={{
+                    marginTop: 8, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)',
+                    padding: '15px', fontSize: 15, fontWeight: 700, cursor: validating ? 'default' : 'pointer', width: '100%',
+                  }}
+                >
+                  {validating ? (isCompleted ? 'Mise à jour…' : 'Validation…') : (isCompleted ? '✓ Mettre à jour' : '✓ Valider la séance')}
+                </button>
+              )}
+              {onValidate && session.session_type !== 'explication' && (
+                <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} />
+              )}
+              {isCompleted && onUnvalidate && (
+                <button onClick={onUnvalidate} disabled={validating}
+                  style={{ background: 'var(--bg2)', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 'var(--rl)', padding: '12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%', marginTop: 4 }}>
+                  {validating ? '…' : '↩ Annuler la validation'}
+                </button>
+              )}
+              {(onSkip || onPostpone) && !isCompleted && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                  {onPostpone && (
+                    <button onClick={() => setShowPostpone(true)} disabled={validating}
+                      style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--rl)', padding: '11px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                      ⏭ Reporter
+                    </button>
+                  )}
+                  {onSkip && (
+                    <button onClick={() => { if (confirm('Sauter cette séance sans la valider ? Tu passeras directement à la suivante.')) onSkip() }} disabled={validating}
+                      style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--rl)', padding: '11px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                      🚫 Sauter
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
           )}
-          {onValidate && session.session_type !== 'explication' && (
-            <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} />
-          )}
-          {isCompleted && onUnvalidate && (
-            <button onClick={onUnvalidate} disabled={validating}
-              style={{ background: 'var(--bg2)', color: '#DC2626', border: '1px solid #FECACA', borderRadius: 'var(--rl)', padding: '12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%', marginTop: 4 }}>
-              {validating ? '…' : '↩ Annuler la validation'}
-            </button>
-          )}
+        </div>
+      )}
+
+      {showPostpone && (
+        <div onClick={() => setShowPostpone(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 320, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 4 }}>⏭ Reporter la séance</div>
+            <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 14 }}>De combien de séances veux-tu la décaler ?</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[1, 2, 3].map(n => (
+                <button key={n} onClick={() => { onPostpone(n); setShowPostpone(false) }}
+                  style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
+                  + {n} séance{n > 1 ? 's' : ''}
+                </button>
+              ))}
+              <button onClick={() => setShowPostpone(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '6px 0' }}>
+                Annuler
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
