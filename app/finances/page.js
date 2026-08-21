@@ -83,12 +83,16 @@ function discountLabel(coupon) {
   return `${value} · ${duration}`
 }
 
+const emptyPromoForm = { code: '', type: 'percent', value: '', duration: 'once', durationInMonths: '3', maxRedemptions: '', expiresAt: '' }
+
 function PromoCodesSection() {
   const [codes, setCodes] = useState(null)
   const [error, setError] = useState('')
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ code: '', type: 'percent', value: '', duration: 'once', durationInMonths: '3', maxRedemptions: '', expiresAt: '' })
+  const [deletingId, setDeletingId] = useState(null)
+  const [editingId, setEditingId] = useState(null)
+  const [form, setForm] = useState(emptyPromoForm)
 
   const load = async () => {
     const res = await fetch('/api/finances/promo-codes', { cache: 'no-store' })
@@ -99,18 +103,34 @@ function PromoCodesSection() {
 
   useEffect(() => { load() }, [])
 
-  const create = async () => {
+  const closeForm = () => { setOpen(false); setEditingId(null); setForm(emptyPromoForm) }
+
+  const startEdit = (pc) => {
+    setForm({
+      code: pc.code,
+      type: pc.coupon.percent_off ? 'percent' : 'amount',
+      value: pc.coupon.percent_off || (pc.coupon.amount_off / 100),
+      duration: pc.coupon.duration,
+      durationInMonths: String(pc.coupon.duration_in_months || 3),
+      maxRedemptions: pc.max_redemptions || '',
+      expiresAt: pc.expires_at ? new Date(pc.expires_at * 1000).toISOString().slice(0, 10) : '',
+    })
+    setEditingId(pc.id)
+    setOpen(true)
+  }
+
+  const submit = async () => {
     setSaving(true)
     setError('')
-    const res = await fetch('/api/finances/promo-codes', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const res = await fetch(editingId ? `/api/finances/promo-codes/${editingId}` : '/api/finances/promo-codes', {
+      method: editingId ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(form),
     })
     const json = await res.json().catch(() => ({}))
     setSaving(false)
-    if (!res.ok) { setError(json.error || 'Erreur de création'); return }
-    setForm({ code: '', type: 'percent', value: '', duration: 'once', durationInMonths: '3', maxRedemptions: '', expiresAt: '' })
-    setOpen(false)
+    if (!res.ok) { setError(json.error || 'Erreur d\'enregistrement'); return }
+    closeForm()
     load()
   }
 
@@ -122,13 +142,22 @@ function PromoCodesSection() {
     load()
   }
 
+  const remove = async (pc) => {
+    if (!confirm(`Supprimer le code "${pc.code}" ? Les sportifs qui l'ont déjà appliqué gardent leur réduction — seules les futures utilisations seront bloquées.`)) return
+    setDeletingId(pc.id)
+    const res = await fetch(`/api/finances/promo-codes/${pc.id}`, { method: 'DELETE' })
+    setDeletingId(null)
+    if (!res.ok) { const json = await res.json().catch(() => ({})); alert('Erreur : ' + (json.error || '')); return }
+    load()
+  }
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1 }}>
           🏷 Codes promo {codes ? `(${codes.length})` : ''}
         </div>
-        <button onClick={() => setOpen(v => !v)} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+        <button onClick={() => open ? closeForm() : setOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
           {open ? 'Annuler' : '+ Nouveau code'}
         </button>
       </div>
@@ -141,6 +170,11 @@ function PromoCodesSection() {
 
       {open && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {editingId && (
+            <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+              Modifier ce code crée un nouveau code à la place de l&apos;ancien — les sportifs qui l&apos;ont déjà appliqué gardent leur réduction actuelle.
+            </div>
+          )}
           <input
             placeholder="Code (ex: SUMMER20)"
             value={form.code}
@@ -196,11 +230,11 @@ function PromoCodesSection() {
             </div>
           </div>
 
-          <button onClick={create} disabled={saving || !form.code.trim() || !form.value} style={{
+          <button onClick={submit} disabled={saving || !form.code.trim() || !form.value} style={{
             background: form.code.trim() && form.value ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
             borderRadius: 'var(--r)', padding: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer',
           }}>
-            {saving ? 'Création…' : 'Créer le code'}
+            {saving ? '…' : editingId ? 'Enregistrer les modifications' : 'Créer le code'}
           </button>
         </div>
       )}
@@ -212,8 +246,8 @@ function PromoCodesSection() {
       ) : (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
           {codes.map((pc, i) => (
-            <div key={pc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
+            <div key={pc.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderTop: i > 0 ? '1px solid var(--border)' : 'none', flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 140 }}>
                 <div style={{ fontWeight: 700, fontSize: 13 }}>{pc.code}</div>
                 <div style={{ fontSize: 11, color: 'var(--text3)' }}>
                   {discountLabel(pc.coupon)}
@@ -229,6 +263,12 @@ function PromoCodesSection() {
               </span>
               <button onClick={() => toggleActive(pc.id, !pc.active)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
                 {pc.active ? 'Désactiver' : 'Réactiver'}
+              </button>
+              <button onClick={() => startEdit(pc)} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                Modifier
+              </button>
+              <button onClick={() => remove(pc)} disabled={deletingId === pc.id} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                {deletingId === pc.id ? '…' : 'Supprimer'}
               </button>
             </div>
           ))}
