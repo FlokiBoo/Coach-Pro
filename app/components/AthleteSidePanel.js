@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock, { estimate1RM, unitOf, formatPerformance } from './TrackedMovementsBlock'
 import PasswordSettingsModal from './PasswordSettingsModal'
+import MealPlannerWizard from './MealPlannerWizard'
 import { SUBSCRIPTION_TIERS } from '@/lib/subscriptionTiers'
 
 function computeRecordEvents(entries) {
@@ -46,6 +47,7 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
   const [weightVal, setWeightVal] = useState('')
   const [saving, setSaving] = useState(false)
   const [showMetrics, setShowMetrics] = useState(false)
+  const [showMealPlanner, setShowMealPlanner] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showPrograms, setShowPrograms] = useState(false)
   const [availablePrograms, setAvailablePrograms] = useState(null)
@@ -234,6 +236,15 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
               <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
             </button>
 
+            <button onClick={() => setShowMealPlanner(true)} style={{
+              background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+              padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
+            }}>
+              <span style={{ fontSize: 20 }}>🍽</span>
+              <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Générateur de plan alimentaire</span>
+              <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
+            </button>
+
             {recentRecords.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '0 4px' }}>
                 {recentRecords.map((r, i) => (
@@ -372,6 +383,18 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
           </div>
           <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
             <TrackedMovementsBlock athleteId={athlete.id} isCoach={false} />
+          </div>
+        </div>
+      )}
+
+      {showMealPlanner && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button onClick={() => setShowMealPlanner(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
+            <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>🍽 Générateur de plan alimentaire</div>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
+            <MealPlannerWizard />
           </div>
         </div>
       )}
