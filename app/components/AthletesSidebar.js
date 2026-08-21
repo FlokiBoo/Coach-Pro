@@ -161,6 +161,11 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>👤 Sportifs</Link>
+        <Link href="/groups" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+          color: 'var(--text2)', background: 'transparent',
+        }}>👥 Groupes</Link>
         <button onClick={() => setShowTimer(true)} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', width: '100%', textAlign: 'left',
           borderRadius: 'var(--r)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,

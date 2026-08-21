@@ -23,21 +23,25 @@ export default function ProgramsPage() {
   const [creating, setCreating] = useState(false)
   const [assignModal, setAssignModal] = useState(null)
   const [selectedIds, setSelectedIds] = useState([])
+  const [assignGroupId, setAssignGroupId] = useState(null)
   const [assigning, setAssigning] = useState(false)
   const [assignDone, setAssignDone] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState([])
   const [showCategoryFilter, setShowCategoryFilter] = useState(false)
+  const [groups, setGroups] = useState([])
 
   useEffect(() => {
     async function load() {
-      const [{ data: aths }, { data: progs }] = await Promise.all([
+      const [{ data: aths }, { data: progs }, { data: grps }] = await Promise.all([
         supabase.from('athletes').select('id, name').neq('archived', true).order('created_at'),
         supabase.from('programs')
           .select('*, athletes(name), program_sessions(id)')
-          .order('created_at', { ascending: false })
+          .order('created_at', { ascending: false }),
+        supabase.from('groups').select('*, group_members(athlete_id)').order('name'),
       ])
       setAthletes(aths || [])
       setPrograms(progs || [])
+      setGroups(grps || [])
       setLoading(false)
     }
     load()
@@ -108,11 +112,25 @@ export default function ProgramsPage() {
   const openAssign = (p) => {
     setAssignModal(p)
     setSelectedIds([])
+    setAssignGroupId(null)
     setAssignDone(false)
   }
 
   const toggleAthlete = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+    setAssignGroupId(null)
+  }
+
+  const toggleGroupSelect = (g) => {
+    const memberIds = g.group_members.map(m => m.athlete_id)
+    const allSelected = memberIds.length > 0 && memberIds.every(id => selectedIds.includes(id))
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !memberIds.includes(id)))
+      setAssignGroupId(null)
+    } else {
+      setSelectedIds(prev => [...new Set([...prev, ...memberIds])])
+      setAssignGroupId(g.id)
+    }
   }
 
   const toggleCategoryFilter = (cat) => {
@@ -123,6 +141,7 @@ export default function ProgramsPage() {
     if (!selectedIds.length || !assignModal) return
     setAssigning(true)
     const coachId = await getCoachId()
+    const batchId = crypto.randomUUID()
 
     const { data: sessions } = await supabase
       .from('program_sessions')
@@ -132,7 +151,7 @@ export default function ProgramsPage() {
 
     for (const targetId of selectedIds) {
       const { data: newProg } = await supabase.from('programs')
-        .insert({ athlete_id: targetId, title: assignModal.title, coach_id: coachId, source_program_id: assignModal.id, activity_type: assignModal.activity_type })
+        .insert({ athlete_id: targetId, title: assignModal.title, coach_id: coachId, source_program_id: assignModal.id, activity_type: assignModal.activity_type, group_id: assignGroupId, group_batch_id: batchId })
         .select().single()
       if (!newProg) continue
 
@@ -361,6 +380,24 @@ export default function ProgramsPage() {
               </div>
             ) : (
               <>
+                {groups.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                    {groups.map(g => {
+                      const memberIds = g.group_members.map(m => m.athlete_id)
+                      const allSelected = memberIds.length > 0 && memberIds.every(id => selectedIds.includes(id))
+                      return (
+                        <button key={g.id} type="button" onClick={() => toggleGroupSelect(g)} disabled={memberIds.length === 0}
+                          style={{
+                            background: allSelected ? 'var(--green)' : 'var(--bg2)', color: allSelected ? '#fff' : 'var(--text2)',
+                            border: allSelected ? 'none' : '1px solid var(--border2)', borderRadius: 20, padding: '6px 12px',
+                            fontSize: 12, fontWeight: 700, cursor: memberIds.length === 0 ? 'default' : 'pointer', opacity: memberIds.length === 0 ? 0.5 : 1,
+                          }}>
+                          👥 {g.name} ({memberIds.length})
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, maxHeight: 260, overflowY: 'auto' }}>
                   {athletes.filter(a => a.id !== assignModal.athlete_id).map(a => (
                     <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--r)', border: selectedIds.includes(a.id) ? '1.5px solid var(--green)' : '1px solid var(--border)', background: selectedIds.includes(a.id) ? 'var(--green-light)' : 'var(--bg2)', cursor: 'pointer' }}>

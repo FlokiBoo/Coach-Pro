@@ -206,6 +206,11 @@ function ProgramEditorPage({ params }) {
   const [objectives, setObjectives] = useState([])
   const [noteBlocks, setNoteBlocks] = useState([])
   const [raceKnown, setRaceKnown] = useState({})
+  const [participants, setParticipants] = useState([])
+  const [showAddParticipant, setShowAddParticipant] = useState(false)
+  const [otherAthletes, setOtherAthletes] = useState([])
+  const [addingParticipantId, setAddingParticipantId] = useState(null)
+  const [removingParticipantId, setRemovingParticipantId] = useState(null)
 
   const isTemplate = athleteId === 'templates'
 
@@ -260,6 +265,14 @@ function ProgramEditorPage({ params }) {
       ])
       setAthlete(a)
       setProgram(prog)
+
+      if (!isTemplate && prog?.group_batch_id) {
+        const { data: parts } = await supabase.from('programs')
+          .select('id, athlete_id, athletes(name)')
+          .eq('group_batch_id', prog.group_batch_id)
+          .order('created_at')
+        setParticipants(parts || [])
+      }
 
       const hasExercises = (sess || []).some(s => (s.program_exercises || []).some(e => e.name))
       let movieMap = {}
@@ -783,6 +796,84 @@ function ProgramEditorPage({ params }) {
     router.push(isTemplate ? '/programs' : `/programs/${athleteId}`)
   }
 
+  const openAddParticipant = async () => {
+    setShowAddParticipant(true)
+    const { data } = await supabase.from('athletes').select('id, name').neq('archived', true).order('name')
+    const participantIds = new Set(participants.map(p => p.athlete_id))
+    setOtherAthletes((data || []).filter(a => !participantIds.has(a.id)))
+  }
+
+  const addParticipant = async (targetId) => {
+    if (!program?.group_batch_id) return
+    setAddingParticipantId(targetId)
+    const coachId = await getCoachId()
+
+    const { data: sourceSessions } = await supabase
+      .from('program_sessions')
+      .select('*, program_exercises(*)')
+      .eq('program_id', programId)
+      .order('order_index')
+
+    const { data: newProg } = await supabase.from('programs')
+      .insert({
+        athlete_id: targetId, title: program.title, coach_id: coachId,
+        source_program_id: programId, activity_type: program.activity_type,
+        group_id: program.group_id, group_batch_id: program.group_batch_id,
+      })
+      .select().single()
+
+    if (newProg) {
+      for (const sess of (sourceSessions || [])) {
+        const { data: newSess } = await supabase.from('program_sessions')
+          .insert({
+            program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id,
+            activation: sess.activation || null, coach_notes: sess.coach_notes || null,
+            activation_videos: sess.activation_videos || [], circuits: sess.circuits || [],
+            session_type: sess.session_type || null, week_number: sess.week_number,
+          })
+          .select().single()
+        if (!newSess) continue
+
+        const exos = (sess.program_exercises || []).sort((a, b) => a.order_index - b.order_index)
+        if (exos.length > 0) {
+          await supabase.from('program_exercises').insert(
+            exos.map(e => ({
+              program_session_id: newSess.id, order_index: e.order_index, name: e.name,
+              sets: e.sets, reps: e.reps, kg: e.kg, rest: e.rest, note: e.note, video_url: e.video_url,
+              superset_group: e.superset_group, focus_muscles: e.focus_muscles || null,
+              pace_base: e.pace_base || null, pct_low: e.pct_low, pct_high: e.pct_high, source_exercise_id: e.id,
+            }))
+          )
+        }
+      }
+      setParticipants(prev => [...prev, { id: newProg.id, athlete_id: targetId, athletes: { name: otherAthletes.find(a => a.id === targetId)?.name } }])
+      setOtherAthletes(prev => prev.filter(a => a.id !== targetId))
+    }
+    setAddingParticipantId(null)
+  }
+
+  const removeParticipant = async (participant) => {
+    if (!confirm(`Retirer ${participant.athletes?.name || 'ce client'} de cette séance ? Sa copie et ses résultats seront supprimés.`)) return
+    setRemovingParticipantId(participant.id)
+
+    const { data: sess } = await supabase.from('program_sessions').select('id').eq('program_id', participant.id)
+    const sessionIds = (sess || []).map(s => s.id)
+    if (sessionIds.length) {
+      const { data: exos } = await supabase.from('program_exercises').select('id').in('program_session_id', sessionIds)
+      const exoIds = (exos || []).map(e => e.id)
+      if (exoIds.length) {
+        await supabase.from('exercise_performance_history').delete().in('program_exercise_id', exoIds)
+        await supabase.from('program_exercise_logs').delete().in('program_exercise_id', exoIds)
+        await supabase.from('program_exercises').delete().in('id', exoIds)
+      }
+      await supabase.from('program_completions').delete().in('program_session_id', sessionIds)
+      await supabase.from('program_sessions').delete().in('id', sessionIds)
+    }
+    await supabase.from('programs').delete().eq('id', participant.id)
+    setParticipants(prev => prev.filter(p => p.id !== participant.id))
+    setRemovingParticipantId(null)
+  }
+
   const moveSession = (idx, dir) => {
     setSessions(prev => {
       const next = [...prev]
@@ -891,6 +982,51 @@ function ProgramEditorPage({ params }) {
             )}
           </div>
         </div>
+
+        {!isTemplate && program?.group_batch_id && (
+          <div style={{ margin: '12px 16px 0', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1 }}>
+                👥 Participants ({participants.length})
+              </div>
+              <button onClick={openAddParticipant} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                + Ajouter un client
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {participants.map(p => (
+                <div key={p.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 6, background: p.athlete_id === athleteId ? 'var(--green-light)' : 'var(--bg2)',
+                  border: '1px solid ' + (p.athlete_id === athleteId ? 'var(--green)' : 'var(--border2)'), borderRadius: 20, padding: '5px 6px 5px 12px',
+                }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: p.athlete_id === athleteId ? 'var(--green)' : 'var(--text2)' }}>{p.athletes?.name || '—'}</span>
+                  {p.athlete_id !== athleteId && (
+                    <button onClick={() => removeParticipant(p)} disabled={removingParticipantId === p.id}
+                      style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 15, cursor: 'pointer', padding: '0 4px', lineHeight: 1 }}>
+                      {removingParticipantId === p.id ? '…' : '×'}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {showAddParticipant && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                {otherAthletes.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Tous les clients participent déjà</div>
+                ) : otherAthletes.map(a => (
+                  <button key={a.id} onClick={() => addParticipant(a.id)} disabled={addingParticipantId === a.id}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}>
+                    {a.name}
+                    <span style={{ color: 'var(--green)', fontSize: 12 }}>{addingParticipantId === a.id ? '…' : '+ Ajouter'}</span>
+                  </button>
+                ))}
+                <button onClick={() => setShowAddParticipant(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 0', textAlign: 'left' }}>
+                  Fermer
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {!isTemplate && athlete && (objectives.length > 0 || noteBlocks.length > 0) && (
           <div style={{ margin: '12px 16px 0', display: 'flex', flexDirection: 'column', gap: 8 }}>
