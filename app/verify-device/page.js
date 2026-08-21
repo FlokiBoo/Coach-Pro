@@ -84,9 +84,9 @@ function VerifyDevicePage() {
 
         <form onSubmit={verify} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
-            type="text" inputMode="numeric" placeholder="Code à 6 chiffres"
+            type="text" inputMode="numeric" placeholder="Code reçu par email"
             value={code} onChange={e => setCode(e.target.value)}
-            autoFocus maxLength={6}
+            autoFocus maxLength={12}
             style={{ padding: '12px 14px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 20, textAlign: 'center', letterSpacing: 4, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
           />
 
