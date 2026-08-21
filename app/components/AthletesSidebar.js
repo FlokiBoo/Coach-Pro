@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import TimerModal from './TimerModal'
 import PasswordSettingsModal from './PasswordSettingsModal'
+import { guardNavigation, hasUnsavedChanges } from '@/lib/unsavedChanges'
 
 async function logout() {
   await supabase.auth.signOut()
@@ -150,12 +151,12 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
 
       {/* Navigation principale */}
       <div style={{ padding: '8px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-        <Link href="/" onClick={() => setOpen(false)} style={{
+        <Link href="/" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>🏠 Tableau de bord</Link>
-        <Link href="/athletes" onClick={() => setOpen(false)} style={{
+        <Link href="/athletes" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
@@ -165,7 +166,7 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           borderRadius: 'var(--r)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent', fontFamily: 'inherit',
         }}>⏱ Timer</button>
-        <Link href="/assistant" onClick={() => setOpen(false)} style={{
+        <Link href="/assistant" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
@@ -174,22 +175,22 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
           Nutrition
         </div>
-        <Link href="/nutrition/plans" onClick={() => setOpen(false)} style={{
+        <Link href="/nutrition/plans" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>🗓 Plans</Link>
-        <Link href="/nutrition/recettes" onClick={() => setOpen(false)} style={{
+        <Link href="/nutrition/recettes" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>🍳 Recettes</Link>
-        <Link href="/nutrition/aliments" onClick={() => setOpen(false)} style={{
+        <Link href="/nutrition/aliments" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>🍎 Aliments</Link>
-        <Link href="/meal-planner" onClick={() => setOpen(false)} style={{
+        <Link href="/meal-planner" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
@@ -198,17 +199,17 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
           Coaching
         </div>
-        <Link href="/programs" onClick={() => setOpen(false)} style={{
+        <Link href="/programs" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>📋 Templates</Link>
-        <Link href="/metrics" onClick={() => setOpen(false)} style={{
+        <Link href="/metrics" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>📈 Metrics</Link>
-        <Link href="/tips" onClick={() => setOpen(false)} style={{
+        <Link href="/tips" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
@@ -217,12 +218,12 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
           Exercice
         </div>
-        <Link href="/movements" onClick={() => setOpen(false)} style={{
+        <Link href="/movements" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>📚 Mouvements</Link>
-        <Link href="/library/activations" onClick={() => setOpen(false)} style={{
+        <Link href="/library/activations" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
@@ -231,7 +232,7 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
           Business
         </div>
-        <Link href="/finances" onClick={() => setOpen(false)} style={{
+        <Link href="/finances" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
@@ -266,6 +267,7 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
             <Link
               key={a.id}
               href={`/semaine/${a.id}/${date}`}
+              onClick={guardNavigation}
               style={{
                 display: 'flex', alignItems: 'center', gap: 8,
                 padding: '8px 8px', borderRadius: 'var(--r)',
@@ -331,12 +333,12 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           ⚙️ Paramètres
         </button>
         <button
-          onClick={logout}
+          onClick={() => { if (hasUnsavedChanges() && !window.confirm('Tu as des modifications non sauvegardées sur cette page. Te déconnecter sans enregistrer ?')) return; logout() }}
           style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left' }}
         >
           ⎋ Déconnexion
         </button>
-        <Link href="/" style={{ fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600, padding: '2px 0' }}>
+        <Link href="/" onClick={guardNavigation} style={{ fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600, padding: '2px 0' }}>
           ← Accueil
         </Link>
       </div>

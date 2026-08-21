@@ -9,6 +9,7 @@ import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
 import { parseMusclesFromText } from '@/app/components/CelebrationModal'
 import { isRunMovement, PACE_BASES, computePaceForBasePct, buildKnownRaces, formatPace } from '@/lib/raceEstimates'
+import { setUnsavedChanges, guardNavigation } from '@/lib/unsavedChanges'
 
 function today() {
   const n = new Date()
@@ -177,6 +178,29 @@ function ProgramEditorPage({ params }) {
   const [titleSaving, setTitleSaving] = useState(false)
   const [actPresetSearch, setActPresetSearch] = useState({})
   const [actPresetSuggs, setActPresetSuggs] = useState({})
+  const [dirtySessionIds, setDirtySessionIds] = useState(new Set())
+  const markDirty = (sessId) => setDirtySessionIds(prev => new Set(prev).add(sessId))
+
+  // Les modifications de séance/exercice ne sont écrites en base qu'au clic sur "Sauvegarder
+  // la séance" (saveSession) — ce garde-fou évite de perdre silencieusement des éditions en
+  // quittant la page (navigation interne ou fermeture/rechargement de l'onglet).
+  useEffect(() => {
+    setUnsavedChanges(dirtySessionIds.size > 0)
+  }, [dirtySessionIds])
+
+  useEffect(() => {
+    return () => setUnsavedChanges(false)
+  }, [])
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (dirtySessionIds.size === 0) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirtySessionIds])
   const [completionsMap, setCompletionsMap] = useState({})
   const [logsMap, setLogsMap] = useState({})
   const [objectives, setObjectives] = useState([])
@@ -292,27 +316,36 @@ function ProgramEditorPage({ params }) {
   }, [athleteId, programId])
 
   // Helpers pour modifier une session
-  const updateSession = (id, field, value) =>
+  const updateSession = (id, field, value) => {
+    markDirty(id)
     setSessions(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s))
+  }
 
-  const updateExo = (sessId, key, field, val) =>
+  const updateExo = (sessId, key, field, val) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, exercises: s.exercises.map(e => e._key === key ? { ...e, [field]: val } : e)
     }))
+  }
 
-  const addExo = (sessId) =>
+  const addExo = (sessId) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, exercises: [...s.exercises, emptyExo(s.exercises.length)]
     }))
+  }
 
-  const removeExo = (sessId, key) =>
+  const removeExo = (sessId, key) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, exercises: s.exercises.filter(e => e._key !== key).length
         ? s.exercises.filter(e => e._key !== key)
         : [emptyExo(0)]
     }))
+  }
 
-  const moveExo = (sessId, key, dir) =>
+  const moveExo = (sessId, key, dir) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => {
       if (s.id !== sessId) return s
       const exos = [...s.exercises]
@@ -322,6 +355,7 @@ function ProgramEditorPage({ params }) {
       ;[exos[idx], exos[to]] = [exos[to], exos[idx]]
       return { ...s, exercises: exos }
     }))
+  }
 
   const searchMovements = async (key, val) => {
     if (val.trim().length < 2) { setSuggestions(prev => ({ ...prev, [key]: [] })); return }
@@ -344,6 +378,7 @@ function ProgramEditorPage({ params }) {
   }
 
   const applyActPreset = (sessId, preset) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, activation: preset.text || '', activation_videos: preset.videos || [],
     }))
@@ -359,6 +394,7 @@ function ProgramEditorPage({ params }) {
   }
 
   const addActVideo = (sessId, mov) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, activation_videos: [...(s.activation_videos || []), { name: mov.name, video_url: mov.youtube_url || '' }]
     }))
@@ -373,12 +409,15 @@ function ProgramEditorPage({ params }) {
     addActVideo(sessId, { name: trimmed, youtube_url: '' })
   }
 
-  const removeActVideo = (sessId, idx) =>
+  const removeActVideo = (sessId, idx) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, activation_videos: (s.activation_videos || []).filter((_, i) => i !== idx)
     }))
+  }
 
   const updateActVideoUrl = async (sessId, idx, url) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, activation_videos: (s.activation_videos || []).map((v, i) => i === idx ? { ...v, video_url: url } : v)
     }))
@@ -389,18 +428,21 @@ function ProgramEditorPage({ params }) {
   }
 
   const addCircuit = (sessId) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, circuits: [...(s.circuits || []), { id: Date.now() + Math.random(), text: '', videos: [] }]
     }))
   }
 
   const removeCircuit = (sessId, circuitId) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, circuits: (s.circuits || []).filter(c => c.id !== circuitId)
     }))
   }
 
   const updateCircuitText = (sessId, circuitId, text) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, circuits: (s.circuits || []).map(c => c.id === circuitId ? { ...c, text } : c)
     }))
@@ -414,6 +456,7 @@ function ProgramEditorPage({ params }) {
   }
 
   const addCircuitVideo = (sessId, circuitId, key, mov) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, circuits: (s.circuits || []).map(c => c.id !== circuitId ? c : {
         ...c, videos: [...(c.videos || []), { name: mov.name, video_url: mov.youtube_url || '' }]
@@ -431,6 +474,7 @@ function ProgramEditorPage({ params }) {
   }
 
   const removeCircuitVideo = (sessId, circuitId, idx) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, circuits: (s.circuits || []).map(c => c.id !== circuitId ? c : {
         ...c, videos: (c.videos || []).filter((_, i) => i !== idx)
@@ -439,6 +483,7 @@ function ProgramEditorPage({ params }) {
   }
 
   const updateCircuitVideoUrl = async (sessId, circuitId, idx, url) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, circuits: (s.circuits || []).map(c => c.id !== circuitId ? c : {
         ...c, videos: (c.videos || []).map((v, i) => i === idx ? { ...v, video_url: url } : v)
@@ -452,6 +497,7 @@ function ProgramEditorPage({ params }) {
   }
 
   const toggleSuperset = (sessId, ei) => {
+    markDirty(sessId)
     setSessions(prev => prev.map(s => {
       if (s.id !== sessId) return s
       const exos = [...s.exercises]
@@ -604,6 +650,7 @@ function ProgramEditorPage({ params }) {
 
     await propagateSessionToClients(sessId, s.order_index ?? 0, sessFields, toInsert)
 
+    setDirtySessionIds(prev => { const next = new Set(prev); next.delete(sessId); return next })
     setSaving(false)
     setSavedId(sessId)
     setTimeout(() => setSavedId(null), 2000)
@@ -796,7 +843,7 @@ function ProgramEditorPage({ params }) {
         {/* Header */}
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Link href={isTemplate ? '/programs' : `/programs/${athleteId}`} style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none' }}>←</Link>
+            <Link href={isTemplate ? '/programs' : `/programs/${athleteId}`} onClick={guardNavigation} style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none' }}>←</Link>
             <div style={{ flex: 1, minWidth: 0 }}>
               <input
                 value={program?.title || ''}
