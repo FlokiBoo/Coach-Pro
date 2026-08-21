@@ -501,7 +501,7 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
       {assignModal && (
         <div onClick={() => setAssignModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 380, boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
-            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>Copier chez un autre sportif</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4 }}>Copier chez un autre sportif</div>
             <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16 }}>
               "{assignModal.title}" sera copié pour chaque sportif sélectionné.
             </div>

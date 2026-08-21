@@ -410,7 +410,7 @@ export default function FinancesPage() {
       <div className="coach-main" style={{ paddingBottom: 40 }}>
 
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10 }}>
-          <div style={{ fontWeight: 800, fontSize: 17 }}>💰 Finances</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>💰 Finances</div>
           <div style={{ fontSize: 12, color: 'var(--text3)' }}>Abonnements, paiements et chiffre d&apos;affaires</div>
         </div>
 

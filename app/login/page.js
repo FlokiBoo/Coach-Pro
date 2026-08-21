@@ -68,7 +68,7 @@ export default function LoginPage() {
       }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>🏃</div>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>CoachPro</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 24, fontWeight: 700, letterSpacing: '0.5px' }}>CoachPro</div>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 4 }}>
             {mode === 'login' ? 'Connexion à ton espace' : 'Réinitialiser le mot de passe'}
           </div>

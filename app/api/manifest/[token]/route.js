@@ -9,8 +9,8 @@ export async function GET(request, { params }) {
     start_url: `/s/${token}`,
     scope: `/s/${token}`,
     display: 'standalone',
-    background_color: '#ffffff',
-    theme_color: '#1D9E75',
+    background_color: '#FBF8F1',
+    theme_color: '#6D1A22',
     orientation: 'portrait',
     icons: [
       { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },

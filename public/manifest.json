@@ -4,8 +4,8 @@
   "description": "Gestion de programmes sportifs",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#1D9E75",
+  "background_color": "#FBF8F1",
+  "theme_color": "#6D1A22",
   "orientation": "portrait",
   "icons": [
     {

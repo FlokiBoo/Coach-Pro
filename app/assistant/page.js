@@ -15,7 +15,7 @@ export default function AssistantPage() {
       <main className="coach-main" style={{ display: 'flex', flexDirection: 'column', minHeight: '100svh' }}>
 
         <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid var(--border)' }}>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>🤖 Assistant IA</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 19, fontWeight: 700 }}>🤖 Assistant IA</div>
           <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Idées de séances, conseils nutrition, aide à la rédaction…</div>
         </div>
 

@@ -128,7 +128,7 @@ export default function CelebrationModal({ tonnage, muscles, records = [], onClo
       >
       <div ref={cardRef}>
         <div style={{ fontSize: 52, lineHeight: 1, marginBottom: 8 }}>{records.length > 0 ? '🏆' : '🎉'}</div>
-        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Bravo !</div>
+        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 23, fontWeight: 700, marginBottom: 4 }}>Bravo !</div>
         <div style={{ fontSize: 14, color: 'var(--text3)', marginBottom: 18 }}>Séance terminée 💪</div>
 
         {records.length > 0 && (

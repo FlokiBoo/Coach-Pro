@@ -85,7 +85,7 @@ export default function AdminCoachsPage() {
       <div style={{ maxWidth: 480, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Link href="/" style={{ color: 'var(--text3)', fontSize: 20, textDecoration: 'none' }}>←</Link>
-          <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>Coachs</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 21, fontWeight: 700 }}>Coachs</div>
         </div>
 
         <form onSubmit={inviteCoach} style={{

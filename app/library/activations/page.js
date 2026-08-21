@@ -186,7 +186,7 @@ export default function ActivationsLibraryPage() {
           position: 'sticky', top: 0, zIndex: 10
         }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>⚡ Activations</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 21, fontWeight: 700 }}>⚡ Activations</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>
               Protocoles d&apos;activation réutilisables — texte + vidéos
             </div>

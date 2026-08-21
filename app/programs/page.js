@@ -190,7 +190,7 @@ export default function ProgramsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Link href="/" style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none' }}>←</Link>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 800, fontSize: 17 }}>Programmes</div>
+              <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>Programmes</div>
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>{programs.length} programme{programs.length !== 1 ? 's' : ''}</div>
             </div>
             <button onClick={() => setShowForm(v => !v)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
@@ -343,7 +343,7 @@ export default function ProgramsPage() {
       {assignModal && (
         <div onClick={() => setAssignModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 380, boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
-            <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>Assigner à d'autres clients</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4 }}>Assigner à d'autres clients</div>
             <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16 }}>
               "{assignModal.title}" sera copié pour chaque client sélectionné.
             </div>

@@ -97,7 +97,7 @@ function UpdatePasswordPageInner() {
       <div style={{ width: '100%', maxWidth: 380, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '32px 28px' }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>🔑</div>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.5px' }}>Nouveau mot de passe</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 22, fontWeight: 700 }}>Nouveau mot de passe</div>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 4 }}>Choisis ton nouveau mot de passe</div>
         </div>
 

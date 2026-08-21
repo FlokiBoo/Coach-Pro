@@ -117,7 +117,7 @@ export default function TipsPage() {
           position: 'sticky', top: 0, zIndex: 10
         }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>💡 Tips</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 21, fontWeight: 700 }}>💡 Tips</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>
               Glossaire visible par tes sportifs sur chaque exercice
             </div>

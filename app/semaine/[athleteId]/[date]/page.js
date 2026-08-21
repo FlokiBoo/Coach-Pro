@@ -219,7 +219,7 @@ export default function AthletePage({ params }) {
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Link href="/" style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none' }}>←</Link>
-            <div style={{ fontWeight: 800, fontSize: 17, flex: 1 }}>{athlete?.name}</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, flex: 1 }}>{athlete?.name}</div>
             <button onClick={() => setShowDanger(v => !v)} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '5px 10px', fontSize: 15, cursor: 'pointer', color: 'var(--text3)', flexShrink: 0, lineHeight: 1 }}>···</button>
           </div>
           {showDanger && (

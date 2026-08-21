@@ -461,7 +461,7 @@ export default function ProgrammePage({ params }) {
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
           <Link href="/" style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none' }}>←</Link>
-          <div style={{ fontWeight: 800, fontSize: 17, flex: 1 }}>{athlete.name}</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, flex: 1 }}>{athlete.name}</div>
           <Link href={`/semaine/${athleteId}/${date}`} title="Vue semaine" style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '5px 9px', fontSize: 14, textDecoration: 'none', color: 'var(--text2)' }}>📅</Link>
           <button onClick={openWellnessHistory} title="Historique forme" style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '5px 9px', fontSize: 16, cursor: 'pointer', color: 'var(--text2)' }}>⚡</button>
           {hasLogs && (
@@ -688,7 +688,7 @@ function WellnessHistoryPanel({ athleteName, history, onClose }) {
         <div style={{ padding: '12px 16px 0', flexShrink: 0 }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border2)', margin: '0 auto 12px' }} />
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ fontWeight: 800, fontSize: 16 }}>⚡ Forme — {athleteName}</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>⚡ Forme — {athleteName}</div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text3)', cursor: 'pointer', lineHeight: 1 }}>×</button>
           </div>
           {history === null ? (

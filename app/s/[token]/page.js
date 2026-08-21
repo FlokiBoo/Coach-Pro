@@ -694,7 +694,7 @@ function AthleteView({ params }) {
       {/* Header */}
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontWeight: 800, fontSize: 18, flex: 1 }}>{athlete.name}</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 19, flex: 1 }}>{athlete.name}</div>
         </div>
         {isCoachView && (
           <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600 }}>
@@ -1543,7 +1543,7 @@ function FocusPicker({ initial, onCancel, onSave }) {
   return (
     <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 20, padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: '90svh', overflowY: 'auto' }}>
-        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 4 }}>🎯 Focus</div>
+        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4 }}>🎯 Focus</div>
         <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14 }}>Choisis le ou les muscles à ressentir</div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
@@ -1699,7 +1699,7 @@ function TipsButton() {
               {selected && (
                 <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>←</button>
               )}
-              <div style={{ fontWeight: 800, fontSize: 17, flex: 1 }}>💡 {selected ? selected.title : 'Tips'}</div>
+              <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, flex: 1 }}>💡 {selected ? selected.title : 'Tips'}</div>
               <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
             </div>
 
@@ -1871,7 +1871,7 @@ function ExerciseHistoryButton({ athleteId, exerciseName }) {
             maxHeight: '75vh', overflowY: 'auto', padding: 18
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <div style={{ fontWeight: 800, fontSize: 17, flex: 1 }}>📈 {exerciseName}</div>
+              <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, flex: 1 }}>📈 {exerciseName}</div>
               <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
             </div>
 

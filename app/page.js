@@ -194,7 +194,7 @@ export default function Home() {
           position: 'sticky', top: 0, zIndex: 10
         }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>CoachPro</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 21, fontWeight: 700 }}>CoachPro</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>
               {athletes.length} sportif{athletes.length !== 1 ? 's' : ''}
             </div>
@@ -507,7 +507,7 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 16, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{athleteName}</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{athleteName}</div>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>{sorted.map(i => i + 1).join(', ')} / {sessions.length}</div>
         </div>
       </div>

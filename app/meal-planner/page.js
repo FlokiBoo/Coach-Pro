@@ -158,7 +158,7 @@ export default function MealPlannerPage() {
       <main className="coach-main" style={{ display: 'flex', flexDirection: 'column', minHeight: '100svh' }}>
 
         <div style={{ padding: '18px 24px 0', borderBottom: '1px solid var(--border)', paddingBottom: 14 }}>
-          <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 10 }}>🍽 Générateur de plan repas</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 19, fontWeight: 700, marginBottom: 10 }}>🍽 Générateur de plan repas</div>
           <div style={{ display: 'flex', gap: 6 }}>
             {steps.map(s => (
               <button key={s.n} onClick={() => (s.n < step || (s.n === 4 && plan)) && setStep(s.n)}

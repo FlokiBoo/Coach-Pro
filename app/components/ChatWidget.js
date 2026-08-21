@@ -111,7 +111,7 @@ export default function ChatWidget() {
               {identity.role === 'coach' && selectedAthleteId && (
                 <button onClick={() => setSelectedAthleteId(null)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
               )}
-              <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', flex: 1 }}>
+              <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 16, flex: 1 }}>
                 {identity.role === 'coach'
                   ? (selectedAthleteId ? (threads.find(t => t.athleteId === selectedAthleteId)?.athleteName || 'Discussion') : 'Messages')
                   : 'Discussion avec ton coach'}

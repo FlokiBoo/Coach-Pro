@@ -165,7 +165,7 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
             padding: 16, display: 'flex', flexDirection: 'column', gap: 14,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ flex: 1, fontWeight: 800, fontSize: 18 }}>{athlete.name}</div>
+              <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 19 }}>{athlete.name}</div>
               <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: 'var(--text3)', padding: 4 }}>×</button>
             </div>
 
@@ -284,7 +284,7 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
         <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
           <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={() => setShowSubscription(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
-            <div style={{ flex: 1, fontWeight: 800, fontSize: 17 }}>Abonnement</div>
+            <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>Abonnement</div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {athlete.subscription_status === 'active' && (
@@ -334,7 +334,7 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
         <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
           <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={() => setShowPrograms(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
-            <div style={{ flex: 1, fontWeight: 800, fontSize: 17 }}>Programmes disponibles</div>
+            <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>Programmes disponibles</div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {availablePrograms === null ? (
@@ -368,7 +368,7 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
         <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
           <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={() => setShowMetrics(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
-            <div style={{ flex: 1, fontWeight: 800, fontSize: 17 }}>Metric</div>
+            <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>Metric</div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
             <TrackedMovementsBlock athleteId={athlete.id} isCoach={false} />

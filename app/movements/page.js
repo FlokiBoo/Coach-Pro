@@ -197,7 +197,7 @@ export default function MovementsPage() {
         {/* Header */}
         <div style={{ padding: '18px 24px 0', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', paddingBottom: 14 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 800 }}>📚 Exercice</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 19, fontWeight: 700 }}>📚 Exercice</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{movements.length} mouvements</div>
           </div>
           <button

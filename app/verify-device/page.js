@@ -97,7 +97,7 @@ function VerifyDevicePage() {
       <div style={{ width: '100%', maxWidth: 380, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '32px 28px' }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{ fontSize: 32, marginBottom: 8 }}>🔐</div>
-          <div style={{ fontSize: 18, fontWeight: 800 }}>Nouvel appareil détecté</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 19, fontWeight: 700 }}>Nouvel appareil détecté</div>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 8, lineHeight: 1.5 }}>
             Pour la sécurité de ton compte (max. 2 appareils), valide cet appareil avec le code envoyé par email à {email || '…'}.
           </div>

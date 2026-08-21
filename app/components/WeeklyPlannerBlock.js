@@ -167,7 +167,7 @@ export default function WeeklyPlannerBlock({ athleteId }) {
       {modal && (
         <div onClick={closeModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 340, boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
-            <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 4 }}>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 16, marginBottom: 4 }}>
               {['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'][modal.day]}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14, fontWeight: 600 }}>

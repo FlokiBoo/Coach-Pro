@@ -452,7 +452,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     return (
       <div style={{ position: 'fixed', inset: 0, background: '#0D1117', zIndex: 800, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 30, textAlign: 'center', gap: 18, fontFamily: "'Space Grotesk', sans-serif" }}>
         <div style={{ fontSize: 40 }}>📐</div>
-        <h1 style={{ fontSize: 18, fontWeight: 700, color: '#EDEFF2', margin: 0 }}>Accès aux capteurs de mouvement</h1>
+        <h1 style={{ fontSize: 18, fontWeight: 700, color: '#EDEFF2', fontFamily: "'Space Grotesk', sans-serif", margin: 0 }}>Accès aux capteurs de mouvement</h1>
         <p style={{ fontSize: 13, color: '#7C8493', lineHeight: 1.5, margin: 0, maxWidth: 280 }}>
           iOS demande une autorisation explicite pour lire l'accéléromètre, nécessaire pour mesurer l'angle.
         </p>

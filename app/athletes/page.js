@@ -122,7 +122,7 @@ export default function AthletesPage() {
 
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 800, fontSize: 17, marginBottom: 2 }}>👤 Sportifs</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, marginBottom: 2 }}>👤 Sportifs</div>
             <div style={{ fontSize: 12, color: 'var(--text3)' }}>{(athletes || []).length} sportif{(athletes || []).length !== 1 ? 's' : ''}</div>
           </div>
           <button onClick={openAdd} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>

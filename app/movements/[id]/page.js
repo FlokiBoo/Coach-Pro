@@ -27,17 +27,17 @@ function serializeMuscles(arr) {
 
 const fieldStyle = {
   width: '100%', boxSizing: 'border-box', padding: '11px 14px',
-  border: '1px solid #D1D5DB', borderRadius: 8,
-  fontSize: 14, outline: 'none', background: '#fff', color: '#111',
+  border: '1px solid var(--border2)', borderRadius: 8,
+  fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)',
   fontFamily: 'inherit',
 }
 
 const labelStyle = {
-  fontSize: 13, fontWeight: 700, color: '#111', marginBottom: 6, display: 'block'
+  fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6, display: 'block'
 }
 
 const optionalStyle = {
-  fontSize: 12, fontWeight: 400, color: '#6B7280', marginLeft: 6
+  fontSize: 12, fontWeight: 400, color: 'var(--text3)', marginLeft: 6
 }
 
 function MusclesPicker({ selected, onChange, allMuscles }) {
@@ -88,8 +88,8 @@ function MusclesPicker({ selected, onChange, allMuscles }) {
       <div
         onClick={() => { setOpen(true); inputRef.current?.focus() }}
         style={{
-          minHeight: 46, padding: '6px 10px', border: '1px solid #D1D5DB', borderRadius: 8,
-          background: '#fff', cursor: 'text', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
+          minHeight: 46, padding: '6px 10px', border: '1px solid var(--border2)', borderRadius: 8,
+          background: 'var(--bg)', cursor: 'text', display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center',
         }}
       >
         {selected.map(m => (
@@ -115,7 +115,7 @@ function MusclesPicker({ selected, onChange, allMuscles }) {
           placeholder={selected.length === 0 ? 'Quadriceps, Fessiers…' : ''}
           style={{
             border: 'none', outline: 'none', fontSize: 13, background: 'transparent',
-            color: '#111', fontFamily: 'inherit', minWidth: 120, flex: 1,
+            color: 'var(--text)', fontFamily: 'inherit', minWidth: 120, flex: 1,
           }}
         />
       </div>
@@ -124,7 +124,7 @@ function MusclesPicker({ selected, onChange, allMuscles }) {
       {open && (suggestions.length > 0 || canAddNew || (allMuscles.filter(m => !selected.includes(m)).length > 0 && !lower)) && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
-          background: '#fff', border: '1px solid #D1D5DB', borderRadius: 8,
+          background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 8,
           boxShadow: '0 4px 16px rgba(0,0,0,.1)', overflow: 'hidden', maxHeight: 220, overflowY: 'auto',
         }}>
           {/* Muscles existants non sélectionnés qui matchent */}
@@ -136,7 +136,7 @@ function MusclesPicker({ selected, onChange, allMuscles }) {
               style={{
                 display: 'block', width: '100%', textAlign: 'left',
                 padding: '9px 12px', border: 'none', borderBottom: '1px solid #F3F4F6',
-                background: 'none', fontSize: 13, fontWeight: 600, color: '#111', cursor: 'pointer',
+                background: 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer',
               }}
             >
               {m}
@@ -238,12 +238,12 @@ export default function MovementDetailPage({ params }) {
     <div className="coach-layout">
       <AthletesSidebar athleteId={null} date={today()} />
 
-      <main className="coach-main" style={{ background: '#F9FAFB', minHeight: '100svh' }}>
+      <main className="coach-main" style={{ background: 'var(--bg2)', minHeight: '100svh' }}>
 
         {/* Header */}
-        <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={() => router.push('/movements')}
-            style={{ background: 'none', border: 'none', color: '#6B7280', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
+            style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '6px 0', display: 'flex', alignItems: 'center', gap: 4 }}>
             ← Exercice
           </button>
         </div>
@@ -251,7 +251,7 @@ export default function MovementDetailPage({ params }) {
         <div style={{ maxWidth: 700, margin: '0 auto', padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
 
           {/* Nom */}
-          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 20 }}>
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: 20 }}>
             <label style={labelStyle}>
               Nom du mouvement <span style={{ color: '#EF4444' }}>*</span>
             </label>
@@ -265,7 +265,7 @@ export default function MovementDetailPage({ params }) {
           </div>
 
           {/* Vidéo YouTube */}
-          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 20 }}>
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: 20 }}>
             <label style={labelStyle}>
               Lien vidéo <span style={optionalStyle}>Optionnel</span>
             </label>
@@ -288,7 +288,7 @@ export default function MovementDetailPage({ params }) {
           </div>
 
           {/* Instructions */}
-          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 20 }}>
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: 20 }}>
             <label style={labelStyle}>
               Instructions <span style={optionalStyle}>Optionnel</span>
             </label>
@@ -302,14 +302,14 @@ export default function MovementDetailPage({ params }) {
           </div>
 
           {/* Muscles + Torque */}
-          <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             <div>
               <label style={labelStyle}>
                 Muscles principaux <span style={optionalStyle}>Optionnel</span>
               </label>
               <MusclesPicker selected={muscles} onChange={setMuscles} allMuscles={allMuscles} />
-              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 5 }}>
                 Clique sur un muscle existant ou tape pour en ajouter un nouveau
               </div>
             </div>
@@ -327,9 +327,9 @@ export default function MovementDetailPage({ params }) {
                     style={{
                       flex: 1, padding: '11px 0', border: '1px solid',
                       borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                      borderColor: torque === opt ? 'transparent' : '#D1D5DB',
-                      background: torque === opt ? (opt === 'Interne' ? '#2563EB' : '#f59e0b') : '#fff',
-                      color: torque === opt ? '#fff' : '#374151',
+                      borderColor: torque === opt ? 'transparent' : 'var(--border2)',
+                      background: torque === opt ? (opt === 'Interne' ? 'var(--green)' : 'var(--bordeaux)') : 'var(--bg)',
+                      color: torque === opt ? '#fff' : 'var(--text2)',
                     }}
                   >{opt}</button>
                 ))}
@@ -343,7 +343,7 @@ export default function MovementDetailPage({ params }) {
               onClick={save}
               disabled={saving || (!isNew && !isDirty)}
               style={{
-                background: isDirty || isNew ? '#2563EB' : '#9CA3AF',
+                background: isDirty || isNew ? 'var(--green)' : 'var(--text3)',
                 color: '#fff', border: 'none', borderRadius: 8,
                 padding: '11px 24px', fontSize: 14, fontWeight: 700,
                 cursor: isDirty || isNew ? 'pointer' : 'default',
@@ -352,7 +352,7 @@ export default function MovementDetailPage({ params }) {
               {saving ? 'Enregistrement…' : saved ? '✓ Enregistré' : isNew ? 'Créer le mouvement' : 'Enregistrer'}
             </button>
             <button onClick={() => router.push('/movements')}
-              style={{ background: 'none', border: '1px solid #D1D5DB', borderRadius: 8, padding: '11px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer', color: '#374151' }}>
+              style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 8, padding: '11px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer', color: 'var(--text2)' }}>
               Annuler
             </button>
             {!isNew && (

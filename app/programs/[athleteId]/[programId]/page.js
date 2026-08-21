@@ -850,7 +850,7 @@ function ProgramEditorPage({ params }) {
                 onChange={e => setProgram(p => ({ ...p, title: e.target.value }))}
                 onBlur={saveTitle}
                 onKeyDown={e => e.key === 'Enter' && e.target.blur()}
-                style={{ fontWeight: 800, fontSize: 16, border: 'none', outline: 'none', background: 'transparent', width: '100%', color: 'var(--text)' }}
+                style={{ fontFamily: 'var(--font-title)', fontWeight: 700, fontSize: 17, border: 'none', outline: 'none', background: 'transparent', width: '100%', color: 'var(--title)' }}
                 placeholder="Nom du programme"
               />
               {titleSaving && <div style={{ fontSize: 10, color: 'var(--text3)' }}>Enregistrement…</div>}
@@ -1581,7 +1581,7 @@ function ExerciseHistoryModal({ athleteId, exerciseName, onClose }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 800, fontSize: 16 }}>📈 Historique</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>📈 Historique</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>{exerciseName}</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 4 }}>✕</button>
