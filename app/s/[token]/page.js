@@ -108,6 +108,7 @@ function AthleteView({ params }) {
   const [activityRefreshKey, setActivityRefreshKey] = useState(0)
   const [viewDate, setViewDate] = useState(today())
   const [celebration, setCelebration] = useState(null)
+  const [pendingGroupSessions, setPendingGroupSessions] = useState([])
   const [completionFeedback, setCompletionFeedback] = useState({})
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine)
   const [objectives, setObjectives] = useState([])
@@ -265,6 +266,13 @@ function AthleteView({ params }) {
       for (const prog of progList) {
         const next = prog.sessions.find(s => !completionSet.has(s.id))
         if (next) { setOpenSessionId(next.id); break }
+      }
+
+      // Séances de groupe où le coach l'a marqué présent, à compléter (pas en vue coach)
+      if (!isCoachView) {
+        const pendingRes = await fetch(`/api/athlete-view/${token}/pending-group-sessions`, { cache: 'no-store' })
+        const pendingJson = await pendingRes.json().catch(() => ({}))
+        setPendingGroupSessions(pendingJson.pending || [])
       }
     }
     load()
@@ -901,6 +909,35 @@ function AthleteView({ params }) {
           records={celebration.records}
           onClose={() => setCelebration(null)}
         />
+      )}
+
+      {!celebration && pendingGroupSessions.length > 0 && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
+          <div style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            <div style={{ fontSize: 32, marginBottom: 8, textAlign: 'center' }}>🙋</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>
+              Tu as participé à une séance !
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16, textAlign: 'center' }}>
+              Ton coach t&apos;a marqué présent. Complète tes résultats pour que ça compte dans ton suivi.
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {pendingGroupSessions.map(p => (
+                <button key={p.runId} onClick={() => router.push(`/s/${token}?session=${p.ownSessionId}&focus=1`)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '12px 14px', cursor: 'pointer', textAlign: 'left' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--green)' }}>{p.title || 'Séance'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text3)' }}>{new Date(p.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</div>
+                  </div>
+                  <span style={{ color: 'var(--green)', fontWeight: 700 }}>→</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={() => setPendingGroupSessions([])} style={{ marginTop: 12, background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', padding: 6 }}>
+              Plus tard
+            </button>
+          </div>
+        </div>
       )}
 
       <AthleteSidePanel athlete={athlete} token={token} onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))} />

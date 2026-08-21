@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
@@ -141,19 +142,24 @@ export default function GroupsPage() {
             const isOpen = expandedId === g.id
             return (
               <div key={g.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-                <button onClick={() => setExpandedId(isOpen ? null : g.id)} style={{
-                  width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                  padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10,
-                }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{g.name}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                      {memberIds.size} membre{memberIds.size !== 1 ? 's' : ''}
-                      {memberIds.size > 0 && ` · ${athletes.filter(a => memberIds.has(a.id)).map(a => a.name).join(', ')}`}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px' }}>
+                  <button onClick={() => setExpandedId(isOpen ? null : g.id)} style={{
+                    flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                    display: 'flex', alignItems: 'center', gap: 10, padding: 0,
+                  }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{g.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                        {memberIds.size} membre{memberIds.size !== 1 ? 's' : ''}
+                        {memberIds.size > 0 && ` · ${athletes.filter(a => memberIds.has(a.id)).map(a => a.name).join(', ')}`}
+                      </div>
                     </div>
-                  </div>
-                  <span style={{ color: 'var(--text3)', fontSize: 13, flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
-                </button>
+                    <span style={{ color: 'var(--text3)', fontSize: 13, flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+                  </button>
+                  <Link href={`/groups/${g.id}`} style={{ flexShrink: 0, background: 'var(--green)', color: '#fff', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+                    Ouvrir →
+                  </Link>
+                </div>
 
                 {isOpen && (
                   <div style={{ borderTop: '1px solid var(--border)', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
