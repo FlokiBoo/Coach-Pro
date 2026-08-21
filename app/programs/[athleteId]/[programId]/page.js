@@ -167,7 +167,7 @@ function ProgramEditorPage({ params }) {
   const [actVideoSuggs, setActVideoSuggs] = useState({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [savedId, setSavedId] = useState(null)
+  const [savedIds, setSavedIds] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [layoutCols, setLayoutCols] = useState(1)
   const [historyExo, setHistoryExo] = useState(null)
@@ -664,9 +664,19 @@ function ProgramEditorPage({ params }) {
     await propagateSessionToClients(sessId, s.order_index ?? 0, sessFields, toInsert)
 
     setDirtySessionIds(prev => { const next = new Set(prev); next.delete(sessId); return next })
+    setSavedIds(prev => new Set(prev).add(sessId))
+    setTimeout(() => setSavedIds(prev => { const next = new Set(prev); next.delete(sessId); return next }), 2000)
+  }
+
+  // Sauvegarde la séance cliquée et, avec elle, toutes les autres séances qui ont des
+  // modifications en attente — un seul clic sur "Sauvegarder" suffit pour tout enregistrer.
+  const saveAllDirtySessions = async (primarySessId) => {
+    setSaving(true)
+    const idsToSave = [primarySessId, ...dirtySessionIds].filter((id, i, arr) => arr.indexOf(id) === i)
+    for (const id of idsToSave) {
+      await saveSession(id)
+    }
     setSaving(false)
-    setSavedId(sessId)
-    setTimeout(() => setSavedId(null), 2000)
   }
 
   const addSession = async () => {
@@ -1664,21 +1674,32 @@ function ProgramEditorPage({ params }) {
 
                     <SessionSummaryBlock exercises={s.exercises} />
 
-                    {/* Bouton sauvegarder la séance */}
-                    <button
-                      onClick={() => saveSession(s.id)}
-                      disabled={saving}
-                      style={{
-                        background: savedId === s.id ? '#DCFCE7' : 'var(--green)',
-                        color: savedId === s.id ? '#166534' : '#fff',
-                        border: savedId === s.id ? '1px solid #BBF7D0' : 'none',
-                        borderRadius: 'var(--r)', padding: '12px', fontSize: 14,
-                        fontWeight: 700, cursor: saving ? 'default' : 'pointer', width: '100%',
-                        transition: 'all .2s',
-                      }}
-                    >
-                      {saving && savedId !== s.id ? '…' : savedId === s.id ? '✓ Séance sauvegardée' : '💾 Sauvegarder la séance'}
-                    </button>
+                    {/* Bouton sauvegarder la séance — sauvegarde aussi les autres séances modifiées en attente */}
+                    {(() => {
+                      const otherDirtyCount = [...dirtySessionIds].filter(id => id !== s.id).length
+                      return (
+                        <button
+                          onClick={() => saveAllDirtySessions(s.id)}
+                          disabled={saving}
+                          style={{
+                            background: savedIds.has(s.id) ? '#DCFCE7' : 'var(--green)',
+                            color: savedIds.has(s.id) ? '#166534' : '#fff',
+                            border: savedIds.has(s.id) ? '1px solid #BBF7D0' : 'none',
+                            borderRadius: 'var(--r)', padding: '12px', fontSize: 14,
+                            fontWeight: 700, cursor: saving ? 'default' : 'pointer', width: '100%',
+                            transition: 'all .2s',
+                          }}
+                        >
+                          {saving && !savedIds.has(s.id)
+                            ? '…'
+                            : savedIds.has(s.id)
+                              ? '✓ Séance sauvegardée'
+                              : otherDirtyCount > 0
+                                ? `💾 Tout sauvegarder (${otherDirtyCount + 1} séances)`
+                                : '💾 Sauvegarder la séance'}
+                        </button>
+                      )
+                    })()}
                   </div>
                 )}
               </div>
