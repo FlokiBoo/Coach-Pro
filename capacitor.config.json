@@ -1,0 +1,9 @@
+{
+  "appId": "fr.coachproapp.app",
+  "appName": "CoachPro",
+  "webDir": "public",
+  "server": {
+    "url": "https://www.coachpro-app.fr",
+    "cleartext": false
+  }
+}
