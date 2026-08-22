@@ -940,7 +940,7 @@ function AthleteView({ params }) {
         </div>
       )}
 
-      <AthleteSidePanel athlete={athlete} token={token} onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))} />
+      <AthleteSidePanel athlete={athlete} token={token} onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))} onSexUpdate={s => setAthlete(a => ({ ...a, sex: s }))} />
       <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
     </div>
   )

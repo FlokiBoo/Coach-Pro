@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock, { estimate1RM, unitOf, formatPerformance } from './TrackedMovementsBlock'
+import BadgesBlock from './BadgesBlock'
 import PasswordSettingsModal from './PasswordSettingsModal'
 import MealPlannerWizard from './MealPlannerWizard'
 import { SUBSCRIPTION_TIERS } from '@/lib/subscriptionTiers'
@@ -41,7 +42,7 @@ function computeRecordEvents(entries) {
   return events.slice(0, 3)
 }
 
-export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
+export default function AthleteSidePanel({ athlete, token, onWeightUpdate, onSexUpdate }) {
   const [open, setOpen] = useState(false)
   const [editingWeight, setEditingWeight] = useState(false)
   const [weightVal, setWeightVal] = useState('')
@@ -135,6 +136,12 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
     setSaving(false)
   }
 
+  const saveSex = async (val) => {
+    if (!athlete) return
+    await supabase.from('athletes').update({ sex: val }).eq('id', athlete.id)
+    onSexUpdate?.(val)
+  }
+
   if (!athlete) return null
 
   return (
@@ -198,6 +205,19 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
                       <span style={{ fontSize: 12, color: 'var(--green)' }}>✏️</span>
                     </div>
                   )}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Sexe</div>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {[{ v: 'H', l: 'H' }, { v: 'F', l: 'F' }].map(o => (
+                      <button key={o.v} onClick={() => saveSex(o.v)} style={{
+                        flex: 1, padding: '5px 0', border: '1px solid ' + (athlete.sex === o.v ? 'var(--green)' : 'var(--border2)'),
+                        borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                        background: athlete.sex === o.v ? 'var(--green-light)' : 'var(--bg2)',
+                        color: athlete.sex === o.v ? 'var(--green)' : 'var(--text2)',
+                      }}>{o.l}</button>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -381,7 +401,11 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate }) {
             <button onClick={() => setShowMetrics(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
             <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>Metric</div>
           </div>
-          <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
+          <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>🏅 Badges de force</div>
+              <BadgesBlock athleteId={athlete.id} weight={athlete.weight} sex={athlete.sex} />
+            </div>
             <TrackedMovementsBlock athleteId={athlete.id} isCoach={false} />
           </div>
         </div>
