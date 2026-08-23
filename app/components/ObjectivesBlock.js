@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 
@@ -20,12 +20,16 @@ function timeRemaining(dateStr) {
   return `${diffDays} j · ${weeks} sem. · ${months} mois`
 }
 
-function progressPercent(createdAt, targetDate) {
-  const start = new Date(createdAt).getTime()
+// Échelle fixe (pas relative à la date de création, qui n'a rien à voir avec le début de la
+// préparation) : plus l'échéance est proche, plus la barre est remplie. Au-delà de l'horizon,
+// l'objectif est considéré "pas encore commencé" (barre vide) ; à J-0, elle est pleine.
+const PROGRESS_HORIZON_DAYS = 180
+
+function progressPercent(targetDate) {
   const end = new Date(targetDate + 'T00:00:00').getTime()
-  if (end <= start) return 100
-  const pct = ((Date.now() - start) / (end - start)) * 100
-  return Math.max(0, Math.min(100, pct))
+  const daysLeft = (end - Date.now()) / 86400000
+  if (daysLeft <= 0) return 100
+  return Math.max(0, Math.min(100, 100 * (1 - daysLeft / PROGRESS_HORIZON_DAYS)))
 }
 
 const PRIORITY_OPTIONS = [
@@ -67,7 +71,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({ text: '', target_date: '', priority: 2, emoji: '🎯' })
   const [saving, setSaving] = useState(false)
-  const inputRef = useRef(null)
+  const [showAddForm, setShowAddForm] = useState(false)
 
   const sorted = [...objectives].sort((a, b) => {
     if (!a.target_date && !b.target_date) return 0
@@ -87,7 +91,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
     if (data) setObjectives(prev => [...prev, data])
     setNewText(''); setNewDate(''); setNewPriority(2); setNewEmoji('🎯')
     setSaving(false)
-    inputRef.current?.focus()
+    setShowAddForm(false)
   }
 
   const startEdit = (o) => {
@@ -168,12 +172,12 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
                           <div style={{ height: 6, borderRadius: 20, background: 'rgba(255,255,255,0.6)', overflow: 'hidden' }}>
                             <div style={{
                               height: '100%', borderRadius: 20, background: style.bullet,
-                              width: `${progressPercent(obj.created_at, obj.target_date)}%`, transition: 'width 0.3s',
+                              width: `${progressPercent(obj.target_date)}%`, transition: 'width 0.3s',
                             }} />
                           </div>
                           <div style={{
                             position: 'absolute', top: 0, fontSize: 15, lineHeight: 1,
-                            left: `${progressPercent(obj.created_at, obj.target_date)}%`, transform: 'translate(-50%, -50%)',
+                            left: `${progressPercent(obj.target_date)}%`, transform: 'translate(-50%, -50%)',
                           }}>
                             {obj.emoji || '🎯'}
                           </div>
@@ -196,29 +200,42 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
         })}
 
         {/* Formulaire ajout */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: sorted.length > 0 ? 4 : 0 }}>
-          <input
-            ref={inputRef}
-            value={newText}
-            onChange={e => setNewText(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addObjective()}
-            placeholder="Ajouter un objectif…"
-            style={inputStyle}
-          />
-          <div style={{ display: 'flex', gap: 8 }}>
-            <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
-            <select value={newPriority} onChange={e => setNewPriority(parseInt(e.target.value))} style={{ ...inputStyle, width: 120 }}>
-              {PRIORITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {showAddForm ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: sorted.length > 0 ? 4 : 0 }}>
+            <input
+              autoFocus
+              value={newText}
+              onChange={e => setNewText(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addObjective()}
+              placeholder="Ajouter un objectif…"
+              style={inputStyle}
+            />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} style={{ ...inputStyle, flex: 1 }} />
+              <select value={newPriority} onChange={e => setNewPriority(parseInt(e.target.value))} style={{ ...inputStyle, width: 120 }}>
+                {PRIORITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
             <EmojiPicker value={newEmoji} onChange={setNewEmoji} />
-            <button onClick={addObjective} disabled={saving || !newText.trim()}
-              style={{ background: newText.trim() ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0, marginLeft: 'auto' }}>
-              {saving ? '…' : '+ Ajouter'}
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={() => { setShowAddForm(false); setNewText(''); setNewDate(''); setNewPriority(2); setNewEmoji('🎯') }}
+                style={{ background: 'none', border: '1px solid var(--border2)', color: 'var(--text3)', borderRadius: 'var(--r)', padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button onClick={addObjective} disabled={saving || !newText.trim()}
+                style={{ background: newText.trim() ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0, marginLeft: 'auto' }}>
+                {saving ? '…' : '+ Ajouter'}
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <button onClick={() => setShowAddForm(true)} style={{
+            marginTop: sorted.length > 0 ? 4 : 0, background: 'var(--bg2)', border: '1px dashed var(--border2)',
+            color: 'var(--text2)', borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+          }}>
+            + Ajouter un objectif
+          </button>
+        )}
       </div>
     </div>
   )
