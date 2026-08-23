@@ -87,20 +87,21 @@ export async function GET(request, { params }) {
     : (progs || [])
 
   const hasExercises = (gatedProgs || []).some(p => (p.program_sessions || []).some(s => (s.program_exercises || []).some(e => e.name)))
-  let movieMap = {}, musclesMap = {}
+  let movieMap = {}, musclesMap = {}, focusGroupsMap = {}
   if (hasExercises) {
     // Bibliothèque récupérée en entier (petit volume) plutôt que filtrée par .in('name', …), qui
     // est sensible à la casse côté Postgres et raterait silencieusement un nom mal accordé.
-    const { data: movs } = await supabaseAdmin.from('movements').select('name, youtube_url, muscles')
+    const { data: movs } = await supabaseAdmin.from('movements').select('name, youtube_url, muscles, focus_groups')
     ;(movs || []).forEach(m => {
       movieMap[m.name.trim().toLowerCase()] = m.youtube_url
       if (m.muscles) musclesMap[m.name.trim().toLowerCase()] = m.muscles
+      if (m.focus_groups) focusGroupsMap[m.name.trim().toLowerCase()] = m.focus_groups
     })
   }
 
   return NextResponse.json(
     {
-      athlete, programs: gatedProgs, completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap,
+      athlete, programs: gatedProgs, completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap, focusGroupsMap,
       objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [],
       raceKnown, trackedMovements, isCoach, circuitLogs: circuitLogsData || [],
     },

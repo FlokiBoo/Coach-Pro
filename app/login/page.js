@@ -6,13 +6,25 @@ import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const router = useRouter()
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState('login') // 'login' | 'reset'
+  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'reset'
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  const redirectAfterAuth = async (userId) => {
+    const { data: coach } = await supabase.from('coaches').select('id').eq('id', userId).single()
+    if (coach) { router.push('/'); return }
+
+    const { data: athlete } = await supabase.from('athletes').select('token').eq('auth_user_id', userId).single()
+    router.push(athlete?.token ? `/s/${athlete.token}` : '/')
+  }
+
+  const switchMode = (m) => { setMode(m); setError(''); setSuccess('') }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -30,31 +42,25 @@ export default function LoginPage() {
       return
     }
 
-    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
-    if (err) { setError('Email ou mot de passe incorrect.'); setLoading(false); return }
+    if (mode === 'signup') {
+      if (!acceptedTerms) { setError('Merci d\'accepter les CGU et la politique de confidentialité.'); setLoading(false); return }
+      const res = await fetch('/api/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(json.error || 'Erreur lors de la création du compte.'); setLoading(false); return }
 
-    const { data: coach } = await supabase
-      .from('coaches')
-      .select('id')
-      .eq('id', data.user.id)
-      .single()
-
-    if (coach) {
-      router.push('/')
+      const { data, error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+      if (signInErr) { setError(signInErr.message); setLoading(false); return }
+      await redirectAfterAuth(data.user.id)
       return
     }
 
-    const { data: athlete } = await supabase
-      .from('athletes')
-      .select('token')
-      .eq('auth_user_id', data.user.id)
-      .single()
-
-    if (athlete?.token) {
-      router.push(`/s/${athlete.token}`)
-    } else {
-      router.push('/')
-    }
+    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
+    if (err) { setError('Email ou mot de passe incorrect.'); setLoading(false); return }
+    await redirectAfterAuth(data.user.id)
   }
 
   return (
@@ -66,15 +72,51 @@ export default function LoginPage() {
         width: '100%', maxWidth: 380, background: 'var(--bg)',
         border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '32px 28px'
       }}>
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🏃</div>
-          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 24, fontWeight: 700, letterSpacing: '0.5px' }}>OSTRYK</div>
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-ostryk-transparent.png" alt="OSTRYK" style={{ width: 130, height: 'auto', marginBottom: 4 }} />
           <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 4 }}>
-            {mode === 'login' ? 'Connexion à ton espace' : 'Réinitialiser le mot de passe'}
+            {mode === 'login' && 'Connexion à ton espace'}
+            {mode === 'signup' && 'Crée ton compte'}
+            {mode === 'reset' && 'Réinitialiser le mot de passe'}
           </div>
         </div>
 
+        {mode !== 'reset' && (
+          <div style={{ display: 'flex', border: '1px solid var(--border2)', borderRadius: 'var(--rl)', padding: 3, marginBottom: 20 }}>
+            <button type="button" onClick={() => switchMode('login')} style={{
+              flex: 1, padding: '9px 0', border: 'none', borderRadius: 'var(--r)', cursor: 'pointer',
+              fontSize: 13, fontWeight: 700, background: mode === 'login' ? 'var(--green)' : 'none',
+              color: mode === 'login' ? '#fff' : 'var(--text3)',
+            }}>
+              Se connecter
+            </button>
+            <button type="button" onClick={() => switchMode('signup')} style={{
+              flex: 1, padding: '9px 0', border: 'none', borderRadius: 'var(--r)', cursor: 'pointer',
+              fontSize: 13, fontWeight: 700, background: mode === 'signup' ? 'var(--green)' : 'none',
+              color: mode === 'signup' ? '#fff' : 'var(--text3)',
+            }}>
+              Créer un compte
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {mode === 'signup' && (
+            <input
+              type="text"
+              placeholder="Nom complet"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              required
+              autoComplete="name"
+              style={{
+                padding: '12px 14px', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+                fontSize: 15, outline: 'none', background: 'var(--bg2)', color: 'var(--text)'
+              }}
+            />
+          )}
+
           <input
             type="email"
             placeholder="Email"
@@ -88,7 +130,7 @@ export default function LoginPage() {
             }}
           />
 
-          {mode === 'login' && (
+          {mode !== 'reset' && (
             <div style={{ position: 'relative' }}>
               <input
                 type={showPwd ? 'text' : 'password'}
@@ -96,7 +138,8 @@ export default function LoginPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                autoComplete="current-password"
+                minLength={mode === 'signup' ? 6 : undefined}
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 style={{
                   width: '100%', boxSizing: 'border-box',
                   padding: '12px 44px 12px 14px', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
@@ -112,11 +155,22 @@ export default function LoginPage() {
 
           {mode === 'login' && (
             <div style={{ textAlign: 'right' }}>
-              <button type="button" onClick={() => { setMode('reset'); setError(''); setSuccess('') }}
+              <button type="button" onClick={() => switchMode('reset')}
                 style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>
                 Mot de passe oublié ?
               </button>
             </div>
+          )}
+
+          {mode === 'signup' && (
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: 'var(--text3)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)}
+                style={{ marginTop: 2, flexShrink: 0 }} />
+              <span>
+                J&apos;accepte les <a href="/cgu" target="_blank" style={{ color: 'var(--green)' }}>CGU</a> et la{' '}
+                <a href="/confidentialite" target="_blank" style={{ color: 'var(--green)' }}>politique de confidentialité</a>.
+              </span>
+            </label>
           )}
 
           {error && (
@@ -135,11 +189,11 @@ export default function LoginPage() {
               background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)',
               padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer', marginTop: 4
             }}>
-            {loading ? '…' : mode === 'login' ? 'Se connecter' : 'Envoyer le lien'}
+            {loading ? '…' : mode === 'login' ? 'Se connecter' : mode === 'signup' ? 'Créer mon compte' : 'Envoyer le lien'}
           </button>
 
           {mode === 'reset' && (
-            <button type="button" onClick={() => { setMode('login'); setError(''); setSuccess('') }}
+            <button type="button" onClick={() => switchMode('login')}
               style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', textDecoration: 'underline', textAlign: 'center' }}>
               ← Retour à la connexion
             </button>

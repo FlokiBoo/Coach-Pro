@@ -158,6 +158,7 @@ function ProgramEditorPage({ params }) {
   const [program, setProgram] = useState(null)
   const [sessions, setSessions] = useState([])
   const [movementMusclesMap, setMovementMusclesMap] = useState({})
+  const [movementFocusGroupsMap, setMovementFocusGroupsMap] = useState({})
   const [openId, setOpenId] = useState(openFromUrl)
   const [suggestions, setSuggestions] = useState({})
   const [videoInputKey, setVideoInputKey] = useState(null)
@@ -285,11 +286,14 @@ function ProgramEditorPage({ params }) {
       if (hasExercises) {
         // Bibliothèque récupérée en entier (petit volume) plutôt que filtrée par .in('name', …), qui
         // est sensible à la casse côté Postgres et raterait silencieusement un nom mal accordé.
-        const { data: movs } = await supabase.from('movements').select('name, youtube_url, muscles')
+        const { data: movs } = await supabase.from('movements').select('name, youtube_url, muscles, focus_groups')
         ;(movs || []).forEach(m => { movieMap[m.name.trim().toLowerCase()] = m.youtube_url })
         const musclesMap = {}
         ;(movs || []).forEach(m => { if (m.muscles) musclesMap[m.name.trim().toLowerCase()] = m.muscles })
         setMovementMusclesMap(musclesMap)
+        const focusMap = {}
+        ;(movs || []).forEach(m => { if (m.focus_groups) focusMap[m.name.trim().toLowerCase()] = m.focus_groups })
+        setMovementFocusGroupsMap(focusMap)
       }
 
       const loaded = (sess || []).map(s => ({
@@ -1456,7 +1460,8 @@ function ProgramEditorPage({ params }) {
                               )
                             )}
                             {exo.name.trim() && (() => {
-                              const autoGroups = parseMusclesFromText(movementMusclesMap[exo.name.trim().toLowerCase()] || '')
+                              const movementFocus = movementFocusGroupsMap[exo.name.trim().toLowerCase()]
+                              const autoGroups = movementFocus ? movementFocus.split(',').filter(Boolean) : parseMusclesFromText(movementMusclesMap[exo.name.trim().toLowerCase()] || '')
                               const hasFocus = exo.focus_muscles || autoGroups.length > 0
                               return (
                                 <button onClick={() => setFocusPickerKey(focusPickerKey === exo._key ? null : exo._key)}
@@ -1524,7 +1529,9 @@ function ProgramEditorPage({ params }) {
                             if (focusPickerKey === exo._key) return null
                             const manualGroups = exo.focus_muscles ? exo.focus_muscles.split(',') : []
                             const isAuto = manualGroups.length === 0
-                            const groups = isAuto ? parseMusclesFromText(movementMusclesMap[exo.name.trim().toLowerCase()] || '') : manualGroups
+                            const movementFocus = movementFocusGroupsMap[exo.name.trim().toLowerCase()]
+                            const autoGroups = movementFocus ? movementFocus.split(',').filter(Boolean) : parseMusclesFromText(movementMusclesMap[exo.name.trim().toLowerCase()] || '')
+                            const groups = isAuto ? autoGroups : manualGroups
                             if (groups.length === 0) return null
                             return (
                               <div style={{ marginBottom: 6, background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 20, padding: '4px 10px', display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#B91C1C' }}>
@@ -1540,12 +1547,23 @@ function ProgramEditorPage({ params }) {
                               </div>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                                 {MUSCLE_GROUPS.map(g => {
-                                  const current = exo.focus_muscles ? exo.focus_muscles.split(',') : []
+                                  const movementFocus = movementFocusGroupsMap[exo.name.trim().toLowerCase()]
+                                  const current = exo.focus_muscles
+                                    ? exo.focus_muscles.split(',').filter(Boolean)
+                                    : (movementFocus ? movementFocus.split(',').filter(Boolean) : parseMusclesFromText(movementMusclesMap[exo.name.trim().toLowerCase()] || ''))
                                   const active = current.includes(g.key)
                                   return (
                                     <button key={g.key} onClick={() => {
                                       const next = active ? current.filter(k => k !== g.key) : [...current, g.key]
-                                      updateExo(s.id, exo._key, 'focus_muscles', next.join(','))
+                                      const name = exo.name.trim()
+                                      const value = next.length ? next.join(',') : null
+                                      if (name) {
+                                        supabase.from('movements').upsert({ name, focus_groups: value }, { onConflict: 'name' })
+                                        setMovementFocusGroupsMap(prev => ({ ...prev, [name.toLowerCase()]: value }))
+                                      }
+                                      // Le focus vit désormais sur le mouvement (vaut pour toutes ses utilisations) :
+                                      // on efface l'éventuel focus posé uniquement sur cet exercice.
+                                      updateExo(s.id, exo._key, 'focus_muscles', '')
                                     }}
                                       style={{
                                         background: active ? '#FEF2F2' : 'var(--bg)', border: `1px solid ${active ? '#FCA5A5' : 'var(--border2)'}`,

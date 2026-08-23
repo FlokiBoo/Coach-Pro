@@ -65,6 +65,9 @@ export async function POST(request, { params }) {
 
   const { data: template } = await supabaseAdmin.from('programs').select('*').eq('id', programId).is('athlete_id', null).eq('available_to_clients', true).single()
   if (!template) return NextResponse.json({ error: 'programme introuvable ou non disponible' }, { status: 404 })
+  if (template.coach_id !== null && template.coach_id !== athlete.coach_id) {
+    return NextResponse.json({ error: 'programme introuvable ou non disponible' }, { status: 404 })
+  }
 
   const { data: sessions } = await supabaseAdmin
     .from('program_sessions')

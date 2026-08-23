@@ -214,7 +214,7 @@ function AthleteView({ params }) {
         return
       }
       if (!res.ok) return
-      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets, raceKnown: rk, trackedMovements: tms, isCoach: coachFlag, circuitLogs: cLogs } = await res.json()
+      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, focusGroupsMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets, raceKnown: rk, trackedMovements: tms, isCoach: coachFlag, circuitLogs: cLogs } = await res.json()
       setAthlete(ath)
       setObjectives(objs || [])
       setNoteBlocks(blocks || [])
@@ -250,7 +250,7 @@ function AthleteView({ params }) {
           .map(s => ({
             ...s,
             exercises: [...(s.program_exercises || [])].sort((a, b) => a.order_index - b.order_index)
-              .map(e => ({ ...e, video_url: (movieMap || {})[e.name?.trim().toLowerCase()] ?? e.video_url, movement_muscles: (musclesMap || {})[e.name?.trim().toLowerCase()] || null }))
+              .map(e => ({ ...e, video_url: (movieMap || {})[e.name?.trim().toLowerCase()] ?? e.video_url, movement_muscles: (musclesMap || {})[e.name?.trim().toLowerCase()] || null, movement_focus_groups: (focusGroupsMap || {})[e.name?.trim().toLowerCase()] || null }))
           }))
       }))
       setPrograms(progList)
@@ -482,9 +482,13 @@ function AthleteView({ params }) {
       if (exerciseNames.size > 0) {
         // Bibliothèque récupérée en entier plutôt que filtrée par .in('name', …), sensible à la
         // casse côté Postgres — sinon un nom mal accordé (ex. casse différente) est raté silencieusement.
-        const { data: movData } = await supabase.from('movements').select('name, muscles')
-        const allText = (movData || []).filter(m => exerciseNames.has(m.name.trim().toLowerCase())).map(m => m.muscles || '').join(', ')
-        muscles = parseMusclesFromText(allText)
+        const { data: movData } = await supabase.from('movements').select('name, muscles, focus_groups')
+        const matched = (movData || []).filter(m => exerciseNames.has(m.name.trim().toLowerCase()))
+        const withFocus = matched.filter(m => m.focus_groups)
+        const withoutFocus = matched.filter(m => !m.focus_groups)
+        const fromFocus = withFocus.flatMap(m => m.focus_groups.split(',').filter(Boolean))
+        const fromText = parseMusclesFromText(withoutFocus.map(m => m.muscles || '').join(', '))
+        muscles = [...new Set([...fromFocus, ...fromText])]
       }
       // Cible manuellement choisie sur un exercice (picker "Focus") : toujours reprise dans le résumé,
       // même si le texte de la bibliothèque de mouvements ne mentionne pas ce muscle.
@@ -1242,13 +1246,24 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
   const [focusPicker, setFocusPicker] = useState(null) // exercise id being edited
   const [viewingFocus, setViewingFocus] = useState(null) // zones array being viewed
   const [focusOverrides, setFocusOverrides] = useState({})
+  const [focusGroupOverrides, setFocusGroupOverrides] = useState({}) // focus du mouvement (par nom, lowercase)
   const [showTimer, setShowTimer] = useState(false)
   const provisionedSetsRef = useRef(new Set())
 
-  const saveFocusMuscles = async (exerciseId, zones) => {
+  const saveFocusMuscles = async (exerciseId, movementName, zones) => {
+    if (!isCoach) { setFocusPicker(null); return }
     const value = zones.length ? zones.join(',') : null
-    await supabase.from('program_exercises').update({ focus_muscles: value }).eq('id', exerciseId)
-    setFocusOverrides(prev => ({ ...prev, [exerciseId]: value }))
+    const name = movementName?.trim()
+    // Écriture côté serveur (contrôle isCoach) : le focus est porté par le mouvement et vaut
+    // pour toutes ses utilisations, actuelles et futures — le sportif ne doit jamais pouvoir l'écrire.
+    const res = await fetch(`/api/athlete-view/${token}/focus-groups`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ exerciseId, movementName: name, zones }),
+    })
+    if (!res.ok) { setFocusPicker(null); return }
+    if (name) setFocusGroupOverrides(prev => ({ ...prev, [name.toLowerCase()]: value }))
+    setFocusOverrides(prev => ({ ...prev, [exerciseId]: null }))
     setFocusPicker(null)
   }
   const exos = session.exercises.filter(e => e.name)
@@ -1350,7 +1365,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
             </div>
           )}
           {session.coach_notes && (
-            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, color: 'var(--text2)', fontStyle: 'italic', lineHeight: 1.6, borderLeft: '3px solid var(--green)' }}>
+            <div className="font-editorial" style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, color: 'var(--text2)', fontStyle: 'italic', lineHeight: 1.6, borderLeft: '3px solid var(--green)' }}>
               {session.coach_notes}
             </div>
           )}
@@ -1420,7 +1435,10 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 const focusValue = focusOverrides[exo.id] !== undefined ? focusOverrides[exo.id] : exo.focus_muscles
                 const manualZones = focusValue ? focusValue.split(',').filter(Boolean) : []
                 const isAuto = manualZones.length === 0
-                const zones = isAuto ? parseMusclesFromText(exo.movement_muscles || '') : manualZones
+                const movementKey = exo.name?.trim().toLowerCase()
+                const movementFocus = focusGroupOverrides[movementKey] !== undefined ? focusGroupOverrides[movementKey] : exo.movement_focus_groups
+                const autoZones = movementFocus ? movementFocus.split(',').filter(Boolean) : parseMusclesFromText(exo.movement_muscles || '')
+                const zones = isAuto ? autoZones : manualZones
                 if (zones.length === 0 && !isCoach) return null
                 return (
                   <div style={{ marginBottom: 8 }}>
@@ -1668,11 +1686,16 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
         <FocusPicker
           initial={(() => {
             const exo = session.exercises.find(e => e.id === focusPicker)
-            const val = focusOverrides[focusPicker] !== undefined ? focusOverrides[focusPicker] : exo?.focus_muscles
-            return val ? val.split(',').filter(Boolean) : []
+            if (!exo) return []
+            const manualVal = focusOverrides[focusPicker] !== undefined ? focusOverrides[focusPicker] : exo.focus_muscles
+            if (manualVal) return manualVal.split(',').filter(Boolean)
+            const movementKey = exo.name?.trim().toLowerCase()
+            const movementFocus = focusGroupOverrides[movementKey] !== undefined ? focusGroupOverrides[movementKey] : exo.movement_focus_groups
+            if (movementFocus) return movementFocus.split(',').filter(Boolean)
+            return parseMusclesFromText(exo.movement_muscles || '')
           })()}
           onCancel={() => setFocusPicker(null)}
-          onSave={zones => saveFocusMuscles(focusPicker, zones)}
+          onSave={zones => saveFocusMuscles(focusPicker, session.exercises.find(e => e.id === focusPicker)?.name, zones)}
         />
       )}
 
@@ -1858,7 +1881,7 @@ function TipsButton() {
             ) : selected ? (
               <div>
                 {(selected.content || !selected.diagram) && (
-                  <div style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: selected.diagram ? 14 : 0 }}>
+                  <div className="font-editorial" style={{ fontSize: 14, color: 'var(--text2)', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: selected.diagram ? 14 : 0 }}>
                     {selected.content || 'Pas encore d\'explication pour ce tip.'}
                   </div>
                 )}

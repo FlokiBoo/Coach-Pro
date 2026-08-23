@@ -13,7 +13,10 @@ export async function proxy(request) {
     pathname.startsWith('/s/') ||
     pathname.startsWith('/api/athlete-view') ||
     pathname.startsWith('/api/manifest') ||
-    pathname.startsWith('/api/stripe/webhook')
+    pathname.startsWith('/api/stripe/webhook') ||
+    pathname.startsWith('/api/signup') ||
+    pathname.startsWith('/confidentialite') ||
+    pathname.startsWith('/cgu')
   ) {
     return NextResponse.next()
   }
