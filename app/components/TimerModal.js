@@ -67,15 +67,16 @@ function useBeeper() {
   return { beep, unlock: getCtx }
 }
 
-export default function TimerModal({ onClose }) {
-  const [type, setType] = useState('EMOM')
-  const [screen, setScreen] = useState('setup') // 'setup' | 'run'
+export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
+  const hasPreset = presetSeconds != null && presetSeconds > 0
+  const [type, setType] = useState(hasPreset ? 'AMRAP' : 'EMOM')
+  const [screen, setScreen] = useState(hasPreset ? 'run' : 'setup') // 'setup' | 'run'
   const [running, setRunning] = useState(false)
   const [, forceTick] = useState(0)
 
   const [emomRoundSec, setEmomRoundSec] = useState(60)
   const [emomRounds, setEmomRounds] = useState(10)
-  const [amrapSec, setAmrapSec] = useState(720)
+  const [amrapSec, setAmrapSec] = useState(hasPreset ? presetSeconds : 720)
   const [tabataWork, setTabataWork] = useState(20)
   const [tabataRest, setTabataRest] = useState(10)
   const [tabataRounds, setTabataRounds] = useState(8)
@@ -137,6 +138,13 @@ export default function TimerModal({ onClose }) {
     setRunning(true)
     setScreen('run')
   }
+  // Lancement direct (ex: clic sur la pastille "récup" d'un exercice) : on démarre tout de
+  // suite sur le temps proposé, sans passer par l'écran de configuration.
+  useEffect(() => {
+    if (hasPreset) start()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const pause = () => {
     elapsedBaseRef.current = getElapsed()
     runStartRef.current = null
@@ -168,7 +176,7 @@ export default function TimerModal({ onClose }) {
     if (type === 'AMRAP') {
       const remaining = amrapSec - elapsed
       if (remaining <= 0) return { finished: true, remaining: 0, phaseLabel: 'Terminé' }
-      return { finished: false, remaining, phaseLabel: 'AMRAP', phaseKey: 'amrap' }
+      return { finished: false, remaining, phaseLabel: hasPreset ? (presetLabel || 'RÉCUP') : 'AMRAP', phaseKey: 'amrap' }
     }
     if (type === 'CUSTOM') {
       const segments = buildCustomSegments(customSteps, customRounds, customRestBetween)
@@ -364,7 +372,7 @@ export default function TimerModal({ onClose }) {
         </div>
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, gap: 10 }}>
-          <div style={{ fontSize: 13, color: accent, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{type === 'CUSTOM' ? 'PERSO' : type}</div>
+          <div style={{ fontSize: 13, color: accent, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{hasPreset ? 'CHRONO' : type === 'CUSTOM' ? 'PERSO' : type}</div>
           <div style={{ fontSize: 15, color: 'var(--text3)', fontWeight: 600 }}>{state.phaseLabel}</div>
           <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 76, fontWeight: 700, color: accent, margin: '10px 0' }}>
             {fmt(state.remaining)}

@@ -39,6 +39,31 @@ function computeLabels(exercises) {
   return labels
 }
 
+// Convertit un temps de récup écrit librement par le coach ("90s", "2min", "1min30", "2-3min", "60"…)
+// en secondes, pour pouvoir lancer un chrono en un clic. Un nombre seul est traité comme des
+// secondes (aligné sur les valeurs réellement saisies : "60"/"90"/"180" à côté de "60s"/"90s"),
+// une plage sans unité ("2-3") est traitée en minutes (le "min" est souvent omis dans ce cas).
+function parseRestSeconds(raw) {
+  if (!raw) return null
+  const s = raw.toString().trim().toLowerCase().replace(/\s+/g, '').replace(',', '.')
+
+  const range = s.match(/^(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)(min|m|sec|s)?$/)
+  if (range) {
+    const avg = (parseFloat(range[1]) + parseFloat(range[2])) / 2
+    const unit = range[3]
+    return Math.round(unit === 'sec' || unit === 's' ? avg : avg * 60)
+  }
+  const minSec = s.match(/^(\d+(?:\.\d+)?)(?:min|m)(\d+)?$/)
+  if (minSec) return Math.round(parseFloat(minSec[1]) * 60 + (minSec[2] ? parseInt(minSec[2]) : 0))
+  const sec = s.match(/^(\d+(?:\.\d+)?)(?:sec|s)$/)
+  if (sec) return Math.round(parseFloat(sec[1]))
+  const colon = s.match(/^(\d+):(\d{1,2})$/)
+  if (colon) return parseInt(colon[1]) * 60 + parseInt(colon[2])
+  const bare = s.match(/^(\d+(?:\.\d+)?)$/)
+  if (bare) return Math.round(parseFloat(bare[1]))
+  return null
+}
+
 function getSupersetFlow(exos, ei, labels) {
   const exo = exos[ei]
   if (!exo.superset_group) return null
@@ -1247,7 +1272,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
   const [viewingFocus, setViewingFocus] = useState(null) // zones array being viewed
   const [focusOverrides, setFocusOverrides] = useState({})
   const [focusGroupOverrides, setFocusGroupOverrides] = useState({}) // focus du mouvement (par nom, lowercase)
-  const [showTimer, setShowTimer] = useState(false)
+  const [showTimer, setShowTimer] = useState(null) // null | { seconds, label }
   const provisionedSetsRef = useRef(new Set())
 
   const saveFocusMuscles = async (exerciseId, movementName, zones) => {
@@ -1425,7 +1450,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                   <VideoButton url={exo.video_url} label="▶"
                     style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0 }} />
                 )}
-                <button onClick={() => setShowTimer(true)}
+                <button onClick={() => setShowTimer({})}
                   style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
                   ⏱
                 </button>
@@ -1502,7 +1527,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 exo.sets && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: exo.note ? 6 : 0 }}>
                     <Pill value={exo.sets} label="action" />
-                    {exo.rest && <Pill value={exo.rest} label="repos" color="#EFF6FF" textColor="#1D4ED8" />}
+                    {exo.rest && <Pill value={exo.rest} label="repos" color="#EFF6FF" textColor="#1D4ED8" onClick={() => setShowTimer({ seconds: parseRestSeconds(exo.rest), label: 'RÉCUP' })} />}
                   </div>
                 )
               ) : (exo.sets || exo.reps || exo.kg || exo.rest) && (
@@ -1510,7 +1535,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                   {exo.sets && <Pill value={exo.sets} label="séries" />}
                   {exo.reps && <Pill value={exo.reps} label="reps" />}
                   {exo.kg && <Pill value={`${exo.kg} kg`} />}
-                  {exo.rest && <Pill value={exo.rest} label="récup" color="#EFF6FF" textColor="#1D4ED8" />}
+                  {exo.rest && <Pill value={exo.rest} label="récup" color="#EFF6FF" textColor="#1D4ED8" onClick={() => setShowTimer({ seconds: parseRestSeconds(exo.rest), label: 'RÉCUP' })} />}
                 </div>
               )}
               {exo.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>{exo.note}</div>}
@@ -1703,7 +1728,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
         <FocusBodyDiagram groups={viewingFocus} onClose={() => setViewingFocus(null)} />
       )}
 
-      {showTimer && <TimerModal onClose={() => setShowTimer(false)} />}
+      {showTimer && <TimerModal onClose={() => setShowTimer(null)} presetSeconds={showTimer.seconds} presetLabel={showTimer.label} />}
     </div>
   )
 }
@@ -1829,10 +1854,13 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
   )
 }
 
-function Pill({ value, label, color, textColor }) {
+function Pill({ value, label, color, textColor, onClick }) {
   return (
-    <div style={{ background: color || 'var(--green-light)', color: textColor || 'var(--green)', borderRadius: 20, padding: '3px 10px', fontSize: 13, fontWeight: 700 }}>
-      {value}{label ? ` ${label}` : ''}
+    <div onClick={onClick} style={{
+      background: color || 'var(--green-light)', color: textColor || 'var(--green)', borderRadius: 20,
+      padding: '3px 10px', fontSize: 13, fontWeight: 700, cursor: onClick ? 'pointer' : 'default',
+    }}>
+      {onClick ? '⏱ ' : ''}{value}{label ? ` ${label}` : ''}
     </div>
   )
 }
