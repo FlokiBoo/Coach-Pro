@@ -26,8 +26,7 @@ export default function ProgramsPage() {
   const [assignGroupId, setAssignGroupId] = useState(null)
   const [assigning, setAssigning] = useState(false)
   const [assignDone, setAssignDone] = useState(false)
-  const [categoryFilter, setCategoryFilter] = useState([])
-  const [showCategoryFilter, setShowCategoryFilter] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState('') // '' = Tous
   const [groups, setGroups] = useState([])
 
   useEffect(() => {
@@ -131,10 +130,6 @@ export default function ProgramsPage() {
       setSelectedIds(prev => [...new Set([...prev, ...memberIds])])
       setAssignGroupId(g.id)
     }
-  }
-
-  const toggleCategoryFilter = (cat) => {
-    setCategoryFilter(prev => prev.includes(cat) ? prev.filter(x => x !== cat) : [...prev, cat])
   }
 
   const assignProgram = async () => {
@@ -274,7 +269,7 @@ export default function ProgramsPage() {
           ) : (() => {
             const allTemplates = programs.filter(p => !p.athlete_id)
             const allCategories = [...new Set(allTemplates.map(p => p.category).filter(Boolean))].sort()
-            const templates = categoryFilter.length === 0 ? allTemplates : allTemplates.filter(p => categoryFilter.includes(p.category))
+            const templates = categoryFilter === '' ? allTemplates : allTemplates.filter(p => p.category === categoryFilter)
             const renderProgram = (p) => {
               const href = p.athlete_id ? `/programs/${p.athlete_id}/${p.id}` : `/programs/templates/${p.id}`
               return (
@@ -315,40 +310,33 @@ export default function ProgramsPage() {
             return (
               <>
                 {allTemplates.length > 0 && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px', position: 'relative' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1 }}>📋 Templates</div>
-                    {allCategories.length > 0 && (
-                      <>
-                        <button onClick={() => setShowCategoryFilter(v => !v)} style={{
-                          background: categoryFilter.length ? 'var(--green-light)' : 'var(--bg)',
-                          color: categoryFilter.length ? 'var(--green)' : 'var(--text2)',
-                          border: '1px solid ' + (categoryFilter.length ? 'var(--green)' : 'var(--border2)'),
-                          borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                        }}>
-                          🏷 Catégories{categoryFilter.length > 0 ? ` (${categoryFilter.length})` : ''}
-                        </button>
-                        {showCategoryFilter && (
-                          <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: 6, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,.15)', zIndex: 50, padding: 10, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                            {allCategories.map(cat => (
-                              <label key={cat} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                                <input type="checkbox" checked={categoryFilter.includes(cat)} onChange={() => toggleCategoryFilter(cat)} style={{ accentColor: 'var(--green)', width: 15, height: 15 }} />
-                                {cat}
-                              </label>
-                            ))}
-                            {categoryFilter.length > 0 && (
-                              <button onClick={() => setCategoryFilter([])} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 0 0', textAlign: 'left' }}>
-                                Réinitialiser
-                              </button>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 2px' }}>📋 Templates</div>
+                )}
+                {allCategories.length > 0 && (
+                  <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+                    <button onClick={() => setCategoryFilter('')} style={{
+                      flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                      background: categoryFilter === '' ? 'var(--green)' : 'var(--bg2)',
+                      color: categoryFilter === '' ? '#fff' : 'var(--text2)',
+                      fontSize: 13, fontWeight: 700,
+                    }}>
+                      Tous
+                    </button>
+                    {allCategories.map(cat => (
+                      <button key={cat} onClick={() => setCategoryFilter(cat)} style={{
+                        flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                        background: categoryFilter === cat ? 'var(--green)' : 'var(--bg2)',
+                        color: categoryFilter === cat ? '#fff' : 'var(--text2)',
+                        fontSize: 13, fontWeight: 700,
+                      }}>
+                        {cat}
+                      </button>
+                    ))}
                   </div>
                 )}
-                {templates.length === 0 && categoryFilter.length > 0 && (
+                {templates.length === 0 && categoryFilter !== '' && (
                   <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '20px', fontSize: 13 }}>
-                    Aucun template dans {categoryFilter.length > 1 ? 'ces catégories' : 'cette catégorie'}
+                    Aucun template dans cette catégorie
                   </div>
                 )}
                 {templates.map(renderProgram)}
