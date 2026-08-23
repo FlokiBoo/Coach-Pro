@@ -192,7 +192,7 @@ export default function Home() {
           position: 'sticky', top: 0, zIndex: 10
         }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 21, fontWeight: 700 }}>TORVYX</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 21, fontWeight: 700 }}>OSTRYK</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>
               {athletes.length} sportif{athletes.length !== 1 ? 's' : ''}
             </div>
