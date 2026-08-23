@@ -7,7 +7,7 @@ const cinzel = Cinzel({ subsets: ["latin"], weight: ["400", "600", "700", "900"]
 const merriweather = Merriweather({ subsets: ["latin"], weight: ["300", "400", "700", "900"], style: ["normal", "italic"], variable: "--font-merriweather" });
 
 export const metadata = {
-  title: "CoachPro",
+  title: "TORVYX",
   description: "Gestion de programmes sportifs",
   manifest: "/manifest.json",
 };
@@ -21,7 +21,7 @@ export default function RootLayout({ children }) {
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="apple-mobile-web-app-title" content="CoachPro" />
+        <meta name="apple-mobile-web-app-title" content="TORVYX" />
         <link rel="apple-touch-icon" href="/icon.svg" />
       </head>
       <body>

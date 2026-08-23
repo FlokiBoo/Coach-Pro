@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">CoachPro</string>
-    <string name="title_activity_main">CoachPro</string>
+    <string name="app_name">TORVYX</string>
+    <string name="title_activity_main">TORVYX</string>
     <string name="package_name">fr.coachproapp.app</string>
     <string name="custom_url_scheme">fr.coachproapp.app</string>
 </resources>

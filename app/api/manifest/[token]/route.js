@@ -4,7 +4,7 @@ export async function GET(request, { params }) {
   const { token } = await params
 
   const manifest = {
-    name: 'CoachPro',
+    name: 'TORVYX',
     short_name: 'Ma séance',
     start_url: `/s/${token}`,
     scope: `/s/${token}`,

@@ -137,7 +137,7 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
       {/* Header sidebar */}
       <div style={{ padding: '16px 12px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 16, marginBottom: 2 }}>CoachPro</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 16, marginBottom: 2 }}>TORVYX</div>
           <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'capitalize' }}>
             {formatDateShort(date)}
           </div>

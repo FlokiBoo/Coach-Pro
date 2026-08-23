@@ -12,7 +12,7 @@ import {
 } from '@/lib/torqueTests'
 
 const ALL_QUESTIONS = PSYCH_QUESTIONNAIRE.flatMap(b => b.questions)
-const ACCENT = '#1F9D6B' // vert CoachPro
+const ACCENT = '#1F9D6B' // vert accent
 
 function polarPoint(cx, cy, r, angleDeg) {
   const rad = (angleDeg - 90) * (Math.PI / 180)

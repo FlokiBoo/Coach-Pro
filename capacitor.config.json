@@ -1,6 +1,6 @@
 {
   "appId": "fr.coachproapp.app",
-  "appName": "CoachPro",
+  "appName": "TORVYX",
   "webDir": "public",
   "server": {
     "url": "https://www.coachpro-app.fr",
