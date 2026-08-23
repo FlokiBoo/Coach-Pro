@@ -24,6 +24,16 @@ input, textarea, button, select {
   font-family: inherit;
 }
 
+/* iOS zoome automatiquement l'écran quand on touche un champ dont le texte fait moins de 16px —
+   beaucoup de champs de l'app sont en 13-14px pour rester compacts. Le !important est nécessaire
+   ici : ces tailles sont posées en style inline partout dans le code, qui prime sinon sur toute
+   règle CSS classique. Uniquement sur mobile pour ne pas changer l'affichage desktop du coach. */
+@media (max-width: 768px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
+
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-title);
   color: var(--title);
