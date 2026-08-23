@@ -229,6 +229,16 @@ function AthleteView({ params }) {
   }
 
   useEffect(() => {
+    const strava = searchParams.get('strava')
+    if (!strava) return
+    setToast(strava === 'connected' ? 'Strava connecté ✓' : 'Erreur de connexion à Strava')
+    const url = new URL(window.location.href)
+    url.searchParams.delete('strava')
+    router.replace(url.pathname + url.search)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
     async function load() {
       ensureDeviceCookie()
       const res = await fetch(`/api/athlete-view/${token}`, { cache: 'no-store' })

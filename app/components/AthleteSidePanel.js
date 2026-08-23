@@ -51,6 +51,7 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate, onSex
   const [showMealPlanner, setShowMealPlanner] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showPrograms, setShowPrograms] = useState(false)
+  const [stravaBusy, setStravaBusy] = useState(false)
   const [availablePrograms, setAvailablePrograms] = useState(null)
   const [choosingId, setChoosingId] = useState(null)
   const [showSubscription, setShowSubscription] = useState(false)
@@ -66,6 +67,16 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate, onSex
       .eq('athlete_id', athlete.id)
       .then(({ data }) => setRecentRecords(computeRecordEvents(data || [])))
   }, [athlete?.id])
+
+  const disconnectStrava = async () => {
+    if (!window.confirm('Déconnecter Strava ? Tes prochaines courses ne seront plus enregistrées automatiquement.')) return
+    setStravaBusy(true)
+    const res = await fetch('/api/strava/disconnect', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }),
+    })
+    if (!res.ok) { alert('Erreur lors de la déconnexion.'); setStravaBusy(false); return }
+    window.location.reload()
+  }
 
   const openPrograms = async () => {
     setShowPrograms(true)
@@ -246,6 +257,31 @@ export default function AthleteSidePanel({ athlete, token, onWeightUpdate, onSex
               <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Programmes</span>
               <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
             </button>
+
+            {athlete.strava_athlete_id ? (
+              <button onClick={disconnectStrava} disabled={stravaBusy} style={{
+                background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+                padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
+              }}>
+                <span style={{ fontSize: 20 }}>🟠</span>
+                <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>
+                  Strava
+                  <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: 'var(--green-light)', color: 'var(--green)', borderRadius: 10, padding: '2px 8px' }}>
+                    Connecté
+                  </span>
+                </span>
+                <span style={{ color: 'var(--text3)', fontSize: 12 }}>{stravaBusy ? '…' : 'Déconnecter'}</span>
+              </button>
+            ) : (
+              <a href={`/api/strava/connect?token=${token}`} style={{
+                background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+                padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left', textDecoration: 'none',
+              }}>
+                <span style={{ fontSize: 20 }}>🟠</span>
+                <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Connecter Strava</span>
+                <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
+              </a>
+            )}
 
             <button onClick={() => setShowMetrics(true)} style={{
               background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',

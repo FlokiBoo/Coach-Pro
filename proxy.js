@@ -16,7 +16,10 @@ export async function proxy(request) {
     pathname.startsWith('/api/stripe/webhook') ||
     pathname.startsWith('/api/signup') ||
     pathname.startsWith('/confidentialite') ||
-    pathname.startsWith('/cgu')
+    pathname.startsWith('/cgu') ||
+    pathname.startsWith('/api/strava/connect') ||
+    pathname.startsWith('/api/strava/callback') ||
+    pathname.startsWith('/api/strava/webhook')
   ) {
     return NextResponse.next()
   }
