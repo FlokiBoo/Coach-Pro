@@ -20,11 +20,38 @@ function timeRemaining(dateStr) {
   return `${diffDays} j · ${weeks} sem. · ${months} mois`
 }
 
+function progressPercent(createdAt, targetDate) {
+  const start = new Date(createdAt).getTime()
+  const end = new Date(targetDate + 'T00:00:00').getTime()
+  if (end <= start) return 100
+  const pct = ((Date.now() - start) / (end - start)) * 100
+  return Math.max(0, Math.min(100, pct))
+}
+
 const PRIORITY_OPTIONS = [
   { value: 1, label: '1 - Haute' },
   { value: 2, label: '2 - Moyenne' },
   { value: 3, label: '3 - Basse' },
 ]
+
+const EMOJI_OPTIONS = ['🎯', '🏆', '🔥', '💪', '🚀', '⭐️', '✅', '🏁', '💯', '🥇', '🏃', '🏋️']
+
+function EmojiPicker({ value, onChange }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+      {EMOJI_OPTIONS.map(e => (
+        <button key={e} type="button" onClick={() => onChange(e)} style={{
+          width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 16, borderRadius: 8, cursor: 'pointer',
+          background: value === e ? 'var(--green-light)' : 'var(--bg2)',
+          border: `1px solid ${value === e ? 'var(--green)' : 'var(--border2)'}`,
+        }}>
+          {e}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 const PRIORITY_STYLES = {
   1: { bg: '#FEF2F2', border: '#FCA5A5', text: '#DC2626', textDate: '#B91C1C', bullet: '#DC2626' },
@@ -36,8 +63,9 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
   const [newText, setNewText] = useState('')
   const [newDate, setNewDate] = useState('')
   const [newPriority, setNewPriority] = useState(2)
+  const [newEmoji, setNewEmoji] = useState('🎯')
   const [editingId, setEditingId] = useState(null)
-  const [editForm, setEditForm] = useState({ text: '', target_date: '', priority: 2 })
+  const [editForm, setEditForm] = useState({ text: '', target_date: '', priority: 2, emoji: '🎯' })
   const [saving, setSaving] = useState(false)
   const inputRef = useRef(null)
 
@@ -53,25 +81,25 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
     if (!text) return
     setSaving(true)
     const { data, error } = await supabase.from('athlete_objectives')
-      .insert({ athlete_id: athleteId, text, target_date: newDate || null, priority: newPriority })
+      .insert({ athlete_id: athleteId, text, target_date: newDate || null, priority: newPriority, emoji: newEmoji })
       .select().single()
     if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
     if (data) setObjectives(prev => [...prev, data])
-    setNewText(''); setNewDate(''); setNewPriority(2)
+    setNewText(''); setNewDate(''); setNewPriority(2); setNewEmoji('🎯')
     setSaving(false)
     inputRef.current?.focus()
   }
 
   const startEdit = (o) => {
     setEditingId(o.id)
-    setEditForm({ text: o.text, target_date: o.target_date || '', priority: o.priority || 2 })
+    setEditForm({ text: o.text, target_date: o.target_date || '', priority: o.priority || 2, emoji: o.emoji || '🎯' })
   }
 
   const saveEdit = async () => {
     if (!editForm.text.trim()) return
     setSaving(true)
     const { data, error } = await supabase.from('athlete_objectives')
-      .update({ text: editForm.text.trim(), target_date: editForm.target_date || null, priority: editForm.priority })
+      .update({ text: editForm.text.trim(), target_date: editForm.target_date || null, priority: editForm.priority, emoji: editForm.emoji })
       .eq('id', editingId).select().single()
     if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
     if (data) setObjectives(prev => prev.map(o => o.id === editingId ? data : o))
@@ -118,6 +146,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
                       {PRIORITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
                   </div>
+                  <EmojiPicker value={editForm.emoji} onChange={e => setEditForm(f => ({ ...f, emoji: e }))} />
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => setEditingId(null)} style={{ background: 'none', border: '1px solid var(--border2)', color: 'var(--text3)', borderRadius: 'var(--r)', padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
                     <button onClick={saveEdit} disabled={saving} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{saving ? '…' : 'Enregistrer'}</button>
@@ -131,9 +160,25 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
                       {obj.text}
                     </div>
                     {obj.target_date && (
-                      <div style={{ fontSize: 11, color: style.textDate, marginTop: 3 }}>
-                        📅 {formatDateFr(obj.target_date)} · {timeRemaining(obj.target_date)}
-                      </div>
+                      <>
+                        <div style={{ fontSize: 11, color: style.textDate, marginTop: 3 }}>
+                          📅 {formatDateFr(obj.target_date)} · {timeRemaining(obj.target_date)}
+                        </div>
+                        <div style={{ position: 'relative', marginTop: 14, marginBottom: 4, paddingTop: 6 }}>
+                          <div style={{ height: 6, borderRadius: 20, background: 'rgba(255,255,255,0.6)', overflow: 'hidden' }}>
+                            <div style={{
+                              height: '100%', borderRadius: 20, background: style.bullet,
+                              width: `${progressPercent(obj.created_at, obj.target_date)}%`, transition: 'width 0.3s',
+                            }} />
+                          </div>
+                          <div style={{
+                            position: 'absolute', top: 0, fontSize: 15, lineHeight: 1,
+                            left: `${progressPercent(obj.created_at, obj.target_date)}%`, transform: 'translate(-50%, -50%)',
+                          }}>
+                            {obj.emoji || '🎯'}
+                          </div>
+                        </div>
+                      </>
                     )}
                   </div>
                   <button onClick={() => removeObjective(obj.id)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 16, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>×</button>
@@ -165,8 +210,11 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
             <select value={newPriority} onChange={e => setNewPriority(parseInt(e.target.value))} style={{ ...inputStyle, width: 120 }}>
               {PRIORITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <EmojiPicker value={newEmoji} onChange={setNewEmoji} />
             <button onClick={addObjective} disabled={saving || !newText.trim()}
-              style={{ background: newText.trim() ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+              style={{ background: newText.trim() ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0, marginLeft: 'auto' }}>
               {saving ? '…' : '+ Ajouter'}
             </button>
           </div>
