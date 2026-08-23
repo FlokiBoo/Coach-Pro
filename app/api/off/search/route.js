@@ -25,10 +25,18 @@ export async function GET(request) {
   } catch (err) {
     return NextResponse.json({ error: 'Open Food Facts injoignable : ' + err.message }, { status: 502 })
   }
+  if (res.status === 429) {
+    return NextResponse.json({ error: 'Trop de recherches, réessaie dans une minute.' }, { status: 429 })
+  }
   if (!res.ok) {
     return NextResponse.json({ error: `Erreur Open Food Facts (${res.status})` }, { status: 502 })
   }
-  const json = await res.json()
+  let json
+  try {
+    json = await res.json()
+  } catch {
+    return NextResponse.json({ error: 'Réponse Open Food Facts invalide, réessaie.' }, { status: 502 })
+  }
 
   const results = (json.products || [])
     .filter(p => p.product_name && p.nutriments)
