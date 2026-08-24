@@ -5,10 +5,85 @@ import { supabase } from '@/lib/supabase'
 import WellnessBlock from '@/app/components/WellnessBlock'
 import { ActivityLogForm } from '@/app/components/ActivityBlock'
 
+function today() {
+  const n = new Date()
+  return [n.getFullYear(), String(n.getMonth() + 1).padStart(2, '0'), String(n.getDate()).padStart(2, '0')].join('-')
+}
+function offsetDate(date, days) {
+  const d = new Date(date + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
+}
+function formatDateFr(date) {
+  return new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
+}
+function dateLabel(date) {
+  if (date === today()) return "Aujourd'hui"
+  if (date === offsetDate(today(), -1)) return 'Hier'
+  if (date === offsetDate(today(), -2)) return 'Avant-hier'
+  return formatDateFr(date)
+}
+
+function DatePickerRow({ date, onChange }) {
+  const [open, setOpen] = useState(false)
+  const quickOptions = [
+    { label: "Aujourd'hui", value: today() },
+    { label: 'Hier', value: offsetDate(today(), -1) },
+    { label: 'Avant-hier', value: offsetDate(today(), -2) },
+  ]
+  return (
+    <>
+      <button onClick={() => setOpen(true)} style={{
+        display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'flex-start',
+        background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 20,
+        padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--text)',
+        textTransform: 'capitalize',
+      }}>
+        📅 {dateLabel(date)}
+        <span style={{ color: 'var(--text3)', fontSize: 11 }}>✏️</span>
+      </button>
+
+      {open && (
+        <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 700, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: 'var(--bg)', borderRadius: 20, padding: 20, maxWidth: 340, width: '100%',
+            display: 'flex', flexDirection: 'column', gap: 8,
+          }}>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 16, marginBottom: 4 }}>
+              C&apos;était quand ?
+            </div>
+            {quickOptions.map(o => (
+              <button key={o.value} onClick={() => { onChange(o.value); setOpen(false) }} style={{
+                textAlign: 'left', padding: '11px 14px', borderRadius: 12, cursor: 'pointer', fontSize: 14, fontWeight: 700,
+                background: date === o.value ? 'var(--green-light)' : 'var(--bg2)',
+                border: '1px solid ' + (date === o.value ? 'var(--green)' : 'var(--border)'),
+                color: date === o.value ? 'var(--green)' : 'var(--text)',
+              }}>
+                {o.label}
+              </button>
+            ))}
+            <label style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+              padding: '11px 14px', borderRadius: 12, background: 'var(--bg2)', border: '1px solid var(--border)', cursor: 'pointer',
+            }}>
+              <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>Autre date</span>
+              <input type="date" value={date} max={today()} onChange={e => { if (e.target.value) { onChange(e.target.value); setOpen(false) } }}
+                style={{ border: 'none', background: 'none', fontSize: 13, fontWeight: 700, color: 'var(--text)', outline: 'none' }} />
+            </label>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 // Assistant en 3 temps : choisir la discipline → remplir bien-être → remplir les détails de
 // l'activité choisie (km/durée/RPE). Réutilise WellnessBlock et ActivityLogForm tels quels.
-export default function AddActivityWizard({ athleteId, date, onClose }) {
+// La date est sélectionnée aujourd'hui par défaut et modifiable via DatePickerRow, indépendamment
+// de la navigation jour-par-jour du reste de l'app (retirée du tableau de bord).
+export default function AddActivityWizard({ athleteId, onClose, onSaved }) {
   const [step, setStep] = useState(1)
+  const [date, setDate] = useState(today())
   const [defs, setDefs] = useState(null)
   const [selectedDef, setSelectedDef] = useState(null)
   const [log, setLog] = useState(null)
@@ -44,6 +119,8 @@ export default function AddActivityWizard({ athleteId, date, onClose }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <DatePickerRow date={date} onChange={setDate} />
+
         {step === 1 && (
           defs === null ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 0' }}>Chargement…</div>
@@ -78,7 +155,7 @@ export default function AddActivityWizard({ athleteId, date, onClose }) {
 
         {step === 3 && selectedDef && (
           <>
-            <ActivityLogForm def={selectedDef} log={log} date={date} athleteId={athleteId} onSaved={setLog} />
+            <ActivityLogForm def={selectedDef} log={log} date={date} athleteId={athleteId} onSaved={l => { setLog(l); onSaved?.() }} />
             <button onClick={onClose} style={{
               background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)',
               padding: '14px', fontSize: 15, fontWeight: 700, cursor: 'pointer',

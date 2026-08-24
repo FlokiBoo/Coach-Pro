@@ -28,7 +28,7 @@ export default function AthleteTabBar({ active, onChange, onAdd, addActive = fal
     <div style={{
       position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 200,
       background: 'var(--bg)', borderTop: '1px solid var(--border)',
-      display: 'flex', alignItems: 'center', paddingBottom: 'env(safe-area-inset-bottom)',
+      display: 'flex', alignItems: 'center', paddingBottom: 'calc(env(safe-area-inset-bottom) + 14px)',
       maxWidth: 480, margin: '0 auto',
     }}>
       {TABS.map(renderTab)}

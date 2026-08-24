@@ -104,16 +104,6 @@ function ensureDeviceCookie() {
   return id
 }
 
-function offsetDate(date, days) {
-  const d = new Date(date + 'T00:00:00')
-  d.setDate(d.getDate() + days)
-  return [d.getFullYear(), String(d.getMonth()+1).padStart(2,'0'), String(d.getDate()).padStart(2,'0')].join('-')
-}
-
-function formatDateFr(date) {
-  return new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
-}
-
 function AthleteView({ params }) {
   const { token } = use(params)
   const router = useRouter()
@@ -140,7 +130,7 @@ function AthleteView({ params }) {
   const [exerciseSets, setExerciseSets] = useState({})
   const [circuitLogs, setCircuitLogs] = useState({})
   const [activityRefreshKey, setActivityRefreshKey] = useState(0)
-  const [viewDate, setViewDate] = useState(today())
+  const viewDate = today()
   const [celebration, setCelebration] = useState(null)
   const [pendingGroupSessions, setPendingGroupSessions] = useState([])
   const [completionFeedback, setCompletionFeedback] = useState({})
@@ -794,7 +784,7 @@ function AthleteView({ params }) {
   }
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 76 }}>
+    <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 90 }}>
 
       {/* Header */}
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px' }}>
@@ -818,8 +808,7 @@ function AthleteView({ params }) {
       {activeTab === 'wod' && (
         <WodTab
           athlete={athlete} objectives={objectives} setObjectives={setObjectives} isCoachView={isCoachView}
-          noteBlocks={noteBlocks} activityRefreshKey={activityRefreshKey} setActivityRefreshKey={setActivityRefreshKey}
-          viewDate={viewDate} setViewDate={setViewDate} todayFn={today} offsetDateFn={offsetDate} formatDateFrFn={formatDateFr}
+          noteBlocks={noteBlocks} activityRefreshKey={activityRefreshKey}
           programs={programs} completions={completions} skippedSessions={skippedSessions}
           selectedType={selectedType} setSelectedType={setSelectedType} isFinishedFreeSessionFn={isFinishedFreeSession}
           router={router} token={token}
@@ -847,7 +836,7 @@ function AthleteView({ params }) {
         />
       )}
       {showAddWizard && (
-        <AddActivityWizard athleteId={athlete.id} date={viewDate} onClose={() => setShowAddWizard(false)} />
+        <AddActivityWizard athleteId={athlete.id} onClose={() => setShowAddWizard(false)} onSaved={() => setActivityRefreshKey(k => k + 1)} />
       )}
 
       {celebration && (

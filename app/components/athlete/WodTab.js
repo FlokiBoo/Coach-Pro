@@ -1,19 +1,20 @@
 'use client'
 
+import { useState } from 'react'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
 import ProgressBlock from '@/app/components/ProgressBlock'
-import ActivityBlock from '@/app/components/ActivityBlock'
 
 // Page d'accueil : objectifs en premier, puis résumé/notes, puis la liste des séances
 // simplifiée (nom + flèche → ouvre le mode focus existant), groupée par thème quand il y en a
 // plusieurs. Le détail (séries/reps/progression) reste dans le mode focus, pas ici.
 export default function WodTab({
-  athlete, objectives, setObjectives, isCoachView, noteBlocks, activityRefreshKey, setActivityRefreshKey,
-  viewDate, setViewDate, todayFn, offsetDateFn, formatDateFrFn,
+  athlete, objectives, setObjectives, isCoachView, noteBlocks, activityRefreshKey,
   programs, completions, skippedSessions, selectedType, setSelectedType, isFinishedFreeSessionFn,
   router, token,
 }) {
+  const [selectedProgramId, setSelectedProgramId] = useState(null)
+
   const openSession = (sessionId) => {
     router.push(`/s/${token}?session=${sessionId}&focus=1${isCoachView ? '&coach=1' : ''}`)
   }
@@ -23,9 +24,13 @@ export default function WodTab({
   const effectiveType = allTypes.length <= 1 ? null
     : ((selectedType && allTypes.includes(selectedType)) ? selectedType
       : ((boardPrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || boardPrograms[0]).activity_type || 'Musculation 🏋️'))
-  const visiblePrograms = effectiveType
+  const typePrograms = effectiveType
     ? boardPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === effectiveType)
     : boardPrograms
+
+  const effectiveProgramId = (selectedProgramId && typePrograms.some(p => p.id === selectedProgramId)) ? selectedProgramId
+    : (typePrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || typePrograms[0])?.id
+  const visiblePrograms = typePrograms.filter(p => p.id === effectiveProgramId)
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -82,11 +87,31 @@ export default function WodTab({
         </div>
       )}
 
+      {typePrograms.length > 1 && (
+        <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+          {typePrograms.map(p => {
+            const isSelected = effectiveProgramId === p.id
+            return (
+              <button key={p.id} onClick={() => setSelectedProgramId(p.id)} style={{
+                flexShrink: 0, background: isSelected ? 'var(--green-light)' : 'var(--bg)',
+                border: isSelected ? '1.5px solid var(--green)' : '1px solid var(--border)',
+                borderRadius: 20, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+                color: isSelected ? 'var(--green)' : 'var(--text2)', whiteSpace: 'nowrap',
+              }}>
+                {p.title}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {visiblePrograms.map(prog => (
         <div key={prog.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>
-            {prog.title}
-          </div>
+          {typePrograms.length <= 1 && (
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>
+              {prog.title}
+            </div>
+          )}
           {prog.sessions.map(s => {
             const isDone = completions.has(s.id) && !skippedSessions.has(s.id)
             const isSkipped = skippedSessions.has(s.id)
@@ -111,20 +136,6 @@ export default function WodTab({
           })}
         </div>
       ))}
-
-      <div style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', border: '1px solid var(--border)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-        <button onClick={() => setViewDate(d => offsetDateFn(d, -1))}
-          style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text2)', padding: '2px 6px', borderRadius: 6, lineHeight: 1 }}>←</button>
-        <div style={{ flex: 1, textAlign: 'center' }}>
-          <div style={{ fontSize: 13, fontWeight: 800, textTransform: 'capitalize', color: 'var(--text)' }}>
-            {viewDate === todayFn() ? "Aujourd'hui" : formatDateFrFn(viewDate)}
-          </div>
-        </div>
-        <button onClick={() => setViewDate(d => offsetDateFn(d, 1))} disabled={viewDate >= todayFn()}
-          style={{ background: 'none', border: 'none', fontSize: 20, cursor: viewDate >= todayFn() ? 'default' : 'pointer', color: viewDate >= todayFn() ? 'var(--border2)' : 'var(--text2)', padding: '2px 6px', borderRadius: 6, lineHeight: 1 }}>→</button>
-      </div>
-
-      <ActivityBlock athleteId={athlete.id} date={viewDate} onSaved={() => setActivityRefreshKey(k => k + 1)} />
     </div>
   )
 }
