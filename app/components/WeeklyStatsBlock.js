@@ -217,6 +217,15 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
 
   const changeMode = (m) => { setMode(m); setOffset(0) }
 
+  // Alterne automatiquement semaine/mois toutes les ~4.5s (repart de zéro à chaque changement,
+  // qu'il soit auto ou manuel, grâce à la dépendance sur `mode`) — coupé pendant la navigation
+  // dans l'historique ou le récap pour ne pas perturber ce que le client est en train de regarder.
+  useEffect(() => {
+    if (offset !== 0 || showRecap) return
+    const id = setTimeout(() => setMode(m => m === 'week' ? 'month' : 'week'), 4500)
+    return () => clearTimeout(id)
+  }, [mode, offset, showRecap])
+
   useEffect(() => {
     if (!athleteId) return
     setLoading(true)
@@ -275,25 +284,27 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
           📊 {mode === 'week' ? 'Ma semaine' : 'Mon mois'}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2, background: 'var(--bg2)', borderRadius: 20, padding: '2px', border: '1px solid var(--border)' }}>
+        <div style={{ position: 'relative', display: 'flex', width: 100, flexShrink: 0, background: 'var(--bg2)', borderRadius: 20, padding: 2, border: '1px solid var(--border)' }}>
+          <div style={{
+            position: 'absolute', top: 2, bottom: 2, left: 2, width: 'calc(50% - 2px)',
+            background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 18,
+            transform: mode === 'week' ? 'translateX(0)' : 'translateX(100%)',
+            transition: 'transform .35s cubic-bezier(.4,0,.2,1)',
+          }} />
           <button
             onClick={() => changeMode('week')}
             style={{
-              background: mode === 'week' ? 'var(--bg)' : 'transparent',
-              border: mode === 'week' ? '1px solid var(--border2)' : '1px solid transparent',
-              borderRadius: 18, padding: '3px 10px', fontSize: 11, fontWeight: 700,
-              cursor: 'pointer', color: mode === 'week' ? 'var(--text)' : 'var(--text3)',
-              transition: 'all .15s',
+              position: 'relative', flex: 1, background: 'none', border: 'none', borderRadius: 18,
+              padding: '3px 0', fontSize: 11, fontWeight: 700, cursor: 'pointer', zIndex: 1,
+              color: mode === 'week' ? 'var(--text)' : 'var(--text3)', transition: 'color .35s',
             }}
           >Sem.</button>
           <button
             onClick={() => changeMode('month')}
             style={{
-              background: mode === 'month' ? 'var(--bg)' : 'transparent',
-              border: mode === 'month' ? '1px solid var(--border2)' : '1px solid transparent',
-              borderRadius: 18, padding: '3px 10px', fontSize: 11, fontWeight: 700,
-              cursor: 'pointer', color: mode === 'month' ? 'var(--text)' : 'var(--text3)',
-              transition: 'all .15s',
+              position: 'relative', flex: 1, background: 'none', border: 'none', borderRadius: 18,
+              padding: '3px 0', fontSize: 11, fontWeight: 700, cursor: 'pointer', zIndex: 1,
+              color: mode === 'month' ? 'var(--text)' : 'var(--text3)', transition: 'color .35s',
             }}
           >Mois</button>
         </div>
