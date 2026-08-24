@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import BadgesBlock from '@/app/components/BadgesBlock'
 import MobilityRadarBlock from '@/app/components/MobilityRadarBlock'
 import MealPlannerWizard from '@/app/components/MealPlannerWizard'
+import ChatThread from '@/app/components/ChatThread'
 import SettingsScreen from './SettingsScreen'
 
 function calcAge(birthDate) {
@@ -21,6 +22,27 @@ export default function ProfilTab({ athlete, token, onWeightUpdate, onSexUpdate,
   const [saving, setSaving] = useState(false)
   const [showMealPlanner, setShowMealPlanner] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showMessages, setShowMessages] = useState(false)
+  const [unread, setUnread] = useState(0)
+
+  const refreshUnread = useCallback(() => {
+    if (!athlete) return
+    fetch(`/api/messages/${athlete.id}`).then(r => r.json()).then(data => {
+      const u = (data.messages || []).filter(m => m.sender_role === 'coach' && !m.read_by_athlete_at).length
+      setUnread(u)
+    })
+  }, [athlete])
+
+  useEffect(() => { refreshUnread() }, [refreshUnread])
+
+  useEffect(() => {
+    if (!athlete) return
+    const channel = supabase
+      .channel(`messages-profil-${athlete.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `athlete_id=eq.${athlete.id}` }, refreshUnread)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [athlete, refreshUnread])
 
   const startEdit = (field, current) => { setEditingField(field); setFieldVal(current ?? '') }
 
@@ -129,6 +151,21 @@ export default function ProfilTab({ athlete, token, onWeightUpdate, onSexUpdate,
         <MobilityRadarBlock athleteId={athlete.id} />
       </div>
 
+      <button onClick={() => setShowMessages(true)} style={{
+        background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+        padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
+      }}>
+        <span style={{ fontSize: 20 }}>💬</span>
+        <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Messagerie</span>
+        {unread > 0 && (
+          <span style={{
+            background: '#DC2626', color: '#fff', borderRadius: 10, minWidth: 18, height: 18, fontSize: 11, fontWeight: 700,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px',
+          }}>{unread}</span>
+        )}
+        <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
+      </button>
+
       <button onClick={() => setShowMealPlanner(true)} style={{
         background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
         padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
@@ -160,6 +197,16 @@ export default function ProfilTab({ athlete, token, onWeightUpdate, onSexUpdate,
       )}
 
       {showSettings && <SettingsScreen athlete={athlete} token={token} onClose={() => setShowSettings(false)} />}
+
+      {showMessages && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button onClick={() => setShowMessages(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
+            <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>💬 Messagerie</div>
+          </div>
+          <ChatThread athleteId={athlete.id} myRole="athlete" onRead={() => setUnread(0)} />
+        </div>
+      )}
     </div>
   )
 }

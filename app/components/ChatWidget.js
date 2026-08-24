@@ -73,7 +73,9 @@ export default function ChatWidget() {
     else if (identity?.role === 'athlete') refreshAthleteUnread()
   }, [identity, refreshInbox, refreshAthleteUnread])
 
-  if (hidden || !identity || identity.role === null) return null
+  // Sur l'espace client, la messagerie est accessible depuis l'onglet Profil (voir ProfilTab.js) —
+  // pas de bulle flottante ici, elle se superposait à la barre d'onglets.
+  if (hidden || !identity || identity.role === null || identity.role === 'athlete') return null
 
   const totalUnread = identity.role === 'coach'
     ? threads.reduce((s, t) => s + t.unreadCount, 0)

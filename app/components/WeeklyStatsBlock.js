@@ -207,6 +207,7 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
   const [progressions, setProgressions] = useState(null)
   const [wellnessAvg, setWellnessAvg] = useState(null)
   const [feedbackAvg, setFeedbackAvg] = useState(null)
+  const cacheRef = useRef({})
 
   const openRecap = () => {
     setShowRecap(true)
@@ -226,20 +227,43 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
     return () => clearTimeout(id)
   }, [mode, offset, showRecap])
 
+  // Le cycle auto ne fait qu'alterner entre semaine/mois à offset 0 : une fois chacun chargé une
+  // première fois, on les garde en cache pour que les allers-retours suivants (auto ou manuels)
+  // s'affichent instantanément, sans repasser par un état de chargement qui ferait sauter la page.
   useEffect(() => {
     if (!athleteId) return
-    setLoading(true)
+    const { start, end } = mode === 'week' ? getWeekRange(offset) : getMonthRange(offset)
+    const key = `${mode}:${offset}:${refreshKey}`
+    const cached = cacheRef.current[key]
+
     setView('stats')
     setProgressions(null)
-    setWellnessAvg(null)
-    setFeedbackAvg(null)
-    const { start, end } = mode === 'week' ? getWeekRange(offset) : getMonthRange(offset)
-    fetchStats(athleteId, start, end).then(s => {
-      setStats({ ...s, start, end })
+    if (cached) {
+      setStats(cached.stats)
+      setWellnessAvg(cached.wellnessAvg)
+      setFeedbackAvg(cached.feedbackAvg)
+      setLoading(false)
+    } else {
+      setLoading(true)
+      setWellnessAvg(null)
+      setFeedbackAvg(null)
+    }
+
+    let cancelled = false
+    Promise.all([
+      fetchStats(athleteId, start, end),
+      fetchWellnessAverages(athleteId, start, end),
+      fetchFeedbackAverages(athleteId, start, end),
+    ]).then(([s, w, f]) => {
+      if (cancelled) return
+      const statsWithRange = { ...s, start, end }
+      cacheRef.current[key] = { stats: statsWithRange, wellnessAvg: w, feedbackAvg: f }
+      setStats(statsWithRange)
+      setWellnessAvg(w)
+      setFeedbackAvg(f)
       setLoading(false)
     })
-    fetchWellnessAverages(athleteId, start, end).then(setWellnessAvg)
-    fetchFeedbackAverages(athleteId, start, end).then(setFeedbackAvg)
+    return () => { cancelled = true }
   }, [athleteId, mode, offset, refreshKey])
 
   useEffect(() => {
@@ -249,6 +273,11 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
   }, [view, stats, progressions, athleteId])
 
   if (!stats && !loading) return null
+
+  // Pendant un rechargement (changement de mode auto ou manuel), on garde l'ancien
+  // contenu affiché plutôt que de le faire disparaître puis réapparaître — évite le
+  // saut de mise en page que provoquait le cycle automatique semaine/mois.
+  const showLoader = loading && !stats
 
   const periodLabel = (() => {
     if (!stats) return ''
@@ -336,17 +365,17 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
         >›</button>
       </div>
 
-      {loading && (
+      {showLoader && (
         <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>…</div>
       )}
 
-      {!loading && !hasAny && (
+      {!showLoader && !hasAny && (
         <div style={{ padding: '16px 14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
           Aucune activité {mode === 'week' ? 'cette semaine' : 'ce mois-ci'}
         </div>
       )}
 
-      {!loading && hasAny && view === 'stats' && (
+      {!showLoader && hasAny && view === 'stats' && (
         <>
           {bigStats.length > 0 && (
             <div style={{ display: 'flex', gap: 8, padding: '14px 14px 0' }}>
@@ -452,7 +481,7 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
         </>
       )}
 
-      {!loading && hasAny && view === 'progression' && (
+      {!showLoader && hasAny && view === 'progression' && (
         <div style={{ padding: '12px 14px' }}>
           {progressions === null ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>…</div>
