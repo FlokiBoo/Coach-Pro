@@ -13,6 +13,93 @@ const inp = {
   borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
 }
 
+// Détecte un "#recherche" en cours de frappe juste avant le curseur (le # doit démarrer un mot,
+// et aucun espace ne doit s'être glissé entre le # et le curseur).
+function getMentionQuery(text, cursorPos) {
+  const upToCursor = text.slice(0, cursorPos)
+  const hashIdx = upToCursor.lastIndexOf('#')
+  if (hashIdx === -1) return null
+  const query = upToCursor.slice(hashIdx + 1)
+  if (/\s/.test(query)) return null
+  const charBefore = hashIdx > 0 ? upToCursor[hashIdx - 1] : null
+  if (charBefore && !/\s/.test(charBefore)) return null
+  return { hashIdx, query, cursorPos }
+}
+
+// Textarea de description avec mention "#mouvement" : taper # puis un nom propose les mouvements
+// correspondants, et en choisir un insère le nom dans le texte ET ajoute sa vidéo démo à la liste
+// (remplace le besoin de chercher séparément le mouvement dans l'éditeur de vidéos ci-dessous).
+function MentionTextarea({ value, onChange, videos, onAddVideo, placeholder, rows }) {
+  const [mention, setMention] = useState(null)
+  const [suggs, setSuggs] = useState([])
+  const taRef = useRef(null)
+
+  const handleChange = (e) => {
+    const val = e.target.value
+    onChange(val)
+    const m = getMentionQuery(val, e.target.selectionStart)
+    setMention(m)
+    if (m && m.query.trim().length >= 1) {
+      supabase.from('movements').select('name, youtube_url').ilike('name', `%${m.query.trim()}%`).limit(8)
+        .then(({ data }) => setSuggs(data || []))
+    } else {
+      setSuggs([])
+    }
+  }
+
+  const closeMention = () => { setMention(null); setSuggs([]) }
+
+  const insert = (name, videoUrl) => {
+    if (!mention) return
+    const before = value.slice(0, mention.hashIdx)
+    const after = value.slice(mention.cursorPos)
+    const inserted = `#${name} `
+    onChange(before + inserted + after)
+    closeMention()
+    if (!videos.some(v => v.name.toLowerCase() === name.toLowerCase())) {
+      onAddVideo({ name, video_url: videoUrl || '' })
+    }
+    const pos = before.length + inserted.length
+    requestAnimationFrame(() => { taRef.current?.focus(); taRef.current?.setSelectionRange(pos, pos) })
+  }
+
+  const pick = (mov) => insert(mov.name, mov.youtube_url)
+
+  const createAndPick = async () => {
+    const name = mention?.query.trim()
+    if (!name) return
+    await supabase.from('movements').upsert({ name }, { onConflict: 'name', ignoreDuplicates: true })
+    insert(name, '')
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <textarea ref={taRef} placeholder={placeholder} value={value}
+        onChange={handleChange}
+        onBlur={() => setTimeout(closeMention, 150)}
+        rows={rows} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} />
+      {mention && mention.query.trim().length >= 1 && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
+          {suggs.map((mov, mi) => (
+            <button key={mi} onMouseDown={() => pick(mov)}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
+              <span style={{ flex: 1 }}>{mov.name}</span>
+              <span style={{ fontSize: 12 }}>{mov.youtube_url ? '🎥' : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
+            </button>
+          ))}
+          {!suggs.some(m => m.name.toLowerCase() === mention.query.trim().toLowerCase()) && (
+            <button onMouseDown={createAndPick}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'var(--bg2)', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--green)', cursor: 'pointer' }}>
+              <span>🎥</span>
+              <span>Créer « {mention.query.trim()} » et lier une vidéo</span>
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function VideoListEditor({ videos, onAdd, onRemove, onUpdateUrl }) {
   const [search, setSearch] = useState('')
   const [suggs, setSuggs] = useState([])
@@ -215,9 +302,10 @@ export default function ActivationsLibraryPage() {
               <input ref={nameRef} placeholder="Nom (ex: Activation 1, Hyrox Ski…)"
                 value={newForm.name} onChange={e => setNewForm(f => ({ ...f, name: e.target.value }))}
                 style={inp} />
-              <textarea placeholder="Texte de l'activation…"
-                value={newForm.text} onChange={e => setNewForm(f => ({ ...f, text: e.target.value }))}
-                rows={4} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} />
+              <MentionTextarea placeholder="Texte de l'activation… (tape # pour lier un mouvement)"
+                value={newForm.text} onChange={text => setNewForm(f => ({ ...f, text }))}
+                videos={newForm.videos} onAddVideo={v => setNewForm(f => ({ ...f, videos: [...f.videos, v] }))}
+                rows={4} />
               <VideoListEditor
                 videos={newForm.videos}
                 onAdd={v => setNewForm(f => ({ ...f, videos: [...f.videos, v] }))}
@@ -243,8 +331,10 @@ export default function ActivationsLibraryPage() {
                 {editingId === item.id ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} style={inp} />
-                    <textarea value={editForm.text} onChange={e => setEditForm(f => ({ ...f, text: e.target.value }))}
-                      rows={4} style={{ ...inp, resize: 'vertical', fontFamily: 'inherit' }} />
+                    <MentionTextarea placeholder="Texte de l'activation… (tape # pour lier un mouvement)"
+                      value={editForm.text} onChange={text => setEditForm(f => ({ ...f, text }))}
+                      videos={editForm.videos} onAddVideo={v => setEditForm(f => ({ ...f, videos: [...f.videos, v] }))}
+                      rows={4} />
                     <VideoListEditor
                       videos={editForm.videos}
                       onAdd={v => setEditForm(f => ({ ...f, videos: [...f.videos, v] }))}
