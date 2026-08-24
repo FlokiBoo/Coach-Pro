@@ -5,17 +5,18 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import WellnessBlock from '@/app/components/WellnessBlock'
-import ActivityBlock, { DurationHMSInput } from '@/app/components/ActivityBlock'
-import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
-import ProgressBlock from '@/app/components/ProgressBlock'
+import { DurationHMSInput } from '@/app/components/ActivityBlock'
 import CelebrationModal, { parseMusclesFromText } from '@/app/components/CelebrationModal'
 import MuscleAnatomyDiagram, { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
 import FocusBodyDiagram from '@/app/components/FocusBodyDiagram'
-import ObjectivesBlock from '@/app/components/ObjectivesBlock'
-import MobilityRadarBlock from '@/app/components/MobilityRadarBlock'
 import Toast from '@/app/components/Toast'
-import AthleteSidePanel from '@/app/components/AthleteSidePanel'
-import WeeklyPlannerBlock from '@/app/components/WeeklyPlannerBlock'
+import AthleteTabBar from '@/app/components/AthleteTabBar'
+import WodTab from '@/app/components/athlete/WodTab'
+import TemplatesTab from '@/app/components/athlete/TemplatesTab'
+import AddActionSheet from '@/app/components/athlete/AddActionSheet'
+import AddActivityWizard from '@/app/components/athlete/AddActivityWizard'
+import PrTab from '@/app/components/athlete/PrTab'
+import ProfilTab from '@/app/components/athlete/ProfilTab'
 import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 import TimerModal from '@/app/components/TimerModal'
 import { annotatePaceReferences, formatPace, isRunMovement, PACE_BASES, computePaceForBasePct, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
@@ -121,6 +122,14 @@ function AthleteView({ params }) {
   const [isCoach, setIsCoach] = useState(false)
   const targetSessionId = searchParams.get('session')
   const focusMode = searchParams.get('focus') === '1'
+  const activeTab = searchParams.get('tab') || 'wod'
+  const setActiveTab = (tab) => {
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', tab)
+    router.replace(url.pathname + url.search)
+  }
+  const [showAddSheet, setShowAddSheet] = useState(false)
+  const [showAddWizard, setShowAddWizard] = useState(false)
   const [athlete, setAthlete] = useState(null)
   const [programs, setPrograms] = useState([])
   const [completions, setCompletions] = useState(new Set())
@@ -785,7 +794,7 @@ function AthleteView({ params }) {
   }
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 60 }}>
+    <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 76 }}>
 
       {/* Header */}
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px' }}>
@@ -806,140 +815,40 @@ function AthleteView({ params }) {
         </div>
       )}
 
-      <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {activeTab === 'wod' && (
+        <WodTab
+          athlete={athlete} objectives={objectives} setObjectives={setObjectives} isCoachView={isCoachView}
+          noteBlocks={noteBlocks} activityRefreshKey={activityRefreshKey} setActivityRefreshKey={setActivityRefreshKey}
+          viewDate={viewDate} setViewDate={setViewDate} todayFn={today} offsetDateFn={offsetDate} formatDateFrFn={formatDateFr}
+          programs={programs} completions={completions} skippedSessions={skippedSessions}
+          selectedType={selectedType} setSelectedType={setSelectedType} isFinishedFreeSessionFn={isFinishedFreeSession}
+          router={router} token={token}
+        />
+      )}
+      {activeTab === 'templates' && <TemplatesTab token={token} />}
+      {activeTab === 'pr' && <PrTab athleteId={athlete.id} />}
+      {activeTab === 'profil' && (
+        <ProfilTab
+          athlete={athlete} token={token}
+          onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))}
+          onSexUpdate={s => setAthlete(a => ({ ...a, sex: s }))}
+          onHeightUpdate={h => setAthlete(a => ({ ...a, height: h }))}
+          onBirthDateUpdate={d => setAthlete(a => ({ ...a, birth_date: d }))}
+        />
+      )}
 
-        {athlete?.id && <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} isCoach={isCoachView} />}
+      <AthleteTabBar active={activeTab} onChange={setActiveTab} onAdd={() => setShowAddSheet(true)} addActive={showAddSheet || showAddWizard} />
 
-        {athlete?.id && <MobilityRadarBlock athleteId={athlete.id} />}
-
-
-        {noteBlocks.map(b => (
-          <div key={b.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-            {b.title && (
-              <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{b.title}</span>
-              </div>
-            )}
-            {b.content && (
-              <div style={{ padding: 14, fontSize: 14, color: 'var(--text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{b.content}</div>
-            )}
-          </div>
-        ))}
-
-        <WeeklyStatsBlock athleteId={athlete.id} refreshKey={activityRefreshKey} />
-        <WeeklyPlannerBlock athleteId={athlete.id} />
-        <ProgressBlock athleteId={athlete.id} />
-
-        {/* Navigation date bien-être / activité */}
-        <div style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', border: '1px solid var(--border)', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={() => setViewDate(d => offsetDate(d, -1))}
-            style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text2)', padding: '2px 6px', borderRadius: 6, lineHeight: 1 }}
-          >←</button>
-          <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: 13, fontWeight: 800, textTransform: 'capitalize', color: 'var(--text)' }}>
-              {viewDate === today() ? "Aujourd'hui" : formatDateFr(viewDate)}
-            </div>
-            {viewDate !== today() && (
-              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
-                {new Date(viewDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => setViewDate(d => offsetDate(d, 1))}
-            disabled={viewDate >= today()}
-            style={{ background: 'none', border: 'none', fontSize: 20, cursor: viewDate >= today() ? 'default' : 'pointer', color: viewDate >= today() ? 'var(--border2)' : 'var(--text2)', padding: '2px 6px', borderRadius: 6, lineHeight: 1 }}
-          >→</button>
-        </div>
-
-        <WellnessBlock athleteId={athlete.id} date={viewDate} mode="athlete" />
-        <ActivityBlock athleteId={athlete.id} date={viewDate} onSaved={() => setActivityRefreshKey(k => k + 1)} />
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button onClick={startFreeSession} style={{ background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            ⚡ Séance libre
-          </button>
-        </div>
-
-        {programs.length === 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-            <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
-            <div style={{ fontWeight: 600 }}>Aucun programme actif</div>
-          </div>
-        )}
-
-        {(() => {
-          const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived && !isFinishedFreeSession(p, completions))
-          const allTypes = [...new Set(boardPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
-          const commonProps = {
-            completions, skippedSessions, completionFeedback, validating, exerciseLogs,
-            athleteId: athlete.id, validate, unvalidate, onSkip: skipSession, onPostpone: postponeSession, saveExerciseLog, router, token, isCoachView, isCoach,
-            trackedMovements, onSaveMetricResult: saveMetricResult,
-            exerciseSets, onAddExerciseSet: addExerciseSet, onEnsureExerciseSets: ensureExerciseSets, onSaveExerciseSet: saveExerciseSet, onDeleteExerciseSet: deleteExerciseSet,
-            raceKnown, onSyncRaceMetric: syncRaceMetric,
-            targetPaces: athlete.target_paces, onSaveTargetPace: saveTargetPace,
-            circuitLogs, onSaveCircuitLog: saveCircuitLog,
-          }
-
-          if (boardPrograms.length === 0) {
-            return programs.length > 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '20px', fontSize: 13 }}>
-                Aucun programme épinglé au tableau de bord
-              </div>
-            ) : null
-          }
-
-          if (allTypes.length <= 1) {
-            return boardPrograms.map(prog => <ProgramSessionsBlock key={prog.id} prog={prog} {...commonProps} />)
-          }
-
-          // Type sélectionné par défaut : le premier avec une séance restante, sinon le premier tout court.
-          const effectiveType = (selectedType && allTypes.includes(selectedType)) ? selectedType
-            : ((boardPrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || boardPrograms[0]).activity_type || 'Musculation 🏋️')
-
-          return (
-            <>
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${allTypes.length}, minmax(100px, 1fr))`, gap: 8, overflowX: 'auto' }}>
-                {allTypes.map(t => {
-                  const typePrograms = boardPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === t)
-                  const total = typePrograms.reduce((n, p) => n + p.sessions.length, 0)
-                  const done = typePrograms.reduce((n, p) => n + p.sessions.filter(s => completions.has(s.id) && !skippedSessions.has(s.id)).length, 0)
-                  const nextProg = typePrograms.find(p => p.sessions.some(s => !completions.has(s.id)))
-                  const nextSess = nextProg?.sessions.find(s => !completions.has(s.id))
-                  const isSelected = effectiveType === t
-                  return (
-                    <button
-                      key={t}
-                      onClick={() => setSelectedType(t)}
-                      style={{
-                        display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', minWidth: 0,
-                        background: isSelected ? 'var(--green-light)' : 'var(--bg)',
-                        border: isSelected ? '1.5px solid var(--green)' : '1px solid var(--border)',
-                        borderRadius: 'var(--rl)', padding: '10px 8px', cursor: 'pointer',
-                      }}
-                    >
-                      <div style={{ fontSize: 12, fontWeight: 800, color: isSelected ? 'var(--green)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {t}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {nextSess ? (nextSess.title || 'Séance') : total ? '✓ Tout fait' : '—'}
-                      </div>
-                      {total > 0 && (
-                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)' }}>{done}/{total}</div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {boardPrograms
-                .filter(p => (p.activity_type || 'Musculation 🏋️') === effectiveType)
-                .map(prog => <ProgramSessionsBlock key={prog.id} prog={prog} {...commonProps} />)}
-            </>
-          )
-        })()}
-      </div>
+      {showAddSheet && (
+        <AddActionSheet
+          onClose={() => setShowAddSheet(false)}
+          onAddActivity={() => { setShowAddSheet(false); setShowAddWizard(true) }}
+          onFreeSession={() => { setShowAddSheet(false); startFreeSession() }}
+        />
+      )}
+      {showAddWizard && (
+        <AddActivityWizard athleteId={athlete.id} date={viewDate} onClose={() => setShowAddWizard(false)} />
+      )}
 
       {celebration && (
         <CelebrationModal
@@ -979,7 +888,6 @@ function AthleteView({ params }) {
         </div>
       )}
 
-      <AthleteSidePanel athlete={athlete} token={token} onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))} onSexUpdate={s => setAthlete(a => ({ ...a, sex: s }))} />
       <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
     </div>
   )
@@ -1136,137 +1044,6 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
               </div>
             ))}
           </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ProgramSessionsBlock({ prog, completions, skippedSessions, completionFeedback, validating, exerciseLogs, athleteId, validate, unvalidate, onSkip, onPostpone, saveExerciseLog, router, token, isCoachView, isCoach, trackedMovements, onSaveMetricResult, exerciseSets, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, raceKnown, onSyncRaceMetric, targetPaces, onSaveTargetPace, circuitLogs, onSaveCircuitLog }) {
-  const total = prog.sessions.length
-  const done = prog.sessions.filter(s => completions.has(s.id) && !skippedSessions.has(s.id)).length
-  const allDone = done === total && total > 0
-  const firstIncompleteIdx = prog.sessions.findIndex(s => !completions.has(s.id))
-  const isFreeProgram = !!prog.title?.startsWith('Séance libre')
-
-  const [selectedIdx, setSelectedIdx] = useState(firstIncompleteIdx !== -1 ? firstIncompleteIdx : 0)
-  const [showValidated, setShowValidated] = useState(false)
-  const [isOpen, setIsOpen] = useState(true)
-
-  if (total === 0) return null
-  const session = prog.sessions[selectedIdx]
-  const isCompleted = completions.has(session.id) && !skippedSessions.has(session.id)
-  const isSkipped = skippedSessions.has(session.id)
-  const validatedSessions = prog.sessions
-    .map((s, i) => ({ s, i }))
-    .filter(({ s }) => completions.has(s.id) && !skippedSessions.has(s.id))
-
-  const handleSkip = () => {
-    onSkip(session.id, prog.sessions)
-    setSelectedIdx(i => Math.min(total - 1, i + 1))
-    setIsOpen(true)
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-
-      {/* En-tête programme + barre de progression */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text2)', flex: 1 }}>{prog.title}</div>
-        <div style={{ fontSize: 12, fontWeight: 700, color: allDone ? '#166534' : 'var(--text3)' }}>
-          {done}/{total}
-        </div>
-      </div>
-      <div style={{ height: 5, background: 'var(--border)', borderRadius: 10, overflow: 'hidden', marginBottom: 2 }}>
-        <div style={{ height: '100%', background: 'var(--green)', borderRadius: 10, width: `${total ? Math.round((done / total) * 100) : 0}%`, transition: 'width .4s' }} />
-      </div>
-
-      {/* Pager séance précédente / suivante */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <button
-          onClick={() => { setSelectedIdx(i => Math.max(0, i - 1)); setIsOpen(true) }}
-          disabled={selectedIdx === 0}
-          style={{ background: 'none', border: 'none', fontSize: 22, color: selectedIdx === 0 ? 'var(--border2)' : 'var(--text2)', cursor: selectedIdx === 0 ? 'default' : 'pointer', padding: '2px 6px', flexShrink: 0, lineHeight: 1 }}
-        >‹</button>
-        <div style={{ flex: 1, textAlign: 'center', minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {session.title || `Séance ${selectedIdx + 1}`}
-          </div>
-        </div>
-        <button
-          onClick={() => { setSelectedIdx(i => Math.min(total - 1, i + 1)); setIsOpen(true) }}
-          disabled={selectedIdx === total - 1}
-          style={{ background: 'none', border: 'none', fontSize: 22, color: selectedIdx === total - 1 ? 'var(--border2)' : 'var(--text2)', cursor: selectedIdx === total - 1 ? 'default' : 'pointer', padding: '2px 6px', flexShrink: 0, lineHeight: 1 }}
-        >›</button>
-        <button
-          onClick={() => router.push(`/s/${token}?session=${session.id}&focus=1${isCoachView ? '&coach=1' : ''}`)}
-          style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}
-        >▶ Lancer</button>
-      </div>
-
-      <SessionCard
-        session={session}
-        idx={selectedIdx}
-        isOpen={isOpen}
-        isCompleted={isCompleted}
-        isSkipped={isSkipped}
-        onToggle={() => setIsOpen(v => !v)}
-        onValidate={(fb) => validate(session.id, prog.sessions, fb, { isUpdate: isCompleted })}
-        onUnvalidate={(isCompleted || isSkipped) ? () => unvalidate(session.id, prog.sessions) : null}
-        onSkip={(!isCoachView && !isCompleted && !isSkipped && !isFreeProgram) ? handleSkip : null}
-        onPostpone={(!isCoachView && !isCompleted && !isSkipped && !isFreeProgram && selectedIdx < total - 1) ? (offset) => onPostpone(session.id, offset) : null}
-        initialFeedback={completionFeedback[session.id]}
-        validating={validating}
-        exerciseLogs={exerciseLogs}
-        onSaveLog={saveExerciseLog}
-        athleteId={athleteId}
-        activityType={prog.activity_type}
-        trackedMovements={trackedMovements}
-        onSaveMetricResult={onSaveMetricResult}
-        exerciseSets={exerciseSets}
-        onAddExerciseSet={onAddExerciseSet}
-        onEnsureExerciseSets={onEnsureExerciseSets}
-        onSaveExerciseSet={onSaveExerciseSet}
-        onDeleteExerciseSet={onDeleteExerciseSet}
-        isCoachView={isCoachView}
-        isCoach={isCoach}
-        raceKnown={raceKnown}
-        onSyncRaceMetric={onSyncRaceMetric}
-        targetPaces={targetPaces}
-        onSaveTargetPace={onSaveTargetPace}
-        circuitLogs={circuitLogs}
-        onSaveCircuitLog={onSaveCircuitLog}
-      />
-
-      {/* Programme terminé */}
-      {allDone && (
-        <div style={{ background: '#DCFCE7', border: '1px solid #BBF7D0', borderRadius: 'var(--rl)', padding: '12px 14px', textAlign: 'center', color: '#166534', fontWeight: 700, fontSize: 14 }}>
-          ✓ Programme terminé !
-        </div>
-      )}
-
-      {/* Séances validées : liste repliable */}
-      {validatedSessions.length > 0 && (
-        <div>
-          <button
-            onClick={() => setShowValidated(v => !v)}
-            style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '4px 0', display: 'flex', alignItems: 'center', gap: 4 }}
-          >
-            {showValidated ? '▲' : '▼'} Séances validées ({validatedSessions.length})
-          </button>
-          {showValidated && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingLeft: 4 }}>
-              {validatedSessions.map(({ s, i }) => (
-                <button
-                  key={s.id}
-                  onClick={() => { setSelectedIdx(i); setShowValidated(false); setIsOpen(true) }}
-                  style={{ background: 'none', border: 'none', color: i === selectedIdx ? 'var(--green)' : 'var(--text2)', fontWeight: i === selectedIdx ? 700 : 600, fontSize: 12, textAlign: 'left', cursor: 'pointer', padding: '3px 0' }}
-                >
-                  ✓ {s.title || `Séance ${i + 1}`}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 
 const VISIBLE_COUNT = 3
@@ -37,6 +37,86 @@ export function DurationHMSInput({ initialMinutes, onSave, inputStyle }) {
   )
 }
 
+// Formulaire de log (km/durée/RPE + Valider) pour UNE discipline à une date donnée — extrait pour
+// être réutilisé à la fois dans la liste "Activité du jour" et dans l'assistant "Ajouter une activité".
+export function ActivityLogForm({ def, log, date, athleteId, onSaved }) {
+  const inp = {
+    width: '100%', boxSizing: 'border-box', padding: '8px 10px',
+    border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+    fontSize: 15, outline: 'none', background: 'var(--bg)',
+    color: 'var(--text)', fontWeight: 700, fontFamily: 'inherit',
+  }
+
+  const saveField = async (field, value) => {
+    const { id, created_at, ...existingFields } = log || {}
+    const payload = { athlete_id: athleteId, date, type: 'custom', ...existingFields, label: def.label, [field]: value ?? null }
+    const { data, error } = await supabase.from('activity_logs')
+      .upsert(payload, { onConflict: 'athlete_id,date,type,label' })
+      .select().single()
+    if (error) { alert("Erreur d'enregistrement de l'activité : " + error.message); return }
+    if (data) onSaved?.(data)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {(def.show_km || def.show_duration) && (
+        <div style={{ display: 'flex', gap: 10 }}>
+          {def.show_km && (
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>km</div>
+              <input key={`km-${def.id}-${date}`} type="number" step="0.1" min="0" placeholder="0.0"
+                defaultValue={log?.km ?? ''}
+                onBlur={e => saveField('km', e.target.value ? parseFloat(e.target.value) : null)}
+                onKeyDown={e => e.key === 'Enter' && e.target.blur()}
+                style={inp} />
+            </div>
+          )}
+          {def.show_duration && (
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>Durée</div>
+              <DurationHMSInput
+                key={`dur-${def.id}-${date}`}
+                initialMinutes={log?.duration_minutes}
+                onSave={mins => saveField('duration_minutes', mins)}
+                inputStyle={inp}
+              />
+            </div>
+          )}
+        </div>
+      )}
+      <div>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>RPE</div>
+        <div style={{ display: 'flex', gap: 3 }}>
+          {[1,2,3,4,5,6,7,8,9,10].map(n => (
+            <button key={n} type="button"
+              onClick={() => saveField('difficulty', log?.difficulty === n ? null : n)}
+              style={{
+                flex: 1, padding: '7px 0', border: '1px solid', borderRadius: 'var(--r)',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                borderColor: log?.difficulty === n ? 'transparent' : 'var(--border2)',
+                background: log?.difficulty === n ? (n >= 8 ? '#ef4444' : n >= 5 ? '#f59e0b' : '#22c55e') : 'var(--bg2)',
+                color: log?.difficulty === n ? '#fff' : 'var(--text2)',
+              }}>{n}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        {log?.validated_at ? (
+          <button onClick={() => saveField('validated_at', null)}
+            style={{ background: '#DCFCE7', color: '#166534', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            ✓ Validée
+          </button>
+        ) : (
+          <button onClick={() => saveField('validated_at', new Date().toISOString())}
+            style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            ✓ Valider
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function ActivityBlock({ athleteId, date = null, isCoach = false, onSaved }) {
   const [defs, setDefs]         = useState([])
   const [dayLogs, setDayLogs]   = useState({})
@@ -47,8 +127,6 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false,
   const [editingId, setEditingId] = useState(null)
   const [editForm, setEditForm] = useState({ label: '', show_km: false, show_duration: false })
   const [saving, setSaving]     = useState(false)
-  const dayLogsRef = useRef(dayLogs)
-  useEffect(() => { dayLogsRef.current = dayLogs }, [dayLogs])
 
   // Charger les définitions globales
   useEffect(() => {
@@ -103,22 +181,6 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false,
     if (!confirm('Supprimer cette activité ?')) return
     await supabase.from('activity_definitions').delete().eq('id', id)
     setDefs(prev => prev.filter(d => d.id !== id))
-  }
-
-  // ── Log journalier ─────────────────────────────────────────────────────────
-
-  const saveLog = async (label, field, value) => {
-    if (!date || !athleteId) return
-    const { id, created_at, ...existingFields } = dayLogsRef.current[label] || {}
-    const payload = { athlete_id: athleteId, date, type: 'custom', ...existingFields, label, [field]: value ?? null }
-    const { data, error } = await supabase.from('activity_logs')
-      .upsert(payload, { onConflict: 'athlete_id,date,type,label' })
-      .select().single()
-    if (error) { alert("Erreur d'enregistrement de l'activité : " + error.message); return }
-    if (data) {
-      setDayLogs(prev => ({ ...prev, [label]: data }))
-      onSaved?.()
-    }
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -211,62 +273,8 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false,
 
                     {/* Log du jour (si date fournie) */}
                     {date ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                        {(def.show_km || def.show_duration) && (
-                          <div style={{ display: 'flex', gap: 10 }}>
-                            {def.show_km && (
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>km</div>
-                                <input key={`km-${def.id}-${date}`} type="number" step="0.1" min="0" placeholder="0.0"
-                                  defaultValue={log?.km ?? ''}
-                                  onBlur={e => saveLog(def.label, 'km', e.target.value ? parseFloat(e.target.value) : null)}
-                                  onKeyDown={e => e.key === 'Enter' && e.target.blur()}
-                                  style={inp} />
-                              </div>
-                            )}
-                            {def.show_duration && (
-                              <div style={{ flex: 1 }}>
-                                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>Durée</div>
-                                <DurationHMSInput
-                                  key={`dur-${def.id}-${date}`}
-                                  initialMinutes={log?.duration_minutes}
-                                  onSave={mins => saveLog(def.label, 'duration_minutes', mins)}
-                                  inputStyle={inp}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        <div>
-                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 3 }}>RPE</div>
-                          <div style={{ display: 'flex', gap: 3 }}>
-                            {[1,2,3,4,5,6,7,8,9,10].map(n => (
-                              <button key={n} type="button"
-                                onClick={() => saveLog(def.label, 'difficulty', log?.difficulty === n ? null : n)}
-                                style={{
-                                  flex: 1, padding: '7px 0', border: '1px solid', borderRadius: 'var(--r)',
-                                  fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                                  borderColor: log?.difficulty === n ? 'transparent' : 'var(--border2)',
-                                  background: log?.difficulty === n ? (n >= 8 ? '#ef4444' : n >= 5 ? '#f59e0b' : '#22c55e') : 'var(--bg2)',
-                                  color: log?.difficulty === n ? '#fff' : 'var(--text2)',
-                                }}>{n}</button>
-                            ))}
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                          {log?.validated_at ? (
-                            <button onClick={() => saveLog(def.label, 'validated_at', null)}
-                              style={{ background: '#DCFCE7', color: '#166534', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                              ✓ Validée
-                            </button>
-                          ) : (
-                            <button onClick={() => saveLog(def.label, 'validated_at', new Date().toISOString())}
-                              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                              ✓ Valider
-                            </button>
-                          )}
-                        </div>
-                      </div>
+                      <ActivityLogForm def={def} log={log} date={date} athleteId={athleteId}
+                        onSaved={data => { setDayLogs(prev => ({ ...prev, [def.label]: data })); onSaved?.() }} />
                     ) : (
                       /* Mode sans date : affiche les champs configurés */
                       <div style={{ display: 'flex', gap: 5 }}>
