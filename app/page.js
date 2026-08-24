@@ -302,6 +302,7 @@ export default function Home() {
 function SessionCard({ session, onOpen }) {
   const dateLabel = session.type === 'program' || session.type === 'activity' ? session.date.slice(0, 10) : session.date
   const isActivity = session.type === 'activity'
+  const [expanded, setExpanded] = useState(false)
 
   return (
     <div onClick={onOpen} style={{
@@ -309,7 +310,7 @@ function SessionCard({ session, onOpen }) {
       borderRadius: 'var(--rl)', padding: '14px 16px', cursor: 'pointer', color: 'inherit'
     }}>
       {/* Header : avatar + nom + date */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: session.title ? 8 : 0 }}>
         <div style={{
           width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
           background: 'var(--green-light)', color: 'var(--green)',
@@ -324,42 +325,56 @@ function SessionCard({ session, onOpen }) {
             {formatDateLong(dateLabel)}
           </div>
         </div>
-        <div style={{ fontSize: 12, fontWeight: 700, background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px', flexShrink: 0 }}>
-          {isActivity ? '🏃 Activité' : `✓ ${session.exosDone.length} exercice${session.exosDone.length !== 1 ? 's' : ''}`}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px' }}>
+            {isActivity ? '🏃 Activité' : `✓ ${session.exosDone.length} exercice${session.exosDone.length !== 1 ? 's' : ''}`}
+          </div>
+          <button
+            onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
+            title="Aperçu rapide"
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: 4, lineHeight: 1,
+              transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s',
+            }}
+          >▾</button>
         </div>
       </div>
 
       {/* Titre séance */}
       {session.title && (
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)', marginBottom: 8 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
           {session.title}
         </div>
       )}
 
-      {/* Détail activité (km / durée / RPE) */}
-      {isActivity && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {session.km != null && <span style={{ fontSize: 12, color: 'var(--text3)' }}>{session.km} km</span>}
-          {session.feedback?.duration_minutes && <span style={{ fontSize: 12, color: 'var(--text3)' }}>{session.feedback.duration_minutes} min</span>}
-          {session.feedback?.difficulty != null && <span style={{ fontSize: 12, color: 'var(--text3)' }}>RPE {session.feedback.difficulty}/10</span>}
+      {expanded && (
+        <div onClick={e => e.stopPropagation()} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+          {/* Détail activité (km / durée / RPE) */}
+          {isActivity && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
+              {session.km != null && <span style={{ fontSize: 12, color: 'var(--text3)' }}>{session.km} km</span>}
+              {session.feedback?.duration_minutes && <span style={{ fontSize: 12, color: 'var(--text3)' }}>{session.feedback.duration_minutes} min</span>}
+              {session.feedback?.difficulty != null && <span style={{ fontSize: 12, color: 'var(--text3)' }}>RPE {session.feedback.difficulty}/10</span>}
+            </div>
+          )}
+
+          {/* Exercices réalisés */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {session.exosDone.map(e => {
+              const log = e.log
+              const prescribed = [e.sets && `${e.sets} séries`, e.reps && `${e.reps} reps`, e.kg && `${e.kg} kg`].filter(Boolean).join(' · ')
+              const done = [log.sets_done && `${log.sets_done}×`, log.reps_done, log.kg_done && `${log.kg_done} kg`].filter(Boolean).join(' ')
+              return (
+                <div key={e.id} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 12 }}>
+                  <span style={{ fontWeight: 600, color: 'var(--text)' }}>{e.name}</span>
+                  {done && <span style={{ color: '#166534', fontWeight: 700 }}>→ {done}</span>}
+                  {prescribed && <span style={{ color: 'var(--text3)' }}>({prescribed})</span>}
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
-
-      {/* Exercices réalisés */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {session.exosDone.map(e => {
-          const log = e.log
-          const prescribed = [e.sets && `${e.sets} séries`, e.reps && `${e.reps} reps`, e.kg && `${e.kg} kg`].filter(Boolean).join(' · ')
-          const done = [log.sets_done && `${log.sets_done}×`, log.reps_done, log.kg_done && `${log.kg_done} kg`].filter(Boolean).join(' ')
-          return (
-            <div key={e.id} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 12 }}>
-              <span style={{ fontWeight: 600, color: 'var(--text)' }}>{e.name}</span>
-              {done && <span style={{ color: '#166534', fontWeight: 700 }}>→ {done}</span>}
-              {prescribed && <span style={{ color: 'var(--text3)' }}>({prescribed})</span>}
-            </div>
-          )
-        })}
-      </div>
     </div>
   )
 }

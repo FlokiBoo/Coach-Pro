@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import TimerModal from './TimerModal'
 import PasswordSettingsModal from './PasswordSettingsModal'
 import { guardNavigation, hasUnsavedChanges } from '@/lib/unsavedChanges'
 
@@ -49,8 +48,23 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [search, setSearch] = useState('')
-  const [showTimer, setShowTimer] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [sectionsCollapsed, setSectionsCollapsed] = useState({})
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('coachpro_nav_sections_collapsed')
+      if (raw) setSectionsCollapsed(JSON.parse(raw))
+    } catch {}
+  }, [])
+
+  const toggleSection = (key) => {
+    setSectionsCollapsed(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      try { localStorage.setItem('coachpro_nav_sections_collapsed', JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('coachpro_sidebar_collapsed') === '1')
@@ -166,82 +180,107 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>👥 Groupes</Link>
-        <button onClick={() => setShowTimer(true)} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', width: '100%', textAlign: 'left',
-          borderRadius: 'var(--r)', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent', fontFamily: 'inherit',
-        }}>⏱ Timer</button>
         <Link href="/assistant" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>🤖 Assistant IA</Link>
 
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
+        <button onClick={() => toggleSection('nutrition')} style={{
+          display: 'flex', alignItems: 'center', gap: 4, width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px', fontFamily: 'inherit',
+        }}>
+          <span style={{ transform: sectionsCollapsed.nutrition ? 'rotate(-90deg)' : 'none', transition: 'transform .15s', display: 'inline-block', fontSize: 9 }}>▾</span>
           Nutrition
-        </div>
-        <Link href="/nutrition/plans" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>🗓 Plans</Link>
-        <Link href="/nutrition/recettes" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>🍳 Recettes</Link>
-        <Link href="/nutrition/aliments" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>🍎 Aliments</Link>
-        <Link href="/meal-planner" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>🍽 Générateur de plan</Link>
+        </button>
+        {!sectionsCollapsed.nutrition && (
+          <>
+            <Link href="/nutrition/plans" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}>🗓 Plans</Link>
+            <Link href="/nutrition/recettes" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}>🍳 Recettes</Link>
+            <Link href="/nutrition/aliments" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}>🍎 Aliments</Link>
+            <Link href="/meal-planner" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}>🍽 Générateur de plan</Link>
+          </>
+        )}
 
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
+        <button onClick={() => toggleSection('coaching')} style={{
+          display: 'flex', alignItems: 'center', gap: 4, width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px', fontFamily: 'inherit',
+        }}>
+          <span style={{ transform: sectionsCollapsed.coaching ? 'rotate(-90deg)' : 'none', transition: 'transform .15s', display: 'inline-block', fontSize: 9 }}>▾</span>
           Coaching
-        </div>
-        <Link href="/programs" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>📋 Templates</Link>
-        <Link href="/metrics" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>📈 Metrics</Link>
-        <Link href="/tips" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>💡 Tips</Link>
+        </button>
+        {!sectionsCollapsed.coaching && (
+          <>
+            <Link href="/programs" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}>📋 Templates</Link>
+            <Link href="/metrics" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}>📈 Metrics</Link>
+            <Link href="/tips" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}>💡 Tips</Link>
+          </>
+        )}
 
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
+        <button onClick={() => toggleSection('exercice')} style={{
+          display: 'flex', alignItems: 'center', gap: 4, width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px', fontFamily: 'inherit',
+        }}>
+          <span style={{ transform: sectionsCollapsed.exercice ? 'rotate(-90deg)' : 'none', transition: 'transform .15s', display: 'inline-block', fontSize: 9 }}>▾</span>
           Exercice
-        </div>
-        <Link href="/movements" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>📚 Mouvements</Link>
-        <Link href="/library/activations" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>⚡ Activations</Link>
+        </button>
+        {!sectionsCollapsed.exercice && (
+          <>
+            <Link href="/movements" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}>📚 Mouvements</Link>
+            <Link href="/library/activations" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}>⚡ Activations</Link>
+          </>
+        )}
 
-        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px' }}>
+        <button onClick={() => toggleSection('business')} style={{
+          display: 'flex', alignItems: 'center', gap: 4, width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px', fontFamily: 'inherit',
+        }}>
+          <span style={{ transform: sectionsCollapsed.business ? 'rotate(-90deg)' : 'none', transition: 'transform .15s', display: 'inline-block', fontSize: 9 }}>▾</span>
           Business
-        </div>
-        <Link href="/finances" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-          display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-          borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-          color: 'var(--text2)', background: 'transparent',
-        }}>💰 Finances</Link>
+        </button>
+        {!sectionsCollapsed.business && (
+          <Link href="/finances" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+            borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+            color: 'var(--text2)', background: 'transparent',
+          }}>💰 Finances</Link>
+        )}
       </div>
 
       {/* Liste sportifs */}
@@ -362,7 +401,6 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
       title="Afficher le bandeau"
     >»</button>
 
-    {showTimer && <TimerModal onClose={() => setShowTimer(false)} />}
     {showSettings && <PasswordSettingsModal onClose={() => setShowSettings(false)} />}
     </>
   )
