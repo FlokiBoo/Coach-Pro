@@ -13,14 +13,15 @@ const inp = {
   borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
 }
 
-// Détecte un "#recherche" en cours de frappe juste avant le curseur (le # doit démarrer un mot,
-// et aucun espace ne doit s'être glissé entre le # et le curseur).
+// Détecte un "#recherche" en cours de frappe juste avant le curseur (le # doit démarrer un mot).
+// Les espaces sont autorisés dans la recherche (les noms de mouvements ont souvent plusieurs
+// mots) — seul un retour à la ligne, ou une recherche anormalement longue, referme la mention.
 function getMentionQuery(text, cursorPos) {
   const upToCursor = text.slice(0, cursorPos)
   const hashIdx = upToCursor.lastIndexOf('#')
   if (hashIdx === -1) return null
   const query = upToCursor.slice(hashIdx + 1)
-  if (/\s/.test(query)) return null
+  if (query.includes('\n') || query.length > 40) return null
   const charBefore = hashIdx > 0 ? upToCursor[hashIdx - 1] : null
   if (charBefore && !/\s/.test(charBefore)) return null
   return { hashIdx, query, cursorPos }
