@@ -33,6 +33,13 @@ export default function AthletesPage() {
   const [creating, setCreating] = useState(false)
   const [inviting, setInviting] = useState(false)
   const [inviteMsg, setInviteMsg] = useState('')
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  const copySignupLink = () => {
+    navigator.clipboard.writeText(`${window.location.origin}/login?mode=signup`)
+    setLinkCopied(true)
+    setTimeout(() => setLinkCopied(false), 2000)
+  }
 
   useEffect(() => { load() }, [])
 
@@ -131,6 +138,26 @@ export default function AthletesPage() {
         </div>
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{
+            background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--rl)',
+            padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10,
+          }}>
+            <span style={{ fontSize: 18, flexShrink: 0 }}>🔗</span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>Lien d&apos;inscription</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
+                À envoyer aux personnes intéressées : elles arrivent sur la page de connexion / inscription.
+              </div>
+            </div>
+            <button onClick={copySignupLink} style={{
+              background: linkCopied ? 'var(--green)' : '#fff', color: linkCopied ? '#fff' : 'var(--green)',
+              border: '1px solid var(--green)', borderRadius: 20, padding: '7px 14px', fontSize: 12, fontWeight: 700,
+              cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+            }}>
+              {linkCopied ? '✓ Copié' : 'Copier le lien'}
+            </button>
+          </div>
+
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}

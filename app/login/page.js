@@ -1,15 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 
-export default function LoginPage() {
+export default function LoginPageWrapper() {
+  return (
+    <Suspense>
+      <LoginPage />
+    </Suspense>
+  )
+}
+
+function LoginPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [mode, setMode] = useState('login') // 'login' | 'signup' | 'reset'
+  const [mode, setMode] = useState(searchParams.get('mode') === 'signup' ? 'signup' : 'login') // 'login' | 'signup' | 'reset'
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
