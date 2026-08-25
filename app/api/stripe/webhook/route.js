@@ -45,38 +45,45 @@ export async function POST(request) {
     return NextResponse.json({ error: `Signature invalide : ${err.message}` }, { status: 400 })
   }
 
-  switch (event.type) {
-    case 'checkout.session.completed': {
-      const session = event.data.object
-      if (session.mode === 'subscription' && session.subscription) {
-        const subscription = await stripe.subscriptions.retrieve(session.subscription)
-        await syncFromSubscription(subscription)
+  // Une fois la signature vérifiée, on accuse toujours réception (2xx) même si le traitement
+  // interne échoue (Notion indisponible, etc.) — sinon Stripe retente puis désactive l'endpoint
+  // après des échecs répétés, alors que l'événement a bien été reçu et authentifié.
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object
+        if (session.mode === 'subscription' && session.subscription) {
+          const subscription = await stripe.subscriptions.retrieve(session.subscription)
+          await syncFromSubscription(subscription)
+        }
+        break
       }
-      break
-    }
-    case 'customer.subscription.updated':
-    case 'customer.subscription.created': {
-      await syncFromSubscription(event.data.object)
-      break
-    }
-    case 'customer.subscription.deleted': {
-      const subscription = event.data.object
-      const athleteId = subscription.metadata?.athlete_id
-      if (athleteId) {
-        await supabaseAdmin.from('athletes').update({
-          subscription_status: 'canceled', subscription_tier: null,
-        }).eq('id', athleteId)
+      case 'customer.subscription.updated':
+      case 'customer.subscription.created': {
+        await syncFromSubscription(event.data.object)
+        break
       }
-      break
+      case 'customer.subscription.deleted': {
+        const subscription = event.data.object
+        const athleteId = subscription.metadata?.athlete_id
+        if (athleteId) {
+          await supabaseAdmin.from('athletes').update({
+            subscription_status: 'canceled', subscription_tier: null,
+          }).eq('id', athleteId)
+        }
+        break
+      }
+      case 'invoice.paid': {
+        await syncInvoiceToNotion(event.data.object, 'Payé')
+        break
+      }
+      case 'invoice.payment_failed': {
+        await syncInvoiceToNotion(event.data.object, 'Échoué')
+        break
+      }
     }
-    case 'invoice.paid': {
-      await syncInvoiceToNotion(event.data.object, 'Payé')
-      break
-    }
-    case 'invoice.payment_failed': {
-      await syncInvoiceToNotion(event.data.object, 'Échoué')
-      break
-    }
+  } catch (err) {
+    console.error(`Erreur de traitement du webhook Stripe (${event.type}) :`, err)
   }
 
   return NextResponse.json({ received: true })
