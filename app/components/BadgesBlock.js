@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { bestPerformance, formatTime } from './TrackedMovementsBlock'
-import { BADGE_MOVEMENTS, TIER_STYLES, computeBadge } from '@/lib/badges'
+import { BADGE_MOVEMENTS, BINARY_BADGE_MOVEMENTS, TIER_STYLES, computeBadge } from '@/lib/badges'
 import { CARDIO_BADGE_MOVEMENTS, computeCardioBadge } from '@/lib/cardioBadges'
 
 function calcAge(birthDate) {
@@ -54,9 +54,23 @@ function BadgeCard({ name, subtitle, footerValue, current, next, progress, nextH
   )
 }
 
+function BinaryBadgeCard({ name, acquired }) {
+  return (
+    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+      <div style={{ fontWeight: 700, fontSize: 15 }}>{name}</div>
+      {acquired ? (
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#0D6B4F', background: '#DDF3EA', borderRadius: 20, padding: '5px 12px', flexShrink: 0 }}>✅ Acquis</span>
+      ) : (
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 20, padding: '5px 12px', flexShrink: 0 }}>Pas encore acquis</span>
+      )}
+    </div>
+  )
+}
+
 export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
   const [cards, setCards] = useState(null)
   const [cardioCards, setCardioCards] = useState(null)
+  const [binaryCards, setBinaryCards] = useState(null)
   const age = calcAge(birthDate)
 
   useEffect(() => { load() }, [athleteId, weight, sex, birthDate])
@@ -79,9 +93,10 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
         const movEntries = (entries || []).filter(e => e.tracked_movement_id === mov.id)
         const best = bestPerformance(mov, movEntries)
         if (!best) return { name: bm.name, noData: true }
-        const pct = (best.value / weight) * 100
-        const badge = computeBadge(pct, bm.thresholds, sex)
-        return { name: bm.name, value: best.value, pct, ...badge }
+        const mode = bm.mode || 'pct'
+        const compareValue = mode === 'reps' ? best.value : (best.value / weight) * 100
+        const badge = computeBadge(compareValue, bm.thresholds, sex)
+        return { name: bm.name, mode, value: best.value, ...badge }
       })
       setCards(result)
     } else {
@@ -112,16 +127,36 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
     } else {
       setCardioCards([])
     }
+
+    const binaryNames = BINARY_BADGE_MOVEMENTS.map(m => m.name)
+    const { data: binaryMovements } = await supabase.from('tracked_movements').select('id, name, unit').in('name', binaryNames)
+    const binaryMovByName = {}
+    ;(binaryMovements || []).forEach(m => { binaryMovByName[m.name] = m })
+
+    const binaryMovementIds = (binaryMovements || []).map(m => m.id)
+    const { data: binaryEntries } = binaryMovementIds.length
+      ? await supabase.from('tracked_movement_entries').select('*').eq('athlete_id', athleteId).in('tracked_movement_id', binaryMovementIds)
+      : { data: [] }
+
+    const binaryResult = BINARY_BADGE_MOVEMENTS.map(bm => {
+      const mov = binaryMovByName[bm.name]
+      if (!mov) return { name: bm.name, missing: true }
+      const movEntries = (binaryEntries || []).filter(e => e.tracked_movement_id === mov.id)
+      const best = bestPerformance(mov, movEntries)
+      return { name: bm.name, acquired: !!best && best.value >= 1 }
+    })
+    setBinaryCards(binaryResult)
   }
 
-  if (cards === null || cardioCards === null) return (
+  if (cards === null || cardioCards === null || binaryCards === null) return (
     <div style={{ fontSize: 13, color: 'var(--text3)', padding: '12px 0' }}>Chargement…</div>
   )
 
   const hasStrength = cards.some(c => !c.missing)
   const hasCardio = cardioCards.some(c => !c.missing)
+  const hasBinary = binaryCards.some(c => !c.missing)
 
-  if (!hasStrength && !hasCardio) return null
+  if (!hasStrength && !hasCardio && !hasBinary) return null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -133,12 +168,18 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
 
       {weight && cards.map(card => {
         if (card.missing) return null
+        const isReps = card.mode === 'reps'
+        const pct = !card.noData && !isReps ? (card.value / weight) * 100 : null
         return (
           <BadgeCard key={card.name} name={card.name} noData={card.noData}
-            subtitle={!card.noData ? `${card.value}kg · ${Math.round(card.pct)}% PDC (${weight}kg)` : null}
-            footerValue={!card.noData ? `${card.value}kg` : null}
+            subtitle={!card.noData ? (isReps ? `${card.value} reps` : `${card.value}kg · ${Math.round(pct)}% PDC (${weight}kg)`) : null}
+            footerValue={!card.noData ? (isReps ? `${card.value} reps` : `${card.value}kg`) : null}
             current={card.current} next={card.next} progress={card.progress}
-            nextHint={card.next ? `à ${Math.round((card.next.pct / 100) * weight)}kg — encore ${Math.max(0, Math.round((card.next.pct / 100) * weight - card.value))}kg` : null}
+            nextHint={card.next
+              ? (isReps
+                ? `à ${card.next.value} reps — encore ${Math.max(0, card.next.value - card.value)} reps`
+                : `à ${Math.round((card.next.value / 100) * weight)}kg — encore ${Math.max(0, Math.round((card.next.value / 100) * weight - card.value))}kg`)
+              : null}
           />
         )
       })}
@@ -160,6 +201,10 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
           />
         )
       })}
+
+      {binaryCards.map(card => card.missing ? null : (
+        <BinaryBadgeCard key={card.name} name={card.name} acquired={card.acquired} />
+      ))}
     </div>
   )
 }
