@@ -143,7 +143,7 @@ export default function ProfilTab({ athlete, token, onWeightUpdate, onSexUpdate,
 
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>🏅 Badges de force</div>
-        <BadgesBlock athleteId={athlete.id} weight={athlete.weight} sex={athlete.sex} />
+        <BadgesBlock athleteId={athlete.id} weight={athlete.weight} sex={athlete.sex} birthDate={athlete.birth_date} />
       </div>
 
       <div>
