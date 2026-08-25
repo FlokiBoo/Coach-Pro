@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { bestPerformance, formatTime } from './TrackedMovementsBlock'
 import { BADGE_MOVEMENTS, BINARY_BADGE_MOVEMENTS, TIER_STYLES, computeBadge } from '@/lib/badges'
 import { CARDIO_BADGE_MOVEMENTS, computeCardioBadge } from '@/lib/cardioBadges'
+import ForceRadarBlock from './ForceRadarBlock'
 
 function calcAge(birthDate) {
   if (!birthDate) return null
@@ -160,6 +161,8 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <ForceRadarBlock strengthCards={cards} cardioCards={cardioCards} />
+
       {hasStrength && !weight && (
         <div style={{ background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', padding: 16, textAlign: 'center', fontSize: 13, color: 'var(--text3)' }}>
           Renseigne ton poids (dans ton profil) pour débloquer tes badges de force.
