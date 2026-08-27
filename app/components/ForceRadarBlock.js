@@ -12,7 +12,7 @@ function polarPoint(cx, cy, r, angleDeg) {
 // Radar (diagramme en araignée) de la force par groupe musculaire, à partir des badges de force
 // et de cardio déjà calculés par BadgesBlock : plus le score se rapproche du nom du muscle, plus
 // le palier atteint sur les mouvements de ce groupe est élevé.
-export default function ForceRadarBlock({ strengthCards, cardioCards }) {
+export default function ForceRadarBlock({ strengthCards, cardioCards, expanded, onToggle }) {
   const cards = [...(strengthCards || []), ...(cardioCards || [])]
   const scores = computeMuscleScores(cards)
   const axes = RADAR_GROUPS
@@ -37,8 +37,17 @@ export default function ForceRadarBlock({ strengthCards, cardioCards }) {
     : null
 
   return (
-    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', alignSelf: 'flex-start', marginBottom: 6 }}>💪 Force par muscle</div>
+    <button onClick={onToggle} style={{
+      background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', width: '100%',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', width: '100%', marginBottom: 6 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', flex: 1, textAlign: 'left' }}>💪 Force par muscle</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 3 }}>
+          {expanded ? 'Réduire' : 'Voir le détail'}
+          <span style={{ display: 'inline-block', transition: 'transform .2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>▾</span>
+        </div>
+      </div>
 
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {ringLevels.map(lvl => {
@@ -80,6 +89,6 @@ export default function ForceRadarBlock({ strengthCards, cardioCards }) {
           </div>
         ))}
       </div>
-    </div>
+    </button>
   )
 }

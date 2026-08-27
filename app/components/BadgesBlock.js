@@ -72,6 +72,7 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
   const [cards, setCards] = useState(null)
   const [cardioCards, setCardioCards] = useState(null)
   const [binaryCards, setBinaryCards] = useState(null)
+  const [showDetail, setShowDetail] = useState(false)
   const age = calcAge(birthDate)
 
   useEffect(() => { load() }, [athleteId, weight, sex, birthDate])
@@ -161,15 +162,15 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <ForceRadarBlock strengthCards={cards} cardioCards={cardioCards} />
+      <ForceRadarBlock strengthCards={cards} cardioCards={cardioCards} expanded={showDetail} onToggle={() => setShowDetail(v => !v)} />
 
-      {hasStrength && !weight && (
+      {showDetail && hasStrength && !weight && (
         <div style={{ background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', padding: 16, textAlign: 'center', fontSize: 13, color: 'var(--text3)' }}>
           Renseigne ton poids (dans ton profil) pour débloquer tes badges de force.
         </div>
       )}
 
-      {weight && cards.map(card => {
+      {showDetail && weight && cards.map(card => {
         if (card.missing) return null
         const isReps = card.mode === 'reps'
         const pct = !card.noData && !isReps ? (card.value / weight) * 100 : null
@@ -187,13 +188,13 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
         )
       })}
 
-      {hasCardio && age == null && (
+      {showDetail && hasCardio && age == null && (
         <div style={{ background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', padding: 16, textAlign: 'center', fontSize: 13, color: 'var(--text3)' }}>
           Renseigne ta date de naissance (dans ton profil) pour débloquer tes badges cardio.
         </div>
       )}
 
-      {age != null && cardioCards.map(card => {
+      {showDetail && age != null && cardioCards.map(card => {
         if (card.missing) return null
         return (
           <BadgeCard key={card.name} name={card.name} noData={card.noData}
@@ -205,7 +206,7 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
         )
       })}
 
-      {binaryCards.map(card => card.missing ? null : (
+      {showDetail && binaryCards.map(card => card.missing ? null : (
         <BinaryBadgeCard key={card.name} name={card.name} acquired={card.acquired} />
       ))}
     </div>
