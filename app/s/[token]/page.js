@@ -318,7 +318,12 @@ function AthleteView({ params }) {
     if (!athlete) return
     const target = RACE_TARGETS.find(t => t.match(exerciseName))
     if (!target) return
-    const tm = trackedMovements.find(m => RACE_TARGETS.find(t => t.match(m.name)) === target)
+    // Priorité au mouvement dont le nom correspond exactement à l'exercice (ex: "6 min (Demi Cooper)") :
+    // le simple filtrage par regex de RACE_TARGETS peut matcher plusieurs mouvements pour un même
+    // target (ex: "6 min (Demi Cooper)" ET "6 min Echo Bike" matchent tous les deux "6min"), et .find()
+    // retenait alors le premier de la liste au hasard plutôt que le bon.
+    const tm = trackedMovements.find(m => m.name.trim().toLowerCase() === exerciseName.trim().toLowerCase())
+      || trackedMovements.find(m => RACE_TARGETS.find(t => t.match(m.name)) === target)
     if (!tm) return
 
     const paceSec = parsePaceInput(avgPaceStr)
