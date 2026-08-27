@@ -21,7 +21,7 @@ export async function GET(request) {
 
   let res
   try {
-    res = await fetch(url, { headers: { 'User-Agent': 'CoachPro/1.0 (contact via coachpro-app.fr)' } })
+    res = await fetch(url, { headers: { 'User-Agent': 'CoachPro/1.0 (contact via ostryk.fr)' } })
   } catch (err) {
     return NextResponse.json({ error: 'Open Food Facts injoignable : ' + err.message }, { status: 502 })
   }
