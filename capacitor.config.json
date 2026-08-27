@@ -3,7 +3,7 @@
   "appName": "OSTRYK",
   "webDir": "public",
   "server": {
-    "url": "https://www.coachpro-app.fr",
+    "url": "https://www.ostryk.fr",
     "cleartext": false
   },
   "plugins": {
