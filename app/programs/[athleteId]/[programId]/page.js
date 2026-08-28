@@ -10,6 +10,7 @@ import { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
 import { parseMusclesFromText } from '@/app/components/CelebrationModal'
 import { isRunMovement, PACE_BASES, computePaceForBasePct, buildKnownRaces, formatPace } from '@/lib/raceEstimates'
 import { setUnsavedChanges, guardNavigation } from '@/lib/unsavedChanges'
+import { SortableGroup, SortableItem, DragHandle } from '@/app/components/SortableItem'
 import { getCoachId } from '@/lib/coach'
 
 function today() {
@@ -1121,6 +1122,7 @@ function ProgramEditorPage({ params }) {
 
         <div style={{ padding: 16, display: layoutCols > 1 ? 'grid' : 'flex', flexDirection: layoutCols > 1 ? undefined : 'column', gridTemplateColumns: layoutCols > 1 ? `repeat(${layoutCols}, minmax(280px, 1fr))` : undefined, overflowX: layoutCols > 1 ? 'auto' : undefined, gap: 8, alignItems: 'start' }}>
 
+          <SortableGroup ids={sessions.map(s => s.id)} onReorder={(id, dir) => moveSession(sessions.findIndex(x => x.id === id), dir)}>
           {sessions.map((s, idx) => {
             if (hiddenSessions.has(s.id)) return null
             const isOpen = layoutCols > 1 ? true : openId === s.id
@@ -1207,7 +1209,8 @@ function ProgramEditorPage({ params }) {
               </div>
             )
             return (
-              <div key={s.id} style={{
+              <SortableItem key={s.id} id={s.id}>{(dragProps) => (
+              <div style={{
                 background: 'var(--bg)', border: isPinned ? '1px solid var(--green)' : '1px solid var(--border)', borderRadius: 'var(--rl)',
                 overflowX: 'hidden', overflowY: isPinned ? 'auto' : 'hidden',
                 ...(isPinned ? { position: 'sticky', top: 12, maxHeight: 'calc(100svh - 24px)', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' } : {}),
@@ -1253,6 +1256,7 @@ function ProgramEditorPage({ params }) {
                       ✓ Effectuée
                     </span>
                   )}
+                  <span onClick={e => e.stopPropagation()}><DragHandle dragProps={dragProps} /></span>
                   {idx > 0 && (
                     <button onClick={e => { e.stopPropagation(); moveSession(idx, -1) }}
                       style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>↑</button>
@@ -1443,14 +1447,17 @@ function ProgramEditorPage({ params }) {
                     </div>
 
                     {/* Exercices */}
+                    <SortableGroup ids={s.exercises.map(e => e._key)} onReorder={(id, dir) => moveExo(s.id, id, dir)}>
                     {s.exercises.map((exo, ei) => {
                       const label = labels[exo._key] || String.fromCharCode(65 + ei)
                       return (
-                        <div key={exo._key}>
+                        <SortableItem key={exo._key} id={exo._key}>{(dragProps) => (
+                        <div>
                         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 7 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: videoInputKey === exo._key ? 3 : 5 }}>
                             {/* Flèches de déplacement */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flexShrink: 0 }}>
+                              <DragHandle dragProps={dragProps} />
                               <button onClick={() => moveExo(s.id, exo._key, -1)} disabled={ei === 0}
                                 style={{ background: 'none', border: 'none', cursor: ei === 0 ? 'default' : 'pointer', padding: '0 2px', fontSize: 9, color: ei === 0 ? 'var(--border2)' : 'var(--text3)', lineHeight: 1 }}>▲</button>
                               <button onClick={() => moveExo(s.id, exo._key, 1)} disabled={ei === s.exercises.length - 1}
@@ -1710,8 +1717,10 @@ function ProgramEditorPage({ params }) {
                         })()}
                         {(s.circuits || []).filter(c => circuitSlot(c) === ei + 1).map(c => renderCircuit(c, (s.circuits || []).indexOf(c)))}
                         </div>
+                        )}</SortableItem>
                       )
                     })}
+                    </SortableGroup>
 
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => addExo(s.id)} style={{ flex: 1, background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '8px', fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
@@ -1753,8 +1762,10 @@ function ProgramEditorPage({ params }) {
                   </div>
                 )}
               </div>
+              )}</SortableItem>
             )
           })}
+          </SortableGroup>
 
           <button onClick={addSession} style={{ background: 'var(--bg)', border: '2px dashed var(--border2)', borderRadius: 'var(--rl)', padding: 14, fontSize: 14, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', width: '100%' }}>
             + Ajouter une séance

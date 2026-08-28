@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import MuscleAnatomyDiagram from '@/app/components/MuscleAnatomyDiagram'
+import { SortableGroup, SortableItem, DragHandle } from '@/app/components/SortableItem'
 
 function emptyForm() {
   return { title: '', content: '', diagram: false }
@@ -101,8 +102,10 @@ export default function TipsPage() {
     const next = [...tips]
     ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
     setTips(next)
+    // Une requête Supabase construite sans être attendue (ni .then()) n'est jamais réellement
+    // envoyée — le tri ne se sauvegardait donc jamais avant l'ajout de ce .then().
     next.forEach((t, i) => {
-      supabase.from('tips').update({ order_index: i }).eq('id', t.id)
+      supabase.from('tips').update({ order_index: i }).eq('id', t.id).then(() => {})
     })
   }
 
@@ -164,8 +167,10 @@ export default function TipsPage() {
               <div style={{ fontSize: 13 }}>Clique sur « + Tip » pour commencer</div>
             </div>
           ) : (
-            tips.map((t, idx) => (
-              <div key={t.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
+            <SortableGroup ids={tips.map(t => t.id)} onReorder={(id, dir) => move(tips.findIndex(x => x.id === id), dir)}>
+            {tips.map((t, idx) => (
+              <SortableItem key={t.id} id={t.id}>{(dragProps) => (
+              <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
                 {editingId === t.id ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <input
@@ -197,7 +202,8 @@ export default function TipsPage() {
                   </div>
                 ) : (
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                      <DragHandle dragProps={dragProps} />
                       <button onClick={() => move(idx, -1)} disabled={idx === 0}
                         style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: idx === 0 ? 'var(--border2)' : 'var(--text3)', cursor: idx === 0 ? 'default' : 'pointer' }}>▲</button>
                       <button onClick={() => move(idx, 1)} disabled={idx === tips.length - 1}
@@ -233,7 +239,9 @@ export default function TipsPage() {
                   </div>
                 )}
               </div>
-            ))
+              )}</SortableItem>
+            ))}
+            </SortableGroup>
           )}
         </div>
       </div>

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import WellnessBlock from '@/app/components/WellnessBlock'
 import ActivityBlock from '@/app/components/ActivityBlock'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
+import { SortableGroup, SortableItem, DragHandle } from '@/app/components/SortableItem'
 
 function formatDate(d) {
   return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', {
@@ -209,6 +210,12 @@ export default function ProgrammePage({ params }) {
     if (idx === 0) return
     setExercises(prev => { const n = [...prev]; [n[idx-1], n[idx]] = [n[idx], n[idx-1]]; return n })
   }
+  const moveDown = (idx) => {
+    setExercises(prev => {
+      if (idx >= prev.length - 1) return prev
+      const n = [...prev]; [n[idx], n[idx + 1]] = [n[idx + 1], n[idx]]; return n
+    })
+  }
 
   const loadHistory = async (name) => {
     if (!name.trim()) return
@@ -317,7 +324,8 @@ export default function ProgrammePage({ params }) {
     const elems = []
 
     elems.push(
-      <div key={exo._key} style={{
+      <SortableItem key={exo._key} id={exo._key}>{(dragProps) => (
+      <div style={{
         background: 'var(--bg)',
         border: '1px solid var(--border)',
         borderLeft: inSuperset ? '3px solid var(--green)' : '1px solid var(--border)',
@@ -351,6 +359,7 @@ export default function ProgrammePage({ params }) {
               {hist === 'loading' ? '…' : '🕐'}
             </button>
           )}
+          <DragHandle dragProps={dragProps} />
           {idx > 0 && (
             <button onClick={() => moveUp(idx)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '4px 8px', fontSize: 13, color: 'var(--text3)', cursor: 'pointer' }}>↑</button>
           )}
@@ -411,6 +420,7 @@ export default function ProgrammePage({ params }) {
           </div>
         )}
       </div>
+      )}</SortableItem>
     )
 
     if (isLastInGroup) {
@@ -632,7 +642,12 @@ export default function ProgrammePage({ params }) {
 
         {/* Exercices */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          {exoCards}
+          <SortableGroup ids={exercises.map(e => e._key)} onReorder={(id, dir) => {
+            const idx = exercises.findIndex(e => e._key === id)
+            if (dir === -1) moveUp(idx); else moveDown(idx)
+          }}>
+            {exoCards}
+          </SortableGroup>
         </div>
 
         <button onClick={addExo} style={{ background: 'var(--bg)', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', padding: 12, fontSize: 14, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', width: '100%', marginTop: 8 }}>
