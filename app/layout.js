@@ -10,7 +10,7 @@ const workSans = Work_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "
 
 export const metadata = {
   title: "OSTRYK",
-  description: "Gestion de programmes sportifs",
+  description: "Built to grow",
   manifest: "/manifest.json",
 };
 

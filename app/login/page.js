@@ -84,7 +84,10 @@ function LoginPage() {
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-ostryk-transparent.png" alt="OSTRYK" style={{ width: 130, height: 'auto', marginBottom: 4 }} />
-          <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 4 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '1.2px', marginTop: 2 }}>
+            Built to grow
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 8 }}>
             {mode === 'login' && 'Connexion à ton espace'}
             {mode === 'signup' && 'Crée ton compte'}
             {mode === 'reset' && 'Réinitialiser le mot de passe'}
