@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, use, Suspense } from 'react'
+import { useState, useEffect, useRef, use, Suspense, Fragment } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -909,10 +909,13 @@ function CircuitLogger({ programSessionId, circuitId, log, onSave }) {
   const [tours, setTours] = useState(log?.tours ?? '')
   const [reps, setReps] = useState(log?.reps || '')
   const [note, setNote] = useState(log?.note || '')
+  const [validated, setValidated] = useState(false)
 
   const save = (patch = {}) => {
     onSave(programSessionId, circuitId, { mode, temps, tours, reps, note, ...patch })
   }
+
+  const handleValidate = () => { save(); setValidated(true) }
 
   const chooseMode = (m) => {
     setMode(m)
@@ -933,18 +936,28 @@ function CircuitLogger({ programSessionId, circuitId, log, onSave }) {
         ))}
       </div>
       {mode === 'temps' && (
-        <input placeholder="Ex : 12:30" value={temps} onChange={e => setTemps(e.target.value)} onBlur={() => save()} style={logInputStyle} />
+        <input placeholder="Ex : 12:30" value={temps} onChange={e => { setTemps(e.target.value); setValidated(false) }} onBlur={() => save()} style={logInputStyle} />
       )}
       {(mode === 'tours' || mode === 'tours_reps') && (
-        <input type="number" min="0" placeholder="Nombre de tours" value={tours} onChange={e => setTours(e.target.value)} onBlur={() => save()} style={logInputStyle} />
+        <input type="number" min="0" placeholder="Nombre de tours" value={tours} onChange={e => { setTours(e.target.value); setValidated(false) }} onBlur={() => save()} style={logInputStyle} />
       )}
       {(mode === 'reps' || mode === 'tours_reps') && (
-        <input placeholder="Reps" value={reps} onChange={e => setReps(e.target.value)} onBlur={() => save()} style={logInputStyle} />
+        <input placeholder="Reps" value={reps} onChange={e => { setReps(e.target.value); setValidated(false) }} onBlur={() => save()} style={logInputStyle} />
       )}
       {mode && (
-        <textarea placeholder="Comment c'était ?" value={note} onChange={e => setNote(e.target.value)} onBlur={() => save()} rows={2}
+        <textarea placeholder="Comment c'était ?" value={note} onChange={e => { setNote(e.target.value); setValidated(false) }} onBlur={() => save()} rows={2}
           style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', resize: 'none', boxSizing: 'border-box', fontFamily: 'inherit' }}
         />
+      )}
+      {mode && (
+        <button onClick={handleValidate} style={{
+          background: validated ? '#DCFCE7' : '#4338CA',
+          color: validated ? '#166534' : '#fff',
+          border: 'none', borderRadius: 20, padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%',
+          transition: 'all .15s',
+        }}>
+          {validated ? '✓ Enregistré' : '✓ Valider ce circuit'}
+        </button>
       )}
     </div>
   )
@@ -1075,6 +1088,38 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   const [savedIds, setSavedIds] = useState({})
+  // Position d'un circuit dans la séquence (0 = avant le 1er exercice, exos.length = après le
+  // dernier) — cf. côté coach pour le détail du positionnement interleavé avec les exercices.
+  const circuitSlot = (c) => Math.max(0, Math.min(c.afterExerciseIndex ?? 0, exos.length))
+  const renderCircuit = (c) => (
+    <div key={c.id} style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+      <div style={{ fontSize: 10, fontWeight: 800, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>🔁 Circuit</div>
+      {c.text && (
+        <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: c.videos?.length > 0 ? 8 : 0 }}>{c.text}</div>
+      )}
+      {c.videos?.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {c.videos.map((v, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, flex: 1, color: 'var(--text)' }}>{v.name}</span>
+              {v.video_url && (
+                <VideoButton url={v.video_url} label="▶ Voir"
+                  style={{ background: '#4338CA', color: '#fff', borderRadius: 'var(--r)', padding: '4px 12px', fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {onSaveCircuitLog && (
+        <CircuitLogger
+          programSessionId={session.id}
+          circuitId={c.id}
+          log={circuitLogs[`${session.id}::${c.id}`]}
+          onSave={onSaveCircuitLog}
+        />
+      )}
+    </div>
+  )
 
   // À l'ouverture, pré-remplit une ligne de série par série prescrite par le coach
   // (ex. "3 séries" -> 3 lignes Reps/Charge), au lieu d'attendre que le sportif clique "+ Ajouter".
@@ -1189,37 +1234,10 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
               ))}
             </div>
           )}
-          {(session.circuits || []).map(c => (
-            <div key={c.id} style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>🔁 Circuit</div>
-              {c.text && (
-                <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: c.videos?.length > 0 ? 8 : 0 }}>{c.text}</div>
-              )}
-              {c.videos?.length > 0 && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {c.videos.map((v, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, flex: 1, color: 'var(--text)' }}>{v.name}</span>
-                      {v.video_url && (
-                        <VideoButton url={v.video_url} label="▶ Voir"
-                          style={{ background: '#4338CA', color: '#fff', borderRadius: 'var(--r)', padding: '4px 12px', fontSize: 12, fontWeight: 700, flexShrink: 0 }} />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-              {onSaveCircuitLog && (
-                <CircuitLogger
-                  programSessionId={session.id}
-                  circuitId={c.id}
-                  log={circuitLogs[`${session.id}::${c.id}`]}
-                  onSave={onSaveCircuitLog}
-                />
-              )}
-            </div>
-          ))}
+          {(session.circuits || []).filter(c => circuitSlot(c) === 0).map(c => renderCircuit(c))}
           {exos.map((exo, ei) => (
-            <div key={exo.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '12px 14px' }}>
+            <Fragment key={exo.id}>
+            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '12px 14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: (exo.sets || exo.reps || exo.kg || exo.note) ? 8 : 0 }}>
                 <div style={{ minWidth: 24, height: 24, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, padding: '0 4px', flexShrink: 0 }}>
                   {labels[exo.id] || String.fromCharCode(65 + ei)}
@@ -1406,6 +1424,8 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 </div>
               )}
             </div>
+            {(session.circuits || []).filter(c => circuitSlot(c) === ei + 1).map(c => renderCircuit(c))}
+            </Fragment>
           ))}
 
           {isFreeSession && (
