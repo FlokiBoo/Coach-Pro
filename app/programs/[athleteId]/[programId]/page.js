@@ -159,6 +159,7 @@ function ProgramEditorPage({ params }) {
   const [athlete, setAthlete] = useState(null)
   const [program, setProgram] = useState(null)
   const [activityTypes, setActivityTypes] = useState([])
+  const [templateCategories, setTemplateCategories] = useState([])
   const [sessions, setSessions] = useState([])
   const [movementMusclesMap, setMovementMusclesMap] = useState({})
   const [movementFocusGroupsMap, setMovementFocusGroupsMap] = useState({})
@@ -223,6 +224,12 @@ function ProgramEditorPage({ params }) {
     supabase.from('activity_definitions').select('label').order('created_at')
       .then(({ data }) => setActivityTypes((data || []).map(d => d.label)))
   }, [])
+
+  useEffect(() => {
+    if (!isTemplate) return
+    supabase.from('programs').select('category').is('athlete_id', null).not('category', 'is', null)
+      .then(({ data }) => setTemplateCategories([...new Set((data || []).map(p => p.category))].sort()))
+  }, [isTemplate])
 
   useEffect(() => {
     // Masquage propre au coach : stocké côté serveur (comme les mouvements/tips masqués) plutôt
@@ -799,9 +806,15 @@ function ProgramEditorPage({ params }) {
     setTitleSaving(false)
   }
 
-  const saveCategory = async () => {
-    if (!program) return
-    const { error } = await supabase.from('programs').update({ category: program.category?.trim() || null }).eq('id', programId)
+  const saveCategory = async (value) => {
+    if (value === '__new__') {
+      const name = window.prompt('Nom de la nouvelle catégorie :')?.trim()
+      if (!name) return
+      value = name
+      setTemplateCategories(prev => prev.includes(name) ? prev : [...prev, name].sort())
+    }
+    setProgram(p => ({ ...p, category: value }))
+    const { error } = await supabase.from('programs').update({ category: value || null }).eq('id', programId)
     if (error) alert('Erreur lors de l\'enregistrement de la catégorie : ' + error.message)
   }
 
@@ -1001,14 +1014,15 @@ function ProgramEditorPage({ params }) {
                 {isTemplate ? '📋 Template' : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
               </div>
               {isTemplate && (
-                <input
+                <select
                   value={program?.category || ''}
-                  onChange={e => setProgram(p => ({ ...p, category: e.target.value }))}
-                  onBlur={saveCategory}
-                  onKeyDown={e => e.key === 'Enter' && e.target.blur()}
-                  placeholder="+ Catégorie (ex: Force, Hypertrophie, Perte de poids…)"
+                  onChange={e => saveCategory(e.target.value)}
                   style={{ marginTop: 4, fontSize: 12, fontWeight: 600, border: '1px solid var(--border2)', borderRadius: 20, outline: 'none', background: 'var(--bg2)', color: 'var(--text2)', padding: '4px 10px', width: '100%', boxSizing: 'border-box' }}
-                />
+                >
+                  <option value="">Aucune catégorie</option>
+                  {templateCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="__new__">+ Nouveau</option>
+                </select>
               )}
               <select
                 value={program?.activity_type || 'Musculation 🏋️'}
