@@ -406,12 +406,25 @@ function AthleteView({ params }) {
 
     const existingToday = (entries || []).find(e => e.date === date)
     const payload = { tracked_movement_id: movement.id, athlete_id: athlete.id, date, value }
+    // Perf non améliorante : proposer de la marquer quand même comme record affiché (ex: si les
+    // conditions du test ont changé) plutôt que de rester silencieusement une simple entrée.
+    if (!isNewRecord && currentBest != null) {
+      const ok = confirm(
+        `Cette performance (${formatPerformance(movement, value)}) n'améliore pas ton record actuel `
+        + `(${formatPerformance(movement, currentBest)}). L'enregistrer quand même comme nouveau record ?`
+      )
+      if (ok) {
+        await supabase.from('tracked_movement_entries').update({ is_pr: false })
+          .eq('tracked_movement_id', movement.id).eq('athlete_id', athlete.id)
+        payload.is_pr = true
+      }
+    }
     const { error } = existingToday
       ? await supabase.from('tracked_movement_entries').update(payload).eq('id', existingToday.id)
       : await supabase.from('tracked_movement_entries').insert(payload)
     if (error) return
 
-    if (isNewRecord) {
+    if (isNewRecord || payload.is_pr) {
       setToast(`🏆 Nouveau record : ${formatPerformance(movement, value)} !`)
       setSessionRecords(prev => [...prev, { name: movement.name, label: formatPerformance(movement, value) }])
     } else {

@@ -51,8 +51,21 @@ export function estimate1RM(entry) {
   return { value, estimated: true, from: best.r }
 }
 
-// Meilleure performance pour un mouvement, quelle que soit son unité
+// Meilleure performance pour un mouvement, quelle que soit son unité — sauf si le sportif a
+// explicitement marqué une entrée comme record malgré une valeur inférieure (is_pr), auquel cas
+// cette entrée (la plus récente si plusieurs) fait foi à la place du calcul numérique.
 export function bestPerformance(movement, entries) {
+  const flagged = entries.filter(e => e.is_pr).sort((a, b) => b.date.localeCompare(a.date))
+  if (flagged.length) {
+    const e = flagged[0]
+    if (movement.unit === 'kg' || !movement.unit) {
+      const est = estimate1RM(e)
+      if (est) return { ...est, isManualPr: true }
+    } else if (e.value != null) {
+      return { value: e.value, estimated: false, isManualPr: true }
+    }
+  }
+
   if (movement.unit === 'kg' || !movement.unit) {
     return entries.reduce((acc, e) => {
       const est = estimate1RM(e)
@@ -210,11 +223,35 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
       payload.value = parseFloat(f.value)
     }
 
+    // Si la nouvelle perf n'améliore pas le record actuel, on demande si elle doit quand même
+    // devenir le record affiché (utile si les conditions du test ont changé, par exemple).
+    const currentBest = bestPerformance(movement, movement.entries)
+    if (currentBest) {
+      const candidateValue = (movement.unit === 'kg' || !movement.unit)
+        ? estimate1RM(payload)?.value
+        : payload.value
+      if (candidateValue != null) {
+        const cfg = unitOf(movement)
+        const improves = cfg.betterIsHigher ? candidateValue > currentBest.value : candidateValue < currentBest.value
+        if (!improves) {
+          const ok = confirm(
+            `Cette performance (${formatPerformance(movement, candidateValue)}) n'améliore pas ton record actuel `
+            + `(${formatPerformance(movement, currentBest.value)}). L'enregistrer quand même comme nouveau record ?`
+          )
+          if (ok) {
+            await supabase.from('tracked_movement_entries').update({ is_pr: false })
+              .eq('tracked_movement_id', movement.id).eq('athlete_id', athleteId)
+            payload.is_pr = true
+          }
+        }
+      }
+    }
+
     setSaving(true)
     const { data } = await supabase.from('tracked_movement_entries').insert(payload).select().single()
     if (data) {
       setMovements(prev => prev.map(m => m.id === movement.id
-        ? { ...m, entries: [...m.entries, data].sort((a, b) => a.date.localeCompare(b.date)) }
+        ? { ...m, entries: [...(payload.is_pr ? m.entries.map(e => ({ ...e, is_pr: false })) : m.entries), data].sort((a, b) => a.date.localeCompare(b.date)) }
         : m))
     }
     setSaving(false)
@@ -562,7 +599,7 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
             athleteId={athleteId}
             onClose={() => setDetailMovementId(null)}
             onSaveEntry={saveEntry}
-            onDeleteEntry={isCoach ? (entryId) => deleteEntry(detailMovement.id, entryId) : null}
+            onDeleteEntry={(entryId) => deleteEntry(detailMovement.id, entryId)}
             isCoach={isCoach}
             onSaveMeta={isCoach ? (category, subcategory) => saveMeta(detailMovement.id, category, subcategory) : null}
           />

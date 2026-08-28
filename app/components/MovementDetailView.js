@@ -144,11 +144,13 @@ export default function MovementDetailView({ movement, athleteId, onClose, onSav
                         {isKg ? '1 RM' : cfg.suffix.toUpperCase() || 'PR'}
                       </span>
                       <div style={{ flex: 1, fontSize: 13, color: 'var(--text2)' }}>{formatDateFr(e.date)}</div>
+                      {e.is_pr && <span title="Marqué comme record" style={{ fontSize: 13, flexShrink: 0 }}>🏆</span>}
                       <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>
                         {isKg ? `${e.rm1} kg` : formatPerformance(movement, e.value)}
                       </div>
                       {onDeleteEntry && (
-                        <button onClick={() => onDeleteEntry(e.id)} style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>×</button>
+                        <button onClick={() => { if (confirm('Supprimer cette performance ?')) onDeleteEntry(e.id) }}
+                          style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>×</button>
                       )}
                     </div>
                   ))}
