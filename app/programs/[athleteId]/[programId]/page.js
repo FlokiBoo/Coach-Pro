@@ -12,6 +12,7 @@ import { isRunMovement, PACE_BASES, computePaceForBasePct, buildKnownRaces, form
 import { setUnsavedChanges, guardNavigation } from '@/lib/unsavedChanges'
 import { SortableGroup, SortableItem, DragHandle } from '@/app/components/SortableItem'
 import { getCoachId } from '@/lib/coach'
+import { notifyAssigned } from '@/lib/notify'
 
 function today() {
   const n = new Date()
@@ -898,6 +899,7 @@ function ProgramEditorPage({ params }) {
       }
       setParticipants(prev => [...prev, { id: newProg.id, athlete_id: targetId, athletes: { name: otherAthletes.find(a => a.id === targetId)?.name } }])
       setOtherAthletes(prev => prev.filter(a => a.id !== targetId))
+      notifyAssigned({ athleteIds: [targetId], kind: 'program', title: program.title })
     }
     setAddingParticipantId(null)
   }

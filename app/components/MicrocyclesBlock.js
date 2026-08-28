@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { getCoachId } from '@/lib/coach'
+import { notifyAssigned } from '@/lib/notify'
 
 export default function MicrocyclesBlock({ athleteId, athleteToken }) {
   const router = useRouter()
@@ -179,6 +180,7 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
       }
     }
 
+    notifyAssigned({ athleteIds: selectedIds, kind: 'program', title: assignModal.title })
     setAssigning(false)
     setAssignDone(true)
   }

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
+import { notifyAssigned } from '@/lib/notify'
 
 function today() {
   const n = new Date()
@@ -186,6 +187,7 @@ export default function ProgramsPage() {
       }
     }
 
+    notifyAssigned({ athleteIds: selectedIds, kind: 'program', title: assignModal.title })
     setAssigning(false)
     setAssignDone(true)
   }

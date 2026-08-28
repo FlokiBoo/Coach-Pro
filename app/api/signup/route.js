@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextResponse } from 'next/server'
+import { sendEmail } from '@/lib/email'
 
 // Auto-inscription d'un client depuis la page de connexion (sans invitation préalable du coach).
 // Le compte est rattaché au coach principal (is_admin) — l'app est utilisée par un seul coach.
@@ -20,7 +21,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Un compte existe déjà avec cet email. Connecte-toi plutôt.' }, { status: 409 })
   }
 
-  const { data: coach } = await supabaseAdmin.from('coaches').select('id').eq('is_admin', true).limit(1).maybeSingle()
+  const { data: coach } = await supabaseAdmin.from('coaches').select('id, email').eq('is_admin', true).limit(1).maybeSingle()
   if (!coach) return NextResponse.json({ error: 'Aucun coach disponible pour le moment.' }, { status: 500 })
 
   const { data: created, error: createErr } = await supabaseAdmin.auth.admin.createUser({
@@ -45,6 +46,14 @@ export async function POST(request) {
   if (insertErr) {
     await supabaseAdmin.auth.admin.deleteUser(created.user.id)
     return NextResponse.json({ error: insertErr.message }, { status: 400 })
+  }
+
+  if (coach.email) {
+    await sendEmail({
+      to: coach.email,
+      subject: `Nouveau client : ${name.trim()}`,
+      html: `<p><strong>${name.trim()}</strong> vient de créer son compte (${normalizedEmail}).</p>`,
+    })
   }
 
   return NextResponse.json({ success: true })

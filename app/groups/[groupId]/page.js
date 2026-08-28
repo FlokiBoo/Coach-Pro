@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
+import { notifyAssigned } from '@/lib/notify'
 
 function today() {
   const n = new Date()
@@ -60,6 +61,7 @@ async function copyProgramToAthletes(sourceProgram, targetAthleteIds, { coachId,
       }
     }
   }
+  notifyAssigned({ athleteIds: targetAthleteIds, kind: 'program', title: sourceProgram.title })
 }
 
 export default function GroupDetailPage({ params }) {

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
+import { notifyAssigned } from '@/lib/notify'
 
 function today() {
   const n = new Date()
@@ -247,6 +248,7 @@ function ProgramsPageInner({ params }) {
       }
     }
 
+    notifyAssigned({ athleteIds: selectedIds, kind: 'program', title: assignModal.title })
     setAssigning(false)
     setAssignDone(true)
   }
