@@ -465,6 +465,15 @@ function ProgramEditorPage({ params }) {
     if (name) await supabase.from('movements').update({ youtube_url: url }).eq('name', name)
   }
 
+  // Séances "Explication" : une seule vidéo simple (pas de recherche de mouvement), stockée dans
+  // le même champ activation_videos pour ne pas ajouter de colonne dédiée.
+  const setExplicationVideo = (sessId, url) => {
+    markDirty(sessId)
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, activation_videos: url ? [{ name: 'Vidéo', video_url: url }] : []
+    }))
+  }
+
   const addCircuit = (sessId) => {
     markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
@@ -1371,6 +1380,31 @@ function ProgramEditorPage({ params }) {
                       </div>
                     )}
 
+                    {s.session_type === 'explication' ? (
+                      <>
+                        {/* Séance "Explication" : juste une note libre + une vidéo, pas d'activation ni d'exercices */}
+                        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
+                          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📋 Explication</span>
+                          </div>
+                          <textarea placeholder="Explique le programme au sportif…" value={s.coach_notes || ''}
+                            onChange={e => updateSession(s.id, 'coach_notes', e.target.value)}
+                            rows={6} style={{ width: '100%', border: 'none', padding: '10px', fontSize: 13, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)', boxSizing: 'border-box' }} />
+                        </div>
+                        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
+                          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🎥 Vidéo</span>
+                          </div>
+                          <input
+                            placeholder="Lien vidéo (YouTube, etc.)"
+                            defaultValue={s.activation_videos?.[0]?.video_url || ''}
+                            onBlur={e => setExplicationVideo(s.id, e.target.value.trim())}
+                            style={{ width: '100%', border: 'none', padding: '10px', fontSize: 13, outline: 'none', background: 'transparent', color: 'var(--text)', boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                    <>
                     {/* Activation */}
                     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'visible' }}>
                       <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
@@ -1768,6 +1802,8 @@ function ProgramEditorPage({ params }) {
                     </div>
 
                     <SessionSummaryBlock exercises={s.exercises} />
+                    </>
+                    )}
 
                     {/* Bouton sauvegarder la séance — sauvegarde aussi les autres séances modifiées en attente */}
                     {(() => {

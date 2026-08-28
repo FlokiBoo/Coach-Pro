@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
-import { notifyAssigned } from '@/lib/notify'
+import { notifyAssigned, notifyProgramAvailable } from '@/lib/notify'
 
 function today() {
   const n = new Date()
@@ -94,7 +94,9 @@ export default function ProgramsPage() {
     if (error) {
       setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, available_to_clients: !next } : x))
       alert('Erreur : ' + error.message)
+      return
     }
+    if (next) notifyProgramAvailable(p.id)
   }
 
   const saveFreeSessionsCount = async (p, value) => {
