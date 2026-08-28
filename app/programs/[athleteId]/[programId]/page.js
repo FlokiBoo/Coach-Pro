@@ -157,6 +157,7 @@ function ProgramEditorPage({ params }) {
   const openFromUrl = searchParams.get('open')
   const [athlete, setAthlete] = useState(null)
   const [program, setProgram] = useState(null)
+  const [activityTypes, setActivityTypes] = useState([])
   const [sessions, setSessions] = useState([])
   const [movementMusclesMap, setMovementMusclesMap] = useState({})
   const [movementFocusGroupsMap, setMovementFocusGroupsMap] = useState({})
@@ -216,6 +217,11 @@ function ProgramEditorPage({ params }) {
   const [removingParticipantId, setRemovingParticipantId] = useState(null)
 
   const isTemplate = athleteId === 'templates'
+
+  useEffect(() => {
+    supabase.from('activity_definitions').select('label').order('created_at')
+      .then(({ data }) => setActivityTypes((data || []).map(d => d.label)))
+  }, [])
 
   useEffect(() => {
     // Masquage propre au coach : stocké côté serveur (comme les mouvements/tips masqués) plutôt
@@ -798,6 +804,12 @@ function ProgramEditorPage({ params }) {
     if (error) alert('Erreur lors de l\'enregistrement de la catégorie : ' + error.message)
   }
 
+  const saveActivityType = async (value) => {
+    setProgram(p => ({ ...p, activity_type: value }))
+    const { error } = await supabase.from('programs').update({ activity_type: value }).eq('id', programId)
+    if (error) alert('Erreur lors de l\'enregistrement de l\'activité : ' + error.message)
+  }
+
   const deleteSession = async (id) => {
     if (!confirm('Supprimer cette séance ? Elle sera aussi supprimée chez les clients à qui ce programme est lié (sauf s\'ils l\'ont déjà validée).')) return
 
@@ -996,6 +1008,14 @@ function ProgramEditorPage({ params }) {
                   style={{ marginTop: 4, fontSize: 12, fontWeight: 600, border: '1px solid var(--border2)', borderRadius: 20, outline: 'none', background: 'var(--bg2)', color: 'var(--text2)', padding: '4px 10px', width: '100%', boxSizing: 'border-box' }}
                 />
               )}
+              <select
+                value={program?.activity_type || 'Musculation 🏋️'}
+                onChange={e => saveActivityType(e.target.value)}
+                style={{ marginTop: 4, fontSize: 12, fontWeight: 600, border: '1px solid var(--border2)', borderRadius: 20, outline: 'none', background: 'var(--bg2)', color: 'var(--text2)', padding: '4px 10px', width: '100%', boxSizing: 'border-box' }}
+              >
+                {!activityTypes.includes('Musculation 🏋️') && <option value="Musculation 🏋️">Musculation 🏋️</option>}
+                {activityTypes.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
             <button onClick={deleteWholeProgram} title="Supprimer le programme"
               style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: '#DC2626', cursor: 'pointer', flexShrink: 0 }}>
