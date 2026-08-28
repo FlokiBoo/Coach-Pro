@@ -342,14 +342,16 @@ function AthleteView({ params }) {
     if (existing) await supabase.from('tracked_movement_entries').update(payload).eq('id', existing.id)
     else await supabase.from('tracked_movement_entries').insert(payload)
 
-    // Met à jour raceKnown localement (pas de re-fetch : évite les soucis de synchro de session)
+    // Met à jour raceKnown localement (pas de re-fetch : évite les soucis de synchro de session).
+    // Pour les tests re-jouables (6min/20min), la dernière valeur fait toujours foi (useLatest) :
+    // un nouveau test remplace l'ancien même s'il est moins bon, pour refléter la forme actuelle.
     setRaceKnown(prev => {
       const cur = prev[target.key]
       if (target.kind === 'distance') {
-        const D = cur ? Math.max(cur.D, value) : value
+        const D = target.useLatest ? value : (cur ? Math.max(cur.D, value) : value)
         return { ...prev, [target.key]: { T: target.fixedTimeSec, D } }
       }
-      const T = cur ? Math.min(cur.T, value) : value
+      const T = target.useLatest ? value : (cur ? Math.min(cur.T, value) : value)
       return { ...prev, [target.key]: { T, D: target.distanceM } }
     })
   }

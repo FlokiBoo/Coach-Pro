@@ -251,7 +251,7 @@ function ProgramEditorPage({ params }) {
 
   useEffect(() => {
     if (isTemplate || !athleteId) return
-    supabase.from('tracked_movements').select('id, name, unit, tracked_movement_entries(value, athlete_id)')
+    supabase.from('tracked_movements').select('id, name, unit, tracked_movement_entries(value, athlete_id, date)')
       .then(({ data }) => {
         const movements = (data || []).map(m => ({
           ...m,
