@@ -1117,6 +1117,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
   const [focusOverrides, setFocusOverrides] = useState({})
   const [focusGroupOverrides, setFocusGroupOverrides] = useState({}) // focus du mouvement (par nom, lowercase)
   const [showTimer, setShowTimer] = useState(null) // null | { seconds, label }
+  const [calcModal, setCalcModal] = useState(null) // null | { pace1, pace2 } (km/h)
   const provisionedSetsRef = useRef(new Set())
 
   const saveFocusMuscles = async (exerciseId, movementName, zones) => {
@@ -1367,6 +1368,11 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                         {!samePace && pace2 != null && (
                           <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--green)' }}>Allure 2 : {formatPace(pace2)}/km</span>
                         )}
+                        <button onClick={() => setCalcModal({ pace1, pace2: samePace ? null : pace2 })}
+                          title="Calculer la distance parcourue pour un temps donné"
+                          style={{ background: 'var(--bg)', border: '1px solid #B8EAD8', borderRadius: 20, padding: '3px 9px', fontSize: 12, fontWeight: 700, color: 'var(--green)', cursor: 'pointer' }}>
+                          🧮 Distance
+                        </button>
                       </>
                     )}
                   </div>
@@ -1580,6 +1586,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
       )}
 
       {showTimer && <TimerModal onClose={() => setShowTimer(null)} presetSeconds={showTimer.seconds} presetLabel={showTimer.label} />}
+      {calcModal && <PaceDistanceCalc pace1={calcModal.pace1} pace2={calcModal.pace2} onClose={() => setCalcModal(null)} />}
     </div>
   )
 }
@@ -1612,6 +1619,79 @@ function FocusPicker({ initial, onCancel, onSave }) {
           <button onClick={onCancel} style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text3)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: 11, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
           <button onClick={() => onSave(selected)} style={{ flex: 2, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 11, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Enregistrer</button>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// Calculateur "distance parcourue" : temps + une ou deux allures → distance(s) correspondante(s).
+// Les allures 1/2 prescrites servent de valeurs par défaut, éditables (texte libre "M'SS").
+function PaceDistanceCalc({ pace1, pace2, onClose }) {
+  const [h, setH] = useState('')
+  const [m, setM] = useState('')
+  const [s, setS] = useState('')
+  const [paceStr1, setPaceStr1] = useState(pace1 != null ? formatPace(pace1) : '')
+  const [paceStr2, setPaceStr2] = useState(pace2 != null ? formatPace(pace2) : '')
+
+  const totalSec = (parseInt(h) || 0) * 3600 + (parseInt(m) || 0) * 60 + (parseInt(s) || 0)
+
+  const distanceFor = (paceStr) => {
+    const secPerKm = parsePaceInput(paceStr)
+    if (!secPerKm || !totalSec) return null
+    return totalSec / secPerKm
+  }
+
+  const dist1 = distanceFor(paceStr1)
+  const dist2 = paceStr2.trim() ? distanceFor(paceStr2) : null
+
+  const fieldStyle = { width: '100%', boxSizing: 'border-box', textAlign: 'center', padding: '8px 4px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, fontWeight: 700, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 20, padding: 20, maxWidth: 340, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4 }}>🧮 Calculateur distance</div>
+        <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 16 }}>Temps à courir + allure → distance à parcourir.</div>
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Temps à courir</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, marginBottom: 16 }}>
+          <div>
+            <input type="number" min="0" placeholder="h" value={h} onChange={e => setH(e.target.value)} style={fieldStyle} />
+            <div style={{ fontSize: 9, color: 'var(--text3)', textAlign: 'center', marginTop: 2 }}>h</div>
+          </div>
+          <div>
+            <input type="number" min="0" max="59" placeholder="min" value={m} onChange={e => setM(e.target.value)} style={fieldStyle} />
+            <div style={{ fontSize: 9, color: 'var(--text3)', textAlign: 'center', marginTop: 2 }}>min</div>
+          </div>
+          <div>
+            <input type="number" min="0" max="59" placeholder="s" value={s} onChange={e => setS(e.target.value)} style={fieldStyle} />
+            <div style={{ fontSize: 9, color: 'var(--text3)', textAlign: 'center', marginTop: 2 }}>s</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Allure 1 (min/km)</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input placeholder="ex: 4'30" value={paceStr1} onChange={e => setPaceStr1(e.target.value)} style={{ ...fieldStyle, flex: 1 }} />
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--green)', whiteSpace: 'nowrap' }}>
+                {dist1 != null ? `${dist1.toFixed(2)} km` : '—'}
+              </div>
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Allure 2 (min/km, optionnel)</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <input placeholder="ex: 4'45" value={paceStr2} onChange={e => setPaceStr2(e.target.value)} style={{ ...fieldStyle, flex: 1 }} />
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--green)', whiteSpace: 'nowrap' }}>
+                {dist2 != null ? `${dist2.toFixed(2)} km` : '—'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button onClick={onClose} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 11, fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
+          Fermer
+        </button>
       </div>
     </div>
   )
