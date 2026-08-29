@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { getCoachId } from '@/lib/coach'
 import { notifyAssigned } from '@/lib/notify'
+import ActivityTypeSelect from '@/app/components/ActivityTypeSelect'
 
 export default function MicrocyclesBlock({ athleteId, athleteToken }) {
   const router = useRouter()
@@ -17,7 +18,6 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
   const [renamingId, setRenamingId] = useState(null)
   const [renameVal, setRenameVal] = useState('')
   const [creatingFree, setCreatingFree] = useState(false)
-  const [activityTypes, setActivityTypes] = useState([])
   const [newActivityType, setNewActivityType] = useState('Musculation 🏋️')
   const [selectedSessions, setSelectedSessions] = useState(new Set())
   const [duplicating, setDuplicating] = useState(false)
@@ -34,11 +34,6 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
     supabase.from('athletes').select('id, name').neq('archived', true).order('created_at')
       .then(({ data }) => setAllAthletes((data || []).filter(a => a.id !== athleteId)))
   }, [athleteId])
-
-  useEffect(() => {
-    supabase.from('activity_definitions').select('label').order('created_at')
-      .then(({ data }) => setActivityTypes((data || []).map(d => d.label)))
-  }, [])
 
   async function load() {
     const { data } = await supabase
@@ -300,14 +295,7 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
             onKeyDown={e => { if (e.key === 'Enter') createProgram(); if (e.key === 'Escape') setCreating(false) }}
             style={{ padding: '9px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
           />
-          <select
-            value={newActivityType}
-            onChange={e => setNewActivityType(e.target.value)}
-            style={{ padding: '9px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
-          >
-            {!activityTypes.includes('Musculation 🏋️') && <option value="Musculation 🏋️">Musculation 🏋️</option>}
-            {activityTypes.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <ActivityTypeSelect value={newActivityType} onChange={setNewActivityType} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setCreating(false)} style={{ flex: 1, background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '9px 10px', fontSize: 14, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
             <button onClick={createProgram} disabled={saving || !newName.trim()}

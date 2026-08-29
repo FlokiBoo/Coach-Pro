@@ -12,6 +12,7 @@ import { isRunMovement, PACE_BASES, computePaceForBasePct, buildKnownRaces, form
 import { setUnsavedChanges, guardNavigation } from '@/lib/unsavedChanges'
 import { SortableGroup, SortableItem, DragHandle } from '@/app/components/SortableItem'
 import { getCoachId } from '@/lib/coach'
+import ActivityTypeSelect from '@/app/components/ActivityTypeSelect'
 import { notifyAssigned } from '@/lib/notify'
 
 function today() {
@@ -158,7 +159,6 @@ function ProgramEditorPage({ params }) {
   const openFromUrl = searchParams.get('open')
   const [athlete, setAthlete] = useState(null)
   const [program, setProgram] = useState(null)
-  const [activityTypes, setActivityTypes] = useState([])
   const [templateCategories, setTemplateCategories] = useState([])
   const [sessions, setSessions] = useState([])
   const [movementMusclesMap, setMovementMusclesMap] = useState({})
@@ -219,11 +219,6 @@ function ProgramEditorPage({ params }) {
   const [removingParticipantId, setRemovingParticipantId] = useState(null)
 
   const isTemplate = athleteId === 'templates'
-
-  useEffect(() => {
-    supabase.from('activity_definitions').select('label').order('created_at')
-      .then(({ data }) => setActivityTypes((data || []).map(d => d.label)))
-  }, [])
 
   useEffect(() => {
     if (!isTemplate) return
@@ -1033,14 +1028,12 @@ function ProgramEditorPage({ params }) {
                   <option value="__new__">+ Nouveau</option>
                 </select>
               )}
-              <select
+              <ActivityTypeSelect
                 value={program?.activity_type || 'Musculation 🏋️'}
-                onChange={e => saveActivityType(e.target.value)}
-                style={{ marginTop: 4, fontSize: 12, fontWeight: 600, border: '1px solid var(--border2)', borderRadius: 20, outline: 'none', background: 'var(--bg2)', color: 'var(--text2)', padding: '4px 10px', width: '100%', boxSizing: 'border-box' }}
-              >
-                {!activityTypes.includes('Musculation 🏋️') && <option value="Musculation 🏋️">Musculation 🏋️</option>}
-                {activityTypes.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+                onChange={saveActivityType}
+                style={{ marginTop: 4 }}
+                inputStyle={{ fontSize: 12, fontWeight: 600, borderRadius: 20, color: 'var(--text2)', padding: '4px 10px' }}
+              />
             </div>
             <button onClick={deleteWholeProgram} title="Supprimer le programme"
               style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: '#DC2626', cursor: 'pointer', flexShrink: 0 }}>

@@ -7,6 +7,7 @@ import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
 import { notifyAssigned } from '@/lib/notify'
+import ActivityTypeSelect from '@/app/components/ActivityTypeSelect'
 
 function today() {
   const n = new Date()
@@ -50,17 +51,11 @@ function ProgramsPageInner({ params }) {
   const [assigning, setAssigning] = useState(false)
   const [assignDone, setAssignDone] = useState(false)
   const [groups, setGroups] = useState([])
-  const [activityTypes, setActivityTypes] = useState([])
   const [newActivityType, setNewActivityType] = useState('Musculation 🏋️')
   const [selectedTypes, setSelectedTypes] = useState(new Set())
   const [typesInit, setTypesInit] = useState(false)
   const [objectives, setObjectives] = useState([])
   const [showArchived, setShowArchived] = useState(false)
-
-  useEffect(() => {
-    supabase.from('activity_definitions').select('label').order('created_at')
-      .then(({ data }) => setActivityTypes((data || []).map(d => d.label)))
-  }, [])
 
   useEffect(() => {
     async function load() {
@@ -330,14 +325,7 @@ function ProgramsPageInner({ params }) {
               />
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Activité</div>
-                <select
-                  value={newActivityType}
-                  onChange={e => setNewActivityType(e.target.value)}
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
-                >
-                  {!activityTypes.includes('Musculation 🏋️') && <option value="Musculation 🏋️">Musculation 🏋️</option>}
-                  {activityTypes.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <ActivityTypeSelect value={newActivityType} onChange={setNewActivityType} />
               </div>
               {!objectiveId && (
                 <div>
