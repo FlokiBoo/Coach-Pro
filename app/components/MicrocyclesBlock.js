@@ -23,6 +23,7 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
   const [duplicating, setDuplicating] = useState(false)
   const [allAthletes, setAllAthletes] = useState([])
   const [assignModal, setAssignModal] = useState(null) // micro-cycle en cours de copie
+  const [alreadyAssignedIds, setAlreadyAssignedIds] = useState(new Set())
   const [selectedIds, setSelectedIds] = useState([])
   const [assigning, setAssigning] = useState(false)
   const [assignDone, setAssignDone] = useState(false)
@@ -34,6 +35,12 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
     supabase.from('athletes').select('id, name').neq('archived', true).order('created_at')
       .then(({ data }) => setAllAthletes((data || []).filter(a => a.id !== athleteId)))
   }, [athleteId])
+
+  useEffect(() => {
+    if (!assignModal) return
+    supabase.from('programs').select('athlete_id').eq('source_program_id', assignModal.id)
+      .then(({ data }) => setAlreadyAssignedIds(new Set((data || []).map(p => p.athlete_id))))
+  }, [assignModal])
 
   async function load() {
     const { data } = await supabase
@@ -518,7 +525,12 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                         onChange={() => toggleAthlete(a.id)}
                         style={{ accentColor: 'var(--green)', width: 16, height: 16 }}
                       />
-                      <span style={{ fontSize: 14, fontWeight: 600, color: selectedIds.includes(a.id) ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: selectedIds.includes(a.id) ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
+                      {alreadyAssignedIds.has(a.id) && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
+                          ✓ Déjà assigné
+                        </span>
+                      )}
                     </label>
                   ))}
                 </div>

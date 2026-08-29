@@ -46,6 +46,7 @@ function ProgramsPageInner({ params }) {
   const [creating, setCreating] = useState(false)
   const [loading, setLoading] = useState(true)
   const [assignModal, setAssignModal] = useState(null) // program being assigned
+  const [alreadyAssignedIds, setAlreadyAssignedIds] = useState(new Set())
   const [selectedIds, setSelectedIds] = useState([])
   const [assignGroupId, setAssignGroupId] = useState(null)
   const [assigning, setAssigning] = useState(false)
@@ -56,6 +57,12 @@ function ProgramsPageInner({ params }) {
   const [typesInit, setTypesInit] = useState(false)
   const [objectives, setObjectives] = useState([])
   const [showArchived, setShowArchived] = useState(false)
+
+  useEffect(() => {
+    if (!assignModal) return
+    supabase.from('programs').select('athlete_id').eq('source_program_id', assignModal.id)
+      .then(({ data }) => setAlreadyAssignedIds(new Set((data || []).map(p => p.athlete_id))))
+  }, [assignModal])
 
   useEffect(() => {
     async function load() {
@@ -532,7 +539,12 @@ function ProgramsPageInner({ params }) {
                         onChange={() => toggleAthlete(a.id)}
                         style={{ accentColor: 'var(--green)', width: 16, height: 16 }}
                       />
-                      <span style={{ fontSize: 14, fontWeight: 600, color: selectedIds.includes(a.id) ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: selectedIds.includes(a.id) ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
+                      {alreadyAssignedIds.has(a.id) && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
+                          ✓ Déjà assigné
+                        </span>
+                      )}
                     </label>
                   ))}
                 </div>

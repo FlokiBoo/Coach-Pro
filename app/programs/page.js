@@ -407,6 +407,9 @@ export default function ProgramsPage() {
                     })}
                   </div>
                 )}
+                {(() => {
+                  const alreadyAssignedIds = new Set(programs.filter(p => p.source_program_id === assignModal.id).map(p => p.athlete_id))
+                  return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16, maxHeight: 260, overflowY: 'auto' }}>
                   {athletes.filter(a => a.id !== assignModal.athlete_id).map(a => (
                     <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--r)', border: selectedIds.includes(a.id) ? '1.5px solid var(--green)' : '1px solid var(--border)', background: selectedIds.includes(a.id) ? 'var(--green-light)' : 'var(--bg2)', cursor: 'pointer' }}>
@@ -416,10 +419,17 @@ export default function ProgramsPage() {
                         onChange={() => toggleAthlete(a.id)}
                         style={{ accentColor: 'var(--green)', width: 16, height: 16 }}
                       />
-                      <span style={{ fontSize: 14, fontWeight: 600, color: selectedIds.includes(a.id) ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
+                      <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: selectedIds.includes(a.id) ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
+                      {alreadyAssignedIds.has(a.id) && (
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>
+                          ✓ Déjà assigné
+                        </span>
+                      )}
                     </label>
                   ))}
                 </div>
+                  )
+                })()}
 
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
