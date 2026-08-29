@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 export default function TemplatesTab({ token }) {
   const [availablePrograms, setAvailablePrograms] = useState(null)
   const [choosingId, setChoosingId] = useState(null)
+  const [selectedType, setSelectedType] = useState('')
 
   useEffect(() => {
     fetch(`/api/athlete-view/${token}/available-programs`, { cache: 'no-store' })
@@ -36,7 +37,27 @@ export default function TemplatesTab({ token }) {
           <div style={{ fontSize: 13 }}>Ton coach n&apos;a rendu aucun programme disponible pour l&apos;instant.</div>
         </div>
       ) : (
-        availablePrograms.map(p => (
+        <>
+          {(() => {
+            const types = [...new Set(availablePrograms.map(p => p.activity_type).filter(Boolean))]
+            if (types.length < 2) return null
+            return (
+              <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2, marginBottom: 2 }}>
+                {['', ...types].map(t => (
+                  <button key={t || 'all'} onClick={() => setSelectedType(t)} style={{
+                    flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                    background: selectedType === t ? 'var(--green)' : 'var(--bg)',
+                    color: selectedType === t ? '#fff' : 'var(--text2)',
+                    fontSize: 13, fontWeight: 700,
+                  }}>
+                    {t || 'Tous'}
+                  </button>
+                ))}
+              </div>
+            )
+          })()}
+
+          {availablePrograms.filter(p => !selectedType || p.activity_type === selectedType).map(p => (
           <div key={p.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ fontWeight: 700, fontSize: 15 }}>{p.title}</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10 }}>
@@ -49,7 +70,8 @@ export default function TemplatesTab({ token }) {
               {choosingId === p.id ? '…' : '✓ Choisir ce programme'}
             </button>
           </div>
-        ))
+          ))}
+        </>
       )}
     </div>
   )
