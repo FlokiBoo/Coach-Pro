@@ -18,11 +18,13 @@ export async function POST(request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-  const { data: athlete } = await supabaseAdmin.from('athletes').select('id').eq('auth_user_id', user.id).single()
+  const { data: athlete } = await supabaseAdmin.from('athletes').select('id, max_devices').eq('auth_user_id', user.id).single()
   if (!athlete) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   // Le code OTP vient d'être vérifié côté client (supabase.auth.verifyOtp) juste avant cet appel :
-  // on considère cet appareil validé. On applique la limite de 2 en éjectant le plus ancien si besoin.
+  // on considère cet appareil validé. On applique la limite (2 par défaut, ou athletes.max_devices
+  // si un override a été défini pour ce sportif) en éjectant le plus ancien si besoin.
+  const maxDevices = athlete.max_devices ?? MAX_DEVICES
   const { data: existing } = await supabaseAdmin.from('athlete_devices')
     .select('id, device_id, created_at').eq('athlete_id', athlete.id).order('created_at', { ascending: true })
 
@@ -32,7 +34,7 @@ export async function POST(request) {
     return NextResponse.json({ ok: true })
   }
 
-  const toEvict = (existing || []).slice(0, Math.max(0, (existing?.length || 0) - (MAX_DEVICES - 1)))
+  const toEvict = (existing || []).slice(0, Math.max(0, (existing?.length || 0) - (maxDevices - 1)))
   if (toEvict.length) {
     await supabaseAdmin.from('athlete_devices').delete().in('id', toEvict.map(d => d.id))
   }
