@@ -272,8 +272,8 @@ export default function ProgramsPage() {
             </div>
           ) : (() => {
             const allTemplates = programs.filter(p => !p.athlete_id)
-            const allCategories = [...new Set(allTemplates.map(p => p.category).filter(Boolean))].sort()
-            const templates = categoryFilter === '' ? allTemplates : allTemplates.filter(p => p.category === categoryFilter)
+            const allCategories = [...new Set(allTemplates.map(p => p.activity_type).filter(Boolean))].sort()
+            const templates = categoryFilter === '' ? allTemplates : allTemplates.filter(p => p.activity_type === categoryFilter)
             const renderProgram = (p) => {
               const href = p.athlete_id ? `/programs/${p.athlete_id}/${p.id}` : `/programs/templates/${p.id}`
               return (
@@ -283,7 +283,7 @@ export default function ProgramsPage() {
                     <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10 }}>
                       <span>{p.athlete_id ? `👤 ${p.athletes?.name || '—'}` : '📋 Template'}</span>
                       <span>📅 {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}</span>
-                      {p.category && <span style={{ color: 'var(--green)' }}>🏷 {p.category}</span>}
+                      {p.activity_type && <span style={{ color: 'var(--green)' }}>🏷 {p.activity_type}</span>}
                       {p.available_to_clients && <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓ Disponible sportifs</span>}
                     </div>
                   </Link>
