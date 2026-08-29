@@ -1269,6 +1269,18 @@ function ProgramEditorPage({ params }) {
                   >
                     💡 Explication
                   </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); updateSession(s.id, 'session_type', s.session_type === 'warmup' ? null : 'warmup') }}
+                    title="Séance de type Warm-Up : bilan de fin de séance adapté (efficacité, facilité de mise en place)"
+                    style={{
+                      flexShrink: 0, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 9px', cursor: 'pointer',
+                      border: s.session_type === 'warmup' ? '1px solid #FDBA74' : '1px solid var(--border2)',
+                      background: s.session_type === 'warmup' ? '#FFF7ED' : 'none',
+                      color: s.session_type === 'warmup' ? '#C2410C' : 'var(--text3)',
+                    }}
+                  >
+                    🔥 Warm-Up
+                  </button>
                   <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>
                     {s.exercises.filter(e => e.name.trim()).length} ex.
                   </span>
@@ -1337,6 +1349,12 @@ function ProgramEditorPage({ params }) {
                             )}
                           </div>
                         )}
+                        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 10px' }}>
+                          <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase' }}>Note du sportif</div>
+                          <div style={{ fontSize: 13, color: completion.comment ? 'var(--text)' : 'var(--text3)', fontStyle: completion.comment ? 'normal' : 'italic', marginTop: 2 }}>
+                            {completion.comment || 'Vide'}
+                          </div>
+                        </div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                           {s.exercises.filter(e => e.name.trim()).map(e => {
                             const log = logsMap[e.id]

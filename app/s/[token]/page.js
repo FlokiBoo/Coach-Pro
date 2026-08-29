@@ -1509,7 +1509,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 </button>
               )}
               {onValidate && session.session_type !== 'explication' && (
-                <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} />
+                <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} isWarmup={session.session_type === 'warmup'} />
               )}
               {isCompleted && onUnvalidate && (
                 <button onClick={onUnvalidate} disabled={validating}
@@ -1638,7 +1638,7 @@ function RatingRow({ label, value, onChange }) {
   )
 }
 
-function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null, isEndurance = false }) {
+function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null, isEndurance = false, isWarmup = false }) {
   const [pleasure, setPleasure] = useState(initial?.pleasure ?? null)
   const [difficulty, setDifficulty] = useState(initial?.difficulty ?? null)
   const [duration, setDuration] = useState(initial?.duration_minutes ?? null)
@@ -1663,20 +1663,20 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
         </div>
       )}
 
-      <RatingRow label="Plaisir" value={pleasure} onChange={setPleasure} />
-      <RatingRow label="Difficulté de la séance" value={difficulty} onChange={setDifficulty} />
+      <RatingRow label={isWarmup ? 'Efficacité du Warm-Up' : 'Plaisir'} value={pleasure} onChange={setPleasure} />
+      <RatingRow label={isWarmup ? 'Difficulté à mettre en place' : 'Difficulté de la séance'} value={difficulty} onChange={setDifficulty} />
 
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Commentaire (optionnel)</div>
         <textarea
           value={comment} onChange={e => setComment(e.target.value)} rows={2}
-          placeholder="Comment s'est passée la séance ?"
+          placeholder={isWarmup ? 'Note tous les axes à améliorer selon toi, ou ce que tu aimerais me partager.' : "Comment s'est passée la séance ?"}
           style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
         />
       </div>
 
       <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Durée</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>{isWarmup ? 'Durée du Warm-Up' : 'Durée'}</div>
         <DurationHMSInput
           initialMinutes={duration}
           onSave={setDuration}

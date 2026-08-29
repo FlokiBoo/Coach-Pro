@@ -472,6 +472,12 @@ function SessionDetailModal({ session, onClose }) {
             {session.duration_minutes && <Stat label="Durée" value={formatDuration(session.duration_minutes)} />}
           </div>
         )}
+        <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 10px' }}>
+          <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 700, textTransform: 'uppercase' }}>Note du sportif</div>
+          <div style={{ fontSize: 13, color: session.comment ? 'var(--text)' : 'var(--text3)', fontStyle: session.comment ? 'normal' : 'italic', marginTop: 2 }}>
+            {session.comment || 'Vide'}
+          </div>
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {exercises.map(e => {
             const log = e.log || {}
