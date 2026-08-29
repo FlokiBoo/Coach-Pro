@@ -112,28 +112,32 @@ export default function WodTab({
               {prog.title}
             </div>
           )}
-          {prog.sessions.map(s => {
-            const isDone = completions.has(s.id) && !skippedSessions.has(s.id)
-            const isSkipped = skippedSessions.has(s.id)
-            return (
-              <button key={s.id} onClick={() => openSession(s.id)} style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none',
-                borderBottom: '1px solid var(--border)', padding: '13px 14px', cursor: 'pointer', textAlign: 'left',
-              }}>
-                {isDone ? (
-                  <span style={{ color: 'var(--green)', fontSize: 15, flexShrink: 0 }}>✓</span>
-                ) : isSkipped ? (
-                  <span style={{ color: 'var(--text3)', fontSize: 15, flexShrink: 0 }}>⤼</span>
-                ) : (
-                  <span style={{ width: 15, flexShrink: 0 }} />
-                )}
-                <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: isDone || isSkipped ? 'var(--text3)' : 'var(--text)' }}>
-                  {s.title || 'Séance'}
-                </span>
-                <span style={{ color: 'var(--text3)', fontSize: 16 }}>›</span>
-              </button>
-            )
-          })}
+          {(() => {
+            const nextSessionId = prog.sessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)) && !skippedSessions.has(s.id))?.id
+            return prog.sessions.map(s => {
+              const isDone = completions.has(s.id) && !skippedSessions.has(s.id)
+              const isSkipped = skippedSessions.has(s.id)
+              const isNext = s.id === nextSessionId
+              return (
+                <button key={s.id} onClick={() => openSession(s.id)} style={{
+                  width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none',
+                  borderBottom: '1px solid var(--border)', padding: '13px 14px', cursor: 'pointer', textAlign: 'left',
+                }}>
+                  {isDone ? (
+                    <span style={{ color: 'var(--green)', fontSize: 15, flexShrink: 0 }}>✓</span>
+                  ) : isSkipped ? (
+                    <span style={{ color: '#DC2626', fontSize: 15, flexShrink: 0 }}>✗</span>
+                  ) : (
+                    <span style={{ width: 15, flexShrink: 0 }} />
+                  )}
+                  <span style={{ flex: 1, fontSize: isNext ? 16 : 14, fontWeight: isNext ? 800 : 600, color: isDone || isSkipped ? 'var(--text3)' : 'var(--text)' }}>
+                    {s.title || 'Séance'}
+                  </span>
+                  <span style={{ color: 'var(--text3)', fontSize: 16 }}>›</span>
+                </button>
+              )
+            })
+          })()}
         </div>
       ))}
     </div>
