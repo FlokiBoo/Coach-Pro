@@ -142,6 +142,7 @@ function AthleteView({ params }) {
   const [sessionRecords, setSessionRecords] = useState([])
   const [trackedMovements, setTrackedMovements] = useState([])
   const [raceKnown, setRaceKnown] = useState({})
+  const [renewalDismissed, setRenewalDismissed] = useState(false)
 
   const queueKey = `coachpro_offline_queue_${token}`
   const loadQueue = () => { try { return JSON.parse(localStorage.getItem(queueKey) || '[]') } catch { return [] } }
@@ -311,6 +312,22 @@ function AthleteView({ params }) {
     }
     load()
   }, [token])
+
+  // Prévient le sportif quand son abonnement se renouvelle automatiquement dans ≤3 jours. Dérivé
+  // au rendu plutôt que via un effet : `athlete` n'est jamais peuplé côté serveur (chargé par fetch
+  // après montage), donc cette lecture localStorage ne s'exécute jamais avant l'hydratation client.
+  const renewalDaysLeft = athlete?.subscription_current_period_end
+    ? Math.ceil((new Date(athlete.subscription_current_period_end) - new Date()) / 86400000)
+    : null
+  const renewalDismissKey = athlete ? `coachpro_renewal_dismissed_${athlete.id}_${athlete.subscription_current_period_end}` : null
+  const showRenewalPopup = !!athlete && athlete.subscription_status === 'active'
+    && renewalDaysLeft != null && renewalDaysLeft >= 0 && renewalDaysLeft <= 3
+    && !renewalDismissed && !!renewalDismissKey && !localStorage.getItem(renewalDismissKey)
+
+  const dismissRenewalPopup = () => {
+    if (renewalDismissKey) localStorage.setItem(renewalDismissKey, '1')
+    setRenewalDismissed(true)
+  }
 
   // Synchronise un résultat de séance (allure + distance) vers le mouvement Metrics correspondant
   // (ex: exercice nommé "6 min (Demi Cooper)" ou "5km Run") pour que VMA/Seuil60/Δ se recalculent.
@@ -897,6 +914,24 @@ function AthleteView({ params }) {
         </div>
       )}
 
+      {!celebration && pendingGroupSessions.length === 0 && showRenewalPopup && (
+        <div onClick={dismissRenewalPopup} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            <div style={{ fontSize: 32, marginBottom: 8, textAlign: 'center' }}>🔔</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>
+              Renouvellement à venir
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16, textAlign: 'center' }}>
+              Ton abonnement se renouvelle automatiquement le{' '}
+              {new Date(athlete.subscription_current_period_end).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}.
+            </div>
+            <button onClick={dismissRenewalPopup} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
+              Compris
+            </button>
+          </div>
+        </div>
+      )}
+
       <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
     </div>
   )
@@ -1108,7 +1143,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
   const circuitSlot = (c) => Math.max(0, Math.min(c.afterExerciseIndex ?? 0, exos.length))
   const renderCircuit = (c) => (
     <div key={c.id} style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-      <div style={{ fontSize: 10, fontWeight: 800, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>🔁 Circuit</div>
+      <div style={{ fontSize: 10, fontWeight: 800, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>🔁 {c.name || 'Circuit'}</div>
       {c.text && (
         <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: c.videos?.length > 0 ? 8 : 0 }}>{c.text}</div>
       )}

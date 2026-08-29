@@ -506,6 +506,13 @@ function ProgramEditorPage({ params }) {
     }))
   }
 
+  const updateCircuitName = (sessId, circuitId, name) => {
+    markDirty(sessId)
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, circuits: (s.circuits || []).map(c => c.id === circuitId ? { ...c, name } : c)
+    }))
+  }
+
   const searchCircuitVideo = async (key, val) => {
     setActVideoSearch(prev => ({ ...prev, [key]: val }))
     if (val.trim().length < 2) { setActVideoSuggs(prev => ({ ...prev, [key]: [] })); return }
@@ -1180,7 +1187,13 @@ function ProgramEditorPage({ params }) {
                     <button onClick={() => moveCircuit(s.id, c.id, 1)} disabled={circuitSlot(c) === maxCircuitSlot}
                       style={{ background: 'none', border: 'none', color: circuitSlot(c) === maxCircuitSlot ? 'var(--border2)' : 'var(--text3)', fontSize: 10, cursor: circuitSlot(c) === maxCircuitSlot ? 'default' : 'pointer', padding: 0, lineHeight: 1 }}>▼</button>
                   </div>
-                  <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1 }}>🔁 Circuit {ci + 1}</span>
+                  <span style={{ fontSize: 10, flexShrink: 0 }}>🔁</span>
+                  <input
+                    value={c.name || ''}
+                    onChange={e => updateCircuitName(s.id, c.id, e.target.value)}
+                    placeholder={`Circuit ${ci + 1}`}
+                    style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}
+                  />
                   <button onClick={() => removeCircuit(s.id, c.id)}
                     style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 15, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
                 </div>

@@ -154,7 +154,7 @@ export default function GroupCoachingSessionPage({ params }) {
 
         {circuits.map(c => (
           <div key={c.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>⚡ Circuit</div>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>⚡ {c.name || 'Circuit'}</div>
             {c.text && <div style={{ fontSize: 12, color: 'var(--text2)', whiteSpace: 'pre-wrap', marginBottom: 8 }}>{c.text}</div>}
             <textarea placeholder="Note perso (visible uniquement par toi)…" value={exerciseNotes[`circuit:${c.id}`] || ''}
               onChange={e => setExerciseNotes(prev => ({ ...prev, [`circuit:${c.id}`]: e.target.value }))}
