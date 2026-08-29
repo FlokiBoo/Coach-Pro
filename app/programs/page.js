@@ -13,6 +13,11 @@ function today() {
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
+// Aucun programme réel n'atteint ce nombre de séances : sert de valeur sentinelle pour
+// "programme entièrement gratuit" sans ajouter de colonne dédiée (réutilise free_sessions_count,
+// déjà géré par la logique de déblocage dans /api/athlete-view/[token]/route.js).
+const FULLY_FREE_SESSIONS = 999
+
 export default function ProgramsPage() {
   const router = useRouter()
   const [programs, setPrograms] = useState([])
@@ -298,13 +303,25 @@ export default function ProgramsPage() {
                       </button>
                     )}
                     {!p.athlete_id && p.available_to_clients && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>
-                        Séances gratuites :
-                        <input type="number" min="0" placeholder="3 par défaut"
-                          defaultValue={p.free_sessions_count ?? ''}
-                          onBlur={e => saveFreeSessionsCount(p, e.target.value)}
-                          style={{ width: 60, boxSizing: 'border-box', padding: '3px 6px', border: '1px solid var(--border2)', borderRadius: 6, fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
-                      </label>
+                      p.free_sessions_count >= FULLY_FREE_SESSIONS ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>🎁 Programme entièrement gratuit</span>
+                          <button onClick={() => saveFreeSessionsCount(p, '')} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', padding: 0, fontWeight: 600, textDecoration: 'underline' }}>
+                            Limiter
+                          </button>
+                        </div>
+                      ) : (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>
+                          Séances gratuites :
+                          <input type="number" min="0" placeholder="3 par défaut"
+                            defaultValue={p.free_sessions_count ?? ''}
+                            onBlur={e => saveFreeSessionsCount(p, e.target.value)}
+                            style={{ width: 50, boxSizing: 'border-box', padding: '3px 6px', border: '1px solid var(--border2)', borderRadius: 6, fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+                          <button onClick={() => saveFreeSessionsCount(p, String(FULLY_FREE_SESSIONS))} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
+                            🎁 Rendre tout gratuit
+                          </button>
+                        </label>
+                      )
                     )}
                     <button onClick={() => deleteProgram(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600 }}>🗑 Supprimer</button>
                   </div>
