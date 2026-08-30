@@ -74,8 +74,8 @@ function torqueColor(label) {
 
 function SessionSummaryBlock({ exercises }) {
   const [summary, setSummary] = useState(null)
-  const [expanded, setExpanded] = useState(false)
   const [pinned, setPinned] = useState(false)
+  const [showModal, setShowModal] = useState(false)
 
   const names = exercises.map(e => e.name.trim()).filter(Boolean)
   const namesLower = new Set(names.map(n => n.toLowerCase()))
@@ -128,6 +128,35 @@ function SessionSummaryBlock({ exercises }) {
 
   if (!summary) return null
   const totalTorque = Object.values(summary.torqueCounts).reduce((a, b) => a + b, 0)
+  const muscleEntries = Object.entries(summary.setsByMuscle).sort((a, b) => b[1] - a[1])
+
+  const detail = (
+    <>
+      {muscleEntries.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>Séries par muscle</div>
+          {muscleEntries.map(([muscle, count]) => (
+            <div key={muscle} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '4px 0' }}>
+              <div style={{ fontSize: 13, color: 'var(--text)' }}>{muscle}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', flexShrink: 0 }}>{count} série{count > 1 ? 's' : ''}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {totalTorque > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>Répartition torque <span style={{ fontWeight: 400, color: 'var(--text3)' }}>({totalTorque} ex. renseignés)</span></div>
+          {Object.entries(summary.torqueCounts).map(([label, count]) => (
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '4px 0' }}>
+              <div style={{ fontSize: 13, color: 'var(--text)' }}>{label}</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: torqueColor(label), flexShrink: 0 }}>{Math.round((count / totalTorque) * 100)}%</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  )
 
   return (
     <div style={{
@@ -141,9 +170,9 @@ function SessionSummaryBlock({ exercises }) {
           style={{ background: pinned ? 'var(--green-light)' : 'none', border: pinned ? '1px solid #B8EAD8' : '1px solid var(--border2)', borderRadius: 20, padding: '2px 7px', fontSize: 12, cursor: 'pointer', color: pinned ? 'var(--green)' : 'var(--text3)', lineHeight: 1 }}>
           📌
         </button>
-        <button onClick={() => setExpanded(v => !v)} title={expanded ? 'Réduire' : 'Voir le détail (séries par muscle)'}
-          style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '2px 4px', lineHeight: 1 }}>
-          {expanded ? '▲' : '▼'}
+        <button onClick={() => setShowModal(true)} title="Voir le détail (séries par muscle)"
+          style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 7px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1 }}>
+          ⤢
         </button>
       </div>
 
@@ -158,41 +187,27 @@ function SessionSummaryBlock({ exercises }) {
         </div>
       )}
 
-      {expanded && Object.keys(summary.setsByMuscle).length > 0 && (() => {
-        const entries = Object.entries(summary.setsByMuscle).sort((a, b) => b[1] - a[1])
-        const max = entries[0][1]
-        return (
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>Séries par muscle</div>
-            {entries.map(([muscle, count]) => (
-              <div key={muscle} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', minWidth: 100 }}>{muscle}</div>
-                <div style={{ flex: 1, background: 'var(--border)', borderRadius: 99, height: 7, overflow: 'hidden' }}>
-                  <div style={{ width: `${(count / max) * 100}%`, background: 'var(--green)', height: '100%', borderRadius: 99, transition: 'width .3s' }} />
-                </div>
-                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--green)', minWidth: 60, textAlign: 'right' }}>{count} série{count > 1 ? 's' : ''}</div>
-              </div>
-            ))}
-          </div>
-        )
-      })()}
+      {showModal && (
+        <div onClick={() => setShowModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 400, maxHeight: '80svh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>📊 Résumé de séance</div>
+              <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
+            </div>
 
-      {expanded && totalTorque > 0 && (
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>Répartition torque <span style={{ fontWeight: 400, color: 'var(--text3)' }}>({totalTorque} ex. renseignés)</span></div>
-          {Object.entries(summary.torqueCounts).map(([label, count]) => {
-            const pct = Math.round((count / totalTorque) * 100)
-            const color = torqueColor(label)
-            return (
-              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', minWidth: 72 }}>{label}</div>
-                <div style={{ flex: 1, background: 'var(--border)', borderRadius: 99, height: 7, overflow: 'hidden' }}>
-                  <div style={{ width: `${pct}%`, background: color, height: '100%', borderRadius: 99, transition: 'width .3s' }} />
+            {summary.muscles.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 5 }}>Muscles sollicités</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {summary.muscles.map((m, i) => (
+                    <span key={i} style={{ fontSize: 11, background: 'var(--green-light)', color: 'var(--green)', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>{m}</span>
+                  ))}
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 800, color, minWidth: 32, textAlign: 'right' }}>{pct}%</div>
               </div>
-            )
-          })}
+            )}
+
+            {detail}
+          </div>
         </div>
       )}
     </div>
