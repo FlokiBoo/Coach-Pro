@@ -121,6 +121,7 @@ function AthleteView({ params }) {
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showAddWizard, setShowAddWizard] = useState(false)
   const [athlete, setAthlete] = useState(null)
+  const [unreadMessages, setUnreadMessages] = useState(0)
   const [programs, setPrograms] = useState([])
   const [completions, setCompletions] = useState(new Set())
   const [skippedSessions, setSkippedSessions] = useState(new Set())
@@ -312,6 +313,24 @@ function AthleteView({ params }) {
     }
     load()
   }, [token])
+
+  // Badge rouge "message non lu" sur l'onglet Profil de la barre de navigation, pour que le
+  // sportif voie qu'il a un message du coach même sans avoir ouvert l'onglet.
+  useEffect(() => {
+    if (!athlete || isCoachView) return
+    const refreshUnread = () => {
+      fetch(`/api/messages/${athlete.id}`).then(r => r.json()).then(data => {
+        const u = (data.messages || []).filter(m => m.sender_role === 'coach' && !m.read_by_athlete_at).length
+        setUnreadMessages(u)
+      })
+    }
+    refreshUnread()
+    const channel = supabase
+      .channel(`messages-tabbar-${athlete.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages', filter: `athlete_id=eq.${athlete.id}` }, refreshUnread)
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [athlete?.id, isCoachView])
 
   // Prévient le sportif quand son abonnement se renouvelle automatiquement dans ≤3 jours. Dérivé
   // au rendu plutôt que via un effet : `athlete` n'est jamais peuplé côté serveur (chargé par fetch
@@ -863,7 +882,7 @@ function AthleteView({ params }) {
         />
       )}
 
-      <AthleteTabBar active={activeTab} onChange={setActiveTab} onAdd={() => setShowAddSheet(true)} addActive={showAddSheet || showAddWizard} />
+      <AthleteTabBar active={activeTab} onChange={setActiveTab} onAdd={() => setShowAddSheet(true)} addActive={showAddSheet || showAddWizard} unreadMessages={unreadMessages} />
 
       {showAddSheet && (
         <AddActionSheet

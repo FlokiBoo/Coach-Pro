@@ -9,7 +9,7 @@ const TABS_RIGHT = [
   { key: 'profil', label: 'Profil', icon: '👤' },
 ]
 
-export default function AthleteTabBar({ active, onChange, onAdd, addActive = false }) {
+export default function AthleteTabBar({ active, onChange, onAdd, addActive = false, unreadMessages = 0 }) {
   const renderTab = (t) => {
     const isActive = active === t.key
     return (
@@ -18,7 +18,19 @@ export default function AthleteTabBar({ active, onChange, onAdd, addActive = fal
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
         padding: '10px 4px 8px', color: isActive ? 'var(--green)' : 'var(--text3)',
       }}>
-        <span style={{ fontSize: 19, lineHeight: 1, opacity: isActive ? 1 : 0.7 }}>{t.icon}</span>
+        <span style={{ position: 'relative', fontSize: 19, lineHeight: 1, opacity: isActive ? 1 : 0.7 }}>
+          {t.icon}
+          {t.key === 'profil' && unreadMessages > 0 && (
+            <span style={{
+              position: 'absolute', top: -4, right: -8, background: '#DC2626', color: '#fff',
+              borderRadius: 20, minWidth: 15, height: 15, fontSize: 10, fontWeight: 800,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px',
+              border: '1.5px solid var(--bg)', lineHeight: 1,
+            }}>
+              {unreadMessages > 9 ? '9+' : unreadMessages}
+            </span>
+          )}
+        </span>
         <span style={{ fontSize: 10, fontWeight: isActive ? 800 : 600 }}>{t.label}</span>
       </button>
     )
