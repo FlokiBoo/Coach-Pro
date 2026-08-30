@@ -74,7 +74,7 @@ function torqueColor(label) {
 
 function SessionSummaryBlock({ exercises }) {
   const [summary, setSummary] = useState(null)
-  const [pinned, setPinned] = useState(false)
+  const [pinned, setPinned] = useState(true)
   const [showModal, setShowModal] = useState(false)
 
   const names = exercises.map(e => e.name.trim()).filter(Boolean)
