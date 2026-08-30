@@ -74,6 +74,8 @@ function torqueColor(label) {
 
 function SessionSummaryBlock({ exercises }) {
   const [summary, setSummary] = useState(null)
+  const [expanded, setExpanded] = useState(false)
+  const [pinned, setPinned] = useState(false)
 
   const names = exercises.map(e => e.name.trim()).filter(Boolean)
   const namesLower = new Set(names.map(n => n.toLowerCase()))
@@ -128,8 +130,22 @@ function SessionSummaryBlock({ exercises }) {
   const totalTorque = Object.values(summary.torqueCounts).reduce((a, b) => a + b, 0)
 
   return (
-    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📊 Résumé de séance</div>
+    <div style={{
+      background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px',
+      display: 'flex', flexDirection: 'column', gap: 10,
+      ...(pinned ? { position: 'sticky', top: 90, zIndex: 30, boxShadow: '0 4px 16px rgba(0,0,0,.12)' } : {}),
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1, fontSize: 10, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📊 Résumé de séance</div>
+        <button onClick={() => setPinned(v => !v)} title={pinned ? 'Désépingler' : 'Épingler en haut pendant le scroll'}
+          style={{ background: pinned ? 'var(--green-light)' : 'none', border: pinned ? '1px solid #B8EAD8' : '1px solid var(--border2)', borderRadius: 20, padding: '2px 7px', fontSize: 12, cursor: 'pointer', color: pinned ? 'var(--green)' : 'var(--text3)', lineHeight: 1 }}>
+          📌
+        </button>
+        <button onClick={() => setExpanded(v => !v)} title={expanded ? 'Réduire' : 'Voir le détail (séries par muscle)'}
+          style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '2px 4px', lineHeight: 1 }}>
+          {expanded ? '▲' : '▼'}
+        </button>
+      </div>
 
       {summary.muscles.length > 0 && (
         <div>
@@ -142,7 +158,7 @@ function SessionSummaryBlock({ exercises }) {
         </div>
       )}
 
-      {Object.keys(summary.setsByMuscle).length > 0 && (() => {
+      {expanded && Object.keys(summary.setsByMuscle).length > 0 && (() => {
         const entries = Object.entries(summary.setsByMuscle).sort((a, b) => b[1] - a[1])
         const max = entries[0][1]
         return (
@@ -161,7 +177,7 @@ function SessionSummaryBlock({ exercises }) {
         )
       })()}
 
-      {totalTorque > 0 && (
+      {expanded && totalTorque > 0 && (
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>Répartition torque <span style={{ fontWeight: 400, color: 'var(--text3)' }}>({totalTorque} ex. renseignés)</span></div>
           {Object.entries(summary.torqueCounts).map(([label, count]) => {
@@ -1268,7 +1284,13 @@ function ProgramEditorPage({ params }) {
               <SortableItem key={s.id} id={s.id}>{(dragProps) => (
               <div style={{
                 background: 'var(--bg)', border: isPinned ? '1px solid var(--green)' : '1px solid var(--border)', borderRadius: 'var(--rl)',
-                overflowX: 'hidden', overflowY: isPinned ? 'auto' : 'hidden',
+                // 'hidden' sur un seul axe force l'autre à se calculer en 'auto' (règle CSS), ce qui
+                // bloque quand même le position:sticky du résumé de séance épinglé (toute valeur
+                // scrollable sur un ancêtre — hidden OU auto — casse l'accroche au viewport). Les
+                // deux axes doivent être 'visible' pour que ça marche ; sans incidence ici puisque
+                // le contenu n'existe que quand isOpen, donc rien ne "déborde" à masquer quand fermé.
+                overflowX: isPinned ? 'hidden' : 'visible',
+                overflowY: isPinned ? 'auto' : 'visible',
                 ...(isPinned ? { position: 'sticky', top: 12, maxHeight: 'calc(100svh - 24px)', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' } : {}),
               }}>
 
@@ -1355,6 +1377,8 @@ function ProgramEditorPage({ params }) {
                 {/* Contenu de la séance */}
                 {isOpen && (
                   <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+                    {s.session_type !== 'explication' && <SessionSummaryBlock exercises={s.exercises} />}
 
                     {/* Retours du client si la séance a déjà été effectuée */}
                     {completion && (
@@ -1829,8 +1853,6 @@ function ProgramEditorPage({ params }) {
                         + Circuit
                       </button>
                     </div>
-
-                    <SessionSummaryBlock exercises={s.exercises} />
                     </>
                     )}
 
