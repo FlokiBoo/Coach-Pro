@@ -76,8 +76,10 @@ function SessionSummaryBlock({ exercises }) {
   const [summary, setSummary] = useState(null)
 
   const names = exercises.map(e => e.name.trim()).filter(Boolean)
-  const namesKey = names.join('|')
   const namesLower = new Set(names.map(n => n.toLowerCase()))
+  // Inclut les séries dans la clé de dépendance : changer le nombre de séries d'un exercice sans
+  // toucher son nom doit quand même recalculer le volume par muscle.
+  const summaryKey = exercises.map(e => `${e.name.trim().toLowerCase()}:${e.sets || 0}`).join('|')
 
   useEffect(() => {
     if (names.length === 0) { setSummary(null); return }
@@ -87,9 +89,13 @@ function SessionSummaryBlock({ exercises }) {
       const movs = (allMovs || []).filter(m => namesLower.has(m.name.trim().toLowerCase()))
       if (!movs?.length) { setSummary(null); return }
 
+      const movMuscles = {}
+      movs.forEach(m => { movMuscles[m.name.trim().toLowerCase()] = (m.muscles || '').split(',').map(s => s.trim()).filter(Boolean) })
+
       const seen = new Set()
       const muscles = []
       const torqueCounts = {}
+      const setsByMuscle = {}
 
       movs.forEach(m => {
         if (m.muscles) {
@@ -103,10 +109,20 @@ function SessionSummaryBlock({ exercises }) {
         }
       })
 
-      if (muscles.length === 0 && Object.keys(torqueCounts).length === 0) { setSummary(null); return }
-      setSummary({ muscles, torqueCounts })
+      // Séries par muscle : parcourt chaque exercice de la séance (pas juste les mouvements
+      // distincts) pour cumuler les séries de chaque occurrence sur les muscles qu'il sollicite.
+      exercises.forEach(e => {
+        const musclesForExo = movMuscles[e.name.trim().toLowerCase()]
+        if (!musclesForExo?.length || !e.sets) return
+        musclesForExo.forEach(muscle => {
+          setsByMuscle[muscle] = (setsByMuscle[muscle] || 0) + Number(e.sets)
+        })
+      })
+
+      if (muscles.length === 0 && Object.keys(torqueCounts).length === 0 && Object.keys(setsByMuscle).length === 0) { setSummary(null); return }
+      setSummary({ muscles, torqueCounts, setsByMuscle })
     })
-  }, [namesKey])
+  }, [summaryKey])
 
   if (!summary) return null
   const totalTorque = Object.values(summary.torqueCounts).reduce((a, b) => a + b, 0)
@@ -125,6 +141,25 @@ function SessionSummaryBlock({ exercises }) {
           </div>
         </div>
       )}
+
+      {Object.keys(summary.setsByMuscle).length > 0 && (() => {
+        const entries = Object.entries(summary.setsByMuscle).sort((a, b) => b[1] - a[1])
+        const max = entries[0][1]
+        return (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 6 }}>Séries par muscle</div>
+            {entries.map(([muscle, count]) => (
+              <div key={muscle} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', minWidth: 100 }}>{muscle}</div>
+                <div style={{ flex: 1, background: 'var(--border)', borderRadius: 99, height: 7, overflow: 'hidden' }}>
+                  <div style={{ width: `${(count / max) * 100}%`, background: 'var(--green)', height: '100%', borderRadius: 99, transition: 'width .3s' }} />
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--green)', minWidth: 60, textAlign: 'right' }}>{count} série{count > 1 ? 's' : ''}</div>
+              </div>
+            ))}
+          </div>
+        )
+      })()}
 
       {totalTorque > 0 && (
         <div>
