@@ -33,11 +33,14 @@ export async function proxy(request) {
       cookies: {
         getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value)
-            response = NextResponse.next({ request })
-            response.cookies.set(name, value, options)
-          })
+          // Une seule réponse recréée après avoir mis à jour TOUTES les cookies de la requête,
+          // puis TOUTES les cookies y sont appliquées — recréer la réponse à chaque itération
+          // (comme avant) écrasait les cookies déjà posées lors des itérations précédentes,
+          // corrompant la session dès qu'un refresh Supabase posait plusieurs cookies d'un coup
+          // (ex: token chunké sb-*-auth-token.0/.1) → déconnexions intempestives.
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          response = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
         },
       },
     }
