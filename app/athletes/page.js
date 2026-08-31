@@ -20,10 +20,26 @@ const TIER_BADGES = {
   B: { label: 'Gold', color: '#92400E', bg: '#FDE68A' },
 }
 
+const SORT_OPTIONS = [
+  { key: 'alpha', label: 'Alphabétique (A→Z)' },
+  { key: 'alpha_desc', label: 'Alphabétique inversé (Z→A)' },
+  { key: 'date', label: "Date d'ajout (récent d'abord)" },
+  { key: 'subscription', label: "Type d'abonnement" },
+]
+
+// Priorité d'affichage : abonnés (Gold puis Silver) avant les non-abonnés.
+function subscriptionRank(a) {
+  if (a.subscription_status === 'active' && a.subscription_tier === 'B') return 0
+  if (a.subscription_status === 'active' && a.subscription_tier === 'A') return 1
+  return 2
+}
+
 export default function AthletesPage() {
   const router = useRouter()
   const [athletes, setAthletes] = useState(null)
+  const [groupsByAthlete, setGroupsByAthlete] = useState({})
   const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState('alpha')
   const [menu, setMenu] = useState(null) // { athlete, top, left, openUp }
   const [busyId, setBusyId] = useState(null)
   const [showAdd, setShowAdd] = useState(false)
@@ -44,8 +60,18 @@ export default function AthletesPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const { data } = await supabase.from('athletes').select('*').neq('archived', true).order('name')
+    const [{ data }, { data: groups }] = await Promise.all([
+      supabase.from('athletes').select('*').neq('archived', true).order('name'),
+      supabase.from('groups').select('name, group_members(athlete_id)'),
+    ])
     setAthletes(data || [])
+    const byAthlete = {}
+    ;(groups || []).forEach(g => {
+      ;(g.group_members || []).forEach(m => {
+        (byAthlete[m.athlete_id] ||= []).push(g.name)
+      })
+    })
+    setGroupsByAthlete(byAthlete)
   }
 
   const inviteFromMenu = async (a) => {
@@ -84,7 +110,14 @@ export default function AthletesPage() {
     setAthletes(prev => prev.filter(x => x.id !== a.id))
   }
 
-  const filtered = (athletes || []).filter(a => a.name.toLowerCase().includes(search.trim().toLowerCase()))
+  const filtered = (athletes || [])
+    .filter(a => a.name.toLowerCase().includes(search.trim().toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'alpha_desc') return b.name.localeCompare(a.name)
+      if (sortBy === 'date') return new Date(b.created_at) - new Date(a.created_at)
+      if (sortBy === 'subscription') return subscriptionRank(a) - subscriptionRank(b) || a.name.localeCompare(b.name)
+      return a.name.localeCompare(b.name)
+    })
 
   const openAdd = () => {
     setNewName('')
@@ -158,12 +191,18 @@ export default function AthletesPage() {
             </button>
           </div>
 
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher un sportif…"
-            style={{ padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
-          />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Rechercher un sportif…"
+              style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+            />
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+              style={{ padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', flexShrink: 0 }}>
+              {SORT_OPTIONS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+            </select>
+          </div>
 
           {athletes === null ? (
             <div style={{ color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>Chargement…</div>
@@ -186,22 +225,29 @@ export default function AthletesPage() {
                     }}>
                       {initials(a.name)}
                     </div>
-                    <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      {a.name}
-                      {a.is_coach && (
-                        <span style={{ fontSize: 9, fontWeight: 800, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>COACH</span>
-                      )}
-                      {a.subscription_status === 'active' && TIER_BADGES[a.subscription_tier] ? (
-                        <span style={{
-                          fontSize: 9, fontWeight: 800, borderRadius: 10, padding: '1px 6px', flexShrink: 0,
-                          color: TIER_BADGES[a.subscription_tier].color, background: TIER_BADGES[a.subscription_tier].bg,
-                        }}>
-                          🏅 {TIER_BADGES[a.subscription_tier].label}
-                        </span>
-                      ) : a.subscription_status !== 'active' && !a.is_coach && (
-                        <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 10, padding: '1px 6px', flexShrink: 0 }}>
-                          Non abonné
-                        </span>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        {a.name}
+                        {a.is_coach && (
+                          <span style={{ fontSize: 9, fontWeight: 800, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>COACH</span>
+                        )}
+                        {a.subscription_status === 'active' && TIER_BADGES[a.subscription_tier] ? (
+                          <span style={{
+                            fontSize: 9, fontWeight: 800, borderRadius: 10, padding: '1px 6px', flexShrink: 0,
+                            color: TIER_BADGES[a.subscription_tier].color, background: TIER_BADGES[a.subscription_tier].bg,
+                          }}>
+                            🏅 {TIER_BADGES[a.subscription_tier].label}
+                          </span>
+                        ) : a.subscription_status !== 'active' && !a.is_coach && (
+                          <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 10, padding: '1px 6px', flexShrink: 0 }}>
+                            Non abonné
+                          </span>
+                        )}
+                      </div>
+                      {groupsByAthlete[a.id]?.length > 0 && (
+                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          👥 {groupsByAthlete[a.id].join(', ')}
+                        </div>
                       )}
                     </div>
                   </div>
