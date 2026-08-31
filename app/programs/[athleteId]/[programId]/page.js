@@ -656,7 +656,7 @@ function ProgramEditorPage({ params }) {
       if (!clientSess) {
         // Nouvelle séance côté template, jamais vue par ce client : on la crée
         const { data: created } = await supabase.from('program_sessions')
-          .insert({ program_id: cp.id, order_index: sessOrderIndex, title: fields.title, source_session_id: sessId, session_type: fields.session_type || null })
+          .insert({ program_id: cp.id, order_index: sessOrderIndex, title: fields.title, source_session_id: sessId, session_type: fields.session_type || null, materiel: fields.materiel || null })
           .select().single()
         clientSess = created
         if (!clientSess) continue
@@ -670,6 +670,7 @@ function ProgramEditorPage({ params }) {
           title: fields.title, activation: fields.activation,
           coach_notes: fields.coach_notes, activation_videos: fields.activation_videos,
           circuits: fields.circuits, session_type: fields.session_type || null,
+          materiel: fields.materiel || null,
         }).eq('id', clientSess.id)
       }
 
@@ -711,6 +712,7 @@ function ProgramEditorPage({ params }) {
       title: s.title || '', activation: s.activation || null,
       coach_notes: s.coach_notes || null, activation_videos: s.activation_videos || [],
       circuits: s.circuits || [], session_type: s.session_type || null,
+      materiel: s.materiel || null,
     }
     const { error: sessErr } = await supabase.from('program_sessions').update(sessFields).eq('id', s.id)
     if (sessErr) { alert('Erreur sauvegarde séance : ' + sessErr.message); setSaving(false); return }
@@ -811,6 +813,7 @@ function ProgramEditorPage({ params }) {
         title: s.title ? `${s.title} (copie)` : '',
         activation: s.activation || null, coach_notes: s.coach_notes || null,
         activation_videos: s.activation_videos || [], session_type: s.session_type || null,
+        materiel: s.materiel || null,
       })
       .select().single()
     if (sessErr || !newSession) { alert('Erreur duplication : ' + sessErr?.message); return }
@@ -1035,6 +1038,7 @@ function ProgramEditorPage({ params }) {
       await supabase.from('program_sessions').update({
         order_index: i, title: s.title || '', activation: s.activation || null, coach_notes: s.coach_notes || null,
         activation_videos: s.activation_videos || [], session_type: s.session_type || null,
+        materiel: s.materiel || null,
       }).eq('id', s.id)
       await supabase.from('program_exercises').delete().eq('program_session_id', s.id)
       const toInsert = s.exercises.filter(e => e.name.trim()).map((e, j) => ({
@@ -1883,6 +1887,16 @@ function ProgramEditorPage({ params }) {
                       <button onClick={() => addCircuit(s.id)} style={{ flex: 1, background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '8px', fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
                         + Circuit
                       </button>
+                    </div>
+
+                    {/* Matériel */}
+                    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
+                      <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🎒 Matériel</span>
+                      </div>
+                      <textarea placeholder="Matériel à avoir pour cette séance…" value={s.materiel || ''}
+                        onChange={e => updateSession(s.id, 'materiel', e.target.value)}
+                        rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)' }} />
                     </div>
                     </>
                     )}

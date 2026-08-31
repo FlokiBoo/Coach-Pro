@@ -1363,6 +1363,12 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
               )}
             </div>
           )}
+          {session.materiel && (
+            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>🎒 Matériel</div>
+              <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{session.materiel}</div>
+            </div>
+          )}
           {session.coach_notes && (
             <div className="font-editorial" style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, color: 'var(--text2)', fontStyle: 'italic', lineHeight: 1.6, borderLeft: '3px solid var(--green)' }}>
               {session.coach_notes}
