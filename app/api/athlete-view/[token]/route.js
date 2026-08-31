@@ -56,6 +56,9 @@ export async function GET(request, { params }) {
     supabaseAdmin.from('circuit_logs').select('*').eq('athlete_id', athlete.id),
   ])
 
+  const { data: leaderRows } = await supabaseAdmin.from('group_members').select('group_id').eq('athlete_id', athlete.id).eq('is_leader', true)
+  const isGroupLeader = !!leaderRows?.length
+
   const raceMovements = (trackedMovs || []).map(m => ({
     ...m,
     entries: (m.tracked_movement_entries || []).filter(e => e.athlete_id === athlete.id),
@@ -103,7 +106,7 @@ export async function GET(request, { params }) {
     {
       athlete, programs: gatedProgs, completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap, focusGroupsMap,
       objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [],
-      raceKnown, trackedMovements, isCoach, circuitLogs: circuitLogsData || [],
+      raceKnown, trackedMovements, isCoach, isGroupLeader, circuitLogs: circuitLogsData || [],
     },
     { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } }
   )

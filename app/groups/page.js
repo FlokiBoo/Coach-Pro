@@ -26,7 +26,7 @@ export default function GroupsPage() {
 
   async function load() {
     const [{ data: gs }, { data: aths }] = await Promise.all([
-      supabase.from('groups').select('*, group_members(athlete_id)').order('created_at', { ascending: false }),
+      supabase.from('groups').select('*, group_members(athlete_id, is_leader)').order('created_at', { ascending: false }),
       supabase.from('athletes').select('id, name').neq('archived', true).order('name'),
     ])
     setGroups(gs || [])
@@ -78,6 +78,15 @@ export default function GroupsPage() {
       await syncLinkedTemplatesToNewMember(group.id, athleteId)
     }
     setBusyMemberKey(null)
+  }
+
+  const toggleLeader = async (group, athleteId) => {
+    const member = group.group_members.find(m => m.athlete_id === athleteId)
+    const nextLeader = !member?.is_leader
+    setGroups(prev => prev.map(g => g.id !== group.id ? g : {
+      ...g, group_members: g.group_members.map(m => m.athlete_id === athleteId ? { ...m, is_leader: nextLeader } : m),
+    }))
+    await supabase.from('group_members').update({ is_leader: nextLeader }).eq('group_id', group.id).eq('athlete_id', athleteId)
   }
 
   // Un nouveau membre reçoit automatiquement les templates liés au groupe (voir la case "garder
@@ -191,13 +200,22 @@ export default function GroupsPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 260, overflowY: 'auto' }}>
                         {athletes.map(a => {
                           const isMember = memberIds.has(a.id)
+                          const isLeader = g.group_members.find(m => m.athlete_id === a.id)?.is_leader
                           const busy = busyMemberKey === `${g.id}-${a.id}`
                           return (
-                            <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--r)', border: isMember ? '1.5px solid var(--green)' : '1px solid var(--border)', background: isMember ? 'var(--green-light)' : 'var(--bg2)', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}>
-                              <input type="checkbox" checked={isMember} disabled={busy} onChange={() => toggleMember(g, a.id)}
-                                style={{ accentColor: 'var(--green)', width: 15, height: 15 }} />
-                              <span style={{ fontSize: 13, fontWeight: 600, color: isMember ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
-                            </label>
+                            <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--r)', border: isMember ? '1.5px solid var(--green)' : '1px solid var(--border)', background: isMember ? 'var(--green-light)' : 'var(--bg2)', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}>
+                                <input type="checkbox" checked={isMember} disabled={busy} onChange={() => toggleMember(g, a.id)}
+                                  style={{ accentColor: 'var(--green)', width: 15, height: 15 }} />
+                                <span style={{ fontSize: 13, fontWeight: 600, color: isMember ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
+                              </label>
+                              {isMember && (
+                                <button onClick={() => toggleLeader(g, a.id)} title={isLeader ? 'Retirer le statut leader' : 'Faire de ce sportif un leader'}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, padding: 4, flexShrink: 0, opacity: isLeader ? 1 : 0.3 }}>
+                                  ⭐
+                                </button>
+                              )}
+                            </div>
                           )
                         })}
                       </div>

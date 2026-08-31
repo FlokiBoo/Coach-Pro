@@ -112,6 +112,7 @@ function AthleteView({ params }) {
   const searchParams = useSearchParams()
   const isCoachView = searchParams.get('coach') === '1'
   const [isCoach, setIsCoach] = useState(false)
+  const [isGroupLeader, setIsGroupLeader] = useState(false)
   const targetSessionId = searchParams.get('session')
   const focusMode = searchParams.get('focus') === '1'
   const activeTab = searchParams.get('tab') || 'wod'
@@ -254,13 +255,14 @@ function AthleteView({ params }) {
         return
       }
       if (!res.ok) return
-      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, focusGroupsMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets, raceKnown: rk, trackedMovements: tms, isCoach: coachFlag, circuitLogs: cLogs } = await res.json()
+      const { athlete: ath, programs: progs, completions: comps, exerciseLogs: logs, movieMap, musclesMap, focusGroupsMap, objectives: objs, noteBlocks: blocks, exerciseSets: exoSets, raceKnown: rk, trackedMovements: tms, isCoach: coachFlag, isGroupLeader: leaderFlag, circuitLogs: cLogs } = await res.json()
       setAthlete(ath)
       setObjectives(objs || [])
       setNoteBlocks(blocks || [])
       setRaceKnown(rk || {})
       setTrackedMovements(tms || [])
       setIsCoach(!!coachFlag)
+      setIsGroupLeader(!!leaderFlag)
 
       const logsMap = {}
       ;(logs || []).forEach(l => { logsMap[l.program_exercise_id] = l })
@@ -886,6 +888,8 @@ function AthleteView({ params }) {
               onToggleSuperset={toggleFreeSuperset}
               circuitLogs={circuitLogs}
               onSaveCircuitLog={saveCircuitLog}
+              isGroupLeader={isGroupLeader}
+              token={token}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
@@ -1225,7 +1229,8 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, circuitLogs = {}, onSaveCircuitLog }) {
+function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, token }) {
+  const [showGroupPaces, setShowGroupPaces] = useState(false)
   const [showPostpone, setShowPostpone] = useState(false)
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
   const [focusPicker, setFocusPicker] = useState(null) // exercise id being edited
@@ -1340,6 +1345,12 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
               <button onClick={e => { e.stopPropagation(); setShowMateriel(true) }} title="Matériel à prévoir pour cette séance"
                 style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', fontSize: 12, cursor: 'pointer', flexShrink: 0, lineHeight: 1.4 }}>
                 🎒
+              </button>
+            )}
+            {isGroupLeader && session.source_session_id && (
+              <button onClick={e => { e.stopPropagation(); setShowGroupPaces(true) }} title="Voir les allures/distances de tout le groupe pour cette séance"
+                style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', fontSize: 12, cursor: 'pointer', flexShrink: 0, lineHeight: 1.4 }}>
+                👥
               </button>
             )}
           </div>
@@ -1740,6 +1751,54 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
           </div>
         </div>
       )}
+      {showGroupPaces && (
+        <GroupPacesModal token={token} sessionId={session.id} onClose={() => setShowGroupPaces(false)} />
+      )}
+    </div>
+  )
+}
+
+function GroupPacesModal({ token, sessionId, onClose }) {
+  const [state, setState] = useState({ loading: true, members: [] })
+
+  useEffect(() => {
+    fetch(`/api/athlete-view/${token}/group-session-paces?sessionId=${sessionId}`)
+      .then(r => r.json())
+      .then(data => setState({ loading: false, members: data.members || [] }))
+      .catch(() => setState({ loading: false, members: [] }))
+  }, [token, sessionId])
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 420, width: '100%', maxHeight: '80svh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+          <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700 }}>👥 Allures du groupe</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
+        </div>
+        {state.loading ? (
+          <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '20px 0' }}>Chargement…</div>
+        ) : state.members.length === 0 ? (
+          <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>
+            Aucune donnée — cette séance ne vient pas d&apos;un template partagé au groupe, ou personne d&apos;autre n&apos;a encore de test VMA/Seuil enregistré.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {state.members.map(m => (
+              <div key={m.athleteId} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+                <div style={{ fontWeight: 700, fontSize: 14, marginBottom: m.exercises.length ? 6 : 0 }}>{m.athleteName}</div>
+                {m.exercises.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Tests VMA/Seuil requis</div>
+                ) : m.exercises.map((ex, i) => (
+                  <div key={i} style={{ fontSize: 12, color: 'var(--text2)', marginBottom: i < m.exercises.length - 1 ? 4 : 0 }}>
+                    <span style={{ fontWeight: 600 }}>{ex.name}</span> — {ex.label1} : <strong style={{ color: 'var(--green)' }}>{ex.val1 || '—'}</strong>
+                    {ex.val2 && ex.val2 !== ex.val1 && <> · {ex.label2} : <strong style={{ color: 'var(--green)' }}>{ex.val2}</strong></>}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
