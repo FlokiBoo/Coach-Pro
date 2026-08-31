@@ -29,6 +29,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [showMissingMusclesModal, setShowMissingMusclesModal] = useState(false)
+  const [copiedMissingMuscles, setCopiedMissingMuscles] = useState(false)
   const [newName, setNewName] = useState('')
   const [saving, setSaving] = useState(false)
   const [coachToken, setCoachToken] = useState(null)
@@ -266,6 +267,19 @@ export default function Home() {
                   </div>
                   <button onClick={() => setShowMissingMusclesModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
                 </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(movementsMissingMuscles.map(m => m.name).join('\n'))
+                    setCopiedMissingMuscles(true)
+                    setTimeout(() => setCopiedMissingMuscles(false), 1500)
+                  }}
+                  style={{
+                    background: copiedMissingMuscles ? '#DCFCE7' : 'var(--bg2)', color: copiedMissingMuscles ? '#166534' : 'var(--text2)',
+                    border: `1px solid ${copiedMissingMuscles ? '#BBF7D0' : 'var(--border2)'}`, borderRadius: 'var(--r)',
+                    padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  }}>
+                  {copiedMissingMuscles ? '✓ Liste copiée' : '📋 Copier la liste'}
+                </button>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {movementsMissingMuscles.map(m => (
                     <Link key={m.id} href={`/movements/${m.id}`} onClick={() => setShowMissingMusclesModal(false)} style={{
