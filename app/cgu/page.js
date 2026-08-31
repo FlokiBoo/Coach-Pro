@@ -19,9 +19,9 @@ export default function CguPage() {
         <Section title="1. Objet">
           <p>
             Les présentes conditions régissent l&apos;utilisation de la plateforme OSTRYK, un service de coaching sportif
-            en ligne édité par [Nom légal / statut à compléter], permettant l&apos;accès à des programmes d&apos;entraînement,
-            un suivi de progression, et un générateur de plans alimentaires. Toute création de compte implique
-            l&apos;acceptation pleine et entière des présentes conditions.
+            en ligne édité par Maxime Sallenave, auto-entrepreneur, 17 cité Conrad, 33000 Bordeaux, SIRET 905 385 076 00039,
+            permettant l&apos;accès à des programmes d&apos;entraînement, un suivi de progression, et un générateur de plans
+            alimentaires. Toute création de compte implique l&apos;acceptation pleine et entière des présentes conditions.
           </p>
         </Section>
 
@@ -111,10 +111,18 @@ export default function CguPage() {
         <Section title="10. Droit applicable et litiges">
           <p>
             Les présentes conditions sont soumises au droit français. Conformément aux articles L616-1 et suivants du
-            Code de la consommation, le client peut recourir gratuitement, en cas de litige non résolu directement avec
-            OSTRYK, à un médiateur de la consommation agréé. Les coordonnées du médiateur compétent seront communiquées
-            sur cette page dès sa désignation. À défaut de résolution amiable, les tribunaux français compétents seront
-            seuls saisis.
+            Code de la consommation, le client peut recourir gratuitement, après démarche écrite préalable auprès
+            d&apos;OSTRYK restée infructueuse, à un médiateur de la consommation en vue de la résolution amiable d&apos;un
+            litige n&apos;ayant pas trouvé de solution, dans un délai maximal d&apos;un an à compter de sa réclamation écrite.
+            OSTRYK a choisi comme médiateur de la consommation le Centre de la Médiation de la Consommation de
+            Conciliateurs de Justice (CM2C), joignable :
+          </p>
+          <ul style={{ paddingLeft: 20 }}>
+            <li>par voie électronique, via le formulaire disponible sur <a href="https://www.cm2c.net" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green)' }}>www.cm2c.net</a> ;</li>
+            <li>par voie postale, à l&apos;adresse : CM2C — 49 rue de Ponthieu — 75008 Paris.</li>
+          </ul>
+          <p>
+            À défaut de résolution amiable, les tribunaux français compétents seront seuls saisis.
           </p>
         </Section>
 

@@ -16,8 +16,8 @@ export default function ConfidentialitePage() {
 
         <Section title="1. Qui sommes-nous">
           <p>
-            OSTRYK est un service de coaching sportif en ligne édité par [Nom légal / statut (auto-entrepreneur, société…) à compléter],
-            [adresse à compléter], [SIRET à compléter si applicable.]
+            OSTRYK est un service de coaching sportif en ligne édité par Maxime Sallenave, auto-entrepreneur,
+            17 cité Conrad, 33000 Bordeaux, SIRET 905 385 076 00039.
             <br />Contact : <a href="mailto:maxx7796@gmail.com" style={{ color: 'var(--green)' }}>maxx7796@gmail.com</a>.
           </p>
           <p>Le responsable du traitement des données décrites ci-dessous est l&apos;éditeur d&apos;OSTRYK.</p>
