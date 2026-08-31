@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
+import { cloneTemplateToAthlete } from '@/lib/programTemplates'
 
 function today() {
   const n = new Date()
@@ -74,8 +75,28 @@ export default function GroupsPage() {
     } else {
       await supabase.from('group_members').insert({ group_id: group.id, athlete_id: athleteId })
       setGroups(prev => prev.map(g => g.id === group.id ? { ...g, group_members: [...g.group_members, { athlete_id: athleteId }] } : g))
+      await syncLinkedTemplatesToNewMember(group.id, athleteId)
     }
     setBusyMemberKey(null)
+  }
+
+  // Un nouveau membre reçoit automatiquement les templates liés au groupe (voir la case "garder
+  // synchronisé" dans l'assignation de programme) — sauf s'il a déjà une copie du même template
+  // (ex : retiré puis réajouté au groupe).
+  const syncLinkedTemplatesToNewMember = async (groupId, athleteId) => {
+    const { data: links } = await supabase.from('group_program_templates')
+      .select('program_id, programs(title, activity_type)').eq('group_id', groupId)
+    if (!links?.length) return
+    const { data: existing } = await supabase.from('programs').select('source_program_id').eq('athlete_id', athleteId)
+    const alreadyHas = new Set((existing || []).map(p => p.source_program_id).filter(Boolean))
+    const coachId = await getCoachId()
+    for (const link of links) {
+      if (alreadyHas.has(link.program_id)) continue
+      await cloneTemplateToAthlete({
+        templateProgramId: link.program_id, templateTitle: link.programs?.title, templateActivityType: link.programs?.activity_type,
+        athleteId, coachId, groupId,
+      })
+    }
   }
 
   if (groups === null) return (

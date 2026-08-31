@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
 import { notifyAssigned, notifyProgramAvailable } from '@/lib/notify'
+import { cloneTemplateToAthlete } from '@/lib/programTemplates'
 
 function today() {
   const n = new Date()
@@ -34,19 +35,23 @@ export default function ProgramsPage() {
   const [assignDone, setAssignDone] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState('') // '' = Tous
   const [groups, setGroups] = useState([])
+  const [groupTemplateLinks, setGroupTemplateLinks] = useState([])
+  const [keepSynced, setKeepSynced] = useState(false)
 
   useEffect(() => {
     async function load() {
-      const [{ data: aths }, { data: progs }, { data: grps }] = await Promise.all([
+      const [{ data: aths }, { data: progs }, { data: grps }, { data: links }] = await Promise.all([
         supabase.from('athletes').select('id, name').neq('archived', true).order('created_at'),
         supabase.from('programs')
           .select('*, athletes(name), program_sessions(id)')
           .order('created_at', { ascending: false }),
         supabase.from('groups').select('*, group_members(athlete_id)').order('name'),
+        supabase.from('group_program_templates').select('group_id, program_id'),
       ])
       setAthletes(aths || [])
       setPrograms(progs || [])
       setGroups(grps || [])
+      setGroupTemplateLinks(links || [])
       setLoading(false)
     }
     load()
@@ -121,11 +126,13 @@ export default function ProgramsPage() {
     setSelectedIds([])
     setAssignGroupId(null)
     setAssignDone(false)
+    setKeepSynced(false)
   }
 
   const toggleAthlete = (id) => {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
     setAssignGroupId(null)
+    setKeepSynced(false)
   }
 
   const toggleGroupSelect = (g) => {
@@ -134,11 +141,17 @@ export default function ProgramsPage() {
     if (allSelected) {
       setSelectedIds(prev => prev.filter(id => !memberIds.includes(id)))
       setAssignGroupId(null)
+      setKeepSynced(false)
     } else {
       setSelectedIds(prev => [...new Set([...prev, ...memberIds])])
       setAssignGroupId(g.id)
+      // Sélectionner un groupe entier suggère l'intention de le garder à jour automatiquement —
+      // le coach peut décocher s'il ne voulait qu'une copie ponctuelle.
+      setKeepSynced(true)
     }
   }
+
+  const isGroupLinked = (groupId, programId) => groupTemplateLinks.some(l => l.group_id === groupId && l.program_id === programId)
 
   const assignProgram = async () => {
     if (!selectedIds.length || !assignModal) return
@@ -146,57 +159,27 @@ export default function ProgramsPage() {
     const coachId = await getCoachId()
     const batchId = crypto.randomUUID()
 
-    const { data: sessions } = await supabase
-      .from('program_sessions')
-      .select('*, program_exercises(*)')
-      .eq('program_id', assignModal.id)
-      .order('order_index')
-
     for (const targetId of selectedIds) {
-      const { data: newProg } = await supabase.from('programs')
-        .insert({ athlete_id: targetId, title: assignModal.title, coach_id: coachId, source_program_id: assignModal.id, activity_type: assignModal.activity_type, group_id: assignGroupId, group_batch_id: batchId })
-        .select().single()
-      if (!newProg) continue
+      await cloneTemplateToAthlete({
+        templateProgramId: assignModal.id, templateTitle: assignModal.title, templateActivityType: assignModal.activity_type,
+        athleteId: targetId, coachId, groupId: assignGroupId, batchId,
+      })
+    }
 
-      for (const sess of (sessions || [])) {
-        const { data: newSess } = await supabase.from('program_sessions')
-          .insert({
-            program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id,
-            activation: sess.activation || null, coach_notes: sess.coach_notes || null,
-            activation_videos: sess.activation_videos || [], circuits: sess.circuits || [],
-            session_type: sess.session_type || null, week_number: sess.week_number,
-          })
-          .select().single()
-        if (!newSess) continue
-
-        const exos = (sess.program_exercises || []).sort((a, b) => a.order_index - b.order_index)
-        if (exos.length > 0) {
-          await supabase.from('program_exercises').insert(
-            exos.map(e => ({
-              program_session_id: newSess.id,
-              order_index: e.order_index,
-              name: e.name,
-              sets: e.sets,
-              reps: e.reps,
-              kg: e.kg,
-              rest: e.rest,
-              note: e.note,
-              video_url: e.video_url,
-              superset_group: e.superset_group,
-              focus_muscles: e.focus_muscles || null,
-              pace_base: e.pace_base || null,
-              pct_low: e.pct_low,
-              pct_high: e.pct_high,
-              source_exercise_id: e.id,
-            }))
-          )
-        }
-      }
+    if (assignGroupId && keepSynced && !isGroupLinked(assignGroupId, assignModal.id)) {
+      const { error } = await supabase.from('group_program_templates')
+        .insert({ group_id: assignGroupId, program_id: assignModal.id })
+      if (!error) setGroupTemplateLinks(prev => [...prev, { group_id: assignGroupId, program_id: assignModal.id }])
     }
 
     notifyAssigned({ athleteIds: selectedIds, kind: 'program', title: assignModal.title })
     setAssigning(false)
     setAssignDone(true)
+  }
+
+  const unlinkGroupTemplate = async (groupId, programId) => {
+    await supabase.from('group_program_templates').delete().eq('group_id', groupId).eq('program_id', programId)
+    setGroupTemplateLinks(prev => prev.filter(l => !(l.group_id === groupId && l.program_id === programId)))
   }
 
   if (loading) return (
@@ -394,6 +377,7 @@ export default function ProgramsPage() {
                     {groups.map(g => {
                       const memberIds = g.group_members.map(m => m.athlete_id)
                       const allSelected = memberIds.length > 0 && memberIds.every(id => selectedIds.includes(id))
+                      const linked = isGroupLinked(g.id, assignModal.id)
                       return (
                         <button key={g.id} type="button" onClick={() => toggleGroupSelect(g)} disabled={memberIds.length === 0}
                           style={{
@@ -401,11 +385,28 @@ export default function ProgramsPage() {
                             border: allSelected ? 'none' : '1px solid var(--border2)', borderRadius: 20, padding: '6px 12px',
                             fontSize: 12, fontWeight: 700, cursor: memberIds.length === 0 ? 'default' : 'pointer', opacity: memberIds.length === 0 ? 0.5 : 1,
                           }}>
-                          👥 {g.name} ({memberIds.length})
+                          👥 {g.name} ({memberIds.length}){linked ? ' 🔗' : ''}
                         </button>
                       )
                     })}
                   </div>
+                )}
+                {assignGroupId && (
+                  isGroupLinked(assignGroupId, assignModal.id) ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12, color: 'var(--green)' }}>
+                      <span style={{ flex: 1 }}>🔗 Ce programme est lié à ce groupe — les nouveaux membres le reçoivent automatiquement.</span>
+                      <button type="button" onClick={() => unlinkGroupTemplate(assignGroupId, assignModal.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--green)', textDecoration: 'underline', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                        Retirer
+                      </button>
+                    </div>
+                  ) : (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, color: 'var(--text2)', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={keepSynced} onChange={e => setKeepSynced(e.target.checked)}
+                        style={{ accentColor: 'var(--green)', width: 16, height: 16 }} />
+                      🔗 Garder synchronisé — les futurs membres de ce groupe recevront aussi ce programme automatiquement
+                    </label>
+                  )
                 )}
                 {(() => {
                   const alreadyAssignedIds = new Set(programs.filter(p => p.source_program_id === assignModal.id).map(p => p.athlete_id))
