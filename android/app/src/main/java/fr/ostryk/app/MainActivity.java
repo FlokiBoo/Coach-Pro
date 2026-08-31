@@ -1,4 +1,4 @@
-package fr.coachproapp.app;
+package fr.ostryk.app;
 
 import com.getcapacitor.BridgeActivity;
 
