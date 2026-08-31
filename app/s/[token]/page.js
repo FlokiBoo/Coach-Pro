@@ -281,6 +281,18 @@ function AthleteView({ params }) {
       ;(comps || []).forEach(c => { feedbackMap[c.program_session_id] = c })
       setCompletionFeedback(feedbackMap)
 
+      // Séance validée par le coach en direct pendant que l'athlète n'était pas connecté : on lui
+      // montre le même bilan (citation, record, muscles) qu'une auto-validation, une seule fois.
+      if (coachFlag !== true) {
+        const pending = (comps || []).find(c => c.pending_celebration)
+        if (pending) {
+          setCelebration(pending.pending_celebration)
+          await supabase.from('program_completions')
+            .update({ pending_celebration: null })
+            .eq('athlete_id', ath.id).eq('program_session_id', pending.program_session_id)
+        }
+      }
+
       const progList = (progs || []).map(p => ({
         ...p,
         sessions: [...(p.program_sessions || [])]
@@ -597,8 +609,18 @@ function AthleteView({ params }) {
       // même si le texte de la bibliothèque de mouvements ne mentionne pas ce muscle.
       const manualMuscles = exos.flatMap(e => e.focus_muscles ? e.focus_muscles.split(',') : [])
       muscles = [...new Set([...muscles, ...manualMuscles])]
-      setCelebration({ tonnage: Math.round(tonnage), muscles, records: sessionRecords })
+      const celebrationPayload = { tonnage: Math.round(tonnage), muscles, records: sessionRecords }
+      setCelebration(celebrationPayload)
       setSessionRecords([])
+
+      // Séance validée par le coach en direct (coaching en présentiel) : l'athlète n'est pas devant
+      // son écran pour voir ce bilan maintenant, donc on le met de côté pour le lui montrer à sa
+      // prochaine connexion, comme s'il venait de valider lui-même.
+      if (isCoachView) {
+        await supabase.from('program_completions')
+          .update({ pending_celebration: celebrationPayload })
+          .eq('athlete_id', athlete.id).eq('program_session_id', sessId)
+      }
     }
 
     // Dernière séance accessible sans abonnement dans un programme en libre-service (voir la gate
