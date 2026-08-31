@@ -21,6 +21,7 @@ export default function TipsPage() {
   const [isAdmin, setIsAdmin] = useState(false)
   const [hiddenIds, setHiddenIds] = useState(new Set())
   const titleRef = useRef(null)
+  const reorderSaveTimer = useRef(null)
 
   async function loadUser() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -96,16 +97,30 @@ export default function TipsPage() {
     setTips(prev => prev.filter(t => t.id !== id))
   }
 
-  function move(idx, dir) {
-    const swapIdx = idx + dir
-    if (swapIdx < 0 || swapIdx >= tips.length) return
-    const next = [...tips]
-    ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
-    setTips(next)
-    // Une requête Supabase construite sans être attendue (ni .then()) n'est jamais réellement
-    // envoyée — le tri ne se sauvegardait donc jamais avant l'ajout de ce .then().
-    next.forEach((t, i) => {
-      supabase.from('tips').update({ order_index: i }).eq('id', t.id).then(() => {})
+  // Retrouve l'index courant depuis `prev` (pas depuis un `idx` figé par l'appelant) : un
+  // glisser-déposer sur plusieurs crans appelle cette fonction plusieurs fois d'affilée avant le
+  // prochain rendu, donc tout index calculé en dehors de ce setState reste périmé aux appels
+  // suivants — le tip revenait alors à sa position de départ sur les déplacements de plusieurs rangs.
+  function move(id, dir) {
+    setTips(prev => {
+      const idx = prev.findIndex(t => t.id === id)
+      if (idx === -1) return prev
+      const swapIdx = idx + dir
+      if (swapIdx < 0 || swapIdx >= prev.length) return prev
+      const next = [...prev]
+      ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
+      // Un glisser-déposer sur plusieurs crans déclenche cette fonction en rafale : sauvegarder
+      // à chaque cran envoie des requêtes concurrentes qui peuvent s'entremêler et corrompre
+      // l'ordre en base. On attend donc la fin de la rafale (debounce) pour sauvegarder l'ordre
+      // complet final en une seule passe, cohérente par construction. (Une requête Supabase
+      // construite sans être attendue, ni .then(), n'est de toute façon jamais réellement envoyée.)
+      clearTimeout(reorderSaveTimer.current)
+      reorderSaveTimer.current = setTimeout(() => {
+        next.forEach((t, i) => {
+          supabase.from('tips').update({ order_index: i }).eq('id', t.id).then(() => {})
+        })
+      }, 300)
+      return next
     })
   }
 
@@ -167,7 +182,7 @@ export default function TipsPage() {
               <div style={{ fontSize: 13 }}>Clique sur « + Tip » pour commencer</div>
             </div>
           ) : (
-            <SortableGroup ids={tips.map(t => t.id)} onReorder={(id, dir) => move(tips.findIndex(x => x.id === id), dir)}>
+            <SortableGroup ids={tips.map(t => t.id)} onReorder={(id, dir) => move(id, dir)}>
             {tips.map((t, idx) => (
               <SortableItem key={t.id} id={t.id}>{(dragProps) => (
               <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
@@ -204,9 +219,9 @@ export default function TipsPage() {
                   <div style={{ display: 'flex', gap: 10 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0 }}>
                       <DragHandle dragProps={dragProps} />
-                      <button onClick={() => move(idx, -1)} disabled={idx === 0}
+                      <button onClick={() => move(t.id, -1)} disabled={idx === 0}
                         style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: idx === 0 ? 'var(--border2)' : 'var(--text3)', cursor: idx === 0 ? 'default' : 'pointer' }}>▲</button>
-                      <button onClick={() => move(idx, 1)} disabled={idx === tips.length - 1}
+                      <button onClick={() => move(t.id, 1)} disabled={idx === tips.length - 1}
                         style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: idx === tips.length - 1 ? 'var(--border2)' : 'var(--text3)', cursor: idx === tips.length - 1 ? 'default' : 'pointer' }}>▼</button>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>

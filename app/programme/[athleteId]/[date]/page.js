@@ -206,13 +206,21 @@ export default function ProgrammePage({ params }) {
   }
   const removeExo = (key) =>
     setExercises(prev => { const n = prev.filter(e => e._key !== key); return n.length ? n : [emptyExercise(0)] })
-  const moveUp = (idx) => {
-    if (idx === 0) return
-    setExercises(prev => { const n = [...prev]; [n[idx-1], n[idx]] = [n[idx], n[idx-1]]; return n })
-  }
-  const moveDown = (idx) => {
+  // Retrouve l'index courant depuis `prev` (pas depuis un `idx` figé par l'appelant) : un
+  // glisser-déposer sur plusieurs crans appelle ces fonctions plusieurs fois d'affilée avant le
+  // prochain rendu, donc tout index calculé en dehors de ce setState reste périmé aux appels
+  // suivants — l'exercice revenait alors à sa position de départ sur les déplacements de plusieurs rangs.
+  const moveUp = (key) => {
     setExercises(prev => {
-      if (idx >= prev.length - 1) return prev
+      const idx = prev.findIndex(e => e._key === key)
+      if (idx <= 0) return prev
+      const n = [...prev]; [n[idx-1], n[idx]] = [n[idx], n[idx-1]]; return n
+    })
+  }
+  const moveDown = (key) => {
+    setExercises(prev => {
+      const idx = prev.findIndex(e => e._key === key)
+      if (idx === -1 || idx >= prev.length - 1) return prev
       const n = [...prev]; [n[idx], n[idx + 1]] = [n[idx + 1], n[idx]]; return n
     })
   }
@@ -361,7 +369,7 @@ export default function ProgrammePage({ params }) {
           )}
           <DragHandle dragProps={dragProps} />
           {idx > 0 && (
-            <button onClick={() => moveUp(idx)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '4px 8px', fontSize: 13, color: 'var(--text3)', cursor: 'pointer' }}>↑</button>
+            <button onClick={() => moveUp(exo._key)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '4px 8px', fontSize: 13, color: 'var(--text3)', cursor: 'pointer' }}>↑</button>
           )}
           <button onClick={() => removeExo(exo._key)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 20, padding: '0 2px', cursor: 'pointer' }}>×</button>
         </div>
@@ -643,8 +651,7 @@ export default function ProgrammePage({ params }) {
         {/* Exercices */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
           <SortableGroup ids={exercises.map(e => e._key)} onReorder={(id, dir) => {
-            const idx = exercises.findIndex(e => e._key === id)
-            if (dir === -1) moveUp(idx); else moveDown(idx)
+            if (dir === -1) moveUp(id); else moveDown(id)
           }}>
             {exoCards}
           </SortableGroup>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, use, Suspense } from 'react'
+import { useState, useEffect, useRef, use, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
@@ -997,14 +997,30 @@ function ProgramEditorPage({ params }) {
     setRemovingParticipantId(null)
   }
 
-  const moveSession = (idx, dir) => {
+  // Retrouve l'index courant depuis `prev` (pas depuis un `idx`/`sessions` figé par l'appelant) :
+  // un glisser-déposer sur plusieurs crans appelle cette fonction plusieurs fois d'affilée avant
+  // le prochain rendu, donc tout index calculé en dehors de ce setState reste périmé aux appels
+  // suivants — la séance revenait alors à sa position de départ sur les déplacements de plusieurs
+  // rangs (nombre pair de crans = les échanges s'annulaient deux à deux).
+  const reorderSaveTimer = useRef(null)
+  const moveSession = (id, dir) => {
     setSessions(prev => {
+      const idx = prev.findIndex(s => s.id === id)
+      if (idx === -1) return prev
       const next = [...prev]
       const swapIdx = idx + dir
       if (swapIdx < 0 || swapIdx >= next.length) return prev
       ;[next[idx], next[swapIdx]] = [next[swapIdx], next[idx]]
-      supabase.from('program_sessions').update({ order_index: idx }).eq('id', next[idx].id).then(() => {})
-      supabase.from('program_sessions').update({ order_index: swapIdx }).eq('id', next[swapIdx].id).then(() => {})
+      // Un glisser-déposer sur plusieurs crans déclenche cette fonction en rafale : sauvegarder
+      // uniquement la paire échangée à chaque cran envoie des requêtes concurrentes qui peuvent
+      // s'entremêler et corrompre l'ordre en base. On attend donc la fin de la rafale (debounce)
+      // pour sauvegarder l'ordre complet final en une seule passe, cohérente par construction.
+      clearTimeout(reorderSaveTimer.current)
+      reorderSaveTimer.current = setTimeout(() => {
+        next.forEach((s, i) => {
+          supabase.from('program_sessions').update({ order_index: i }).eq('id', s.id).then(() => {})
+        })
+      }, 300)
       return next
     })
   }
@@ -1203,7 +1219,7 @@ function ProgramEditorPage({ params }) {
 
         <div style={{ padding: 16, display: layoutCols > 1 ? 'grid' : 'flex', flexDirection: layoutCols > 1 ? undefined : 'column', gridTemplateColumns: layoutCols > 1 ? `repeat(${layoutCols}, minmax(280px, 1fr))` : undefined, overflowX: layoutCols > 1 ? 'auto' : undefined, gap: 8, alignItems: 'start' }}>
 
-          <SortableGroup ids={sessions.map(s => s.id)} onReorder={(id, dir) => moveSession(sessions.findIndex(x => x.id === id), dir)}>
+          <SortableGroup ids={sessions.map(s => s.id)} onReorder={(id, dir) => moveSession(id, dir)}>
           {sessions.map((s, idx) => {
             if (hiddenSessions.has(s.id)) return null
             const isOpen = layoutCols > 1 ? true : openId === s.id
@@ -1363,11 +1379,11 @@ function ProgramEditorPage({ params }) {
                   )}
                   <span onClick={e => e.stopPropagation()}><DragHandle dragProps={dragProps} /></span>
                   {idx > 0 && (
-                    <button onClick={e => { e.stopPropagation(); moveSession(idx, -1) }}
+                    <button onClick={e => { e.stopPropagation(); moveSession(s.id, -1) }}
                       style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>↑</button>
                   )}
                   {idx < sessions.length - 1 && (
-                    <button onClick={e => { e.stopPropagation(); moveSession(idx, 1) }}
+                    <button onClick={e => { e.stopPropagation(); moveSession(s.id, 1) }}
                       style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>↓</button>
                   )}
                   <button onClick={e => { e.stopPropagation(); duplicateSession(s.id) }}
