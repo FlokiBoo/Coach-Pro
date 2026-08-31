@@ -133,6 +133,8 @@ function AthleteView({ params }) {
   const [activityRefreshKey, setActivityRefreshKey] = useState(0)
   const viewDate = today()
   const [celebration, setCelebration] = useState(null)
+  const [freeGateUpsell, setFreeGateUpsell] = useState(null)
+  const [subscribingFromGate, setSubscribingFromGate] = useState(false)
   const [pendingGroupSessions, setPendingGroupSessions] = useState([])
   const [completionFeedback, setCompletionFeedback] = useState({})
   const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine)
@@ -346,6 +348,17 @@ function AthleteView({ params }) {
   const dismissRenewalPopup = () => {
     if (renewalDismissKey) localStorage.setItem(renewalDismissKey, '1')
     setRenewalDismissed(true)
+  }
+
+  const subscribeFromGate = async (tier) => {
+    setSubscribingFromGate(true)
+    const res = await fetch(`/api/athlete-view/${token}/checkout`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tier }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setSubscribingFromGate(false)
+    if (json.error) { alert('Erreur : ' + json.error); return }
+    window.location.assign(json.url)
   }
 
   // Synchronise un résultat de séance (allure + distance) vers le mouvement Metrics correspondant
@@ -586,6 +599,19 @@ function AthleteView({ params }) {
       muscles = [...new Set([...muscles, ...manualMuscles])]
       setCelebration({ tonnage: Math.round(tonnage), muscles, records: sessionRecords })
       setSessionRecords([])
+    }
+
+    // Dernière séance accessible sans abonnement dans un programme en libre-service (voir la gate
+    // côté serveur dans /api/athlete-view/[token]/route.js) : encourage à s'abonner pour débloquer
+    // la suite du programme + tous les programmes de la plateforme.
+    if (athlete.subscription_status !== 'active') {
+      const prog = programs.find(p => p.sessions.some(s => s.id === sessId))
+      if (prog?.is_self_service) {
+        const limit = prog.free_sessions_count ?? 3
+        const sorted = [...prog.sessions].sort((a, b) => a.order_index - b.order_index)
+        const isLastFreeSession = sorted.length > limit && sorted.findIndex(s => s.id === sessId) === limit - 1
+        if (isLastFreeSession) setFreeGateUpsell({ programName: prog.title })
+      }
     }
   }
 
@@ -834,6 +860,9 @@ function AthleteView({ params }) {
         {celebration && (
           <CelebrationModal tonnage={celebration.tonnage} muscles={celebration.muscles} records={celebration.records} onClose={() => setCelebration(null)} />
         )}
+        {!celebration && freeGateUpsell && (
+          <FreeGateUpsellModal upsell={freeGateUpsell} subscribing={subscribingFromGate} onSubscribe={subscribeFromGate} onClose={() => setFreeGateUpsell(null)} />
+        )}
         <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
       </div>
     )
@@ -951,7 +980,34 @@ function AthleteView({ params }) {
         </div>
       )}
 
+      {!celebration && pendingGroupSessions.length === 0 && !showRenewalPopup && freeGateUpsell && (
+        <FreeGateUpsellModal upsell={freeGateUpsell} subscribing={subscribingFromGate} onSubscribe={subscribeFromGate} onClose={() => setFreeGateUpsell(null)} />
+      )}
+
       <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
+    </div>
+  )
+}
+
+function FreeGateUpsellModal({ upsell, subscribing, onSubscribe, onClose }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
+      <div style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontSize: 32, marginBottom: 8, textAlign: 'center' }}>🎉</div>
+        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>
+          Bravo pour ces 3 séances !
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16, textAlign: 'center' }}>
+          Tu as terminé l&apos;accès gratuit de « {upsell.programName} ». Abonne-toi pour débloquer la suite de ce programme, et l&apos;accès à tous les programmes de la plateforme.
+        </div>
+        <button onClick={() => onSubscribe('A')} disabled={subscribing}
+          style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%', marginBottom: 8 }}>
+          {subscribing ? '…' : "S'abonner"}
+        </button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', padding: 6 }}>
+          Plus tard
+        </button>
+      </div>
     </div>
   )
 }
