@@ -3,6 +3,8 @@
 import { useState, useEffect, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { isPasswordValid, passwordPolicyMessage } from '@/lib/passwordPolicy'
+import PasswordChecklist from '@/app/components/PasswordChecklist'
 
 export default function UpdatePasswordPage() {
   return (
@@ -81,7 +83,7 @@ function UpdatePasswordPageInner() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     if (password !== confirm) { setError('Les mots de passe ne correspondent pas.'); return }
-    if (password.length < 6) { setError('Minimum 6 caractères.'); return }
+    if (!isPasswordValid(password)) { setError(passwordPolicyMessage()); return }
     setLoading(true)
     setError('')
     const { error: err } = await supabase.auth.updateUser({ password })
@@ -148,6 +150,8 @@ function UpdatePasswordPageInner() {
               required
               style={{ padding: '12px 14px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
             />
+
+            <PasswordChecklist password={password} />
 
             {error && (
               <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--r)', padding: '10px 12px' }}>

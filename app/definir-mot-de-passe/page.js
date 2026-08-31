@@ -3,6 +3,8 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
+import { isPasswordValid, passwordPolicyMessage } from '@/lib/passwordPolicy'
+import PasswordChecklist from '@/app/components/PasswordChecklist'
 
 export default function DefinirMotDePasse() {
   return (
@@ -72,7 +74,7 @@ function DefinirMotDePasseInner() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    if (password.length < 8) { setError('Le mot de passe doit faire au moins 8 caractères.'); return }
+    if (!isPasswordValid(password)) { setError(passwordPolicyMessage()); return }
     if (password !== confirm) { setError('Les mots de passe ne correspondent pas.'); return }
 
     setLoading(true)
@@ -179,11 +181,7 @@ function DefinirMotDePasseInner() {
               />
             </Field>
 
-            {password && (
-              <div style={{ fontSize: 12, color: password.length >= 8 ? 'var(--green)' : 'var(--text3)' }}>
-                {password.length >= 8 ? '✓ Longueur suffisante' : `${8 - password.length} caractères minimum`}
-              </div>
-            )}
+            <PasswordChecklist password={password} />
 
             {error && (
               <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--r)', padding: '10px 12px' }}>

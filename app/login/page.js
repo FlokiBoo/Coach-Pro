@@ -3,6 +3,8 @@
 import { useState, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { PASSWORD_MIN_LENGTH } from '@/lib/passwordPolicy'
+import PasswordChecklist from '@/app/components/PasswordChecklist'
 
 export default function LoginPageWrapper() {
   return (
@@ -150,7 +152,7 @@ function LoginPage() {
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                minLength={mode === 'signup' ? 6 : undefined}
+                minLength={mode === 'signup' ? PASSWORD_MIN_LENGTH : undefined}
                 autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                 style={{
                   width: '100%', boxSizing: 'border-box',
@@ -164,6 +166,8 @@ function LoginPage() {
               </button>
             </div>
           )}
+
+          {mode === 'signup' && <PasswordChecklist password={password} />}
 
           {mode === 'login' && (
             <div style={{ textAlign: 'right' }}>

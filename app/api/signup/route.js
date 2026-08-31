@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
 import { NextResponse } from 'next/server'
 import { sendEmail } from '@/lib/email'
+import { isPasswordValid, passwordPolicyMessage } from '@/lib/passwordPolicy'
 
 // Auto-inscription d'un client depuis la page de connexion (sans invitation préalable du coach).
 // Le compte est rattaché au coach principal (is_admin) — l'app est utilisée par un seul coach.
@@ -10,8 +11,8 @@ export async function POST(request) {
   if (!name?.trim() || !email?.trim() || !password) {
     return NextResponse.json({ error: 'Nom, email et mot de passe requis.' }, { status: 400 })
   }
-  if (password.length < 6) {
-    return NextResponse.json({ error: 'Le mot de passe doit contenir au moins 6 caractères.' }, { status: 400 })
+  if (!isPasswordValid(password)) {
+    return NextResponse.json({ error: passwordPolicyMessage() }, { status: 400 })
   }
 
   const normalizedEmail = email.trim().toLowerCase()
