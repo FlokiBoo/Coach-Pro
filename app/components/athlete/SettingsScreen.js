@@ -156,6 +156,11 @@ export default function SettingsScreen({ athlete, token, onClose }) {
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#0D6B4F' }}>
                   ✓ Abonnement actif — {SUBSCRIPTION_TIERS[athlete.subscription_tier]?.label || athlete.subscription_tier}
                 </div>
+                {athlete.subscription_current_period_end && (
+                  <div style={{ fontSize: 12, color: '#0D6B4F' }}>
+                    Renouvellement automatique le {new Date(athlete.subscription_current_period_end).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
+                )}
                 <button onClick={openPortal} disabled={portalLoading}
                   style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 13, fontWeight: 700, color: 'var(--text)', cursor: 'pointer' }}>
                   {portalLoading ? '…' : 'Gérer mon abonnement'}

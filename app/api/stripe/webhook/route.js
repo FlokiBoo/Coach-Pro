@@ -15,6 +15,9 @@ async function syncFromSubscription(subscription) {
     stripe_subscription_id: subscription.id,
     subscription_tier: tier,
     subscription_status: subscription.status,
+    subscription_current_period_end: subscription.current_period_end
+      ? new Date(subscription.current_period_end * 1000).toISOString()
+      : null,
   }).eq('id', athleteId)
 }
 
