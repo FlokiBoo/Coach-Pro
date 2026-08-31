@@ -28,6 +28,7 @@ export default function Home() {
   const [completedSessions, setCompletedSessions] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [showMissingMusclesModal, setShowMissingMusclesModal] = useState(false)
   const [newName, setNewName] = useState('')
   const [saving, setSaving] = useState(false)
   const [coachToken, setCoachToken] = useState(null)
@@ -239,9 +240,9 @@ export default function Home() {
 
           {/* Mouvements sans muscles renseignés */}
           {movementsMissingMuscles.length > 0 && (
-            <Link href="/movements" style={{
-              display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none',
-              background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 'var(--rl)', padding: '12px 14px',
+            <button onClick={() => setShowMissingMusclesModal(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', textAlign: 'left', width: '100%',
+              background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 'var(--rl)', padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit',
             }}>
               <span style={{ fontSize: 20, flexShrink: 0 }}>⚠️</span>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -252,8 +253,31 @@ export default function Home() {
                   {movementsMissingMuscles.map(m => m.name).join(', ')}
                 </div>
               </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#92400E', flexShrink: 0 }}>Corriger →</span>
-            </Link>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#92400E', flexShrink: 0 }}>Voir →</span>
+            </button>
+          )}
+
+          {showMissingMusclesModal && (
+            <div onClick={() => setShowMissingMusclesModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 400, maxHeight: '80svh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>
+                    ⚠️ {movementsMissingMuscles.length} mouvement{movementsMissingMuscles.length !== 1 ? 's' : ''} sans muscle
+                  </div>
+                  <button onClick={() => setShowMissingMusclesModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {movementsMissingMuscles.map(m => (
+                    <Link key={m.id} href={`/movements/${m.id}`} onClick={() => setShowMissingMusclesModal(false)} style={{
+                      display: 'block', padding: '10px 12px', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)',
+                      fontSize: 14, fontWeight: 600, color: 'var(--text)', textDecoration: 'none',
+                    }}>
+                      {m.name}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Titre feed */}
