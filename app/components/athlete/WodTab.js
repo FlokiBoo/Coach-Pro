@@ -14,6 +14,7 @@ export default function WodTab({
   router, token,
 }) {
   const [selectedProgramId, setSelectedProgramId] = useState(null)
+  const [materielSession, setMaterielSession] = useState(null)
 
   const openSession = (sessionId) => {
     router.push(`/s/${token}?session=${sessionId}&focus=1${isCoachView ? '&coach=1' : ''}`)
@@ -119,7 +120,8 @@ export default function WodTab({
               const isSkipped = skippedSessions.has(s.id)
               const isNext = s.id === nextSessionId
               return (
-                <button key={s.id} onClick={() => openSession(s.id)} style={{
+                <div key={s.id} role="button" tabIndex={0} onClick={() => openSession(s.id)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openSession(s.id) }} style={{
                   width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none',
                   borderBottom: '1px solid var(--border)', padding: '13px 14px', cursor: 'pointer', textAlign: 'left',
                 }}>
@@ -133,13 +135,35 @@ export default function WodTab({
                   <span style={{ flex: 1, fontSize: isNext ? 16 : 14, fontWeight: isNext ? 800 : 600, color: isDone || isSkipped ? 'var(--text3)' : 'var(--text)' }}>
                     {s.title || 'Séance'}
                   </span>
+                  {s.materiel && (
+                    <button onClick={e => { e.stopPropagation(); setMaterielSession(s) }} title="Matériel à prévoir pour cette séance"
+                      style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', fontSize: 13, cursor: 'pointer', flexShrink: 0, lineHeight: 1.4 }}>
+                      🎒
+                    </button>
+                  )}
                   <span style={{ color: 'var(--text3)', fontSize: 16 }}>›</span>
-                </button>
+                </div>
               )
             })
           })()}
         </div>
       ))}
+
+      {materielSession && (
+        <div onClick={() => setMaterielSession(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            <div style={{ fontSize: 32, marginBottom: 8, textAlign: 'center' }}>🎒</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>
+              Matériel à prévoir
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', marginBottom: 12 }}>{materielSession.title}</div>
+            <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 16 }}>{materielSession.materiel}</div>
+            <button onClick={() => setMaterielSession(null)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
+              Compris
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

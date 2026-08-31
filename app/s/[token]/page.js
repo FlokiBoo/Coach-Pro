@@ -1215,6 +1215,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
   const [focusGroupOverrides, setFocusGroupOverrides] = useState({}) // focus du mouvement (par nom, lowercase)
   const [showTimer, setShowTimer] = useState(null) // null | { seconds, label }
   const [calcModal, setCalcModal] = useState(null) // null | { pace1, pace2 } (km/h)
+  const [showMateriel, setShowMateriel] = useState(false)
   const provisionedSetsRef = useRef(new Set())
 
   const saveFocusMuscles = async (exerciseId, movementName, zones) => {
@@ -1316,6 +1317,12 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
           <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
             {session.locked && <span>🔒</span>}
             {session.title || `Séance ${idx + 1}`}
+            {session.materiel && (
+              <button onClick={e => { e.stopPropagation(); setShowMateriel(true) }} title="Matériel à prévoir pour cette séance"
+                style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', fontSize: 12, cursor: 'pointer', flexShrink: 0, lineHeight: 1.4 }}>
+                🎒
+              </button>
+            )}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
             {session.locked ? 'Réservé aux abonnés' : `${exos.length} exercice${exos.length !== 1 ? 's' : ''}${isCompleted ? ' · déjà validée' : isSkipped ? ' · sautée' : ''}`}
@@ -1342,6 +1349,12 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
 
       {isOpen && !session.locked && (
         <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {session.materiel && (
+            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>🎒 Matériel</div>
+              <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{session.materiel}</div>
+            </div>
+          )}
           {(session.activation || (session.activation_videos?.length > 0)) && (
             <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px' }}>
               <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>⚡ Activation</div>
@@ -1361,12 +1374,6 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                   ))}
                 </div>
               )}
-            </div>
-          )}
-          {session.materiel && (
-            <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>🎒 Matériel</div>
-              <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{session.materiel}</div>
             </div>
           )}
           {session.coach_notes && (
@@ -1690,6 +1697,20 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
 
       {showTimer && <TimerModal onClose={() => setShowTimer(null)} presetSeconds={showTimer.seconds} presetLabel={showTimer.label} />}
       {calcModal && <PaceDistanceCalc pace1={calcModal.pace1} pace2={calcModal.pace2} onClose={() => setCalcModal(null)} />}
+      {showMateriel && (
+        <div onClick={() => setShowMateriel(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            <div style={{ fontSize: 32, marginBottom: 8, textAlign: 'center' }}>🎒</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 12, textAlign: 'center' }}>
+              Matériel à prévoir
+            </div>
+            <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 16 }}>{session.materiel}</div>
+            <button onClick={() => setShowMateriel(false)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
+              Compris
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
