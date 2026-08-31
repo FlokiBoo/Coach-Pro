@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import PasswordSettingsModal from '@/app/components/PasswordSettingsModal'
 import { SUBSCRIPTION_TIERS } from '@/lib/subscriptionTiers'
+import { ONE_TIME_OFFERS } from '@/lib/offers'
 
 const rowStyle = {
   background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
@@ -18,6 +19,9 @@ export default function SettingsScreen({ athlete, token, onClose }) {
   const [subscribing, setSubscribing] = useState(null)
   const [changingPlan, setChangingPlan] = useState(null)
   const [portalLoading, setPortalLoading] = useState(false)
+  const [offerPlan, setOfferPlan] = useState({})
+  const [offerSending, setOfferSending] = useState(null)
+  const [offerSent, setOfferSent] = useState({})
 
   const disconnectStrava = async () => {
     if (!window.confirm('Déconnecter Strava ? Tes prochaines courses ne seront plus enregistrées automatiquement.')) return
@@ -51,6 +55,19 @@ export default function SettingsScreen({ athlete, token, onClose }) {
     window.location.reload()
   }
 
+  const requestOffer = async (offerKey) => {
+    if (!athlete.email) { alert('Ajoute un email à ton profil pour envoyer une demande.'); return }
+    setOfferSending(offerKey)
+    const res = await fetch('/api/offers/request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ offerKey, name: athlete.name, email: athlete.email, paymentPlan: offerPlan[offerKey] || 'full' }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setOfferSending(null)
+    if (!res.ok) { alert('Erreur : ' + (json.error || '')); return }
+    setOfferSent(prev => ({ ...prev, [offerKey]: true }))
+  }
+
   const openPortal = async () => {
     setPortalLoading(true)
     const res = await fetch(`/api/athlete-view/${token}/portal`, { method: 'POST' })
@@ -73,7 +90,7 @@ export default function SettingsScreen({ athlete, token, onClose }) {
         <button onClick={() => setShowSubscription(true)} style={rowStyle}>
           <span style={{ fontSize: 20 }}>💳</span>
           <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>
-            Abonnement
+            Offres &amp; abonnement
             {athlete.subscription_status === 'active' && SUBSCRIPTION_TIERS[athlete.subscription_tier] && (
               <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: 'var(--green-light)', color: 'var(--green)', borderRadius: 10, padding: '2px 8px' }}>
                 {SUBSCRIPTION_TIERS[athlete.subscription_tier].label}
@@ -148,7 +165,7 @@ export default function SettingsScreen({ athlete, token, onClose }) {
         <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 550, display: 'flex', flexDirection: 'column' }}>
           <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={() => setShowSubscription(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
-            <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>Abonnement</div>
+            <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>Offres &amp; abonnement</div>
           </div>
           <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {athlete.subscription_status === 'active' && (
@@ -194,6 +211,55 @@ export default function SettingsScreen({ athlete, token, onClose }) {
                 </div>
               )
             })}
+
+            <div style={{ borderTop: '1px solid var(--border)', margin: '6px 0' }} />
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              Programmes de coaching (paiement unique)
+            </div>
+
+            {Object.values(ONE_TIME_OFFERS).map(o => (
+              <div key={o.key} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                  <div style={{ fontWeight: 800, fontSize: 15, flex: 1 }}>{o.label}</div>
+                  <div style={{ fontWeight: 800, fontSize: 16 }}>{o.amount}€</div>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text3)' }}>{o.subtitle}</div>
+
+                {offerSent[o.key] ? (
+                  <div style={{ background: 'var(--bg2)', borderRadius: 'var(--r)', padding: '9px', fontSize: 12, color: 'var(--text2)', textAlign: 'center' }}>
+                    ✓ Demande envoyée — ton coach te recontacte sous 24-48h.
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <label style={{
+                        flex: 1, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', fontSize: 12, cursor: 'pointer',
+                        border: `1.5px solid ${(offerPlan[o.key] || 'full') === 'full' ? 'var(--green)' : 'var(--border2)'}`, borderRadius: 'var(--r)',
+                        background: (offerPlan[o.key] || 'full') === 'full' ? 'var(--green-light)' : 'transparent',
+                      }}>
+                        <input type="radio" name={`plan-${o.key}`} checked={(offerPlan[o.key] || 'full') === 'full'}
+                          onChange={() => setOfferPlan(p => ({ ...p, [o.key]: 'full' }))} style={{ accentColor: 'var(--green)' }} />
+                        En 1 fois
+                      </label>
+                      <label style={{
+                        flex: 1, display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', fontSize: 12, cursor: 'pointer',
+                        border: `1.5px solid ${offerPlan[o.key] === '3x' ? 'var(--green)' : 'var(--border2)'}`, borderRadius: 'var(--r)',
+                        background: offerPlan[o.key] === '3x' ? 'var(--green-light)' : 'transparent',
+                      }}>
+                        <input type="radio" name={`plan-${o.key}`} checked={offerPlan[o.key] === '3x'}
+                          onChange={() => setOfferPlan(p => ({ ...p, [o.key]: '3x' }))} style={{ accentColor: 'var(--green)' }} />
+                        3x sans frais
+                      </label>
+                    </div>
+                    <button onClick={() => requestOffer(o.key)} disabled={offerSending === o.key}
+                      style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                      {offerSending === o.key ? '…' : 'Envoyer ma demande'}
+                    </button>
+                  </>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}
