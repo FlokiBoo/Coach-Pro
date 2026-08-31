@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { pushPaymentToNotion } from '@/lib/notion'
 import { SUBSCRIPTION_TIERS } from '@/lib/subscriptionTiers'
+import { ONE_TIME_OFFERS } from '@/lib/offers'
+import { sendEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,6 +21,33 @@ async function syncFromSubscription(subscription) {
       ? new Date(subscription.current_period_end * 1000).toISOString()
       : null,
   }).eq('id', athleteId)
+}
+
+// Achat d'une offre ponctuelle (page publique /offres) : aucun compte athlète n'existe encore à
+// ce stade, donc on se contente d'enregistrer la vente et de prévenir le coach par mail pour
+// qu'il lance l'onboarding manuel (questionnaire, call de cadrage…).
+async function recordOfferPurchase(session) {
+  const offer = ONE_TIME_OFFERS[session.metadata.offer_key]
+  const customerName = session.metadata.customer_name || session.customer_details?.name || ''
+  const customerEmail = session.customer_details?.email || session.customer_email || ''
+
+  await supabaseAdmin.from('offer_purchases').insert({
+    offer_key: session.metadata.offer_key,
+    customer_name: customerName,
+    customer_email: customerEmail,
+    amount_cents: session.amount_total,
+    stripe_session_id: session.id,
+    stripe_payment_intent_id: session.payment_intent,
+  })
+
+  const { data: coach } = await supabaseAdmin.from('coaches').select('email').eq('is_admin', true).limit(1).maybeSingle()
+  if (coach?.email) {
+    await sendEmail({
+      to: coach.email,
+      subject: `Nouvelle vente : ${offer?.label || session.metadata.offer_key}`,
+      html: `<p><strong>${customerName}</strong> (${customerEmail}) vient d'acheter « ${offer?.label || session.metadata.offer_key} » — ${(session.amount_total / 100).toFixed(0)}€.</p>`,
+    })
+  }
 }
 
 async function syncInvoiceToNotion(invoice, status) {
@@ -58,6 +87,8 @@ export async function POST(request) {
         if (session.mode === 'subscription' && session.subscription) {
           const subscription = await stripe.subscriptions.retrieve(session.subscription)
           await syncFromSubscription(subscription)
+        } else if (session.mode === 'payment' && session.metadata?.offer_key) {
+          await recordOfferPurchase(session)
         }
         break
       }
