@@ -11,6 +11,8 @@ import MuscleAnatomyDiagram, { MUSCLE_GROUPS } from '@/app/components/MuscleAnat
 import FocusBodyDiagram from '@/app/components/FocusBodyDiagram'
 import Toast from '@/app/components/Toast'
 import AthleteTabBar from '@/app/components/AthleteTabBar'
+import ChatHeaderButton from '@/app/components/ChatHeaderButton'
+import NotificationBell from '@/app/components/NotificationBell'
 import WodTab from '@/app/components/athlete/WodTab'
 import TemplatesTab from '@/app/components/athlete/TemplatesTab'
 import AddActionSheet from '@/app/components/athlete/AddActionSheet'
@@ -620,6 +622,17 @@ function AthleteView({ params }) {
         await supabase.from('program_completions')
           .update({ pending_celebration: celebrationPayload })
           .eq('athlete_id', athlete.id).eq('program_session_id', sessId)
+        await supabase.from('notifications').insert({
+          athlete_id: athlete.id, type: 'session_validated_by_coach',
+          title: 'Ton coach a validé une séance pour toi',
+          body: sess.title || null,
+        })
+      } else if (athlete.coach_id) {
+        await supabase.from('notifications').insert({
+          coach_id: athlete.coach_id, type: 'session_validated_by_athlete',
+          title: `${athlete.name} a validé une séance`,
+          body: sess.title || null,
+        })
       }
     }
 
@@ -897,6 +910,12 @@ function AthleteView({ params }) {
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 19, flex: 1 }}>{athlete.name}</div>
+          {!isCoachView && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+              <ChatHeaderButton athleteId={athlete.id} />
+              <NotificationBell athleteId={athlete.id} />
+            </div>
+          )}
         </div>
         {isCoachView && (
           <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600 }}>

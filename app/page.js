@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
+import ChatHeaderButton from '@/app/components/ChatHeaderButton'
+import NotificationBell from '@/app/components/NotificationBell'
 import { getCoachId } from '@/lib/coach'
 
 function today() {
@@ -33,6 +35,7 @@ export default function Home() {
   const [newName, setNewName] = useState('')
   const [saving, setSaving] = useState(false)
   const [coachToken, setCoachToken] = useState(null)
+  const [coachId, setCoachId] = useState(null)
   const [generatingToken, setGeneratingToken] = useState(false)
   const [selected, setSelected] = useState(null)
   const [browserSession, setBrowserSession] = useState(null)
@@ -55,6 +58,7 @@ export default function Home() {
         router.push(athlete?.token ? `/s/${athlete.token}` : '/login')
         return
       }
+      setCoachId(me.id)
 
       const [{ data: aths }, { data: sessions }, { data: progComps }, { data: actValidated }] = await Promise.all([
         supabase.from('athletes').select('*').neq('archived', true).order('created_at'),
@@ -199,6 +203,12 @@ export default function Home() {
               {athletes.length} sportif{athletes.length !== 1 ? 's' : ''}
             </div>
           </div>
+          {coachId && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+              <ChatHeaderButton coachId={coachId} />
+              <NotificationBell coachId={coachId} />
+            </div>
+          )}
           {/* Toggle Vue Sportif */}
           {coachToken && (
             <button

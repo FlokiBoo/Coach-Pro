@@ -20,13 +20,22 @@ export async function POST(request) {
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 400 })
 
-  const { data: coach } = await supabaseAdmin.from('coaches').select('email').eq('is_admin', true).limit(1).maybeSingle()
-  if (coach?.email) {
-    await sendEmail({
-      to: coach.email,
-      subject: `Nouvelle demande : ${offer.label}`,
-      html: `<p><strong>${name.trim()}</strong> (${email.trim()}) souhaite « ${offer.label} » (${offer.amount}€, ${plan === '3x' ? '3x sans frais' : 'paiement en 1 fois'}).</p><p>Rends-toi sur /demandes pour accepter ou refuser.</p>`,
+  const { data: coach } = await supabaseAdmin.from('coaches').select('id, email').eq('is_admin', true).limit(1).maybeSingle()
+  if (coach) {
+    await supabaseAdmin.from('notifications').insert({
+      coach_id: coach.id,
+      type: 'offer_request',
+      title: `Nouvelle demande : ${offer.label}`,
+      body: `${name.trim()} — ${offer.amount}€ (${plan === '3x' ? '3x sans frais' : 'en 1 fois'})`,
+      link: '/demandes',
     })
+    if (coach.email) {
+      await sendEmail({
+        to: coach.email,
+        subject: `Nouvelle demande : ${offer.label}`,
+        html: `<p><strong>${name.trim()}</strong> (${email.trim()}) souhaite « ${offer.label} » (${offer.amount}€, ${plan === '3x' ? '3x sans frais' : 'paiement en 1 fois'}).</p><p>Rends-toi sur /demandes pour accepter ou refuser.</p>`,
+      })
+    }
   }
 
   return NextResponse.json({ success: true })

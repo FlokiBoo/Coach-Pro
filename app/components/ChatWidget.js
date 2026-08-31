@@ -14,7 +14,6 @@ export default function ChatWidget() {
   const [open, setOpen] = useState(false)
   const [selectedAthleteId, setSelectedAthleteId] = useState(null)
   const [threads, setThreads] = useState([])
-  const [athleteUnread, setAthleteUnread] = useState(0)
 
   const hidden = HIDDEN_PREFIXES.some(p => pathname?.startsWith(p))
   const routeToken = pathname?.match(/^\/s\/([^/]+)/)?.[1] || null
@@ -42,66 +41,36 @@ export default function ChatWidget() {
     fetch('/api/messages').then(r => r.json()).then(data => setThreads(data.threads || []))
   }, [identity])
 
-  const refreshAthleteUnread = useCallback(() => {
-    if (identity?.role !== 'athlete') return
-    fetch(`/api/messages/${identity.athleteId}`).then(r => r.json()).then(data => {
-      const unread = (data.messages || []).filter(m => m.sender_role === 'coach' && !m.read_by_athlete_at).length
-      setAthleteUnread(unread)
-    })
-  }, [identity])
+  useEffect(() => {
+    if (identity?.role === 'coach') refreshInbox()
+  }, [identity, refreshInbox])
 
   useEffect(() => {
-    if (!identity) return
-    if (identity.role === 'coach') refreshInbox()
-    if (identity.role === 'athlete') refreshAthleteUnread()
-  }, [identity, refreshInbox, refreshAthleteUnread])
-
-  useEffect(() => {
-    if (!identity || identity.role === null) return
+    if (!identity || identity.role !== 'coach') return
     const channel = supabase
       .channel('messages-global')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
-        if (identity.role === 'coach') refreshInbox()
-        if (identity.role === 'athlete') refreshAthleteUnread()
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, refreshInbox)
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [identity, refreshInbox, refreshAthleteUnread])
+  }, [identity, refreshInbox])
 
   const handleThreadRead = useCallback(() => {
     if (identity?.role === 'coach') refreshInbox()
-    else if (identity?.role === 'athlete') refreshAthleteUnread()
-  }, [identity, refreshInbox, refreshAthleteUnread])
+  }, [identity, refreshInbox])
 
-  // Sur l'espace client, la messagerie est accessible depuis l'onglet Profil (voir ProfilTab.js) —
-  // pas de bulle flottante ici, elle se superposait à la barre d'onglets.
-  if (hidden || !identity || identity.role === null || identity.role === 'athlete') return null
+  // Le déclenchement se fait désormais depuis un bouton dans l'en-tête de chaque page (coach ET
+  // athlète — voir ChatHeaderButton.js), plus de bulle flottante. Ce composant ne garde que la
+  // logique d'identité/messages et le panneau lui-même, ouvert via un événement custom global.
+  useEffect(() => {
+    const handler = () => setOpen(true)
+    window.addEventListener('open-chat-widget', handler)
+    return () => window.removeEventListener('open-chat-widget', handler)
+  }, [])
 
-  const totalUnread = identity.role === 'coach'
-    ? threads.reduce((s, t) => s + t.unreadCount, 0)
-    : athleteUnread
+  if (hidden || !identity || identity.role === null) return null
 
   return (
     <>
-      <button onClick={() => setOpen(true)}
-        style={{
-          position: 'fixed', bottom: 20, right: 16, zIndex: 600,
-          background: 'var(--green)', border: 'none', borderRadius: '50%',
-          width: 52, height: 52, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 10px rgba(0,0,0,.25)', cursor: 'pointer', overflow: 'visible',
-        }}>
-        <span style={{ fontSize: 22 }}>💬</span>
-        {totalUnread > 0 && (
-          <span style={{
-            position: 'absolute', top: -2, right: -2, background: '#DC2626', color: '#fff',
-            borderRadius: 10, minWidth: 18, height: 18, fontSize: 11, fontWeight: 700,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px',
-          }}>
-            {totalUnread}
-          </span>
-        )}
-      </button>
-
       {open && (
         <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 700 }}>
           <div onClick={e => e.stopPropagation()} style={{
