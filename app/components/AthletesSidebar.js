@@ -275,11 +275,18 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           Business
         </button>
         {!sectionsCollapsed.business && (
-          <Link href="/finances" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-            display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-            borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-            color: 'var(--text2)', background: 'transparent',
-          }}>💰 Finances</Link>
+          <>
+            <Link href="/finances" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}>💰 Finances</Link>
+            <Link href="/demandes" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}>📨 Demandes</Link>
+          </>
         )}
       </div>
 

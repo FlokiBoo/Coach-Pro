@@ -40,6 +40,18 @@ async function recordOfferPurchase(session) {
     stripe_payment_intent_id: session.payment_intent,
   })
 
+  if (session.metadata.request_id) {
+    await supabaseAdmin.from('offer_requests').update({ status: 'paid' }).eq('id', session.metadata.request_id)
+  }
+
+  // Offre "3x sans frais" : l'abonnement Stripe créé pour étaler le paiement doit s'auto-annuler
+  // après la 3e mensualité (Checkout n'accepte pas cancel_at à la création, cf. decide/route.js).
+  if (session.mode === 'subscription' && session.subscription) {
+    const cancelDate = new Date()
+    cancelDate.setMonth(cancelDate.getMonth() + 3)
+    await stripe.subscriptions.update(session.subscription, { cancel_at: Math.floor(cancelDate.getTime() / 1000) })
+  }
+
   const { data: coach } = await supabaseAdmin.from('coaches').select('email').eq('is_admin', true).limit(1).maybeSingle()
   if (coach?.email) {
     await sendEmail({
@@ -84,11 +96,14 @@ export async function POST(request) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object
-        if (session.mode === 'subscription' && session.subscription) {
+        // Une offre ponctuelle (paiement unique OU abonnement 3x) se reconnaît à son metadata
+        // offer_key, à vérifier avant le cas abonnement générique — sinon un 3x atterrirait dans
+        // syncFromSubscription qui ne fait rien en l'absence d'athlete_id (aucune vente enregistrée).
+        if (session.metadata?.offer_key) {
+          await recordOfferPurchase(session)
+        } else if (session.mode === 'subscription' && session.subscription) {
           const subscription = await stripe.subscriptions.retrieve(session.subscription)
           await syncFromSubscription(subscription)
-        } else if (session.mode === 'payment' && session.metadata?.offer_key) {
-          await recordOfferPurchase(session)
         }
         break
       }

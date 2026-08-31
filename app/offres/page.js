@@ -23,8 +23,10 @@ function ListBlock({ title, items }) {
 
 function BookingForm({ offerKey, accent }) {
   const [open, setOpen] = useState(false)
+  const [sent, setSent] = useState(false)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [paymentPlan, setPaymentPlan] = useState('full')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -32,13 +34,22 @@ function BookingForm({ offerKey, accent }) {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const res = await fetch('/api/offers/checkout', {
+    const res = await fetch('/api/offers/request', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ offerKey, name, email }),
+      body: JSON.stringify({ offerKey, name, email, paymentPlan }),
     })
     const json = await res.json().catch(() => ({}))
-    if (!res.ok) { setError(json.error || 'Erreur, réessaie.'); setLoading(false); return }
-    window.location.assign(json.url)
+    setLoading(false)
+    if (!res.ok) { setError(json.error || 'Erreur, réessaie.'); return }
+    setSent(true)
+  }
+
+  if (sent) {
+    return (
+      <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '13px', fontSize: 13, color: 'var(--text2)', textAlign: 'center', marginTop: 4 }}>
+        ✓ Demande envoyée — je te recontacte sous 24-48h.
+      </div>
+    )
   }
 
   if (!open) {
@@ -58,6 +69,26 @@ function BookingForm({ offerKey, accent }) {
         style={{ padding: '11px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
       <input type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} required
         style={{ padding: '11px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <label style={{
+          flex: 1, display: 'flex', alignItems: 'center', gap: 6, padding: '9px 10px', fontSize: 13, cursor: 'pointer',
+          border: `1.5px solid ${paymentPlan === 'full' ? accent : 'var(--border2)'}`, borderRadius: 'var(--r)',
+          background: paymentPlan === 'full' ? 'var(--bg2)' : 'transparent', color: 'var(--text)',
+        }}>
+          <input type="radio" name={`plan-${offerKey}`} checked={paymentPlan === 'full'} onChange={() => setPaymentPlan('full')} style={{ accentColor: accent }} />
+          En 1 fois
+        </label>
+        <label style={{
+          flex: 1, display: 'flex', alignItems: 'center', gap: 6, padding: '9px 10px', fontSize: 13, cursor: 'pointer',
+          border: `1.5px solid ${paymentPlan === '3x' ? accent : 'var(--border2)'}`, borderRadius: 'var(--r)',
+          background: paymentPlan === '3x' ? 'var(--bg2)' : 'transparent', color: 'var(--text)',
+        }}>
+          <input type="radio" name={`plan-${offerKey}`} checked={paymentPlan === '3x'} onChange={() => setPaymentPlan('3x')} style={{ accentColor: accent }} />
+          3x sans frais
+        </label>
+      </div>
+
       {error && (
         <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--r)', padding: '8px 10px' }}>{error}</div>
       )}
@@ -65,7 +96,7 @@ function BookingForm({ offerKey, accent }) {
         background: accent, color: '#fff', border: 'none', borderRadius: 'var(--r)',
         padding: '13px', fontSize: 15, fontWeight: 700, cursor: 'pointer',
       }}>
-        {loading ? '…' : 'Confirmer et payer'}
+        {loading ? '…' : 'Envoyer ma demande'}
       </button>
     </form>
   )
