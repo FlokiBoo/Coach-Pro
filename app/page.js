@@ -517,6 +517,38 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
     load()
   }, [programId, athleteId, initialSessionId])
 
+  const duplicateSession = async (fullIndex) => {
+    const s = sessions[fullIndex]
+    const { data: newSession, error: sessErr } = await supabase.from('program_sessions')
+      .insert({
+        program_id: programId, order_index: sessions.length,
+        title: s.title ? `${s.title} (copie)` : '',
+        coach_notes: s.coach_notes || null,
+      })
+      .select().single()
+    if (sessErr || !newSession) { alert('Erreur duplication : ' + sessErr?.message); return }
+
+    const toInsert = s.exercises.filter(e => e.name).map((e, j) => ({
+      program_session_id: newSession.id, order_index: j, name: e.name,
+      sets: e.sets ?? null, reps: e.reps || null, kg: e.kg ?? null, note: e.note || null,
+    }))
+    let insertedExos = []
+    if (toInsert.length) {
+      const { data: inserted, error: insErr } = await supabase.from('program_exercises').insert(toInsert).select()
+      if (insErr) { alert('Erreur duplication des exercices : ' + insErr.message); return }
+      insertedExos = inserted || []
+    }
+
+    const newIndex = sessions.length
+    setSessions(prev => [...prev, { ...newSession, completion: null, exercises: insertedExos.map(e => ({ ...e, log: {} })) }])
+    setVisibleIndices(prev => {
+      const idx = prev.indexOf(fullIndex)
+      const next = [...prev]
+      next.splice(idx + 1, 0, newIndex)
+      return next
+    })
+  }
+
   if (sessions === null) return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text3)' }}>
       Chargement…
@@ -534,7 +566,7 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{athleteName}</div>
+          <Link href={`/semaine/${athleteId}/${today()}`} style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textDecoration: 'none', display: 'block' }}>{athleteName}</Link>
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>{sorted.map(i => i + 1).join(', ')} / {sessions.length}</div>
         </div>
       </div>
@@ -551,7 +583,15 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
               if (sorted.length === 1) { onClose(); return }
               setVisibleIndices(v => v.filter(i => i !== fullIndex))
             }
-            return <SessionMiniCard key={sessions[fullIndex].id} session={sessions[fullIndex]} onClose={closeCard} />
+            return (
+              <SessionMiniCard
+                key={sessions[fullIndex].id}
+                session={sessions[fullIndex]}
+                onClose={closeCard}
+                onDuplicate={() => duplicateSession(fullIndex)}
+                athleteId={athleteId}
+              />
+            )
           })}
         </div>
 
@@ -564,8 +604,21 @@ function SessionBrowserModal({ programId, initialSessionId, athleteId, athleteNa
   )
 }
 
-function SessionMiniCard({ session, onClose }) {
+function SessionMiniCard({ session, onClose, onDuplicate, athleteId }) {
   const isDone = !!session.completion
+  const [notifying, setNotifying] = useState(false)
+  const [notified, setNotified] = useState(false)
+
+  const notifyAthlete = async () => {
+    setNotifying(true)
+    const res = await fetch(`/api/messages/${athleteId}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: `J'ai laissé des retours sur ta séance « ${session.title || 'Séance'} », va y jeter un œil !` }),
+    })
+    setNotifying(false)
+    if (!res.ok) { alert('Erreur lors de l\'envoi du message.'); return }
+    setNotified(true)
+  }
 
   const saveSessionNote = async (value) => {
     await supabase.from('program_sessions').update({ coach_notes: value }).eq('id', session.id)
@@ -596,6 +649,12 @@ function SessionMiniCard({ session, onClose }) {
           <span style={{ background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>✓ Faite</span>
         ) : (
           <span style={{ background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>À venir</span>
+        )}
+        {onDuplicate && (
+          <button onClick={onDuplicate} title="Dupliquer cette séance"
+            style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+            ⧉ Dupliquer
+          </button>
         )}
         {onClose && (
           <button onClick={onClose} title="Fermer cette séance" style={{ background: 'none', border: 'none', fontSize: 18, color: 'var(--text3)', cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1 }}>×</button>
@@ -665,6 +724,16 @@ function SessionMiniCard({ session, onClose }) {
           style={{ ...noteFieldStyle, fontStyle: 'normal', fontSize: 13, marginTop: 0 }}
         />
       </div>
+
+      {isDone && (
+        <button onClick={notifyAthlete} disabled={notifying || notified}
+          style={{
+            background: notified ? '#DCFCE7' : 'var(--green)', color: notified ? '#166534' : '#fff', border: 'none',
+            borderRadius: 'var(--r)', padding: '9px', fontSize: 12, fontWeight: 700, cursor: notified ? 'default' : 'pointer',
+          }}>
+          {notified ? '✓ Message envoyé' : notifying ? 'Envoi…' : '🔔 Prévenir de mes retours'}
+        </button>
+      )}
     </div>
   )
 }
