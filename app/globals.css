@@ -104,7 +104,8 @@ h1, h2, h3, h4, h5, h6 {
   min-height: 100svh;
 }
 
-/* Bouton hamburger : plus nécessaire, sidebar toujours visible */
+/* Bouton hamburger : masqué par défaut (desktop, sidebar toujours visible) — réactivé sur mobile
+   ci-dessous, où la sidebar redevient un tiroir fermé par défaut plutôt qu'une colonne fixe. */
 .sidebar-toggle { display: none !important; }
 .sidebar-close  { display: none !important; }
 
@@ -115,3 +116,33 @@ h1, h2, h3, h4, h5, h6 {
 
 .sidebar-collapse-btn { display: flex !important; }
 .coach-sidebar--collapsed + .sidebar-reopen-btn { display: flex !important; }
+
+/* Sur mobile, la sidebar redevient un tiroir superposé (fermé par défaut) plutôt qu'une colonne
+   fixe qui pousse le contenu — sinon elle mange l'écran en permanence sur téléphone. */
+@media (max-width: 768px) {
+  .coach-sidebar,
+  .coach-sidebar--open {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 300;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 2px 0 20px rgba(0, 0, 0, 0.15);
+  }
+  .coach-sidebar--open {
+    transform: translateX(0);
+  }
+  .coach-sidebar--collapsed {
+    width: 220px;
+    border-right: 1px solid var(--border);
+  }
+  .sidebar-toggle,
+  .sidebar-close {
+    display: flex !important;
+  }
+  .sidebar-collapse-btn,
+  .coach-sidebar--collapsed + .sidebar-reopen-btn {
+    display: none !important;
+  }
+}
