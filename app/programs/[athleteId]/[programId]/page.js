@@ -8,7 +8,7 @@ import AthletesSidebar from '@/app/components/AthletesSidebar'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
 import { parseMusclesFromText } from '@/app/components/CelebrationModal'
-import { isRunMovement, PACE_BASES, computePaceForBasePct, buildKnownRaces, formatPace } from '@/lib/raceEstimates'
+import { isRunMovement, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, buildKnownRaces, formatPace, formatDistance } from '@/lib/raceEstimates'
 import { setUnsavedChanges, guardNavigation } from '@/lib/unsavedChanges'
 import { SortableGroup, SortableItem, DragHandle } from '@/app/components/SortableItem'
 import { getCoachId } from '@/lib/coach'
@@ -1770,8 +1770,9 @@ function ProgramEditorPage({ params }) {
                             </div>
                           )}
                           {isRunMovement(exo.name) ? (() => {
-                            const pace1 = computePaceForBasePct(exo.pace_base, parseFloat(exo.pct_low), raceKnown)
-                            const pace2 = computePaceForBasePct(exo.pace_base, parseFloat(exo.pct_high), raceKnown)
+                            const is3030 = is3030Movement(exo.name)
+                            const pace1 = is3030 ? computeDistanceForBasePct(exo.pace_base, parseFloat(exo.pct_low), raceKnown) : computePaceForBasePct(exo.pace_base, parseFloat(exo.pct_low), raceKnown)
+                            const pace2 = is3030 ? computeDistanceForBasePct(exo.pace_base, parseFloat(exo.pct_high), raceKnown) : computePaceForBasePct(exo.pace_base, parseFloat(exo.pct_high), raceKnown)
                             const isIntervalOrThreshold = ['run interval', 'run threshold'].includes(exo.name.trim().toLowerCase())
                             return (
                               <>
@@ -1820,15 +1821,15 @@ function ProgramEditorPage({ params }) {
                                     style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 12 }} min="0" step="1" />
                                 </div>
                                 <div>
-                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>ALLURE 1</div>
+                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>{is3030 ? 'DISTANCE 1 (30S)' : 'ALLURE 1'}</div>
                                   <div style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 11, fontWeight: 700, color: pace1 ? 'var(--green)' : 'var(--text3)', background: 'var(--bg2)' }}>
-                                    {pace1 ? `${formatPace(pace1)}/km` : '—'}
+                                    {pace1 ? (is3030 ? formatDistance(pace1) : `${formatPace(pace1)}/km`) : '—'}
                                   </div>
                                 </div>
                                 <div>
-                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>ALLURE 2</div>
+                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>{is3030 ? 'DISTANCE 2 (30S)' : 'ALLURE 2'}</div>
                                   <div style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 11, fontWeight: 700, color: pace2 ? 'var(--green)' : 'var(--text3)', background: 'var(--bg2)' }}>
-                                    {pace2 ? `${formatPace(pace2)}/km` : '—'}
+                                    {pace2 ? (is3030 ? formatDistance(pace2) : `${formatPace(pace2)}/km`) : '—'}
                                   </div>
                                 </div>
                               </div>

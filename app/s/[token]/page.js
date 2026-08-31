@@ -21,7 +21,7 @@ import PrTab from '@/app/components/athlete/PrTab'
 import ProfilTab from '@/app/components/athlete/ProfilTab'
 import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 import TimerModal from '@/app/components/TimerModal'
-import { annotatePaceReferences, formatPace, isRunMovement, PACE_BASES, computePaceForBasePct, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
+import { annotatePaceReferences, formatPace, isRunMovement, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, formatDistance, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -1478,10 +1478,11 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 ) : null
               })()}
               {isRunMovement(exo.name) && (exo.pace_base || exo.pct_low != null || exo.pct_high != null) && (() => {
-                const pace1 = computePaceForBasePct(exo.pace_base, exo.pct_low, raceKnown)
-                const pace2 = computePaceForBasePct(exo.pace_base, exo.pct_high, raceKnown)
+                const is3030 = is3030Movement(exo.name)
+                const pace1 = is3030 ? computeDistanceForBasePct(exo.pace_base, exo.pct_low, raceKnown) : computePaceForBasePct(exo.pace_base, exo.pct_low, raceKnown)
+                const pace2 = is3030 ? computeDistanceForBasePct(exo.pace_base, exo.pct_high, raceKnown) : computePaceForBasePct(exo.pace_base, exo.pct_high, raceKnown)
                 const baseLabel = PACE_BASES.find(b => b.key === exo.pace_base)?.label || exo.pace_base
-                const samePace = pace1 != null && pace2 != null && pace1.toFixed(1) === pace2.toFixed(1)
+                const samePace = pace1 != null && pace2 != null && (is3030 ? pace1 === pace2 : pace1.toFixed(1) === pace2.toFixed(1))
                 return (
                   <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '8px 10px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)' }}>
@@ -1489,6 +1490,15 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                     </span>
                     {pace1 == null && pace2 == null ? (
                       <span style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>Tests VMA/Seuil requis</span>
+                    ) : is3030 ? (
+                      <>
+                        {pace1 != null && (
+                          <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--green)' }}>Distance 1 (30s) : {formatDistance(pace1)}</span>
+                        )}
+                        {!samePace && pace2 != null && (
+                          <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--green)' }}>Distance 2 (30s) : {formatDistance(pace2)}</span>
+                        )}
+                      </>
                     ) : (
                       <>
                         {pace1 != null && (
