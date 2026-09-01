@@ -71,15 +71,16 @@ export default function GroupDetailPage({ params }) {
   const [members, setMembers] = useState([])
   const [currentProgram, setCurrentProgram] = useState(null)
   const [linkedTemplates, setLinkedTemplates] = useState([])
-  const [currentMicrocycle, setCurrentMicrocycle] = useState(null)
   const [runs, setRuns] = useState([])
   const [runStats, setRunStats] = useState({}) // { [runId]: { avgDifficulty, avgPleasure, details: [...] } }
   const [monthlyAttendance, setMonthlyAttendance] = useState({}) // { [athleteId]: count }
   const [loading, setLoading] = useState(true)
   const [expandedRunId, setExpandedRunId] = useState(null)
   const [showStartPicker, setShowStartPicker] = useState(false)
-  const [creatingType, setCreatingType] = useState(null) // 'program' | 'microcycle'
+  const [creatingProgram, setCreatingProgram] = useState(false)
   const [newTitle, setNewTitle] = useState('')
+  const [membersExpanded, setMembersExpanded] = useState(false)
+  const [togglingLeader, setTogglingLeader] = useState(null)
   const [fanningOut, setFanningOut] = useState(null) // program being assigned to the whole group
 
   const month = monthBounds()
@@ -90,18 +91,17 @@ export default function GroupDetailPage({ params }) {
     setLoading(true)
     const [{ data: g }, { data: gm }] = await Promise.all([
       supabase.from('groups').select('*').eq('id', groupId).single(),
-      supabase.from('group_members').select('athlete_id, athletes(id, name)').eq('group_id', groupId),
+      supabase.from('group_members').select('athlete_id, is_leader, athletes(id, name)').eq('group_id', groupId),
     ])
     setGroup(g)
-    const memberList = (gm || []).map(m => m.athletes).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name))
+    const memberList = (gm || [])
+      .filter(m => m.athletes)
+      .map(m => ({ ...m.athletes, is_leader: !!m.is_leader }))
+      .sort((a, b) => a.name.localeCompare(b.name))
     setMembers(memberList)
 
-    const [{ data: prog }, { data: micro }] = await Promise.all([
-      supabase.from('programs').select('*, program_sessions(*)').eq('group_id', groupId).eq('is_microcycle', false).is('athlete_id', null).order('created_at', { ascending: false }).limit(1),
-      supabase.from('programs').select('*, program_sessions(*)').eq('group_id', groupId).eq('is_microcycle', true).is('athlete_id', null).order('created_at', { ascending: false }).limit(1),
-    ])
+    const { data: prog } = await supabase.from('programs').select('*, program_sessions(*)').eq('group_id', groupId).eq('is_microcycle', false).is('athlete_id', null).order('created_at', { ascending: false }).limit(1)
     setCurrentProgram(prog?.[0] || null)
-    setCurrentMicrocycle(micro?.[0] || null)
 
     const { data: links } = await supabase.from('group_program_templates')
       .select('program_id, programs(title, program_sessions(id))').eq('group_id', groupId)
@@ -166,15 +166,22 @@ export default function GroupDetailPage({ params }) {
     setLoading(false)
   }
 
-  const createGroupProgram = async (isMicrocycle) => {
+  const createGroupProgram = async () => {
     if (!newTitle.trim()) return
     const coachId = await getCoachId()
     const { data, error } = await supabase.from('programs')
-      .insert({ title: newTitle.trim(), coach_id: coachId, group_id: groupId, is_microcycle: isMicrocycle })
+      .insert({ title: newTitle.trim(), coach_id: coachId, group_id: groupId, is_microcycle: false })
       .select().single()
     if (error || !data) { alert('Erreur : ' + (error?.message || '')); return }
     await supabase.from('program_sessions').insert({ program_id: data.id, order_index: 0, title: 'Séance 1' })
     router.push(`/programs/templates/${data.id}`)
+  }
+
+  const toggleLeader = async (athleteId, current) => {
+    setTogglingLeader(athleteId)
+    await supabase.from('group_members').update({ is_leader: !current }).eq('group_id', groupId).eq('athlete_id', athleteId)
+    setMembers(prev => prev.map(m => m.id === athleteId ? { ...m, is_leader: !current } : m))
+    setTogglingLeader(null)
   }
 
   const unlinkTemplate = async (programId) => {
@@ -216,7 +223,7 @@ export default function GroupDetailPage({ params }) {
                 {members.length} membre{members.length !== 1 ? 's' : ''}{members.length > 0 && ` · ${members.map(m => m.name).join(', ')}`}
               </div>
             </div>
-            {(currentProgram || currentMicrocycle) && (
+            {currentProgram && (
               <button onClick={() => setShowStartPicker(true)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
                 ▶ Débuter coaching
               </button>
@@ -225,6 +232,42 @@ export default function GroupDetailPage({ params }) {
         </div>
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 720 }}>
+
+          {/* Membres du groupe (dépliant, fermé de base) */}
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+            <button onClick={() => setMembersExpanded(v => !v)} style={{
+              width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              padding: 16, display: 'flex', alignItems: 'center', gap: 8,
+            }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1 }}>
+                👤 Membres ({members.length})
+              </div>
+              <span style={{ color: 'var(--text3)', fontSize: 13 }}>{membersExpanded ? '▲' : '▼'}</span>
+            </button>
+            {membersExpanded && (
+              <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {members.length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun membre dans ce groupe</div>
+                ) : members.map(m => (
+                  <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+                    <button
+                      onClick={() => toggleLeader(m.id, m.is_leader)}
+                      disabled={togglingLeader === m.id}
+                      title={m.is_leader ? 'Retirer le statut de leader' : 'Désigner comme leader'}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+                        background: m.is_leader ? 'var(--green)' : 'var(--bg)', color: m.is_leader ? '#fff' : 'var(--text3)',
+                        border: '1px solid ' + (m.is_leader ? 'var(--green)' : 'var(--border2)'), borderRadius: 20,
+                        padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      }}>
+                      {m.is_leader ? '⭐' : '☆'} Leader
+                    </button>
+                    <span style={{ flex: 1, fontWeight: 700, fontSize: 13 }}>{m.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* Bilan du mois */}
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
@@ -311,16 +354,16 @@ export default function GroupDetailPage({ params }) {
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1 }}>📋 Programme en cours</div>
-              {!creatingType && (
-                <button onClick={() => { setCreatingType('program'); setNewTitle('') }} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>+ Créer</button>
+              {!creatingProgram && (
+                <button onClick={() => { setCreatingProgram(true); setNewTitle('') }} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>+ Créer</button>
               )}
             </div>
-            {creatingType === 'program' && (
+            {creatingProgram && (
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
                 <input autoFocus placeholder="Nom du programme" value={newTitle} onChange={e => setNewTitle(e.target.value)}
                   style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
-                <button onClick={() => createGroupProgram(false)} disabled={!newTitle.trim()} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Créer</button>
-                <button onClick={() => setCreatingType(null)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
+                <button onClick={() => createGroupProgram()} disabled={!newTitle.trim()} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Créer</button>
+                <button onClick={() => setCreatingProgram(false)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
               </div>
             )}
             {linkedTemplates.length > 0 && (
@@ -353,39 +396,7 @@ export default function GroupDetailPage({ params }) {
                 </button>
               </div>
             ) : (
-              !creatingType && linkedTemplates.length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun programme pour ce groupe</div>
-            )}
-          </div>
-
-          {/* Micro-cycle en cours */}
-          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1 }}>🔄 Micro-cycle en cours</div>
-              {creatingType !== 'microcycle' && (
-                <button onClick={() => { setCreatingType('microcycle'); setNewTitle('') }} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>+ Créer</button>
-              )}
-            </div>
-            {creatingType === 'microcycle' && (
-              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                <input autoFocus placeholder="Nom du micro-cycle" value={newTitle} onChange={e => setNewTitle(e.target.value)}
-                  style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
-                <button onClick={() => createGroupProgram(true)} disabled={!newTitle.trim()} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Créer</button>
-                <button onClick={() => setCreatingType(null)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
-              </div>
-            )}
-            {currentMicrocycle ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{currentMicrocycle.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>{(currentMicrocycle.program_sessions || []).length} séance{(currentMicrocycle.program_sessions || []).length !== 1 ? 's' : ''}</div>
-                </div>
-                <Link href={`/programs/templates/${currentMicrocycle.id}`} style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', textDecoration: 'none' }}>✏️ Modifier</Link>
-                <button onClick={() => fanOutToGroup(currentMicrocycle)} disabled={fanningOut === currentMicrocycle.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer' }}>
-                  {fanningOut === currentMicrocycle.id ? '…' : '👥 Assigner au groupe'}
-                </button>
-              </div>
-            ) : (
-              creatingType !== 'microcycle' && <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun micro-cycle pour ce groupe</div>
+              !creatingProgram && linkedTemplates.length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun programme pour ce groupe</div>
             )}
           </div>
         </div>
@@ -395,7 +406,7 @@ export default function GroupDetailPage({ params }) {
         <div onClick={() => setShowStartPicker(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 400, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
             <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 12 }}>▶ Choisir la séance à débuter</div>
-            {[{ label: 'Programme', prog: currentProgram }, { label: 'Micro-cycle', prog: currentMicrocycle }].map(({ label, prog }) => prog && (
+            {[{ label: 'Programme', prog: currentProgram }].map(({ label, prog }) => prog && (
               <div key={label} style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>{label} · {prog.title}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
