@@ -50,5 +50,19 @@ export async function POST(request, { params }) {
   }).select().single()
   if (!exo) return NextResponse.json({ error: error?.message || 'erreur création exercice' }, { status: 400 })
 
+  // Nom absent de la bibliothèque : propose au coach de l'ajouter (dashboard), sans bloquer la
+  // création de l'exercice si cette étape échoue (best-effort).
+  if (athlete.coach_id) {
+    const { data: known } = await supabaseAdmin.from('movements').select('id').ilike('name', exo.name).limit(1)
+    if (!known?.length) {
+      const { data: pending } = await supabaseAdmin.from('movement_suggestions')
+        .select('id').eq('coach_id', athlete.coach_id).ilike('name', exo.name).limit(1)
+      if (!pending?.length) {
+        await supabaseAdmin.from('movement_suggestions')
+          .insert({ name: exo.name, coach_id: athlete.coach_id, athlete_id: athlete.id })
+      }
+    }
+  }
+
   return NextResponse.json({ exercise: exo })
 }

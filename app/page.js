@@ -40,6 +40,10 @@ export default function Home() {
   const [selected, setSelected] = useState(null)
   const [browserSession, setBrowserSession] = useState(null)
   const [movementsMissingMuscles, setMovementsMissingMuscles] = useState([])
+  const [movementSuggestions, setMovementSuggestions] = useState([])
+  const [showMovementSuggestionsModal, setShowMovementSuggestionsModal] = useState(false)
+  const [suggestionEdits, setSuggestionEdits] = useState({}) // { [suggestionId]: editedName }
+  const [suggestionBusy, setSuggestionBusy] = useState(null) // id being accepted/rejected
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -95,6 +99,13 @@ export default function Home() {
         .or('muscles.is.null,muscles.eq.')
         .order('name')
       setMovementsMissingMuscles(missingMuscles || [])
+
+      const { data: suggestions } = await supabase
+        .from('movement_suggestions')
+        .select('id, name, athletes(name)')
+        .eq('coach_id', me.id)
+        .order('created_at')
+      setMovementSuggestions(suggestions || [])
 
       // La ligne athletes marquée is_coach = le profil perso de ce coach (RLS la scope déjà à lui).
       const coach = athList.find(a => a.is_coach)
@@ -166,6 +177,24 @@ export default function Home() {
     }
     load()
   }, [router])
+
+  const acceptMovementSuggestion = async (suggestion) => {
+    const name = (suggestionEdits[suggestion.id] ?? suggestion.name).trim()
+    if (!name) return
+    setSuggestionBusy(suggestion.id)
+    const { error } = await supabase.from('movements').insert({ name, coach_id: coachId })
+    if (error) { alert('Erreur : ' + error.message); setSuggestionBusy(null); return }
+    await supabase.from('movement_suggestions').delete().eq('id', suggestion.id)
+    setMovementSuggestions(prev => prev.filter(s => s.id !== suggestion.id))
+    setSuggestionBusy(null)
+  }
+
+  const rejectMovementSuggestion = async (suggestion) => {
+    setSuggestionBusy(suggestion.id)
+    await supabase.from('movement_suggestions').delete().eq('id', suggestion.id)
+    setMovementSuggestions(prev => prev.filter(s => s.id !== suggestion.id))
+    setSuggestionBusy(null)
+  }
 
   const createAthlete = async () => {
     const name = newName.trim()
@@ -266,6 +295,66 @@ export default function Home() {
               </div>
               <span style={{ fontSize: 12, fontWeight: 700, color: '#92400E', flexShrink: 0 }}>Voir →</span>
             </button>
+          )}
+
+          {/* Mouvements proposés par des clients, absents de la bibliothèque */}
+          {movementSuggestions.length > 0 && (
+            <button onClick={() => setShowMovementSuggestionsModal(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', textAlign: 'left', width: '100%',
+              background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 'var(--rl)', padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit',
+            }}>
+              <span style={{ fontSize: 20, flexShrink: 0 }}>💡</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1E40AF' }}>
+                  {movementSuggestions.length} mouvement{movementSuggestions.length !== 1 ? 's' : ''} proposé{movementSuggestions.length !== 1 ? 's' : ''} par des clients
+                </div>
+                <div style={{ fontSize: 12, color: '#1E40AF', opacity: 0.85, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {movementSuggestions.map(m => m.name).join(', ')}
+                </div>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#1E40AF', flexShrink: 0 }}>Voir →</span>
+            </button>
+          )}
+
+          {showMovementSuggestionsModal && (
+            <div onClick={() => setShowMovementSuggestionsModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 420, maxHeight: '80svh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>
+                    💡 {movementSuggestions.length} mouvement{movementSuggestions.length !== 1 ? 's' : ''} proposé{movementSuggestions.length !== 1 ? 's' : ''}
+                  </div>
+                  <button onClick={() => setShowMovementSuggestionsModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
+                </div>
+                {movementSuggestions.length === 0 ? (
+                  <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '20px 0' }}>Tout est traité 🎉</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {movementSuggestions.map(s => (
+                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 10px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <input
+                            value={suggestionEdits[s.id] ?? s.name}
+                            onChange={e => setSuggestionEdits(prev => ({ ...prev, [s.id]: e.target.value }))}
+                            style={{ width: '100%', boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 6, fontSize: 13, fontWeight: 600, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+                          />
+                          {s.athletes?.name && (
+                            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 3 }}>proposé par {s.athletes.name}</div>
+                          )}
+                        </div>
+                        <button onClick={() => acceptMovementSuggestion(s)} disabled={suggestionBusy === s.id} title="Ajouter à la bibliothèque"
+                          style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, width: 30, height: 30, fontSize: 15, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                          ✓
+                        </button>
+                        <button onClick={() => rejectMovementSuggestion(s)} disabled={suggestionBusy === s.id} title="Refuser"
+                          style={{ background: 'var(--bg)', color: '#DC2626', border: '1px solid var(--border2)', borderRadius: 6, width: 30, height: 30, fontSize: 15, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
 
           {showMissingMusclesModal && (
