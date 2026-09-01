@@ -218,18 +218,9 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
 
   const changeMode = (m) => { setMode(m); setOffset(0) }
 
-  // Alterne automatiquement semaine/mois toutes les ~4.5s (repart de zéro à chaque changement,
-  // qu'il soit auto ou manuel, grâce à la dépendance sur `mode`) — coupé pendant la navigation
-  // dans l'historique ou le récap pour ne pas perturber ce que le client est en train de regarder.
-  useEffect(() => {
-    if (offset !== 0 || showRecap) return
-    const id = setTimeout(() => setMode(m => m === 'week' ? 'month' : 'week'), 4500)
-    return () => clearTimeout(id)
-  }, [mode, offset, showRecap])
-
-  // Le cycle auto ne fait qu'alterner entre semaine/mois à offset 0 : une fois chacun chargé une
-  // première fois, on les garde en cache pour que les allers-retours suivants (auto ou manuels)
-  // s'affichent instantanément, sans repasser par un état de chargement qui ferait sauter la page.
+  // Semaine par défaut, fixe — le client bascule manuellement sur "Mois" via le toggle ci-dessous.
+  // Les deux vues restent en cache pour que l'aller-retour manuel s'affiche instantanément, sans
+  // repasser par un état de chargement qui ferait sauter la page.
   useEffect(() => {
     if (!athleteId) return
     const { start, end } = mode === 'week' ? getWeekRange(offset) : getMonthRange(offset)
