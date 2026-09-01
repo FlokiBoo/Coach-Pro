@@ -86,10 +86,6 @@ function today() {
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
-function isFinishedFreeSession(p, completions) {
-  return p.title?.startsWith('Séance libre') && p.sessions.length > 0 && p.sessions.every(s => completions.has(s.id))
-}
-
 export default function AthleteViewWrapper({ params }) {
   return (
     <Suspense>
@@ -760,20 +756,27 @@ function AthleteView({ params }) {
 
   // Crée une séance libre vide et ouvre directement la vue plein écran (comme "▶ Lancer"),
   // où les exercices sont ajoutés un par un via FreeExerciseAdder.
-  const startFreeSession = async () => {
+  const startFreeSession = async (sourceExercises = []) => {
     if (!athlete) return
     if (!requireOnline()) return
     const res = await fetch(`/api/athlete-view/${token}/free-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exercises: [] }),
+      body: JSON.stringify({ exercises: sourceExercises }),
     })
     const json = await res.json()
     if (!res.ok) { alert('Erreur : ' + (json?.error || 'impossible de créer la séance')); return }
 
-    const newProg = { ...json.program, sessions: [{ ...json.session, exercises: [] }] }
+    const newProg = { ...json.program, sessions: [json.session] }
     setPrograms(prev => [newProg, ...prev])
     router.push(`/s/${token}?session=${json.session.id}&focus=1${isCoachView ? '&coach=1' : ''}`)
+  }
+
+  // Repart d'une séance libre existante (mêmes exercices, sans les charges/notes déjà loguées)
+  // pour que le sportif puisse l'enchaîner facilement et suivre sa progression dans l'historique.
+  const duplicateFreeSession = (session) => {
+    const sourceExercises = (session.exercises || []).map(e => ({ name: e.name, sets: e.sets, reps: e.reps, kg: e.kg }))
+    startFreeSession(sourceExercises)
   }
 
   const addFreeExercise = async (sessionId, { name, sets, reps, kg }) => {
@@ -822,10 +825,10 @@ function AthleteView({ params }) {
   )
 
   if (focusMode && targetSessionId) {
-    let focusSession = null, focusProgSessions = [], focusActivityType = null, focusIsFreeSession = false
+    let focusSession = null, focusProgSessions = [], focusActivityType = null, focusIsFreeSession = false, focusIsGroupSession = false
     for (const p of programs) {
       const idx = p.sessions.findIndex(s => s.id === targetSessionId)
-      if (idx !== -1) { focusSession = p.sessions[idx]; focusProgSessions = p.sessions; focusActivityType = p.activity_type; focusIsFreeSession = !!p.title?.startsWith('Séance libre'); break }
+      if (idx !== -1) { focusSession = p.sessions[idx]; focusProgSessions = p.sessions; focusActivityType = p.activity_type; focusIsFreeSession = !!p.title?.startsWith('Séance libre'); focusIsGroupSession = !!p.group_id; break }
     }
     const isDone = focusSession ? completions.has(focusSession.id) && !skippedSessions.has(focusSession.id) : false
     const isFocusSkipped = focusSession ? skippedSessions.has(focusSession.id) : false
@@ -886,9 +889,11 @@ function AthleteView({ params }) {
               isFreeSession={focusIsFreeSession}
               onAddExercise={addFreeExercise}
               onToggleSuperset={toggleFreeSuperset}
+              onDuplicateFreeSession={() => duplicateFreeSession(focusSession)}
               circuitLogs={circuitLogs}
               onSaveCircuitLog={saveCircuitLog}
               isGroupLeader={isGroupLeader}
+              isGroupSession={focusIsGroupSession}
               token={token}
             />
           ) : (
@@ -940,7 +945,7 @@ function AthleteView({ params }) {
           athlete={athlete} objectives={objectives} setObjectives={setObjectives} isCoachView={isCoachView}
           noteBlocks={noteBlocks} activityRefreshKey={activityRefreshKey}
           programs={programs} completions={completions} skippedSessions={skippedSessions}
-          selectedType={selectedType} setSelectedType={setSelectedType} isFinishedFreeSessionFn={isFinishedFreeSession}
+          selectedType={selectedType} setSelectedType={setSelectedType}
           router={router} token={token}
         />
       )}
@@ -1229,7 +1234,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, token }) {
+function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, isGroupSession = false, token }) {
   const [showGroupPaces, setShowGroupPaces] = useState(false)
   const [showPostpone, setShowPostpone] = useState(false)
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
@@ -1638,6 +1643,15 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
             <FreeExerciseAdder sessionId={session.id} exos={exos} onAdd={onAddExercise} onToggleSuperset={onToggleSuperset} />
           )}
 
+          {isFreeSession && exos.length > 0 && onDuplicateFreeSession && (
+            <button onClick={onDuplicateFreeSession} style={{
+              background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--rl)',
+              padding: '12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', width: '100%',
+            }}>
+              ⧉ Dupliquer cette séance
+            </button>
+          )}
+
           {isSkipped ? (
             <>
               <div style={{ textAlign: 'center', padding: '10px 0', color: 'var(--text3)', fontSize: 13, fontWeight: 600 }}>
@@ -1665,7 +1679,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 </button>
               )}
               {onValidate && session.session_type !== 'explication' && (
-                <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} isWarmup={session.session_type === 'warmup'} />
+                <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} isWarmup={session.session_type === 'warmup'} isGroupSession={isGroupSession} />
               )}
               {isCompleted && onUnvalidate && (
                 <button onClick={onUnvalidate} disabled={validating}
@@ -1930,7 +1944,7 @@ function RatingRow({ label, value, onChange }) {
   )
 }
 
-function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null, isEndurance = false, isWarmup = false }) {
+function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null, isEndurance = false, isWarmup = false, isGroupSession = false }) {
   const [pleasure, setPleasure] = useState(initial?.pleasure ?? null)
   const [difficulty, setDifficulty] = useState(initial?.difficulty ?? null)
   const [duration, setDuration] = useState(initial?.duration_minutes ?? null)
@@ -1967,14 +1981,16 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
         />
       </div>
 
-      <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>{isWarmup ? 'Durée du Warm-Up' : 'Durée'}</div>
-        <DurationHMSInput
-          initialMinutes={duration}
-          onSave={setDuration}
-          inputStyle={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
-        />
-      </div>
+      {!isGroupSession && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>{isWarmup ? 'Durée du Warm-Up' : 'Durée'}</div>
+          <DurationHMSInput
+            initialMinutes={duration}
+            onSave={setDuration}
+            inputStyle={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+          />
+        </div>
+      )}
 
       <button
         onClick={() => onValidate({

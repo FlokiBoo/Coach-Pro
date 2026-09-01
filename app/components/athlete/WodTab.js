@@ -10,7 +10,7 @@ import ProgressBlock from '@/app/components/ProgressBlock'
 // plusieurs. Le détail (séries/reps/progression) reste dans le mode focus, pas ici.
 export default function WodTab({
   athlete, objectives, setObjectives, isCoachView, noteBlocks, activityRefreshKey,
-  programs, completions, skippedSessions, selectedType, setSelectedType, isFinishedFreeSessionFn,
+  programs, completions, skippedSessions, selectedType, setSelectedType,
   router, token,
 }) {
   const [selectedProgramId, setSelectedProgramId] = useState(null)
@@ -20,7 +20,7 @@ export default function WodTab({
     router.push(`/s/${token}?session=${sessionId}&focus=1${isCoachView ? '&coach=1' : ''}`)
   }
 
-  const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived && !isFinishedFreeSessionFn(p, completions))
+  const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived)
   const allTypes = [...new Set(boardPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
   const effectiveType = allTypes.length <= 1 ? null
     : ((selectedType && allTypes.includes(selectedType)) ? selectedType
