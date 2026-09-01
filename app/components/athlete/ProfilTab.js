@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import BadgesBlock from '@/app/components/BadgesBlock'
 import MobilityRadarBlock from '@/app/components/MobilityRadarBlock'
-import MealPlannerWizard from '@/app/components/MealPlannerWizard'
 import ChatThread from '@/app/components/ChatThread'
 import SettingsScreen from './SettingsScreen'
 
@@ -20,7 +19,6 @@ export default function ProfilTab({ athlete, token, onWeightUpdate, onSexUpdate,
   const [editingField, setEditingField] = useState(null) // 'weight' | 'height' | 'birth_date' | null
   const [fieldVal, setFieldVal] = useState('')
   const [saving, setSaving] = useState(false)
-  const [showMealPlanner, setShowMealPlanner] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showMessages, setShowMessages] = useState(false)
   const [unread, setUnread] = useState(0)
@@ -166,14 +164,14 @@ export default function ProfilTab({ athlete, token, onWeightUpdate, onSexUpdate,
         <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
       </button>
 
-      <button onClick={() => setShowMealPlanner(true)} style={{
-        background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
-        padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
+      <div style={{
+        background: 'var(--bg)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+        padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10,
       }}>
         <span style={{ fontSize: 20 }}>🍽</span>
         <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Générateur de plan alimentaire</span>
-        <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
-      </button>
+        <span style={{ background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>À venir</span>
+      </div>
 
       <button onClick={() => setShowSettings(true)} style={{
         background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
@@ -183,18 +181,6 @@ export default function ProfilTab({ athlete, token, onWeightUpdate, onSexUpdate,
         <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Réglages</span>
         <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
       </button>
-
-      {showMealPlanner && (
-        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <button onClick={() => setShowMealPlanner(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
-            <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>🍽 Générateur de plan alimentaire</div>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
-            <MealPlannerWizard />
-          </div>
-        </div>
-      )}
 
       {showSettings && <SettingsScreen athlete={athlete} token={token} onClose={() => setShowSettings(false)} />}
 
