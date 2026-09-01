@@ -42,6 +42,7 @@ export default function AthletesPage() {
   const [sortBy, setSortBy] = useState('alpha')
   const [menu, setMenu] = useState(null) // { athlete, top, left, openUp }
   const [busyId, setBusyId] = useState(null)
+  const [togglingLeader, setTogglingLeader] = useState(null) // `${athleteId}:${groupId}`
   const [showAdd, setShowAdd] = useState(false)
   const [newName, setNewName] = useState('')
   const [newEmail, setNewEmail] = useState('')
@@ -62,16 +63,27 @@ export default function AthletesPage() {
   async function load() {
     const [{ data }, { data: groups }] = await Promise.all([
       supabase.from('athletes').select('*').neq('archived', true).order('name'),
-      supabase.from('groups').select('name, group_members(athlete_id)'),
+      supabase.from('groups').select('id, name, group_members(athlete_id, is_leader)'),
     ])
     setAthletes(data || [])
     const byAthlete = {}
     ;(groups || []).forEach(g => {
       ;(g.group_members || []).forEach(m => {
-        (byAthlete[m.athlete_id] ||= []).push(g.name)
+        (byAthlete[m.athlete_id] ||= []).push({ groupId: g.id, groupName: g.name, isLeader: !!m.is_leader })
       })
     })
     setGroupsByAthlete(byAthlete)
+  }
+
+  const toggleLeaderFromList = async (athleteId, groupId, current) => {
+    const busyKey = `${athleteId}:${groupId}`
+    setTogglingLeader(busyKey)
+    await supabase.from('group_members').update({ is_leader: !current }).eq('group_id', groupId).eq('athlete_id', athleteId)
+    setGroupsByAthlete(prev => ({
+      ...prev,
+      [athleteId]: prev[athleteId].map(g => g.groupId === groupId ? { ...g, isLeader: !current } : g),
+    }))
+    setTogglingLeader(null)
   }
 
   const inviteFromMenu = async (a) => {
@@ -245,8 +257,25 @@ export default function AthletesPage() {
                         )}
                       </div>
                       {groupsByAthlete[a.id]?.length > 0 && (
-                        <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          👥 {groupsByAthlete[a.id].join(', ')}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                          {groupsByAthlete[a.id].map(g => {
+                            const busyKey = `${a.id}:${g.groupId}`
+                            return (
+                              <button
+                                key={g.groupId}
+                                onClick={e => { e.stopPropagation(); toggleLeaderFromList(a.id, g.groupId, g.isLeader) }}
+                                disabled={togglingLeader === busyKey}
+                                title={g.isLeader ? `Retirer le statut de leader (${g.groupName})` : `Désigner comme leader (${g.groupName})`}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0,
+                                  background: g.isLeader ? 'var(--green)' : 'var(--bg2)', color: g.isLeader ? '#fff' : 'var(--text3)',
+                                  border: '1px solid ' + (g.isLeader ? 'var(--green)' : 'var(--border2)'), borderRadius: 20,
+                                  padding: '2px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                                }}>
+                                {g.isLeader ? '⭐' : '☆'} {g.groupName}
+                              </button>
+                            )
+                          })}
                         </div>
                       )}
                     </div>
