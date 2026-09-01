@@ -129,7 +129,7 @@ export default function CguPage() {
         <Section title="11. Contact">
           <p>
             Pour toute question relative aux présentes conditions :{' '}
-            <a href="mailto:maxx7796@gmail.com" style={{ color: 'var(--green)' }}>maxx7796@gmail.com</a>.
+            <a href="mailto:contact@ostryk.fr" style={{ color: 'var(--green)' }}>contact@ostryk.fr</a>.
           </p>
         </Section>
       </div>

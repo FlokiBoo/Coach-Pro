@@ -17,7 +17,7 @@ export default function SuppressionComptePage() {
         <Section title="Comment demander la suppression de ton compte">
           <p>
             Pour demander la suppression de ton compte OSTRYK et des données associées, envoie un email à{' '}
-            <a href="mailto:maxx7796@gmail.com?subject=Suppression%20de%20compte%20OSTRYK" style={{ color: 'var(--green)' }}>maxx7796@gmail.com</a>{' '}
+            <a href="mailto:contact@ostryk.fr?subject=Suppression%20de%20compte%20OSTRYK" style={{ color: 'var(--green)' }}>contact@ostryk.fr</a>{' '}
             depuis l&apos;adresse email associée à ton compte, en précisant &laquo;&nbsp;Suppression de compte&nbsp;&raquo; dans l&apos;objet.
           </p>
           <p>Ta demande sera traitée dans un délai maximum de 30 jours.</p>

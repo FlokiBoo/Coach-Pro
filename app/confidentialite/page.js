@@ -18,7 +18,7 @@ export default function ConfidentialitePage() {
           <p>
             OSTRYK est un service de coaching sportif en ligne édité par Maxime Sallenave, auto-entrepreneur,
             17 cité Conrad, 33000 Bordeaux, SIRET 905 385 076 00039.
-            <br />Contact : <a href="mailto:maxx7796@gmail.com" style={{ color: 'var(--green)' }}>maxx7796@gmail.com</a>.
+            <br />Contact : <a href="mailto:contact@ostryk.fr" style={{ color: 'var(--green)' }}>contact@ostryk.fr</a>.
           </p>
           <p>Le responsable du traitement des données décrites ci-dessous est l&apos;éditeur d&apos;OSTRYK.</p>
         </Section>
@@ -68,7 +68,7 @@ export default function ConfidentialitePage() {
           <p>
             Conformément au Règlement Général sur la Protection des Données (RGPD), tu disposes d&apos;un droit d&apos;accès,
             de rectification, d&apos;effacement, de portabilité et d&apos;opposition sur tes données. Tu peux exercer ces droits
-            en écrivant à <a href="mailto:maxx7796@gmail.com" style={{ color: 'var(--green)' }}>maxx7796@gmail.com</a>.
+            en écrivant à <a href="mailto:contact@ostryk.fr" style={{ color: 'var(--green)' }}>contact@ostryk.fr</a>.
             Tu peux également introduire une réclamation auprès de la CNIL (www.cnil.fr).
           </p>
         </Section>

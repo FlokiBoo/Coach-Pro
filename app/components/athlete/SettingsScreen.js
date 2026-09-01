@@ -131,13 +131,13 @@ export default function SettingsScreen({ athlete, token, onClose }) {
           <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
         </button>
 
-        <a href="mailto:maxx7796@gmail.com?subject=Contact%20OSTRYK" style={{ ...rowStyle, textDecoration: 'none' }}>
+        <a href="mailto:contact@ostryk.fr?subject=Contact%20OSTRYK" style={{ ...rowStyle, textDecoration: 'none' }}>
           <span style={{ fontSize: 20 }}>✉️</span>
           <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Contactez-nous</span>
           <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
         </a>
 
-        <a href="mailto:maxx7796@gmail.com?subject=Probl%C3%A8me%20OSTRYK" style={{ ...rowStyle, textDecoration: 'none' }}>
+        <a href="mailto:contact@ostryk.fr?subject=Probl%C3%A8me%20OSTRYK" style={{ ...rowStyle, textDecoration: 'none' }}>
           <span style={{ fontSize: 20 }}>🐛</span>
           <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Rapporter un problème</span>
           <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
