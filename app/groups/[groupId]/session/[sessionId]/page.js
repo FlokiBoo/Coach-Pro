@@ -87,7 +87,14 @@ export default function GroupCoachingSessionPage({ params }) {
     const existingIds = new Set((existingAtt || []).map(a => a.athlete_id))
     const toAdd = [...presentIds].filter(id => !existingIds.has(id))
     const toRemove = [...existingIds].filter(id => !presentIds.has(id))
-    if (toAdd.length) await supabase.from('group_session_attendance').insert(toAdd.map(athlete_id => ({ run_id: run.id, athlete_id })))
+    if (toAdd.length) {
+      await supabase.from('group_session_attendance').insert(toAdd.map(athlete_id => ({ run_id: run.id, athlete_id })))
+      await supabase.from('notifications').insert(toAdd.map(athlete_id => ({
+        athlete_id, type: 'group_session_pending',
+        title: 'Séance de groupe à compléter',
+        body: session?.title || null,
+      })))
+    }
     if (toRemove.length) await supabase.from('group_session_attendance').delete().eq('run_id', run.id).in('athlete_id', toRemove)
 
     setSaving(false)

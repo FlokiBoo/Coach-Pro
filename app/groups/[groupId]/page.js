@@ -104,7 +104,7 @@ export default function GroupDetailPage({ params }) {
     setCurrentProgram(prog?.[0] || null)
 
     const { data: links } = await supabase.from('group_program_templates')
-      .select('program_id, programs(title, program_sessions(id))').eq('group_id', groupId)
+      .select('program_id, programs(title, program_sessions(id, order_index, title))').eq('group_id', groupId)
     setLinkedTemplates(links || [])
 
     const { data: runsData } = await supabase.from('group_session_runs')
@@ -223,7 +223,7 @@ export default function GroupDetailPage({ params }) {
                 {members.length} membre{members.length !== 1 ? 's' : ''}{members.length > 0 && ` · ${members.map(m => m.name).join(', ')}`}
               </div>
             </div>
-            {currentProgram && (
+            {(currentProgram || linkedTemplates.length > 0) && (
               <button onClick={() => setShowStartPicker(true)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
                 ▶ Débuter coaching
               </button>
@@ -406,8 +406,11 @@ export default function GroupDetailPage({ params }) {
         <div onClick={() => setShowStartPicker(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 400, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
             <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 12 }}>▶ Choisir la séance à débuter</div>
-            {[{ label: 'Programme', prog: currentProgram }].map(({ label, prog }) => prog && (
-              <div key={label} style={{ marginBottom: 14 }}>
+            {[
+              ...(currentProgram ? [{ key: 'programme', label: 'Programme', prog: currentProgram }] : []),
+              ...linkedTemplates.map(l => ({ key: `template-${l.program_id}`, label: 'Template', prog: { title: l.programs?.title, program_sessions: l.programs?.program_sessions } })),
+            ].map(({ key, label, prog }) => prog && (
+              <div key={key} style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>{label} · {prog.title}</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {(prog.program_sessions || []).sort((a, b) => a.order_index - b.order_index).map((s, i) => (
