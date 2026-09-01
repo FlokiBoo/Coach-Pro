@@ -17,6 +17,7 @@ export async function proxy(request) {
     pathname.startsWith('/api/signup') ||
     pathname.startsWith('/confidentialite') ||
     pathname.startsWith('/cgu') ||
+    pathname.startsWith('/suppression-compte') ||
     pathname.startsWith('/offres') ||
     pathname.startsWith('/api/offers') ||
     pathname.startsWith('/api/strava/connect') ||
