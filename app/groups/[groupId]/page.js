@@ -70,6 +70,7 @@ export default function GroupDetailPage({ params }) {
   const [group, setGroup] = useState(null)
   const [members, setMembers] = useState([])
   const [currentProgram, setCurrentProgram] = useState(null)
+  const [linkedTemplates, setLinkedTemplates] = useState([])
   const [currentMicrocycle, setCurrentMicrocycle] = useState(null)
   const [runs, setRuns] = useState([])
   const [runStats, setRunStats] = useState({}) // { [runId]: { avgDifficulty, avgPleasure, details: [...] } }
@@ -101,6 +102,10 @@ export default function GroupDetailPage({ params }) {
     ])
     setCurrentProgram(prog?.[0] || null)
     setCurrentMicrocycle(micro?.[0] || null)
+
+    const { data: links } = await supabase.from('group_program_templates')
+      .select('program_id, programs(title, program_sessions(id))').eq('group_id', groupId)
+    setLinkedTemplates(links || [])
 
     const { data: runsData } = await supabase.from('group_session_runs')
       .select('*').eq('group_id', groupId).gte('date', month.start).lte('date', month.end).order('date', { ascending: false })
@@ -170,6 +175,12 @@ export default function GroupDetailPage({ params }) {
     if (error || !data) { alert('Erreur : ' + (error?.message || '')); return }
     await supabase.from('program_sessions').insert({ program_id: data.id, order_index: 0, title: 'Séance 1' })
     router.push(`/programs/templates/${data.id}`)
+  }
+
+  const unlinkTemplate = async (programId) => {
+    if (!confirm('Retirer ce template du groupe ? Les copies déjà créées pour les membres restent intactes — seuls les futurs membres ne le recevront plus automatiquement.')) return
+    await supabase.from('group_program_templates').delete().eq('group_id', groupId).eq('program_id', programId)
+    setLinkedTemplates(prev => prev.filter(l => l.program_id !== programId))
   }
 
   const fanOutToGroup = async (program) => {
@@ -312,6 +323,24 @@ export default function GroupDetailPage({ params }) {
                 <button onClick={() => setCreatingType(null)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
               </div>
             )}
+            {linkedTemplates.length > 0 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: currentProgram ? 10 : 0 }}>
+                {linkedTemplates.map(l => (
+                  <div key={l.program_id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>🔗 {l.programs?.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                        {(l.programs?.program_sessions || []).length} séance{(l.programs?.program_sessions || []).length !== 1 ? 's' : ''} — lié au groupe, synchronisé pour les futurs membres
+                      </div>
+                    </div>
+                    <Link href={`/programs/templates/${l.program_id}`} style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', textDecoration: 'none', flexShrink: 0 }}>✏️ Modifier</Link>
+                    <button onClick={() => unlinkTemplate(l.program_id)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer', flexShrink: 0 }}>
+                      Retirer
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             {currentProgram ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -324,7 +353,7 @@ export default function GroupDetailPage({ params }) {
                 </button>
               </div>
             ) : (
-              !creatingType && <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun programme pour ce groupe</div>
+              !creatingType && linkedTemplates.length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun programme pour ce groupe</div>
             )}
           </div>
 
