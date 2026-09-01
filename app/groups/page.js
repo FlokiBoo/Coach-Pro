@@ -203,16 +203,26 @@ export default function GroupsPage() {
                           const isLeader = g.group_members.find(m => m.athlete_id === a.id)?.is_leader
                           const busy = busyMemberKey === `${g.id}-${a.id}`
                           return (
-                            <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--r)', border: isMember ? '1.5px solid var(--green)' : '1px solid var(--border)', background: isMember ? 'var(--green-light)' : 'var(--bg2)', cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.6 : 1 }}>
+                            <div key={a.id} style={{
+                              display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--r)',
+                              border: isMember ? '1.5px solid var(--green)' : '1px solid var(--border)',
+                              background: isMember ? 'var(--green-light)' : 'var(--bg2)', opacity: busy ? 0.6 : 1,
+                            }}>
+                              <label style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, cursor: busy ? 'default' : 'pointer', minWidth: 0 }}>
                                 <input type="checkbox" checked={isMember} disabled={busy} onChange={() => toggleMember(g, a.id)}
-                                  style={{ accentColor: 'var(--green)', width: 15, height: 15 }} />
-                                <span style={{ fontSize: 13, fontWeight: 600, color: isMember ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
+                                  style={{ accentColor: 'var(--green)', width: 15, height: 15, flexShrink: 0 }} />
+                                <span style={{ fontSize: 13, fontWeight: 600, color: isMember ? 'var(--green)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.name}</span>
                               </label>
                               {isMember && (
-                                <button onClick={() => toggleLeader(g, a.id)} title={isLeader ? 'Retirer le statut leader' : 'Faire de ce sportif un leader'}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, padding: 4, flexShrink: 0, opacity: isLeader ? 1 : 0.3 }}>
-                                  ⭐
+                                <button onClick={() => toggleLeader(g, a.id)} disabled={busy}
+                                  title={isLeader ? 'Retirer le statut leader' : 'Faire de ce sportif un leader'}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0, cursor: busy ? 'default' : 'pointer',
+                                    background: isLeader ? '#FEF3C7' : 'var(--bg)', border: `1.5px solid ${isLeader ? '#F59E0B' : 'var(--border2)'}`,
+                                    borderRadius: 20, padding: '5px 10px', fontSize: 12, fontWeight: 700,
+                                    color: isLeader ? '#92400E' : 'var(--text3)',
+                                  }}>
+                                  {isLeader ? '⭐' : '☆'} Leader
                                 </button>
                               )}
                             </div>
