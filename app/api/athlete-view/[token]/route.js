@@ -31,7 +31,11 @@ export async function GET(request, { params }) {
 
   // Limite 2 appareils/compte sportif : le sportif lui-même (pas le coach en aperçu) doit avoir
   // un appareil déjà validé par email. Sinon, redirection côté client vers /verify-device.
-  if (isOwner) {
+  // Le profil perso du coach (bouton "Switch to athlete") partage le même auth_user_id que son
+  // compte coach — isOwner y est donc toujours vrai — mais il n'y a jamais d'appareil enregistré
+  // pour ce profil interne, donc cette vérification (pensée pour de vrais sportifs) le bloquerait
+  // systématiquement. On l'exempte.
+  if (isOwner && !athlete.is_coach) {
     const deviceId = cookieStore.get('cp_device')?.value
     const { data: device } = deviceId
       ? await supabaseAdmin.from('athlete_devices').select('id').eq('athlete_id', athlete.id).eq('device_id', deviceId).maybeSingle()
@@ -102,9 +106,14 @@ export async function GET(request, { params }) {
     })
   }
 
+  // Profil perso du coach (bouton "Switch to athlete") : simule l'abonnement le plus cher pour que
+  // le coach voie exactement l'expérience d'un client payant, sans passer par un vrai abonnement
+  // Stripe. Purement côté réponse — la ligne `athletes` en base n'est pas modifiée.
+  const responseAthlete = athlete.is_coach ? { ...athlete, subscription_status: 'active', subscription_tier: 'B' } : athlete
+
   return NextResponse.json(
     {
-      athlete, programs: gatedProgs, completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap, focusGroupsMap,
+      athlete: responseAthlete, programs: gatedProgs, completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap, focusGroupsMap,
       objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [],
       raceKnown, trackedMovements, isCoach, isGroupLeader, circuitLogs: circuitLogsData || [],
     },
