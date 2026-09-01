@@ -62,6 +62,40 @@ async function recordOfferPurchase(session) {
   }
 }
 
+// Notifie le coach des évènements marquants du cycle de vie d'un abonnement (souscription,
+// annulation programmée, fin réelle) directement dans la cloche de notifications de l'app.
+async function notifySubscriptionEvent(subscription, kind) {
+  const athleteId = subscription.metadata?.athlete_id
+  if (!athleteId) return
+  const { data: athlete } = await supabaseAdmin.from('athletes').select('name, coach_id').eq('id', athleteId).maybeSingle()
+  if (!athlete?.coach_id) return
+
+  const tierLabel = SUBSCRIPTION_TIERS[subscription.metadata?.tier]?.label || null
+  const periodEnd = subscription.current_period_end
+    ? new Date(subscription.current_period_end * 1000).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null
+
+  const messages = {
+    started: { title: `${athlete.name} vient de s'abonner`, body: tierLabel },
+    cancel_scheduled: { title: `${athlete.name} a annulé son abonnement`, body: periodEnd ? `Actif jusqu'au ${periodEnd}` : null },
+    ended: { title: `L'abonnement de ${athlete.name} s'est terminé`, body: tierLabel },
+  }
+  const msg = messages[kind]
+  if (!msg) return
+  await supabaseAdmin.from('notifications').insert({ coach_id: athlete.coach_id, type: `subscription_${kind}`, title: msg.title, body: msg.body })
+}
+
+async function notifyPaymentFailed(invoice) {
+  if (!invoice.customer) return
+  const { data: athlete } = await supabaseAdmin.from('athletes').select('name, coach_id').eq('stripe_customer_id', invoice.customer).maybeSingle()
+  if (!athlete?.coach_id) return
+  await supabaseAdmin.from('notifications').insert({
+    coach_id: athlete.coach_id, type: 'payment_failed',
+    title: `Paiement échoué pour ${athlete.name}`,
+    body: null,
+  })
+}
+
 async function syncInvoiceToNotion(invoice, status) {
   if (!invoice.customer) return
   const { data: athlete } = await supabaseAdmin.from('athletes')
@@ -107,9 +141,20 @@ export async function POST(request) {
         }
         break
       }
-      case 'customer.subscription.updated':
       case 'customer.subscription.created': {
-        await syncFromSubscription(event.data.object)
+        const subscription = event.data.object
+        await syncFromSubscription(subscription)
+        await notifySubscriptionEvent(subscription, 'started')
+        break
+      }
+      case 'customer.subscription.updated': {
+        const subscription = event.data.object
+        await syncFromSubscription(subscription)
+        // Ne notifier qu'au moment où l'annulation est programmée (transition false -> true),
+        // pas à chaque `updated` ultérieur (renouvellement, changement de moyen de paiement…).
+        if (subscription.cancel_at_period_end && event.data.previous_attributes?.cancel_at_period_end === false) {
+          await notifySubscriptionEvent(subscription, 'cancel_scheduled')
+        }
         break
       }
       case 'customer.subscription.deleted': {
@@ -120,6 +165,7 @@ export async function POST(request) {
             subscription_status: 'canceled', subscription_tier: null,
           }).eq('id', athleteId)
         }
+        await notifySubscriptionEvent(subscription, 'ended')
         break
       }
       case 'invoice.paid': {
@@ -128,6 +174,7 @@ export async function POST(request) {
       }
       case 'invoice.payment_failed': {
         await syncInvoiceToNotion(event.data.object, 'Échoué')
+        await notifyPaymentFailed(event.data.object)
         break
       }
     }

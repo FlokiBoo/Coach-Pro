@@ -85,6 +85,14 @@ export async function POST(request, { params }) {
     .select().single()
   if (progErr || !newProg) return NextResponse.json({ error: progErr?.message || 'création impossible' }, { status: 400 })
 
+  if (athlete.coach_id) {
+    await supabaseAdmin.from('notifications').insert({
+      coach_id: athlete.coach_id, type: 'client_selected_program',
+      title: `${athlete.name} a choisi un programme`,
+      body: template.title,
+    })
+  }
+
   for (const sess of (sessions || [])) {
     const { data: newSess } = await supabaseAdmin.from('program_sessions')
       .insert({
