@@ -50,14 +50,14 @@ function useBeeper() {
     if (ctxRef.current.state === 'suspended') ctxRef.current.resume()
     return ctxRef.current
   }
-  const beep = (freq = 880, duration = 0.12) => {
+  const beep = (freq = 880, duration = 0.12, level = 0.3) => {
     try {
       const ctx = getCtx()
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.type = 'sine'
       osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.setValueAtTime(level, ctx.currentTime)
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
       osc.connect(gain)
       gain.connect(ctx.destination)
@@ -65,7 +65,19 @@ function useBeeper() {
       osc.stop(ctx.currentTime + duration)
     } catch {}
   }
-  return { beep, unlock: getCtx }
+  // Annonce vocale du round qui démarre (ex: "Round 5, let's go").
+  const speak = (text) => {
+    try {
+      if (!window.speechSynthesis) return
+      window.speechSynthesis.cancel()
+      const utter = new SpeechSynthesisUtterance(text)
+      utter.lang = 'en-US'
+      utter.rate = 1
+      utter.pitch = 1
+      window.speechSynthesis.speak(utter)
+    } catch {}
+  }
+  return { beep, speak, unlock: getCtx }
 }
 
 export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
@@ -122,7 +134,7 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
   const elapsedBaseRef = useRef(0)
   const runStartRef = useRef(null)
   const lastBeepKeyRef = useRef(null)
-  const { beep, unlock } = useBeeper()
+  const { beep, speak, unlock } = useBeeper()
 
   useEffect(() => {
     if (!running) return
@@ -156,6 +168,7 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
     runStartRef.current = null
     lastBeepKeyRef.current = null
     prevPhaseKeyRef.current = null
+    prevRoundRef.current = null
     setRunning(false)
     forceTick(t => t + 1)
   }
@@ -216,7 +229,7 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
 
   const state = compute()
 
-  // Bips : décompte 3-2-1 en fin de phase, bip long au changement de phase, bip final.
+  // Bips : décompte 5-4-3-2-1 en fin de phase, bip long au changement de phase, bip final.
   useEffect(() => {
     if (!running) return
     if (state.finished) {
@@ -230,20 +243,31 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
     const remInt = Math.ceil(state.remaining)
     const key = `${state.phaseKey}-${remInt}`
     if (lastBeepKeyRef.current === key) return
-    if (remInt <= 3 && remInt >= 1) {
+    if (remInt <= 5 && remInt >= 1) {
       beep(660, 0.08)
       lastBeepKeyRef.current = key
     }
   }, [state.remaining, state.finished, running])
 
-  // Bip au changement de round/segment (transition détectée via phaseKey)
+  // Bip au changement de round/segment (transition détectée via phaseKey). Un vrai changement de
+  // round (roundIndex qui avance, ex: fin de la récup entre rounds) déclenche un gros bip + une
+  // annonce vocale ; une simple transition de phase dans le même round (ex: travail → repos en
+  // Tabata) garde le bip standard.
   const prevPhaseKeyRef = useRef(null)
+  const prevRoundRef = useRef(null)
   useEffect(() => {
     if (!running || !state.phaseKey) return
     if (prevPhaseKeyRef.current !== null && prevPhaseKeyRef.current !== state.phaseKey) {
-      beep(1000, 0.18)
+      const isNewRound = state.roundIndex != null && prevRoundRef.current != null && state.roundIndex !== prevRoundRef.current
+      if (isNewRound) {
+        beep(1500, 0.4, 0.5)
+        speak(`Round ${state.roundIndex}, let's go`)
+      } else {
+        beep(1000, 0.18)
+      }
     }
     prevPhaseKeyRef.current = state.phaseKey
+    if (state.roundIndex != null) prevRoundRef.current = state.roundIndex
   }, [state.phaseKey, running])
 
   const accent = (type === 'TABATA' || type === 'CUSTOM') && state.isWork === false ? '#1D4ED8' : 'var(--green)'

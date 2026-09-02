@@ -28,14 +28,14 @@ function useBeeper() {
     if (ctxRef.current.state === 'suspended') ctxRef.current.resume()
     return ctxRef.current
   }
-  const beep = (freq = 880, duration = 0.12) => {
+  const beep = (freq = 880, duration = 0.12, level = 0.3) => {
     try {
       const ctx = getCtx()
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.type = 'sine'
       osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.3, ctx.currentTime)
+      gain.gain.setValueAtTime(level, ctx.currentTime)
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
       osc.connect(gain)
       gain.connect(ctx.destination)
@@ -43,7 +43,19 @@ function useBeeper() {
       osc.stop(ctx.currentTime + duration)
     } catch {}
   }
-  return { beep, unlock: getCtx }
+  // Annonce vocale du round qui démarre (ex: "Round 5, let's go").
+  const speak = (text) => {
+    try {
+      if (!window.speechSynthesis) return
+      window.speechSynthesis.cancel()
+      const utter = new SpeechSynthesisUtterance(text)
+      utter.lang = 'en-US'
+      utter.rate = 1
+      utter.pitch = 1
+      window.speechSynthesis.speak(utter)
+    } catch {}
+  }
+  return { beep, speak, unlock: getCtx }
 }
 
 // Timer qui se lance automatiquement à partir d'une config déjà décidée par le coach (pas d'écran
@@ -57,7 +69,8 @@ export default function EmbeddedTimer({ config, label }) {
   const runStartRef = useRef(null)
   const lastBeepKeyRef = useRef(null)
   const prevPhaseKeyRef = useRef(null)
-  const { beep, unlock } = useBeeper()
+  const prevRoundRef = useRef(null)
+  const { beep, speak, unlock } = useBeeper()
 
   useEffect(() => {
     runStartRef.current = Date.now()
@@ -88,6 +101,7 @@ export default function EmbeddedTimer({ config, label }) {
     runStartRef.current = running ? Date.now() : null
     lastBeepKeyRef.current = null
     prevPhaseKeyRef.current = null
+    prevRoundRef.current = null
     forceTick(t => t + 1)
   }
 
@@ -98,7 +112,7 @@ export default function EmbeddedTimer({ config, label }) {
       if (elapsed >= total) return { finished: true, remaining: 0, phaseLabel: 'Terminé' }
       const roundIndex = Math.floor(elapsed / config.roundSec)
       const remaining = config.roundSec - (elapsed % config.roundSec)
-      return { finished: false, remaining, phaseLabel: `Round ${roundIndex + 1}/${config.rounds}`, phaseKey: `r${roundIndex}` }
+      return { finished: false, remaining, roundIndex: roundIndex + 1, phaseLabel: `Round ${roundIndex + 1}/${config.rounds}`, phaseKey: `r${roundIndex}` }
     }
     if (config.type === 'AMRAP') {
       const remaining = config.totalSec - elapsed
@@ -115,7 +129,7 @@ export default function EmbeddedTimer({ config, label }) {
         if (elapsed < acc + seg.sec) {
           const remaining = acc + seg.sec - elapsed
           const lbl = seg.type === 'ON' ? 'ON' : seg.type === 'REST' ? 'RÉCUP' : 'REPOS'
-          return { finished: false, remaining, phaseLabel: `${lbl} — Round ${seg.round}/${config.rounds}`, phaseKey: `s${i}`, isWork: seg.type === 'ON' }
+          return { finished: false, remaining, roundIndex: seg.round, phaseLabel: `${lbl} — Round ${seg.round}/${config.rounds}`, phaseKey: `s${i}`, isWork: seg.type === 'ON' }
         }
         acc += seg.sec
       }
@@ -129,7 +143,7 @@ export default function EmbeddedTimer({ config, label }) {
     const pos = elapsed % cycle
     const isWork = pos < config.workSec
     const remaining = isWork ? config.workSec - pos : cycle - pos
-    return { finished: false, remaining, phaseLabel: `${isWork ? 'TRAVAIL' : 'REPOS'} — Round ${roundIndex + 1}/${config.rounds}`, phaseKey: `r${roundIndex}-${isWork ? 'w' : 'r'}`, isWork }
+    return { finished: false, remaining, roundIndex: roundIndex + 1, phaseLabel: `${isWork ? 'TRAVAIL' : 'REPOS'} — Round ${roundIndex + 1}/${config.rounds}`, phaseKey: `r${roundIndex}-${isWork ? 'w' : 'r'}`, isWork }
   }
 
   const state = compute()
@@ -143,14 +157,25 @@ export default function EmbeddedTimer({ config, label }) {
     const remInt = Math.ceil(state.remaining)
     const key = `${state.phaseKey}-${remInt}`
     if (lastBeepKeyRef.current === key) return
-    if (remInt <= 3 && remInt >= 1) { beep(660, 0.08); lastBeepKeyRef.current = key }
+    if (remInt <= 5 && remInt >= 1) { beep(660, 0.08); lastBeepKeyRef.current = key }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.remaining, state.finished, running])
 
+  // Gros bip + annonce vocale sur un vrai changement de round (roundIndex qui avance) ; simple
+  // bip standard pour une transition de phase dans le même round (ex: travail → repos en Tabata).
   useEffect(() => {
     if (!running || !state.phaseKey) return
-    if (prevPhaseKeyRef.current !== null && prevPhaseKeyRef.current !== state.phaseKey) beep(1000, 0.18)
+    if (prevPhaseKeyRef.current !== null && prevPhaseKeyRef.current !== state.phaseKey) {
+      const isNewRound = state.roundIndex != null && prevRoundRef.current != null && state.roundIndex !== prevRoundRef.current
+      if (isNewRound) {
+        beep(1500, 0.4, 0.5)
+        speak(`Round ${state.roundIndex}, let's go`)
+      } else {
+        beep(1000, 0.18)
+      }
+    }
     prevPhaseKeyRef.current = state.phaseKey
+    if (state.roundIndex != null) prevRoundRef.current = state.roundIndex
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phaseKey, running])
 
