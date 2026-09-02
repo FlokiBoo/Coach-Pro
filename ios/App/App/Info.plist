@@ -24,6 +24,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>OSTRYK utilise l'appareil photo pour mesurer un angle articulaire avec le goniomètre.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>OSTRYK accède à tes photos pour analyser un angle articulaire avec le goniomètre.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
