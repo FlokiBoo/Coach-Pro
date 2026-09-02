@@ -748,9 +748,9 @@ function SessionMiniCard({ session, onClose, onDuplicate, athleteId }) {
     borderRadius: 6, fontSize: 11, outline: 'none', background: 'var(--bg)', color: 'var(--text2)',
     fontStyle: 'italic', resize: 'none', fontFamily: 'inherit', marginTop: 4,
   }
-  const prescribedFieldStyle = {
-    width: '100%', boxSizing: 'border-box', padding: '5px 6px', border: '1px solid var(--border2)',
-    borderRadius: 6, fontSize: 12, outline: 'none', background: 'var(--bg)', color: 'var(--text)',
+  const prescribedFieldStyleSmall = {
+    width: 32, boxSizing: 'border-box', padding: '1px 3px', border: 'none', borderBottom: '1px solid var(--border2)',
+    borderRadius: 0, fontSize: 10, outline: 'none', background: 'transparent', color: 'var(--text2)',
     fontFamily: 'inherit', textAlign: 'center',
   }
 
@@ -785,34 +785,39 @@ function SessionMiniCard({ session, onClose, onDuplicate, athleteId }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {session.exercises.filter(e => e.name).map(e => {
           const log = e.log || {}
-          const done = [log.sets_done && `${log.sets_done} séries`, log.reps_done && `${log.reps_done} reps`, log.kg_done && `${log.kg_done} kg`].filter(Boolean).join(' · ')
           return (
             <div key={e.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 10px' }}>
-              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 6 }}>{e.name}</div>
+              <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 4 }}>{e.name}</div>
 
-              <div style={{ display: 'flex', gap: 6 }}>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 600, marginBottom: 2 }}>Séries</div>
-                  <input type="text" defaultValue={e.sets || ''} placeholder="—"
-                    onBlur={ev => saveExerciseField(e.id, 'sets', ev.target.value)}
-                    style={prescribedFieldStyle} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 600, marginBottom: 2 }}>Reps</div>
-                  <input type="text" defaultValue={e.reps || ''} placeholder="—"
-                    onBlur={ev => saveExerciseField(e.id, 'reps', ev.target.value)}
-                    style={prescribedFieldStyle} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 9, color: 'var(--text3)', fontWeight: 600, marginBottom: 2 }}>Charge (kg)</div>
-                  <input type="text" defaultValue={e.kg || ''} placeholder="—"
-                    onBlur={ev => saveExerciseField(e.id, 'kg', ev.target.value)}
-                    style={prescribedFieldStyle} />
-                </div>
+              {/* Prévu par le coach — discret, encore modifiable si besoin */}
+              <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, fontSize: 10, color: 'var(--text3)', marginBottom: 8 }}>
+                <span>Prévu :</span>
+                <input type="text" defaultValue={e.sets || ''} placeholder="—"
+                  onBlur={ev => saveExerciseField(e.id, 'sets', ev.target.value)}
+                  style={prescribedFieldStyleSmall} /> séries ·
+                <input type="text" defaultValue={e.reps || ''} placeholder="—"
+                  onBlur={ev => saveExerciseField(e.id, 'reps', ev.target.value)}
+                  style={prescribedFieldStyleSmall} /> reps ·
+                <input type="text" defaultValue={e.kg || ''} placeholder="—"
+                  onBlur={ev => saveExerciseField(e.id, 'kg', ev.target.value)}
+                  style={prescribedFieldStyleSmall} /> kg
               </div>
 
-              {done && <div style={{ fontSize: 11, color: '#166534', fontWeight: 700, marginTop: 6 }}>Réalisé : {done}</div>}
-              {log.note && <div style={{ fontSize: 11, color: 'var(--text2)', fontStyle: 'italic', marginTop: 2 }}>« {log.note} »</div>}
+              {/* Réalisé par le sportif — c'est ce qui compte le plus ici */}
+              {(log.sets_done || log.reps_done || log.kg_done || log.note) ? (
+                <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 8 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Réalisé</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {log.sets_done && <Stat label="Séries" value={log.sets_done} />}
+                    {log.reps_done && <Stat label="Reps" value={log.reps_done} />}
+                    {log.kg_done && <Stat label="Charge" value={`${log.kg_done} kg`} />}
+                  </div>
+                  {log.note && <div style={{ fontSize: 13, color: 'var(--text)', fontStyle: 'italic', marginTop: 8 }}>« {log.note} »</div>}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', marginBottom: 8 }}>Pas encore réalisé</div>
+              )}
+
               <textarea
                 placeholder="Note coach pour cet exercice…"
                 defaultValue={e.note || ''}
