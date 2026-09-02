@@ -802,6 +802,20 @@ function AthleteView({ params }) {
     startFreeSession(sourceExercises)
   }
 
+  const updateFreeSessionDate = async (sessionId, date) => {
+    if (!requireOnline()) return
+    setPrograms(prev => prev.map(p => ({
+      ...p,
+      sessions: p.sessions.map(s => s.id === sessionId ? { ...s, date } : s),
+    })))
+    const res = await fetch(`/api/athlete-view/${token}/free-session/date`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, date }),
+    })
+    if (!res.ok) alert('Erreur lors de la mise à jour de la date.')
+  }
+
   const addFreeExercise = async (sessionId, { name, sets, reps, kg }) => {
     if (!requireOnline()) return
     const res = await fetch(`/api/athlete-view/${token}/free-session/exercise`, {
@@ -922,6 +936,7 @@ function AthleteView({ params }) {
               onAddExercise={addFreeExercise}
               onToggleSuperset={toggleFreeSuperset}
               onDuplicateFreeSession={() => duplicateFreeSession(focusSession)}
+              onUpdateFreeSessionDate={date => updateFreeSessionDate(focusSession.id, date)}
               circuitLogs={circuitLogs}
               onSaveCircuitLog={saveCircuitLog}
               onSaveCoachNote={saveCoachNote}
@@ -1311,7 +1326,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, isGroupSession = false, onLaunchTimer, onSaveCoachNote, token }) {
+function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, onUpdateFreeSessionDate, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, isGroupSession = false, onLaunchTimer, onSaveCoachNote, token }) {
   const [showGroupPaces, setShowGroupPaces] = useState(false)
   const [showPostpone, setShowPostpone] = useState(false)
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
@@ -1754,6 +1769,14 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
             {(session.circuits || []).filter(c => circuitSlot(c) === ei + 1).map(c => renderCircuit(c))}
             </Fragment>
           ))}
+
+          {isFreeSession && onUpdateFreeSessionDate && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', flexShrink: 0 }}>📅 Date</span>
+              <input type="date" value={session.date || ''} onChange={e => e.target.value && onUpdateFreeSessionDate(e.target.value)}
+                style={{ flex: 1, boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+            </div>
+          )}
 
           {isFreeSession && (
             <FreeExerciseAdder sessionId={session.id} exos={exos} onAdd={onAddExercise} onToggleSuperset={onToggleSuperset} />
