@@ -942,6 +942,19 @@ function AthleteView({ params }) {
               <NotificationBell athleteId={athlete.id} />
             </div>
           )}
+          {isCoachView && (
+            <button
+              onClick={() => router.push('/')}
+              style={{
+                background: 'var(--green-light)', color: 'var(--green)',
+                border: '1.5px solid #B8EAD8', borderRadius: 20,
+                padding: '8px 14px', fontSize: 12, fontWeight: 700,
+                cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5
+              }}
+            >
+              🏠 Switch to coach
+            </button>
+          )}
         </div>
         {isCoachView && (
           <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600 }}>
