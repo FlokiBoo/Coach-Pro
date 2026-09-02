@@ -811,6 +811,15 @@ function AthleteView({ params }) {
     })))
   }
 
+  // Note du coach écrite en direct pendant la séance (visible aussi par le sportif), juste après
+  // l'activation — pas une donnée de suivi du sportif, donc à part des logs/complétions ci-dessus.
+  const saveCoachNote = async (programSessionId, value) => {
+    await supabase.from('program_sessions').update({ coach_notes: value }).eq('id', programSessionId)
+    setPrograms(prev => prev.map(p => ({
+      ...p, sessions: p.sessions.map(s => s.id === programSessionId ? { ...s, coach_notes: value } : s)
+    })))
+  }
+
   const saveCircuitLog = async (programSessionId, circuitId, fields) => {
     if (!requireOnline()) return
     const res = await fetch(`/api/athlete-view/${token}/circuit-log`, {
@@ -894,6 +903,7 @@ function AthleteView({ params }) {
               onDuplicateFreeSession={() => duplicateFreeSession(focusSession)}
               circuitLogs={circuitLogs}
               onSaveCircuitLog={saveCircuitLog}
+              onSaveCoachNote={saveCoachNote}
               isGroupLeader={isGroupLeader}
               isGroupSession={focusIsGroupSession}
               onLaunchTimer={(config, label) => setRunningTimer({ config, label })}
@@ -1264,7 +1274,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, isGroupSession = false, onLaunchTimer, token }) {
+function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, isGroupSession = false, onLaunchTimer, onSaveCoachNote, token }) {
   const [showGroupPaces, setShowGroupPaces] = useState(false)
   const [showPostpone, setShowPostpone] = useState(false)
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
@@ -1449,7 +1459,17 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
               )}
             </div>
           )}
-          {session.coach_notes && (
+          {isCoachView && onSaveCoachNote ? (
+            <textarea
+              key={session.id}
+              className="font-editorial"
+              placeholder="Note libre pendant la séance…"
+              defaultValue={session.coach_notes || ''}
+              onBlur={ev => onSaveCoachNote(session.id, ev.target.value)}
+              rows={2}
+              style={{ width: '100%', boxSizing: 'border-box', background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, color: 'var(--text2)', fontStyle: 'italic', lineHeight: 1.6, borderLeft: '3px solid var(--green)', outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+            />
+          ) : session.coach_notes && (
             <div className="font-editorial" style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, color: 'var(--text2)', fontStyle: 'italic', lineHeight: 1.6, borderLeft: '3px solid var(--green)' }}>
               {session.coach_notes}
             </div>
