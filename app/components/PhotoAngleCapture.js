@@ -213,7 +213,9 @@ const PhotoAngleCapture = forwardRef(function PhotoAngleCapture({ onAngleChange 
             onPointerLeave={onPointerUp}
           />
         )}
-        <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={handleFile} />
+        {/* Pas d'attribut "capture" : sur mobile il force l'ouverture directe de l'appareil photo et
+            empêche de choisir une image déjà existante (ex. un screenshot) dans la photothèque. */}
+        <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} />
       </div>
 
       {hasImage && (
