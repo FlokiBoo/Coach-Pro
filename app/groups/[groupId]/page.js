@@ -20,6 +20,17 @@ function monthBounds(d = new Date()) {
   return { start: fmt(start), end: fmt(end), label: d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }) }
 }
 
+// Année scolaire (septembre -> août) contenant aujourd'hui, ou année civile pleine.
+function yearBounds(mode, d = new Date()) {
+  const fmt = x => [x.getFullYear(), String(x.getMonth() + 1).padStart(2, '0'), String(x.getDate()).padStart(2, '0')].join('-')
+  if (mode === 'civile') {
+    const y = d.getFullYear()
+    return { start: `${y}-01-01`, end: `${y}-12-31`, label: `${y}` }
+  }
+  const y = d.getMonth() >= 8 ? d.getFullYear() : d.getFullYear() - 1
+  return { start: `${y}-09-01`, end: fmt(new Date(y + 1, 7, 31)), label: `${y}-${y + 1}` }
+}
+
 function formatDateFr(d) {
   return new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
 }
@@ -82,10 +93,14 @@ export default function GroupDetailPage({ params }) {
   const [membersExpanded, setMembersExpanded] = useState(false)
   const [togglingLeader, setTogglingLeader] = useState(null)
   const [fanningOut, setFanningOut] = useState(null) // program being assigned to the whole group
+  const [periodMode, setPeriodMode] = useState('month') // 'month' | 'year'
+  const [yearMode, setYearMode] = useState('scolaire') // 'scolaire' | 'civile'
+  const [monthCursor, setMonthCursor] = useState(new Date())
 
-  const month = monthBounds()
+  const month = monthBounds(monthCursor)
+  const period = periodMode === 'month' ? month : yearBounds(yearMode)
 
-  useEffect(() => { load() }, [groupId])
+  useEffect(() => { load() }, [groupId, periodMode, yearMode, monthCursor])
 
   async function load() {
     setLoading(true)
@@ -108,7 +123,7 @@ export default function GroupDetailPage({ params }) {
     setLinkedTemplates(links || [])
 
     const { data: runsData } = await supabase.from('group_session_runs')
-      .select('*').eq('group_id', groupId).gte('date', month.start).lte('date', month.end).order('date', { ascending: false })
+      .select('*').eq('group_id', groupId).gte('date', period.start).lte('date', period.end).order('date', { ascending: false })
     setRuns(runsData || [])
 
     if (runsData?.length) {
@@ -269,16 +284,50 @@ export default function GroupDetailPage({ params }) {
             )}
           </div>
 
-          {/* Bilan du mois */}
+          {/* Bilan de présence */}
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
-              📅 Bilan de {month.label}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                📅 Bilan
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[{ key: 'month', label: 'Mois' }, { key: 'year', label: 'Année' }].map(o => (
+                  <button key={o.key} onClick={() => setPeriodMode(o.key)} style={{
+                    background: periodMode === o.key ? 'var(--green)' : 'var(--bg2)', color: periodMode === o.key ? '#fff' : 'var(--text3)',
+                    border: 'none', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              {periodMode === 'year' && (
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {[{ key: 'scolaire', label: 'Scolaire' }, { key: 'civile', label: 'Civile' }].map(o => (
+                    <button key={o.key} onClick={() => setYearMode(o.key)} style={{
+                      background: yearMode === o.key ? 'var(--green-light)' : 'var(--bg2)', color: yearMode === o.key ? 'var(--green)' : 'var(--text3)',
+                      border: '1px solid ' + (yearMode === o.key ? '#B8EAD8' : 'var(--border2)'), borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                    }}>
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <div style={{ flex: 1 }} />
+              {periodMode === 'month' && (
+                <button onClick={() => setMonthCursor(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
+                  style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, width: 26, height: 26, fontSize: 13, color: 'var(--text3)', cursor: 'pointer' }}>‹</button>
+              )}
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', textTransform: 'capitalize' }}>{period.label}</div>
+              {periodMode === 'month' && (
+                <button onClick={() => setMonthCursor(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+                  style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, width: 26, height: 26, fontSize: 13, color: 'var(--text3)', cursor: 'pointer' }}>›</button>
+              )}
             </div>
             {members.length === 0 ? (
               <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun membre dans ce groupe</div>
             ) : (
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {members.map(m => (
+                {[...members].sort((a, b) => (monthlyAttendance[b.id] || 0) - (monthlyAttendance[a.id] || 0)).map(m => (
                   <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '6px 12px' }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{m.name}</span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: monthlyAttendance[m.id] ? 'var(--green)' : 'var(--text3)' }}>
