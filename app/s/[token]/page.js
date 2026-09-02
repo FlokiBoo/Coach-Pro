@@ -21,6 +21,7 @@ import PrTab from '@/app/components/athlete/PrTab'
 import ProfilTab from '@/app/components/athlete/ProfilTab'
 import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 import TimerModal from '@/app/components/TimerModal'
+import SplitTimerSession from '@/app/components/SplitTimerSession'
 import { annotatePaceReferences, formatPace, isRunMovement, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, formatDistance, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
 
 function computeLabels(exercises) {
@@ -141,6 +142,7 @@ function AthleteView({ params }) {
   const [noteBlocks, setNoteBlocks] = useState([])
   const [selectedType, setSelectedType] = useState(null)
   const [toast, setToast] = useState(null)
+  const [runningTimer, setRunningTimer] = useState(null) // { config, label } | null
   const [sessionRecords, setSessionRecords] = useState([])
   const [trackedMovements, setTrackedMovements] = useState([])
   const [raceKnown, setRaceKnown] = useState({})
@@ -842,8 +844,8 @@ function AthleteView({ params }) {
       router.push(next ? `/s/${token}?session=${next.id}&focus=1${isCoachView ? '&coach=1' : ''}` : backHref)
     }
 
-    return (
-      <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 60 }}>
+    const workoutContent = (
+      <>
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, position: 'sticky', top: 0, zIndex: 10 }}>
           <button onClick={() => router.push(backHref)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1, flexShrink: 0 }}>←</button>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -894,6 +896,7 @@ function AthleteView({ params }) {
               onSaveCircuitLog={saveCircuitLog}
               isGroupLeader={isGroupLeader}
               isGroupSession={focusIsGroupSession}
+              onLaunchTimer={(config, label) => setRunningTimer({ config, label })}
               token={token}
             />
           ) : (
@@ -908,6 +911,20 @@ function AthleteView({ params }) {
           <FreeGateUpsellModal upsell={freeGateUpsell} subscribing={subscribingFromGate} onSubscribe={subscribeFromGate} onClose={() => setFreeGateUpsell(null)} />
         )}
         <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
+      </>
+    )
+
+    if (runningTimer) {
+      return (
+        <SplitTimerSession config={runningTimer.config} timerLabel={runningTimer.label} onClose={() => setRunningTimer(null)}>
+          {workoutContent}
+        </SplitTimerSession>
+      )
+    }
+
+    return (
+      <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 60 }}>
+        {workoutContent}
       </div>
     )
   }
@@ -1234,7 +1251,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, isGroupSession = false, token }) {
+function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, isGroupSession = false, onLaunchTimer, token }) {
   const [showGroupPaces, setShowGroupPaces] = useState(false)
   const [showPostpone, setShowPostpone] = useState(false)
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
@@ -1271,7 +1288,15 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
   const circuitSlot = (c) => Math.max(0, Math.min(c.afterExerciseIndex ?? 0, exos.length))
   const renderCircuit = (c) => (
     <div key={c.id} style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-      <div style={{ fontSize: 10, fontWeight: 800, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>🔁 {c.name || 'Circuit'}</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <div style={{ flex: 1, fontSize: 10, fontWeight: 800, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🔁 {c.name || 'Circuit'}</div>
+        {c.timer && (
+          <button onClick={() => onLaunchTimer?.(c.timer, c.name || 'Circuit')}
+            style={{ background: '#4338CA', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 12, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
+            ▶⏱ Timer
+          </button>
+        )}
+      </div>
       {c.text && (
         <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: c.videos?.length > 0 ? 8 : 0 }}>{c.text}</div>
       )}
@@ -1445,9 +1470,9 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                   <VideoButton url={exo.video_url} label="▶"
                     style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0 }} />
                 )}
-                <button onClick={() => setShowTimer({})}
+                <button onClick={() => exo.timer_config ? onLaunchTimer?.(exo.timer_config, `Timer ${labels[exo.id] || ''}`) : setShowTimer({})}
                   style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
-                  ⏱
+                  {exo.timer_config ? '▶⏱' : '⏱'}
                 </button>
               </div>
 

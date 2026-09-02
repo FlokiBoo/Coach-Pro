@@ -14,6 +14,7 @@ import { SortableGroup, SortableItem, DragHandle } from '@/app/components/Sortab
 import { getCoachId } from '@/lib/coach'
 import ActivityTypeSelect from '@/app/components/ActivityTypeSelect'
 import { notifyAssigned } from '@/lib/notify'
+import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerConfigEditor'
 
 function today() {
   const n = new Date()
@@ -250,6 +251,7 @@ function ProgramEditorPage({ params }) {
   const [actPresetSearch, setActPresetSearch] = useState({})
   const [actPresetSuggs, setActPresetSuggs] = useState({})
   const [dirtySessionIds, setDirtySessionIds] = useState(new Set())
+  const [timerEditor, setTimerEditor] = useState(null) // { sessId, kind: 'exercise'|'circuit', targetKey, config }
   const markDirty = (sessId) => setDirtySessionIds(prev => new Set(prev).add(sessId))
 
   // Les modifications de séance/exercice ne sont écrites en base qu'au clic sur "Sauvegarder
@@ -572,6 +574,36 @@ function ProgramEditorPage({ params }) {
     }))
   }
 
+  const updateCircuitTimer = (sessId, circuitId, timer) => {
+    markDirty(sessId)
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, circuits: (s.circuits || []).map(c => c.id === circuitId ? { ...c, timer } : c)
+    }))
+  }
+
+  // Un exercice porte le timer du bloc dont il est le premier — solo (label "A") ou tête de
+  // superset (label "A1") — jamais un exercice A2/A3 qui appartient déjà au bloc A.
+  const isGroupStart = (exos, ei) => !exos[ei].superset_group || ei === 0 || exos[ei - 1].superset_group !== exos[ei].superset_group
+
+  const openExerciseTimer = (sessId, exo) => {
+    setTimerEditor({ sessId, kind: 'exercise', targetKey: exo._key, config: exo.timer_config || defaultTimerConfig() })
+  }
+  const openCircuitTimer = (sessId, circuit) => {
+    setTimerEditor({ sessId, kind: 'circuit', targetKey: circuit.id, config: circuit.timer || defaultTimerConfig() })
+  }
+  const saveTimerEditor = () => {
+    if (!timerEditor) return
+    if (timerEditor.kind === 'exercise') updateExo(timerEditor.sessId, timerEditor.targetKey, 'timer_config', timerEditor.config)
+    else updateCircuitTimer(timerEditor.sessId, timerEditor.targetKey, timerEditor.config)
+    setTimerEditor(null)
+  }
+  const removeTimerEditor = () => {
+    if (!timerEditor) return
+    if (timerEditor.kind === 'exercise') updateExo(timerEditor.sessId, timerEditor.targetKey, 'timer_config', null)
+    else updateCircuitTimer(timerEditor.sessId, timerEditor.targetKey, null)
+    setTimerEditor(null)
+  }
+
   const searchCircuitVideo = async (key, val) => {
     setActVideoSearch(prev => ({ ...prev, [key]: val }))
     if (val.trim().length < 2) { setActVideoSuggs(prev => ({ ...prev, [key]: [] })); return }
@@ -687,14 +719,14 @@ function ProgramEditorPage({ params }) {
           await supabase.from('program_exercises').update({
             order_index: j, name: e.name, sets: e.sets, reps: e.reps, kg: e.kg,
             rest: e.rest, note: e.note, video_url: e.video_url, superset_group: e.superset_group,
-            focus_muscles: e.focus_muscles || null,
+            focus_muscles: e.focus_muscles || null, timer_config: e.timer_config || null,
           }).eq('id', existing[j].id)
         } else if (e && !existing[j]) {
           await supabase.from('program_exercises').insert({
             program_session_id: clientSess.id, order_index: j, name: e.name,
             sets: e.sets, reps: e.reps, kg: e.kg, rest: e.rest, note: e.note,
             video_url: e.video_url, superset_group: e.superset_group,
-            focus_muscles: e.focus_muscles || null,
+            focus_muscles: e.focus_muscles || null, timer_config: e.timer_config || null,
           })
         } else if (!e && existing[j]) {
           await supabase.from('program_exercises').delete().eq('id', existing[j].id)
@@ -733,6 +765,7 @@ function ProgramEditorPage({ params }) {
       pace_base: e.pace_base || null,
       pct_low: e.pct_low !== '' && e.pct_low != null ? parseFloat(e.pct_low) : null,
       pct_high: e.pct_high !== '' && e.pct_high != null ? parseFloat(e.pct_high) : null,
+      timer_config: e.timer_config || null,
     })
 
     const { data: existingExos } = await supabase.from('program_exercises')
@@ -831,6 +864,7 @@ function ProgramEditorPage({ params }) {
       pace_base: e.pace_base || null,
       pct_low: e.pct_low !== '' && e.pct_low != null ? parseFloat(e.pct_low) : null,
       pct_high: e.pct_high !== '' && e.pct_high != null ? parseFloat(e.pct_high) : null,
+      timer_config: e.timer_config || null,
     }))
 
     let insertedExos = []
@@ -967,6 +1001,7 @@ function ProgramEditorPage({ params }) {
               sets: e.sets, reps: e.reps, kg: e.kg, rest: e.rest, note: e.note, video_url: e.video_url,
               superset_group: e.superset_group, focus_muscles: e.focus_muscles || null,
               pace_base: e.pace_base || null, pct_low: e.pct_low, pct_high: e.pct_high, source_exercise_id: e.id,
+              timer_config: e.timer_config || null,
             }))
           )
         }
@@ -1053,6 +1088,7 @@ function ProgramEditorPage({ params }) {
         pace_base: e.pace_base || null,
         pct_low: e.pct_low !== '' && e.pct_low != null ? parseFloat(e.pct_low) : null,
         pct_high: e.pct_high !== '' && e.pct_high != null ? parseFloat(e.pct_high) : null,
+        timer_config: e.timer_config || null,
       }))
       if (toInsert.length) {
         await supabase.from('program_exercises').insert(toInsert)
@@ -1250,6 +1286,10 @@ function ProgramEditorPage({ params }) {
                     placeholder={`Circuit ${ci + 1}`}
                     style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}
                   />
+                  <button onClick={() => openCircuitTimer(s.id, c)} title={c.timer ? 'Modifier le timer lié' : 'Lier un timer'}
+                    style={{ flexShrink: 0, background: c.timer ? 'var(--green-light)' : 'none', border: '1px solid ' + (c.timer ? 'var(--green)' : 'var(--border2)'), color: c.timer ? 'var(--green)' : 'var(--text3)', borderRadius: 6, width: 20, height: 20, fontSize: 11, cursor: 'pointer', padding: 0, lineHeight: 1 }}>
+                    ⏱
+                  </button>
                   <button onClick={() => removeCircuit(s.id, c.id)}
                     style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 15, cursor: 'pointer', padding: 0, lineHeight: 1 }}>×</button>
                 </div>
@@ -1622,6 +1662,12 @@ function ProgramEditorPage({ params }) {
                                 style={{ background: 'none', border: 'none', cursor: ei === s.exercises.length - 1 ? 'default' : 'pointer', padding: '0 2px', fontSize: 9, color: ei === s.exercises.length - 1 ? 'var(--border2)' : 'var(--text3)', lineHeight: 1 }}>▼</button>
                             </div>
                             <div style={{ minWidth: 19, height: 19, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, flexShrink: 0, padding: '0 3px' }}>{label}</div>
+                            {isGroupStart(s.exercises, ei) && (
+                              <button onClick={() => openExerciseTimer(s.id, exo)} title={exo.timer_config ? 'Modifier le timer lié' : 'Lier un timer'}
+                                style={{ flexShrink: 0, background: exo.timer_config ? 'var(--green-light)' : 'none', border: '1px solid ' + (exo.timer_config ? 'var(--green)' : 'var(--border2)'), color: exo.timer_config ? 'var(--green)' : 'var(--text3)', borderRadius: 6, width: 20, height: 20, fontSize: 11, cursor: 'pointer', padding: 0, lineHeight: 1 }}>
+                                ⏱
+                              </button>
+                            )}
                             <div style={{ position: 'relative', flex: 1 }}>
                               <input placeholder="Nom du mouvement" value={exo.name}
                                 onChange={e => { updateExo(s.id, exo._key, 'name', e.target.value); searchMovements(exo._key, e.target.value) }}
@@ -1943,6 +1989,27 @@ function ProgramEditorPage({ params }) {
       </div>
       {historyExo && (
         <ExerciseHistoryModal athleteId={athleteId} exerciseName={historyExo.name} onClose={() => setHistoryExo(null)} />
+      )}
+      {timerEditor && (
+        <div onClick={() => setTimerEditor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 400, maxHeight: '85svh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>
+                ⏱ Timer lié {timerEditor.kind === 'exercise' ? "à l'exercice" : 'au circuit'}
+              </div>
+              <button onClick={() => setTimerEditor(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
+            </div>
+            <TimerConfigEditor value={timerEditor.config} onChange={cfg => setTimerEditor(prev => ({ ...prev, config: cfg }))} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={removeTimerEditor} style={{ background: 'none', border: '1px solid #F1B8B8', borderRadius: 'var(--r)', padding: '11px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', color: '#991B1B' }}>
+                Retirer
+              </button>
+              <button onClick={saveTimerEditor} style={{ flex: 1, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px 14px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                Enregistrer
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
