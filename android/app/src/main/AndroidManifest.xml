@@ -41,4 +41,6 @@
     <!-- Nécessaire pour l'appareil photo du goniomètre (mesure d'angle sur photo) -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- Notifications push (Android 13+ nécessite ce runtime permission) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

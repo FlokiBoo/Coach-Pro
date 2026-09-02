@@ -24,6 +24,7 @@ import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMoveme
 import TimerModal from '@/app/components/TimerModal'
 import SplitTimerSession from '@/app/components/SplitTimerSession'
 import { annotatePaceReferences, formatPace, isRunMovement, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, formatDistance, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
+import { registerPushNotifications } from '@/lib/pushRegistration'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -121,6 +122,14 @@ function AthleteView({ params }) {
   }
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showAddWizard, setShowAddWizard] = useState(false)
+
+  useEffect(() => {
+    if (isCoachView) return
+    let listeners = []
+    let cancelled = false
+    registerPushNotifications(token).then(l => { if (cancelled) l.forEach(x => x.remove()); else listeners = l })
+    return () => { cancelled = true; listeners.forEach(l => l.remove()) }
+  }, [token, isCoachView])
   const [athlete, setAthlete] = useState(null)
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [programs, setPrograms] = useState([])

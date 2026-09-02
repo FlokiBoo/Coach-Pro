@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { sendPushToAthlete } from '@/lib/push'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -42,7 +43,7 @@ export async function GET(request, { params }) {
 
 export async function POST(request, { params }) {
   const { athleteId } = await params
-  const { error, user, role } = await authenticate(athleteId)
+  const { error, user, role, athlete } = await authenticate(athleteId)
   if (error) return error
 
   const { body, attachment_url, attachment_type } = await request.json()
@@ -56,6 +57,11 @@ export async function POST(request, { params }) {
     })
     .select().single()
   if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 400 })
+
+  if (role === 'coach') {
+    const preview = trimmedBody || (attachment_type === 'image' ? '📷 Photo' : attachment_type === 'video' ? '🎥 Vidéo' : 'Nouveau message')
+    sendPushToAthlete(athleteId, { title: 'Message de ton coach', body: preview, link: '/s/' + athlete.token }).catch(() => {})
+  }
 
   return NextResponse.json({ message })
 }
