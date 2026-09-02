@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "716862668393",
+    "project_id": "ostryk-a4a5c",
+    "storage_bucket": "ostryk-a4a5c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:716862668393:android:81e5c80295deece6646cf8",
+        "android_client_info": {
+          "package_name": "fr.ostryk.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBaqXwkObkoJoByHHorddr6Itm8uuosYV4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

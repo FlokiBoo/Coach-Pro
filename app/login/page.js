@@ -6,6 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { PASSWORD_MIN_LENGTH } from '@/lib/passwordPolicy'
 import PasswordChecklist from '@/app/components/PasswordChecklist'
 
+const fieldStyle = {
+  width: '100%', boxSizing: 'border-box',
+  padding: '12px 14px', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+  fontSize: 15, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
+}
+
 export default function LoginPageWrapper() {
   return (
     <Suspense>
@@ -17,7 +23,13 @@ export default function LoginPageWrapper() {
 function LoginPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [name, setName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [birthDate, setBirthDate] = useState('')
+  const [height, setHeight] = useState('')
+  const [weight, setWeight] = useState('')
+  const [targetWeight, setTargetWeight] = useState('')
+  const [targetHeight, setTargetHeight] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState(searchParams.get('mode') === 'signup' ? 'signup' : 'login') // 'login' | 'signup' | 'reset'
@@ -55,10 +67,18 @@ function LoginPage() {
 
     if (mode === 'signup') {
       if (!acceptedTerms) { setError('Merci d\'accepter les CGU et la politique de confidentialité.'); setLoading(false); return }
+      const name = `${firstName.trim()} ${lastName.trim()}`.trim()
       const res = await fetch('/api/signup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({
+          name, email, password,
+          birth_date: birthDate || null,
+          height: height || null,
+          weight: weight || null,
+          target_weight: targetWeight || null,
+          target_height: targetHeight || null,
+        }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) { setError(json.error || 'Erreur lors de la création du compte.'); setLoading(false); return }
@@ -117,18 +137,73 @@ function LoginPage() {
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {mode === 'signup' && (
-            <input
-              type="text"
-              placeholder="Nom complet"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              required
-              autoComplete="name"
-              style={{
-                padding: '12px 14px', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
-                fontSize: 15, outline: 'none', background: 'var(--bg2)', color: 'var(--text)'
-              }}
-            />
+            <>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <input
+                  type="text" placeholder="Prénom" value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                  required autoComplete="given-name" style={{ ...fieldStyle, flex: 1 }}
+                />
+                <input
+                  type="text" placeholder="Nom" value={lastName}
+                  onChange={e => setLastName(e.target.value)}
+                  required autoComplete="family-name" style={{ ...fieldStyle, flex: 1 }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Date de naissance
+                </label>
+                <input
+                  type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)}
+                  style={{ ...fieldStyle, marginTop: 5 }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    Taille (cm)
+                  </label>
+                  <input
+                    type="number" placeholder="175" value={height} onChange={e => setHeight(e.target.value)}
+                    style={{ ...fieldStyle, marginTop: 5 }}
+                  />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                    Poids (kg)
+                  </label>
+                  <input
+                    type="number" step="0.1" placeholder="70.5" value={weight} onChange={e => setWeight(e.target.value)}
+                    style={{ ...fieldStyle, marginTop: 5 }}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  Objectif (optionnel, mais conseillé)
+                </div>
+                <div style={{ display: 'flex', gap: 10, marginTop: 5 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, color: 'var(--text3)' }}>Taille cible (cm)</label>
+                    <input
+                      type="number" placeholder="175" value={targetHeight}
+                      onChange={e => setTargetHeight(e.target.value)} style={{ ...fieldStyle, marginTop: 3 }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, color: 'var(--text3)' }}>Poids cible (kg)</label>
+                    <input
+                      type="number" step="0.1" placeholder="65.0" value={targetWeight}
+                      onChange={e => setTargetWeight(e.target.value)} style={{ ...fieldStyle, marginTop: 3 }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
           )}
 
           <input
@@ -183,8 +258,8 @@ function LoginPage() {
               <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)}
                 style={{ marginTop: 2, flexShrink: 0 }} />
               <span>
-                J&apos;accepte les <a href="/cgu" target="_blank" style={{ color: 'var(--green)' }}>CGU</a> et la{' '}
-                <a href="/confidentialite" target="_blank" style={{ color: 'var(--green)' }}>politique de confidentialité</a>.
+                J&apos;accepte les <a href="/cgu" style={{ color: 'var(--green)' }}>CGU</a> et la{' '}
+                <a href="/confidentialite" style={{ color: 'var(--green)' }}>politique de confidentialité</a>.
               </span>
             </label>
           )}

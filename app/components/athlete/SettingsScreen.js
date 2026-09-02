@@ -145,7 +145,7 @@ export default function SettingsScreen({ athlete, token, onClose }) {
 
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: 8 }}>Légal</div>
 
-        <a href="/confidentialite" target="_blank" style={{ ...rowStyle, textDecoration: 'none' }}>
+        <a href="/confidentialite" style={{ ...rowStyle, textDecoration: 'none' }}>
           <span style={{ fontSize: 20 }}>📄</span>
           <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>CGU &amp; Confidentialité</span>
           <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
