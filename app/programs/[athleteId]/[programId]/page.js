@@ -9,6 +9,7 @@ import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
 import { parseMusclesFromText } from '@/app/components/CelebrationModal'
 import { isRunMovement, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, buildKnownRaces, formatPace, formatDistance } from '@/lib/raceEstimates'
+import { CIRCUIT_MODES } from '@/lib/circuitModes'
 import { setUnsavedChanges, guardNavigation } from '@/lib/unsavedChanges'
 import { SortableGroup, SortableItem, DragHandle } from '@/app/components/SortableItem'
 import { getCoachId } from '@/lib/coach'
@@ -578,6 +579,16 @@ function ProgramEditorPage({ params }) {
     markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
       ...s, circuits: (s.circuits || []).map(c => c.id === circuitId ? { ...c, timer } : c)
+    }))
+  }
+
+  // result_mode fixe le type de résultat que le client devra remplir (Temps/Tours/Reps/Tours&Reps) ;
+  // null = libre, le client choisit lui-même (comportement historique, toujours utilisé pour les
+  // circuits créés par le client dans ses séances libres).
+  const updateCircuitResultMode = (sessId, circuitId, resultMode) => {
+    markDirty(sessId)
+    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
+      ...s, circuits: (s.circuits || []).map(c => c.id === circuitId ? { ...c, result_mode: resultMode || null } : c)
     }))
   }
 
@@ -1296,6 +1307,15 @@ function ProgramEditorPage({ params }) {
                 <textarea placeholder="A1: Squat x10, A2: Fentes x10, A3: Row x10…" value={c.text || ''}
                   onChange={e => updateCircuitText(s.id, c.id, e.target.value)}
                   rows={3} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)', boxSizing: 'border-box' }} />
+
+                <div style={{ padding: '0 10px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', flexShrink: 0 }}>Résultat client</span>
+                  <select value={c.result_mode || ''} onChange={e => updateCircuitResultMode(s.id, c.id, e.target.value)}
+                    style={{ flex: 1, minWidth: 0, border: '1px solid var(--border2)', borderRadius: 6, padding: '4px 6px', fontSize: 11, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}>
+                    <option value="">Libre (le client choisit)</option>
+                    {CIRCUIT_MODES.map(m => <option key={m.key} value={m.key}>{m.label}</option>)}
+                  </select>
+                </div>
 
                 <div style={{ padding: '0 10px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {(c.videos || []).length > 0 && (

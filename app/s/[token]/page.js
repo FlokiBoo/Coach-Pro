@@ -24,6 +24,7 @@ import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMoveme
 import TimerModal from '@/app/components/TimerModal'
 import SplitTimerSession from '@/app/components/SplitTimerSession'
 import { annotatePaceReferences, formatPace, isRunMovement, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, formatDistance, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
+import { CIRCUIT_MODES } from '@/lib/circuitModes'
 import { registerPushNotifications } from '@/lib/pushRegistration'
 
 function computeLabels(exercises) {
@@ -1148,18 +1149,12 @@ const logInputStyle = {
   background: 'var(--bg)', color: 'var(--text)', boxSizing: 'border-box'
 }
 
-const CIRCUIT_MODES = [
-  { key: 'temps', label: 'Temps' },
-  { key: 'tours', label: 'Nombre de tours' },
-  { key: 'reps', label: 'Reps' },
-  { key: 'tours_reps', label: 'Tours & Reps' },
-]
-
-// Résultat libre d'un circuit : le sportif choisit ce qu'il veut renseigner (temps, tours,
-// reps, ou tours + reps), plus une note. Un seul log par (séance, circuit) — sauvegarde
-// au blur, comme le reste des saisies de séance.
-function CircuitLogger({ programSessionId, circuitId, log, onSave }) {
-  const [mode, setMode] = useState(log?.mode || null)
+// Résultat d'un circuit : par défaut le sportif choisit lui-même ce qu'il renseigne (temps,
+// tours, reps, ou tours + reps) — comportement conservé pour les circuits créés par le sportif
+// dans ses séances libres. Si le coach a fixé un result_mode sur le circuit (template), ce choix
+// est verrouillé : le sportif voit directement le bon champ, sans les boutons de sélection.
+function CircuitLogger({ programSessionId, circuitId, log, onSave, resultMode = null }) {
+  const [mode, setMode] = useState(resultMode || log?.mode || null)
   const [temps, setTemps] = useState(log?.temps || '')
   const [tours, setTours] = useState(log?.tours ?? '')
   const [reps, setReps] = useState(log?.reps || '')
@@ -1180,16 +1175,18 @@ function CircuitLogger({ programSessionId, circuitId, log, onSave }) {
   return (
     <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed #C7D2FE', display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Mon résultat</div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        {CIRCUIT_MODES.map(m => (
-          <button key={m.key} onClick={() => chooseMode(m.key)} style={{
-            background: mode === m.key ? '#4338CA' : 'var(--bg)', color: mode === m.key ? '#fff' : '#4338CA',
-            border: '1px solid #C7D2FE', borderRadius: 20, padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-          }}>
-            {m.label}
-          </button>
-        ))}
-      </div>
+      {!resultMode && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {CIRCUIT_MODES.map(m => (
+            <button key={m.key} onClick={() => chooseMode(m.key)} style={{
+              background: mode === m.key ? '#4338CA' : 'var(--bg)', color: mode === m.key ? '#fff' : '#4338CA',
+              border: '1px solid #C7D2FE', borderRadius: 20, padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            }}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
       {mode === 'temps' && (
         <input placeholder="Ex : 12:30" value={temps} onChange={e => { setTemps(e.target.value); setValidated(false) }} onBlur={() => save()} style={logInputStyle} />
       )}
@@ -1394,6 +1391,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
           circuitId={c.id}
           log={circuitLogs[`${session.id}::${c.id}`]}
           onSave={onSaveCircuitLog}
+          resultMode={c.result_mode || null}
         />
       )}
     </div>
