@@ -40,6 +40,7 @@ export default function AthletesPage() {
   const [groupsByAthlete, setGroupsByAthlete] = useState({})
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('alpha')
+  const [showTests, setShowTests] = useState(false)
   const [menu, setMenu] = useState(null) // { athlete, top, left, openUp }
   const [busyId, setBusyId] = useState(null)
   const [togglingLeader, setTogglingLeader] = useState(null) // `${athleteId}:${groupId}`
@@ -122,8 +123,19 @@ export default function AthletesPage() {
     setAthletes(prev => prev.filter(x => x.id !== a.id))
   }
 
+  const testCount = (athletes || []).filter(a => a.is_test).length
+
+  const convertTestToClient = async (a) => {
+    setMenu(null)
+    setBusyId(a.id)
+    const { error } = await supabase.from('athletes').update({ is_test: false }).eq('id', a.id)
+    setBusyId(null)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setAthletes(prev => prev.map(x => x.id === a.id ? { ...x, is_test: false } : x))
+  }
+
   const filtered = (athletes || [])
-    .filter(a => a.name.toLowerCase().includes(search.trim().toLowerCase()))
+    .filter(a => (showTests || !a.is_test) && a.name.toLowerCase().includes(search.trim().toLowerCase()))
     .sort((a, b) => {
       if (sortBy === 'alpha_desc') return b.name.localeCompare(a.name)
       if (sortBy === 'date') return new Date(b.created_at) - new Date(a.created_at)
@@ -216,6 +228,15 @@ export default function AthletesPage() {
             </select>
           </div>
 
+          {testCount > 0 && (
+            <button onClick={() => setShowTests(s => !s)} style={{
+              alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--text3)',
+              fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 0', textDecoration: 'underline',
+            }}>
+              {showTests ? 'Masquer' : 'Afficher'} mes fiches de test ({testCount})
+            </button>
+          )}
+
           {athletes === null ? (
             <div style={{ color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>Chargement…</div>
           ) : filtered.length === 0 ? (
@@ -242,6 +263,9 @@ export default function AthletesPage() {
                         {a.name}
                         {a.is_coach && (
                           <span style={{ fontSize: 9, fontWeight: 800, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>COACH</span>
+                        )}
+                        {a.is_test && (
+                          <span style={{ fontSize: 9, fontWeight: 800, background: '#FEF3C7', color: '#92400E', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>TEST</span>
                         )}
                         {a.subscription_status === 'active' && TIER_BADGES[a.subscription_tier] ? (
                           <span style={{
@@ -314,6 +338,11 @@ export default function AthletesPage() {
             {menu.athlete.email && (
               <button onClick={() => inviteFromMenu(menu.athlete)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
                 {menu.athlete.auth_user_id ? '🔑 Renvoyer un lien de connexion' : '✉️ Envoyer l\'invitation'}
+              </button>
+            )}
+            {menu.athlete.is_test && (
+              <button onClick={() => convertTestToClient(menu.athlete)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--green)', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
+                ✓ Convertir en client
               </button>
             )}
             <button onClick={() => archiveAthlete(menu.athlete)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#92400E', cursor: 'pointer' }}>

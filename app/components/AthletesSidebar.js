@@ -3,7 +3,11 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { getCoachId } from '@/lib/coach'
 import PasswordSettingsModal from './PasswordSettingsModal'
+import TimerModal from './TimerModal'
+import GoniometerView from './GoniometerView'
+import QuickAngleModal from './QuickAngleModal'
 import { guardNavigation, hasUnsavedChanges } from '@/lib/unsavedChanges'
 
 async function logout() {
@@ -50,6 +54,11 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
   const [search, setSearch] = useState('')
   const [showSettings, setShowSettings] = useState(false)
   const [sectionsCollapsed, setSectionsCollapsed] = useState({})
+  const [showTimer, setShowTimer] = useState(false)
+  const [gonioChoice, setGonioChoice] = useState(false) // menu "mesure rapide / nouveau test"
+  const [showQuickAngle, setShowQuickAngle] = useState(false)
+  const [gonioAthleteId, setGonioAthleteId] = useState(null)
+  const [creatingTest, setCreatingTest] = useState(false)
 
   useEffect(() => {
     try {
@@ -81,7 +90,7 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
   useEffect(() => {
     async function load() {
       const { data: aths } = await supabase
-        .from('athletes').select('*').neq('archived', true).order('created_at')
+        .from('athletes').select('*').neq('archived', true).eq('is_test', false).order('created_at')
       if (!aths?.length) { setAthletes([]); return }
       setAthletes(aths)
 
@@ -122,6 +131,20 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
     }
     load()
   }, [date])
+
+  const startNamedGonioTest = async () => {
+    const name = window.prompt('Nom de ce test (ex: "Cliente Insta — épaule D") ?')
+    if (!name || !name.trim()) return
+    setCreatingTest(true)
+    const coachId = await getCoachId()
+    const { data, error } = await supabase.from('athletes')
+      .insert({ coach_id: coachId, name: name.trim(), is_test: true, token: crypto.randomUUID() })
+      .select().single()
+    setCreatingTest(false)
+    setGonioChoice(false)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setGonioAthleteId(data.id)
+  }
 
   return (
     <>
@@ -185,6 +208,28 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}>🤖 Assistant IA</Link>
+
+        <button onClick={() => toggleSection('outils')} style={{
+          display: 'flex', alignItems: 'center', gap: 4, width: '100%', background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '10px 10px 2px', fontFamily: 'inherit',
+        }}>
+          <span style={{ transform: sectionsCollapsed.outils ? 'rotate(-90deg)' : 'none', transition: 'transform .15s', display: 'inline-block', fontSize: 9 }}>▾</span>
+          Outils
+        </button>
+        {!sectionsCollapsed.outils && (
+          <>
+            <button onClick={() => setShowTimer(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', width: '100%', textAlign: 'left',
+              borderRadius: 'var(--r)', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 13, fontWeight: 600, color: 'var(--text2)',
+            }}>⏱ Timer</button>
+            <button onClick={() => setGonioChoice(true)} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', width: '100%', textAlign: 'left',
+              borderRadius: 'var(--r)', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
+              fontSize: 13, fontWeight: 600, color: 'var(--text2)',
+            }}>📐 Goniomètre</button>
+          </>
+        )}
 
         <button onClick={() => toggleSection('nutrition')} style={{
           display: 'flex', alignItems: 'center', gap: 4, width: '100%', background: 'none', border: 'none', cursor: 'pointer',
@@ -409,6 +454,33 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
     >»</button>
 
     {showSettings && <PasswordSettingsModal onClose={() => setShowSettings(false)} />}
+    {showTimer && <TimerModal onClose={() => setShowTimer(false)} />}
+
+    {gonioChoice && (
+      <div onClick={() => setGonioChoice(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 850, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+        <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4 }}>📐 Goniomètre</div>
+          <button onClick={() => { setGonioChoice(false); setShowQuickAngle(true) }} style={{
+            textAlign: 'left', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+            padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>Mesure rapide</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Photo ou client en direct, rien n&apos;est sauvegardé</div>
+          </button>
+          <button onClick={startNamedGonioTest} disabled={creatingTest} style={{
+            textAlign: 'left', background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)',
+            padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit',
+          }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--green)' }}>{creatingTest ? '…' : 'Nouveau test nommé'}</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>Sauvegardé comme fiche de test, à convertir ou supprimer plus tard</div>
+          </button>
+          <button onClick={() => setGonioChoice(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, cursor: 'pointer', marginTop: 4 }}>Annuler</button>
+        </div>
+      </div>
+    )}
+
+    {showQuickAngle && <QuickAngleModal onClose={() => setShowQuickAngle(false)} />}
+    {gonioAthleteId && <GoniometerView athleteId={gonioAthleteId} onClose={() => setGonioAthleteId(null)} />}
     </>
   )
 }
