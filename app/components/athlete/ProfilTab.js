@@ -89,6 +89,7 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <input type="number" step={f.step} min="0" autoFocus value={fieldVal} onChange={e => setFieldVal(e.target.value)}
                     onKeyDown={e => e.key === 'Enter' && saveField()}
+                    onBlur={saveField}
                     style={{ width: 60, boxSizing: 'border-box', padding: '5px 7px', border: '1px solid var(--border2)', borderRadius: 6, fontSize: 14, fontWeight: 700, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
                   <button onClick={saveField} disabled={saving || !fieldVal}
                     style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 9px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
@@ -106,10 +107,11 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
         </div>
         <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
           <div style={{ flex: 1 }}>
-            <div style={statLabelStyle}>Âge</div>
+            <div style={statLabelStyle}>{editingField === 'birth_date' ? 'Date de naissance' : 'Âge'}</div>
             {editingField === 'birth_date' ? (
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input type="date" autoFocus value={fieldVal} onChange={e => setFieldVal(e.target.value)}
+                  onBlur={saveField}
                   style={{ boxSizing: 'border-box', padding: '5px 7px', border: '1px solid var(--border2)', borderRadius: 6, fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
                 <button onClick={saveField} disabled={saving || !fieldVal}
                   style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 9px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>

@@ -123,6 +123,14 @@ function AthleteView({ params }) {
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showAddWizard, setShowAddWizard] = useState(false)
 
+  // Onglets gardés montés une fois visités (display:none plutôt que démontage) : évite de
+  // relancer tous les fetchs internes (stats, PR, profil...) et de réafficher leurs
+  // "Chargement…" à chaque tap sur la tab bar — retour terrain : c'était systématique et pénible.
+  const [visitedTabs, setVisitedTabs] = useState(() => new Set([activeTab]))
+  useEffect(() => {
+    setVisitedTabs(prev => prev.has(activeTab) ? prev : new Set(prev).add(activeTab))
+  }, [activeTab])
+
   useEffect(() => {
     if (isCoachView) return
     let listeners = []
@@ -566,6 +574,7 @@ function AthleteView({ params }) {
       setCompletions(newSet)
       setSkippedSessions(prev => { const n = new Set(prev); n.delete(sessId); return n })
       setCompletionFeedback(prev => ({ ...prev, [sessId]: { program_session_id: sessId, ...feedback } }))
+      setPendingGroupSessions(prev => prev.filter(p => p.ownSessionId !== sessId))
       if (!isUpdate) {
         const next = progSessions.find(s => !newSet.has(s.id))
         setOpenSessionId(next?.id || null)
@@ -583,6 +592,7 @@ function AthleteView({ params }) {
     setCompletions(newSet)
     setSkippedSessions(prev => { const n = new Set(prev); n.delete(sessId); return n })
     setCompletionFeedback(prev => ({ ...prev, [sessId]: { program_session_id: sessId, ...feedback } }))
+    setPendingGroupSessions(prev => prev.filter(p => p.ownSessionId !== sessId))
     if (!isUpdate) {
       const next = progSessions.find(s => !newSet.has(s.id))
       setOpenSessionId(next?.id || null)
@@ -990,31 +1000,45 @@ function AthleteView({ params }) {
         </div>
       )}
 
-      {activeTab === 'wod' && (
-        <WodTab
-          isCoachView={isCoachView}
-          noteBlocks={noteBlocks}
-          programs={programs} completions={completions} skippedSessions={skippedSessions}
-          selectedType={selectedType} setSelectedType={setSelectedType}
-          router={router} token={token} setActiveTab={setActiveTab}
-        />
+      {visitedTabs.has('wod') && (
+        <div style={{ display: activeTab === 'wod' ? 'block' : 'none' }}>
+          <WodTab
+            isCoachView={isCoachView}
+            noteBlocks={noteBlocks}
+            programs={programs} completions={completions} skippedSessions={skippedSessions}
+            selectedType={selectedType} setSelectedType={setSelectedType}
+            router={router} token={token} setActiveTab={setActiveTab}
+          />
+        </div>
       )}
-      {activeTab === 'stats' && (
-        <StatsTab
-          athlete={athlete} objectives={objectives} setObjectives={setObjectives} isCoachView={isCoachView}
-          activityRefreshKey={activityRefreshKey}
-        />
+      {visitedTabs.has('stats') && (
+        <div style={{ display: activeTab === 'stats' ? 'block' : 'none' }}>
+          <StatsTab
+            athlete={athlete} objectives={objectives} setObjectives={setObjectives} isCoachView={isCoachView}
+            activityRefreshKey={activityRefreshKey}
+          />
+        </div>
       )}
-      {activeTab === 'templates' && <TemplatesTab token={token} />}
-      {activeTab === 'pr' && <PrTab athleteId={athlete.id} />}
-      {activeTab === 'profil' && (
-        <ProfilTab
-          athlete={athlete} token={token} setActiveTab={setActiveTab}
-          onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))}
-          onSexUpdate={s => setAthlete(a => ({ ...a, sex: s }))}
-          onHeightUpdate={h => setAthlete(a => ({ ...a, height: h }))}
-          onBirthDateUpdate={d => setAthlete(a => ({ ...a, birth_date: d }))}
-        />
+      {visitedTabs.has('templates') && (
+        <div style={{ display: activeTab === 'templates' ? 'block' : 'none' }}>
+          <TemplatesTab token={token} />
+        </div>
+      )}
+      {visitedTabs.has('pr') && (
+        <div style={{ display: activeTab === 'pr' ? 'block' : 'none' }}>
+          <PrTab athleteId={athlete.id} />
+        </div>
+      )}
+      {visitedTabs.has('profil') && (
+        <div style={{ display: activeTab === 'profil' ? 'block' : 'none' }}>
+          <ProfilTab
+            athlete={athlete} token={token} setActiveTab={setActiveTab}
+            onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))}
+            onSexUpdate={s => setAthlete(a => ({ ...a, sex: s }))}
+            onHeightUpdate={h => setAthlete(a => ({ ...a, height: h }))}
+            onBirthDateUpdate={d => setAthlete(a => ({ ...a, birth_date: d }))}
+          />
+        </div>
       )}
 
       <AthleteTabBar active={activeTab} onChange={setActiveTab} onAdd={() => setShowAddSheet(true)} addActive={showAddSheet || showAddWizard} unreadMessages={unreadMessages} />
@@ -2017,22 +2041,29 @@ function PaceDistanceCalc({ pace1, pace2, onClose }) {
   )
 }
 
-function RatingRow({ label, value, onChange }) {
+// inverse=true (défaut) : haute valeur = "mauvais" (ex. Difficulté, 10 = très dur → rouge).
+// inverse=false : haute valeur = "bon" (ex. Plaisir, 10 = énormément → vert) — retour terrain :
+// avec la seule échelle "inverse", Plaisir affichait 10/10 en rouge, contre-intuitif.
+function RatingRow({ label, hint, value, onChange, inverse = true }) {
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>{label}</div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: hint ? 2 : 6 }}>{label}</div>
+      {hint && <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>{hint}</div>}
       <div style={{ display: 'flex', gap: 4 }}>
-        {[1,2,3,4,5,6,7,8,9,10].map(n => (
-          <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
-            style={{
-              flex: 1, padding: '9px 0', border: '1px solid',
-              borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-              borderColor: value === n ? 'transparent' : 'var(--border2)',
-              background: value === n ? (n >= 8 ? '#ef4444' : n >= 5 ? '#f59e0b' : '#22c55e') : 'var(--bg2)',
-              color: value === n ? '#fff' : 'var(--text2)',
-            }}
-          >{n}</button>
-        ))}
+        {[1,2,3,4,5,6,7,8,9,10].map(n => {
+          const s = inverse ? n : 11 - n
+          return (
+            <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
+              style={{
+                flex: 1, padding: '9px 0', border: '1px solid',
+                borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                borderColor: value === n ? 'transparent' : 'var(--border2)',
+                background: value === n ? (s >= 8 ? '#ef4444' : s >= 5 ? '#f59e0b' : '#22c55e') : 'var(--bg2)',
+                color: value === n ? '#fff' : 'var(--text2)',
+              }}
+            >{n}</button>
+          )
+        })}
       </div>
     </div>
   )
@@ -2063,8 +2094,16 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
         </div>
       )}
 
-      <RatingRow label={isWarmup ? 'Efficacité du Warm-Up' : 'Plaisir'} value={pleasure} onChange={setPleasure} />
-      <RatingRow label={isWarmup ? 'Difficulté à mettre en place' : 'Difficulté de la séance'} value={difficulty} onChange={setDifficulty} />
+      <RatingRow
+        label={isWarmup ? 'Efficacité du Warm-Up' : 'Plaisir'}
+        hint={isWarmup ? '1 = pas efficace · 10 = très efficace' : '1 = pas du tout · 10 = énormément'}
+        value={pleasure} onChange={setPleasure} inverse={false}
+      />
+      <RatingRow
+        label={isWarmup ? 'Difficulté à mettre en place' : 'Difficulté de la séance'}
+        hint="1 = facile · 10 = très difficile"
+        value={difficulty} onChange={setDifficulty}
+      />
 
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Commentaire (optionnel)</div>

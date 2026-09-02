@@ -144,9 +144,9 @@ export default function WellnessBlock({ athleteId, date, mode, athleteName }) {
       {mode !== 'coach' && (
         <button onClick={toggleValidated} style={{
           marginTop: 10, width: '100%', padding: '10px', borderRadius: 'var(--r)',
-          border: row?.validated ? 'none' : '1px solid var(--border2)',
-          background: row?.validated ? 'var(--green)' : 'var(--bg2)',
-          color: row?.validated ? '#fff' : 'var(--text2)',
+          border: row?.validated ? '1px solid var(--border2)' : 'none',
+          background: row?.validated ? 'var(--bg2)' : 'var(--green)',
+          color: row?.validated ? 'var(--text2)' : '#fff',
           fontSize: 13, fontWeight: 700, cursor: 'pointer',
         }}>
           {row?.validated ? '✓ Validé' : 'Valider mon bien-être du jour'}
