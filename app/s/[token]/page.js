@@ -14,6 +14,7 @@ import AthleteTabBar from '@/app/components/AthleteTabBar'
 import ChatHeaderButton from '@/app/components/ChatHeaderButton'
 import NotificationBell from '@/app/components/NotificationBell'
 import WodTab from '@/app/components/athlete/WodTab'
+import StatsTab from '@/app/components/athlete/StatsTab'
 import TemplatesTab from '@/app/components/athlete/TemplatesTab'
 import AddActionSheet from '@/app/components/athlete/AddActionSheet'
 import AddActivityWizard from '@/app/components/athlete/AddActivityWizard'
@@ -982,18 +983,24 @@ function AthleteView({ params }) {
 
       {activeTab === 'wod' && (
         <WodTab
-          athlete={athlete} objectives={objectives} setObjectives={setObjectives} isCoachView={isCoachView}
-          noteBlocks={noteBlocks} activityRefreshKey={activityRefreshKey}
+          isCoachView={isCoachView}
+          noteBlocks={noteBlocks}
           programs={programs} completions={completions} skippedSessions={skippedSessions}
           selectedType={selectedType} setSelectedType={setSelectedType}
-          router={router} token={token}
+          router={router} token={token} setActiveTab={setActiveTab}
+        />
+      )}
+      {activeTab === 'stats' && (
+        <StatsTab
+          athlete={athlete} objectives={objectives} setObjectives={setObjectives} isCoachView={isCoachView}
+          activityRefreshKey={activityRefreshKey}
         />
       )}
       {activeTab === 'templates' && <TemplatesTab token={token} />}
       {activeTab === 'pr' && <PrTab athleteId={athlete.id} />}
       {activeTab === 'profil' && (
         <ProfilTab
-          athlete={athlete} token={token}
+          athlete={athlete} token={token} setActiveTab={setActiveTab}
           onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))}
           onSexUpdate={s => setAthlete(a => ({ ...a, sex: s }))}
           onHeightUpdate={h => setAthlete(a => ({ ...a, height: h }))}
@@ -1285,7 +1292,19 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
   const [showTimer, setShowTimer] = useState(null) // null | { seconds, label }
   const [calcModal, setCalcModal] = useState(null) // null | { pace1, pace2 } (km/h)
   const [showMateriel, setShowMateriel] = useState(false)
+  const [subscribingFromLock, setSubscribingFromLock] = useState(false)
   const provisionedSetsRef = useRef(new Set())
+
+  const subscribeFromLock = async () => {
+    setSubscribingFromLock(true)
+    const res = await fetch(`/api/athlete-view/${token}/checkout`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tier: 'A' }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setSubscribingFromLock(false)
+    if (json.error) { alert('Erreur : ' + json.error); return }
+    window.location.assign(json.url)
+  }
 
   const saveFocusMuscles = async (exerciseId, movementName, zones) => {
     if (!isCoach) { setFocusPicker(null); return }
@@ -1427,6 +1446,14 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
           <div style={{ fontSize: 12, color: 'var(--text3)', maxWidth: 320 }}>
             L&apos;accès gratuit couvre les premières séances du programme. Passe à une formule payante pour continuer.
           </div>
+          {!isCoachView && (
+            <button onClick={subscribeFromLock} disabled={subscribingFromLock} style={{
+              background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)',
+              padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginTop: 4,
+            }}>
+              {subscribingFromLock ? '…' : "S'abonner"}
+            </button>
+          )}
         </div>
       )}
 

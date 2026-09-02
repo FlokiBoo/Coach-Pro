@@ -15,7 +15,7 @@ function calcAge(birthDate) {
 const statLabelStyle = { fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }
 const editIconStyle = { fontSize: 12, color: 'var(--green)' }
 
-export default function ProfilTab({ athlete, token, onWeightUpdate, onSexUpdate, onHeightUpdate, onBirthDateUpdate }) {
+export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate, onSexUpdate, onHeightUpdate, onBirthDateUpdate }) {
   const [editingField, setEditingField] = useState(null) // 'weight' | 'height' | 'birth_date' | null
   const [fieldVal, setFieldVal] = useState('')
   const [saving, setSaving] = useState(false)
@@ -148,6 +148,15 @@ export default function ProfilTab({ athlete, token, onWeightUpdate, onSexUpdate,
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>🎯 Tests de mobilité</div>
         <MobilityRadarBlock athleteId={athlete.id} />
       </div>
+
+      <button onClick={() => setActiveTab?.('templates')} style={{
+        background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+        padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
+      }}>
+        <span style={{ fontSize: 20 }}>📋</span>
+        <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Changer de programme</span>
+        <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
+      </button>
 
       <button onClick={() => setShowMessages(true)} style={{
         background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',

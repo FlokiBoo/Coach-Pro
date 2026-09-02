@@ -1,17 +1,16 @@
 'use client'
 
 import { useState } from 'react'
-import ObjectivesBlock from '@/app/components/ObjectivesBlock'
-import WeeklyStatsBlock from '@/app/components/WeeklyStatsBlock'
-import ProgressBlock from '@/app/components/ProgressBlock'
 
-// Page d'accueil : objectifs en premier, puis résumé/notes, puis la liste des séances
-// simplifiée (nom + flèche → ouvre le mode focus existant), groupée par thème quand il y en a
-// plusieurs. Le détail (séries/reps/progression) reste dans le mode focus, pas ici.
+// Page d'accueil : la prochaine séance doit être visible immédiatement, sans scroll (retour
+// terrain : objectifs/stats en haut noyaient l'élément principal) — ils ont leur propre onglet
+// Stats désormais. Donc notes puis liste des séances simplifiée (nom + flèche → ouvre le mode
+// focus existant), groupée par thème quand il y en a plusieurs. Le détail (séries/reps/
+// progression) reste dans le mode focus, pas ici.
 export default function WodTab({
-  athlete, objectives, setObjectives, isCoachView, noteBlocks, activityRefreshKey,
+  isCoachView, noteBlocks,
   programs, completions, skippedSessions, selectedType, setSelectedType,
-  router, token,
+  router, token, setActiveTab,
 }) {
   const [selectedProgramId, setSelectedProgramId] = useState(null)
   const [materielSession, setMaterielSession] = useState(null)
@@ -35,8 +34,6 @@ export default function WodTab({
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {athlete?.id && <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} isCoach={isCoachView} />}
-
       {noteBlocks.map(b => (
         <div key={b.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
           {b.title && (
@@ -50,13 +47,21 @@ export default function WodTab({
         </div>
       ))}
 
-      <WeeklyStatsBlock athleteId={athlete.id} refreshKey={activityRefreshKey} />
-      <ProgressBlock athleteId={athlete.id} />
-
       {programs.length === 0 && (
         <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
-          <div style={{ fontWeight: 600 }}>Aucun programme actif</div>
+          <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Aucun programme actif</div>
+          {!isCoachView && (
+            <>
+              <div style={{ fontSize: 13, marginBottom: 16 }}>Sélectionne ton premier programme pour commencer.</div>
+              <button onClick={() => setActiveTab?.('templates')} style={{
+                background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)',
+                padding: '11px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              }}>
+                Choisir un programme
+              </button>
+            </>
+          )}
         </div>
       )}
 

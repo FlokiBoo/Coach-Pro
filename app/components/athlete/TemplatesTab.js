@@ -27,7 +27,7 @@ export default function TemplatesTab({ token }) {
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 20, marginBottom: 4 }}>Templates</div>
+      <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 20, marginBottom: 4 }}>Programmes</div>
 
       {availablePrograms === null ? (
         <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 0' }}>Chargement…</div>

@@ -197,18 +197,22 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
       note: f.note.trim() || null,
     }
 
-    if (isRunningSubcat(movement.category, movement.subcategory)) {
+    if (isRunningSubcat(movement.category, movement.subcategory) && movement.unit === 'distance_m') {
+      // Tests à durée fixe (6min/20min) : distances typiquement sous 2-3 km, saisies directement
+      // en mètres — un champ "km" avec x1000 implicite fait entrer des valeurs ~1000x trop grandes
+      // (bug constaté : 1475 tapé en pensant "mètres" → stocké comme 1475 km, VMA/estimations absurdes).
+      const distanceM = f.distance_km ? parseFloat(f.distance_km) : null
+      if (!distanceM) return
+      payload.distance_km = Math.round(distanceM) / 1000
+      payload.value = Math.round(distanceM)
+    } else if (isRunningSubcat(movement.category, movement.subcategory)) {
       const distanceKm = f.distance_km ? parseFloat(f.distance_km) : null
       const paceSec = parsePaceInput(f.avg_pace)
       if (!distanceKm && !paceSec) return
       payload.avg_pace = f.avg_pace.trim() || null
       payload.distance_km = distanceKm
       payload.intervals = (f.intervals || []).filter(it => it.distance || it.pace)
-      if (movement.unit === 'distance_m') {
-        payload.value = distanceKm ? distanceKm * 1000 : null
-      } else {
-        payload.value = (distanceKm && paceSec) ? Math.round(distanceKm * paceSec) : null
-      }
+      payload.value = (distanceKm && paceSec) ? Math.round(distanceKm * paceSec) : null
       if (payload.value == null) return
     } else if (movement.unit === 'kg' || !movement.unit) {
       RM_KEYS.forEach(r => { payload[`rm${r}`] = f[`rm${r}`] ? parseFloat(f[`rm${r}`]) : null })
@@ -300,15 +304,20 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
 
       {/* Header */}
-      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-          🏆 Records & Tests
+      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+            🏆 Records & Tests
+          </div>
+          {isCoach && (
+            <button onClick={() => { setCreating(v => !v); setNewName(''); setNewUnit('kg'); setNewCategory(selectedCategory === 'À classer' ? 'Lift' : selectedCategory); setNewSubcategory('') }} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+              + Mouvement
+            </button>
+          )}
         </div>
-        {isCoach && (
-          <button onClick={() => { setCreating(v => !v); setNewName(''); setNewUnit('kg'); setNewCategory(selectedCategory === 'À classer' ? 'Lift' : selectedCategory); setNewSubcategory('') }} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            + Mouvement
-          </button>
-        )}
+        <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 6 }}>
+          PR = Personal Record (record personnel). Tes records de force (Lift, Gym…) mais aussi tes tests et estimations en course à pied — vois les onglets ci-dessous.
+        </div>
       </div>
 
       {/* Formulaire création (coach uniquement) */}
@@ -694,8 +703,13 @@ export function EntryForm({ movement, form, setForm, onCancel, onSave, saving })
               </div>
             )}
             <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Distance parcourue (km)</div>
-              <input type="number" step="0.01" min="0" placeholder="ex: 6.5" value={form.distance_km} onChange={e => set('distance_km', e.target.value)}
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>
+                {distanceOnly ? 'Distance parcourue (m)' : 'Distance parcourue (km)'}
+              </div>
+              <input
+                type="number" step={distanceOnly ? '1' : '0.01'} min="0"
+                placeholder={distanceOnly ? 'ex: 1475' : 'ex: 6.5'}
+                value={form.distance_km} onChange={e => set('distance_km', e.target.value)}
                 style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
             </div>
           </div>

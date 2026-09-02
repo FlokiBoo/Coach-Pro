@@ -93,12 +93,18 @@ export default function WellnessBlock({ athleteId, date, mode, athleteName }) {
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '10px 12px' }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: mode === 'coach' ? 8 : 2 }}>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
           {mode === 'coach' ? 'Mon évaluation' : 'Bien-être du jour'}
         </div>
         {saving && <div style={{ fontSize: 10, color: 'var(--text3)' }}>…</div>}
       </div>
+
+      {mode !== 'coach' && (
+        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8 }}>
+          Une seule saisie par jour, valable pour toutes tes séances — normal si elle est déjà remplie.
+        </div>
+      )}
 
       {/* Vue sportif en lecture seule (côté coach uniquement) */}
       {mode === 'coach' && (
