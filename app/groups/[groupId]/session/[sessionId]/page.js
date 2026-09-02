@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, use, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { getCoachId } from '@/lib/coach'
+import { notifyGroupSessionReminder } from '@/lib/notify'
 
 function today() {
   const n = new Date()
@@ -15,9 +16,22 @@ const inp = {
   borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', fontFamily: 'inherit',
 }
 
-export default function GroupCoachingSessionPage({ params }) {
+export default function GroupCoachingSessionPageWrapper({ params }) {
+  return (
+    <Suspense>
+      <GroupCoachingSessionPage params={params} />
+    </Suspense>
+  )
+}
+
+function GroupCoachingSessionPage({ params }) {
   const { groupId, sessionId } = use(params)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  // Sans paramètre, on travaille sur la séance du jour (lancement en direct). Avec ?date=,
+  // on ré-ouvre une séance passée pour la corriger (présents, ressenti) depuis l'historique groupe.
+  const runDate = searchParams.get('date') || today()
+  const isPast = runDate !== today()
   const [group, setGroup] = useState(null)
   const [members, setMembers] = useState([])
   const [session, setSession] = useState(null)
@@ -31,7 +45,7 @@ export default function GroupCoachingSessionPage({ params }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
-  useEffect(() => { load() }, [groupId, sessionId])
+  useEffect(() => { load() }, [groupId, sessionId, runDate])
 
   async function load() {
     setLoading(true)
@@ -47,7 +61,7 @@ export default function GroupCoachingSessionPage({ params }) {
     setExercises(exos || [])
 
     const { data: existingRun } = await supabase.from('group_session_runs')
-      .select('*').eq('group_id', groupId).eq('source_session_id', sessionId).eq('date', today()).maybeSingle()
+      .select('*').eq('group_id', groupId).eq('source_session_id', sessionId).eq('date', runDate).maybeSingle()
     if (existingRun) {
       setRunId(existingRun.id)
       setExerciseNotes(existingRun.exercise_notes || {})
@@ -76,7 +90,7 @@ export default function GroupCoachingSessionPage({ params }) {
       .upsert({
         id: runId || undefined,
         group_id: groupId, coach_id: coachId, source_session_id: sessionId,
-        title: session?.title || 'Séance', date: today(),
+        title: session?.title || 'Séance', date: runDate,
         exercise_notes: exerciseNotes, coach_difficulty: coachDifficulty, coach_note: coachNote.trim() || null,
       }, { onConflict: 'group_id,source_session_id,date' })
       .select().single()
@@ -100,6 +114,10 @@ export default function GroupCoachingSessionPage({ params }) {
     setSaving(false)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+
+    if (presentIds.size > 0 && window.confirm(`Envoyer un email aux ${presentIds.size} présent${presentIds.size > 1 ? 's' : ''} pour qu'ils pensent à remplir leur performance ?`)) {
+      notifyGroupSessionReminder({ athleteIds: [...presentIds], sessionTitle: session?.title })
+    }
   }
 
   if (loading) return (
@@ -114,7 +132,10 @@ export default function GroupCoachingSessionPage({ params }) {
         <button onClick={() => router.push(`/groups/${groupId}`)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1, flexShrink: 0 }}>←</button>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{session?.title || 'Séance'}</div>
-          <div style={{ fontSize: 11, color: 'var(--text3)' }}>{group?.name} · {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}</div>
+          <div style={{ fontSize: 11, color: 'var(--text3)' }}>
+            {group?.name} · {new Date(runDate + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long' })}
+            {isPast && ' · modification'}
+          </div>
         </div>
       </div>
 

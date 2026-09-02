@@ -314,6 +314,10 @@ export default function GroupDetailPage({ params }) {
                     </button>
                     {isExpanded && (
                       <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <button onClick={() => router.push(`/groups/${groupId}/session/${run.source_session_id}?date=${run.date}`)}
+                          style={{ alignSelf: 'flex-start', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '5px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer' }}>
+                          ✏️ Modifier mon retour et les présents
+                        </button>
                         {run.coach_note && (
                           <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginBottom: 4 }}>📝 {run.coach_note}</div>
                         )}
