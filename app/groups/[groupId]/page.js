@@ -93,6 +93,8 @@ export default function GroupDetailPage({ params }) {
   const [membersExpanded, setMembersExpanded] = useState(false)
   const [togglingLeader, setTogglingLeader] = useState(null)
   const [fanningOut, setFanningOut] = useState(null) // program being assigned to the whole group
+  const [expandedSessionId, setExpandedSessionId] = useState(null)
+  const [sessionExercises, setSessionExercises] = useState({}) // { [sessionId]: [...] }, chargé à la demande
   const [periodMode, setPeriodMode] = useState('month') // 'month' | 'year'
   const [yearMode, setYearMode] = useState('scolaire') // 'scolaire' | 'civile'
   const [monthCursor, setMonthCursor] = useState(new Date())
@@ -190,6 +192,28 @@ export default function GroupDetailPage({ params }) {
     if (error || !data) { alert('Erreur : ' + (error?.message || '')); return }
     await supabase.from('program_sessions').insert({ program_id: data.id, order_index: 0, title: 'Séance 1' })
     router.push(`/programs/templates/${data.id}`)
+  }
+
+  // Ajoute une séance vide directement à la fin du programme du groupe, sans passer par
+  // l'éditeur complet — retour terrain : le coach veut pouvoir créer la structure (séances
+  // cachées jusqu'à la séance) d'un clic depuis la fiche groupe.
+  const quickAddSession = async () => {
+    if (!currentProgram) return
+    const nextIndex = (currentProgram.program_sessions || []).length
+    const { data, error } = await supabase.from('program_sessions')
+      .insert({ program_id: currentProgram.id, order_index: nextIndex, title: `Séance ${nextIndex + 1}` })
+      .select().single()
+    if (error || !data) { alert('Erreur : ' + (error?.message || '')); return }
+    setCurrentProgram(prev => ({ ...prev, program_sessions: [...(prev.program_sessions || []), data] }))
+  }
+
+  const toggleSessionExpand = async (sessionId) => {
+    if (expandedSessionId === sessionId) { setExpandedSessionId(null); return }
+    setExpandedSessionId(sessionId)
+    if (!sessionExercises[sessionId]) {
+      const { data } = await supabase.from('program_exercises').select('*').eq('program_session_id', sessionId).order('order_index')
+      setSessionExercises(prev => ({ ...prev, [sessionId]: data || [] }))
+    }
   }
 
   const toggleLeader = async (athleteId, current) => {
@@ -438,15 +462,54 @@ export default function GroupDetailPage({ params }) {
               </div>
             )}
             {currentProgram ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>{currentProgram.title}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>{(currentProgram.program_sessions || []).length} séance{(currentProgram.program_sessions || []).length !== 1 ? 's' : ''}</div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>{currentProgram.title}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text3)' }}>{(currentProgram.program_sessions || []).length} séance{(currentProgram.program_sessions || []).length !== 1 ? 's' : ''}</div>
+                  </div>
+                  <button onClick={() => fanOutToGroup(currentProgram)} disabled={fanningOut === currentProgram.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', flexShrink: 0 }}>
+                    {fanningOut === currentProgram.id ? '…' : '👥 Assigner au groupe'}
+                  </button>
                 </div>
-                <Link href={`/programs/templates/${currentProgram.id}`} style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', textDecoration: 'none' }}>✏️ Modifier</Link>
-                <button onClick={() => fanOutToGroup(currentProgram)} disabled={fanningOut === currentProgram.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer' }}>
-                  {fanningOut === currentProgram.id ? '…' : '👥 Assigner au groupe'}
-                </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {[...(currentProgram.program_sessions || [])].sort((a, b) => a.order_index - b.order_index).map((s, i) => (
+                    <div key={s.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg2)' }}>
+                        <button onClick={() => toggleSessionExpand(s.id)} title="Aperçu"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 13, padding: '9px 6px 9px 10px', flexShrink: 0 }}>
+                          {expandedSessionId === s.id ? '▾' : '▸'}
+                        </button>
+                        <button onClick={() => router.push(`/programs/templates/${currentProgram.id}?open=${s.id}`)}
+                          style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text)', padding: '9px 10px 9px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {s.title || `Séance ${i + 1}`}
+                        </button>
+                      </div>
+                      {expandedSessionId === s.id && (
+                        <div style={{ padding: '8px 12px 10px', fontSize: 12, color: 'var(--text2)', borderTop: '1px solid var(--border)' }}>
+                          {sessionExercises[s.id] === undefined ? (
+                            <span style={{ color: 'var(--text3)' }}>Chargement…</span>
+                          ) : sessionExercises[s.id].length === 0 ? (
+                            <span style={{ fontStyle: 'italic', color: 'var(--text3)' }}>Aucun exercice</span>
+                          ) : (
+                            sessionExercises[s.id].map(e => (
+                              <div key={e.id} style={{ padding: '2px 0' }}>
+                                {e.name}{e.sets ? ` — ${e.sets}${e.reps ? `x${e.reps}` : ''}` : ''}
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  <button onClick={quickAddSession} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'none',
+                    border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '8px 10px',
+                    fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer',
+                  }}>
+                    + Ajouter une séance
+                  </button>
+                </div>
               </div>
             ) : (
               !creatingProgram && linkedTemplates.length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun programme pour ce groupe</div>
