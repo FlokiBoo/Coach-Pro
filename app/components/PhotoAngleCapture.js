@@ -193,7 +193,10 @@ const PhotoAngleCapture = forwardRef(function PhotoAngleCapture({ onAngleChange 
         flex: 1, position: 'relative', borderRadius: 14, overflow: 'hidden', background: '#161B22',
         border: '1px solid #2A3140', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 240,
       }}>
-        {!hasImage ? (
+        {/* Le canvas reste monté même sans image (juste masqué) : setupCanvas() est appelé depuis
+            img.onload, donc s'il n'existait dans le DOM qu'après hasImage=true, canvasRef.current
+            serait encore null au premier chargement — plantage ("Cannot set properties of null"). */}
+        {!hasImage && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: 30, textAlign: 'center' }}>
             <div style={{ fontSize: 34 }}>📷</div>
             <p style={{ color: '#7C8493', fontSize: 13, margin: 0, maxWidth: 220, lineHeight: 1.5 }}>
@@ -203,16 +206,15 @@ const PhotoAngleCapture = forwardRef(function PhotoAngleCapture({ onAngleChange 
               Charger une photo
             </button>
           </div>
-        ) : (
-          <canvas
-            ref={canvasRef}
-            style={{ maxWidth: '100%', maxHeight: '100%', touchAction: 'none', display: 'block' }}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerLeave={onPointerUp}
-          />
         )}
+        <canvas
+          ref={canvasRef}
+          style={{ maxWidth: '100%', maxHeight: '100%', touchAction: 'none', display: hasImage ? 'block' : 'none' }}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerLeave={onPointerUp}
+        />
         {/* Pas d'attribut "capture" : sur mobile il force l'ouverture directe de l'appareil photo et
             empêche de choisir une image déjà existante (ex. un screenshot) dans la photothèque.
             display:none plutôt qu'un positionnement hors-écran : sur WKWebView (app iOS), un input
