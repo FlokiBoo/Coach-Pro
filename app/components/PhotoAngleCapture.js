@@ -214,8 +214,14 @@ const PhotoAngleCapture = forwardRef(function PhotoAngleCapture({ onAngleChange 
           />
         )}
         {/* Pas d'attribut "capture" : sur mobile il force l'ouverture directe de l'appareil photo et
-            empêche de choisir une image déjà existante (ex. un screenshot) dans la photothèque. */}
-        <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFile} />
+            empêche de choisir une image déjà existante (ex. un screenshot) dans la photothèque.
+            display:none plutôt qu'un positionnement hors-écran : sur WKWebView (app iOS), un input
+            file cliqué par programmation (fileInputRef.current.click()) alors qu'il est display:none
+            peut ne pas ouvrir le sélecteur — on le garde techniquement visible (opacité nulle, 1px,
+            hors du flux) pour que le déclenchement synthétique reste fiable. */}
+        <input ref={fileInputRef} type="file" accept="image/*"
+          style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', border: 0, opacity: 0 }}
+          onChange={handleFile} />
       </div>
 
       {hasImage && (
