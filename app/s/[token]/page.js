@@ -1063,7 +1063,7 @@ function AthleteView({ params }) {
       )}
       {visitedTabs.has('templates') && (
         <div style={{ display: activeTab === 'templates' ? 'block' : 'none' }}>
-          <TemplatesTab token={token} />
+          <TemplatesTab token={token} programs={programs} setActiveTab={setActiveTab} />
         </div>
       )}
       {visitedTabs.has('pr') && (
