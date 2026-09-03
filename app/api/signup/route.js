@@ -6,7 +6,7 @@ import { isPasswordValid, passwordPolicyMessage } from '@/lib/passwordPolicy'
 // Auto-inscription d'un client depuis la page de connexion (sans invitation préalable du coach).
 // Le compte est rattaché au coach principal (is_admin) — l'app est utilisée par un seul coach.
 export async function POST(request) {
-  const { name, email, password, birth_date, height, weight, target_weight, target_height } = await request.json()
+  const { name, email, password, birth_date, height, weight, target_weight } = await request.json()
 
   if (!name?.trim() || !email?.trim() || !password) {
     return NextResponse.json({ error: 'Nom, email et mot de passe requis.' }, { status: 400 })
@@ -47,7 +47,6 @@ export async function POST(request) {
     height: height ? parseFloat(height) : null,
     weight: weight ? parseFloat(weight) : null,
     target_weight: target_weight ? parseFloat(target_weight) : null,
-    target_height: target_height ? parseFloat(target_height) : null,
   })
   if (insertErr) {
     await supabaseAdmin.auth.admin.deleteUser(created.user.id)

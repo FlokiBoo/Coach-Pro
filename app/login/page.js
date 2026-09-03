@@ -29,7 +29,6 @@ function LoginPage() {
   const [height, setHeight] = useState('')
   const [weight, setWeight] = useState('')
   const [targetWeight, setTargetWeight] = useState('')
-  const [targetHeight, setTargetHeight] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [mode, setMode] = useState(searchParams.get('mode') === 'signup' ? 'signup' : 'login') // 'login' | 'signup' | 'reset'
@@ -77,7 +76,6 @@ function LoginPage() {
           height: height || null,
           weight: weight || null,
           target_weight: targetWeight || null,
-          target_height: targetHeight || null,
         }),
       })
       const json = await res.json().catch(() => ({}))
@@ -186,21 +184,12 @@ function LoginPage() {
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                   Objectif (optionnel, mais conseillé)
                 </div>
-                <div style={{ display: 'flex', gap: 10, marginTop: 5 }}>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 11, color: 'var(--text3)' }}>Taille cible (cm)</label>
-                    <input
-                      type="number" placeholder="175" value={targetHeight}
-                      onChange={e => setTargetHeight(e.target.value)} style={{ ...fieldStyle, marginTop: 3 }}
-                    />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <label style={{ fontSize: 11, color: 'var(--text3)' }}>Poids cible (kg)</label>
-                    <input
-                      type="number" step="0.1" placeholder="65.0" value={targetWeight}
-                      onChange={e => setTargetWeight(e.target.value)} style={{ ...fieldStyle, marginTop: 3 }}
-                    />
-                  </div>
+                <div style={{ marginTop: 5 }}>
+                  <label style={{ fontSize: 11, color: 'var(--text3)' }}>Poids cible (kg)</label>
+                  <input
+                    type="number" step="0.1" placeholder="65.0" value={targetWeight}
+                    onChange={e => setTargetWeight(e.target.value)} style={{ ...fieldStyle, marginTop: 3 }}
+                  />
                 </div>
               </div>
             </>
