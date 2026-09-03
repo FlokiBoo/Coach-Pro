@@ -297,6 +297,19 @@ const PhotoAngleCapture = forwardRef(function PhotoAngleCapture({ onAngleChange 
             onPointerUp={onPointerUp}
             onPointerLeave={onPointerUp}
           />
+          {/* Superposé directement sur la photo (pas seulement affiché sous la stage) : sur certains
+              écrans, la zone photo + le reste du panneau dépasse la hauteur visible et le nombre
+              affiché plus bas se retrouve hors-écran (retour terrain : "j'ai les points mais pas
+              l'angle en nombre") — ce badge reste visible sans avoir à faire défiler. */}
+          {hasImage && angle != null && (
+            <div style={{
+              position: 'absolute', top: 10, left: 10, background: 'rgba(13,17,23,0.85)',
+              border: '1px solid #F2A93B', borderRadius: 10, padding: '5px 12px', pointerEvents: 'none',
+              fontFamily: "'IBM Plex Mono', monospace", fontSize: 22, fontWeight: 700, color: '#F2A93B',
+            }}>
+              {angle.toFixed(1)}°
+            </div>
+          )}
           {/* Pas d'attribut "capture" : sur mobile il force l'ouverture directe de l'appareil photo et
               empêche de choisir une image déjà existante (ex. un screenshot) dans la photothèque.
               display:none plutôt qu'un positionnement hors-écran : sur WKWebView (app iOS), un input
