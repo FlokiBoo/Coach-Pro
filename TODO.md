@@ -6,6 +6,7 @@ Tâches identifiées mais pas encore traitées, à reprendre en session.
 - [ ] **Améliorer le goniomètre** (mesure d'angle par photo, `app/movements` ou équivalent) — priorité annoncée le 2026-09-03.
 
 ## Backlog
+- [ ] Réduire la liste des PR dans l'onglet Records (`app/components/TrackedMovementsBlock.js`) — quoi exactement à préciser avec l'utilisateur (moins de mouvements par défaut ? suppression de mouvements précis ? moins de catégories ?).
 - [ ] Remplacer les icônes emoji par une vraie librairie SVG — tab bar athlète en priorité, puis le reste de l'app (chantier transverse, plusieurs fichiers).
 - [ ] Repli automatique de la card d'un exercice une fois validé, en séance (mode focus) — "peut-être un plus", pas urgent.
 - [ ] Pop-up "bonne anniversaire" le jour J, basé sur `athletes.birth_date` (déjà collecté à l'inscription).
