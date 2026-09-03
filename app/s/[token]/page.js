@@ -26,6 +26,7 @@ import SplitTimerSession from '@/app/components/SplitTimerSession'
 import { annotatePaceReferences, formatPace, isRunMovement, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, formatDistance, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
 import { CIRCUIT_MODES } from '@/lib/circuitModes'
 import { registerPushNotifications } from '@/lib/pushRegistration'
+import { unlockAudio } from '@/lib/audioBeep'
 
 function computeLabels(exercises) {
   const labels = {}
@@ -1404,7 +1405,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
         <div style={{ flex: 1, fontSize: 10, fontWeight: 800, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🔁 {c.name || 'Circuit'}</div>
         {c.timer && (
-          <button onClick={() => onLaunchTimer?.(c.timer, c.name || 'Circuit')}
+          <button onClick={() => { unlockAudio(); onLaunchTimer?.(c.timer, c.name || 'Circuit') }}
             style={{ background: '#4338CA', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 12, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
             ▶⏱ Timer
           </button>
@@ -1613,7 +1614,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                   <VideoButton url={exo.video_url} label="▶"
                     style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0 }} />
                 )}
-                <button onClick={() => exo.timer_config ? onLaunchTimer?.(exo.timer_config, `Timer ${labels[exo.id] || ''}`) : setShowTimer({})}
+                <button onClick={() => { unlockAudio(); exo.timer_config ? onLaunchTimer?.(exo.timer_config, `Timer ${labels[exo.id] || ''}`) : setShowTimer({}) }}
                   style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
                   {exo.timer_config ? '▶⏱' : '⏱'}
                 </button>
@@ -1705,7 +1706,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 exo.sets && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: exo.note ? 6 : 0 }}>
                     <Pill value={exo.sets} label="action" />
-                    {exo.rest && <Pill value={exo.rest} label="repos" color="#EFF6FF" textColor="#1D4ED8" onClick={() => setShowTimer({ seconds: parseRestSeconds(exo.rest), label: 'RÉCUP' })} />}
+                    {exo.rest && <Pill value={exo.rest} label="repos" color="#EFF6FF" textColor="#1D4ED8" onClick={() => { unlockAudio(); setShowTimer({ seconds: parseRestSeconds(exo.rest), label: 'RÉCUP' }) }} />}
                   </div>
                 )
               ) : (exo.sets || exo.reps || exo.kg || exo.rest) && (
@@ -1713,7 +1714,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                   {exo.sets && <Pill value={exo.sets} label="séries" />}
                   {exo.reps && <Pill value={exo.reps} label="reps" />}
                   {exo.kg && <Pill value={`${exo.kg} kg`} />}
-                  {exo.rest && <Pill value={exo.rest} label="récup" color="#EFF6FF" textColor="#1D4ED8" onClick={() => setShowTimer({ seconds: parseRestSeconds(exo.rest), label: 'RÉCUP' })} />}
+                  {exo.rest && <Pill value={exo.rest} label="récup" color="#EFF6FF" textColor="#1D4ED8" onClick={() => { unlockAudio(); setShowTimer({ seconds: parseRestSeconds(exo.rest), label: 'RÉCUP' }) }} />}
                 </div>
               )}
               {exo.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>{exo.note}</div>}

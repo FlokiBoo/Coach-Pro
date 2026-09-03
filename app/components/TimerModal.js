@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { HMSField, NumberField } from './TimerFields'
+import { beep, unlockAudio } from '@/lib/audioBeep'
 
 const TYPES = [
   { key: 'EMOM', label: 'EMOM' },
@@ -38,34 +39,6 @@ function buildCustomSegments(steps, rounds, restBetweenRounds) {
     if (r < rounds - 1 && restBetweenRounds > 0) segments.push({ type: 'ROUNDREST', sec: restBetweenRounds, round: r + 1 })
   }
   return segments
-}
-
-function useBeeper() {
-  const ctxRef = useRef(null)
-  const getCtx = () => {
-    if (!ctxRef.current) {
-      const AC = window.AudioContext || window.webkitAudioContext
-      ctxRef.current = new AC()
-    }
-    if (ctxRef.current.state === 'suspended') ctxRef.current.resume()
-    return ctxRef.current
-  }
-  const beep = (freq = 880, duration = 0.12) => {
-    try {
-      const ctx = getCtx()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.3, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start()
-      osc.stop(ctx.currentTime + duration)
-    } catch {}
-  }
-  return { beep, unlock: getCtx }
 }
 
 export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
@@ -122,7 +95,6 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
   const elapsedBaseRef = useRef(0)
   const runStartRef = useRef(null)
   const lastBeepKeyRef = useRef(null)
-  const { beep, unlock } = useBeeper()
 
   useEffect(() => {
     if (!running) return
@@ -134,7 +106,7 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
 
   const start = () => {
     if (type === 'CUSTOM' && !customSteps.length) return
-    unlock()
+    unlockAudio()
     runStartRef.current = Date.now()
     setRunning(true)
     setScreen('run')

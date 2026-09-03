@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { beep, unlockAudio } from '@/lib/audioBeep'
 
 function fmt(sec) {
   const s = Math.max(0, Math.ceil(sec))
@@ -18,34 +19,6 @@ function buildCustomSegments(steps, rounds, restBetweenSec) {
   return segments
 }
 
-function useBeeper() {
-  const ctxRef = useRef(null)
-  const getCtx = () => {
-    if (!ctxRef.current) {
-      const AC = window.AudioContext || window.webkitAudioContext
-      ctxRef.current = new AC()
-    }
-    if (ctxRef.current.state === 'suspended') ctxRef.current.resume()
-    return ctxRef.current
-  }
-  const beep = (freq = 880, duration = 0.12) => {
-    try {
-      const ctx = getCtx()
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = freq
-      gain.gain.setValueAtTime(0.3, ctx.currentTime)
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration)
-      osc.connect(gain)
-      gain.connect(ctx.destination)
-      osc.start()
-      osc.stop(ctx.currentTime + duration)
-    } catch {}
-  }
-  return { beep, unlock: getCtx }
-}
-
 // Timer qui se lance automatiquement à partir d'une config déjà décidée par le coach (pas d'écran
 // de réglage) — pensé pour être embarqué dans SplitTimerSession, jamais démonté pendant qu'il
 // tourne (sinon le chrono perdrait son état), donc pas de position fixed ici : c'est au parent de
@@ -57,12 +30,10 @@ export default function EmbeddedTimer({ config, label }) {
   const runStartRef = useRef(null)
   const lastBeepKeyRef = useRef(null)
   const prevPhaseKeyRef = useRef(null)
-  const { beep, unlock } = useBeeper()
 
   useEffect(() => {
     runStartRef.current = Date.now()
-    unlock()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    unlockAudio()
   }, [])
 
   useEffect(() => {
@@ -151,7 +122,6 @@ export default function EmbeddedTimer({ config, label }) {
     if (!running || !state.phaseKey) return
     if (prevPhaseKeyRef.current !== null && prevPhaseKeyRef.current !== state.phaseKey) beep(1000, 0.18)
     prevPhaseKeyRef.current = state.phaseKey
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phaseKey, running])
 
   const accent = (config.type === 'TABATA' || config.type === 'CUSTOM') && state.isWork === false ? '#1D4ED8' : 'var(--green)'
