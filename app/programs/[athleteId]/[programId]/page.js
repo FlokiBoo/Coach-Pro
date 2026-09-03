@@ -1157,11 +1157,11 @@ function ProgramEditorPage({ params }) {
                 <span>📅 Rythme conseillé (si l&apos;athlète choisit ses jours) :</span>
                 <input type="number" min="1" max="7" placeholder="X" value={program?.recommended_sessions_per_week ?? ''}
                   onChange={e => saveScheduleHint('recommended_sessions_per_week', e.target.value ? parseInt(e.target.value) : null)}
-                  style={{ width: 32, boxSizing: 'border-box', padding: '2px 4px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', textAlign: 'center' }} />
+                  style={{ width: 44, boxSizing: 'border-box', padding: '2px 4px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', textAlign: 'center' }} />
                 <span>séances/sem., mini</span>
                 <input type="number" min="0" placeholder="48" value={program?.min_hours_between_sessions ?? ''}
                   onChange={e => saveScheduleHint('min_hours_between_sessions', e.target.value ? parseInt(e.target.value) : null)}
-                  style={{ width: 32, boxSizing: 'border-box', padding: '2px 4px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', textAlign: 'center' }} />
+                  style={{ width: 44, boxSizing: 'border-box', padding: '2px 4px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', textAlign: 'center' }} />
                 <span>h d&apos;écart</span>
               </div>
             </div>
