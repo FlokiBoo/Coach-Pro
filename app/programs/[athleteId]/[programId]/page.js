@@ -10,6 +10,7 @@ import { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
 import { parseMusclesFromText } from '@/app/components/CelebrationModal'
 import { isRunMovement, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, buildKnownRaces, formatPace, formatDistance } from '@/lib/raceEstimates'
 import { CIRCUIT_MODES } from '@/lib/circuitModes'
+import { WEEK_DAYS } from '@/lib/weekDays'
 import { setUnsavedChanges, guardNavigation } from '@/lib/unsavedChanges'
 import { SortableGroup, SortableItem, DragHandle } from '@/app/components/SortableItem'
 import { getCoachId } from '@/lib/coach'
@@ -699,7 +700,7 @@ function ProgramEditorPage({ params }) {
       if (!clientSess) {
         // Nouvelle séance côté template, jamais vue par ce client : on la crée
         const { data: created } = await supabase.from('program_sessions')
-          .insert({ program_id: cp.id, order_index: sessOrderIndex, title: fields.title, source_session_id: sessId, session_type: fields.session_type || null, materiel: fields.materiel || null })
+          .insert({ program_id: cp.id, order_index: sessOrderIndex, title: fields.title, source_session_id: sessId, session_type: fields.session_type || null, materiel: fields.materiel || null, day_of_week: fields.day_of_week ?? null })
           .select().single()
         clientSess = created
         if (!clientSess) continue
@@ -713,7 +714,7 @@ function ProgramEditorPage({ params }) {
           title: fields.title, activation: fields.activation,
           coach_notes: fields.coach_notes, activation_videos: fields.activation_videos,
           circuits: fields.circuits, session_type: fields.session_type || null,
-          materiel: fields.materiel || null,
+          materiel: fields.materiel || null, day_of_week: fields.day_of_week ?? null,
         }).eq('id', clientSess.id)
       }
 
@@ -755,7 +756,7 @@ function ProgramEditorPage({ params }) {
       title: s.title || '', activation: s.activation || null,
       coach_notes: s.coach_notes || null, activation_videos: s.activation_videos || [],
       circuits: s.circuits || [], session_type: s.session_type || null,
-      materiel: s.materiel || null,
+      materiel: s.materiel || null, day_of_week: s.day_of_week ?? null,
     }
     const { error: sessErr } = await supabase.from('program_sessions').update(sessFields).eq('id', s.id)
     if (sessErr) { alert('Erreur sauvegarde séance : ' + sessErr.message); setSaving(false); return }
@@ -999,7 +1000,7 @@ function ProgramEditorPage({ params }) {
             program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id,
             activation: sess.activation || null, coach_notes: sess.coach_notes || null,
             activation_videos: sess.activation_videos || [], circuits: sess.circuits || [],
-            session_type: sess.session_type || null, week_number: sess.week_number,
+            session_type: sess.session_type || null, week_number: sess.week_number, day_of_week: sess.day_of_week ?? null,
           })
           .select().single()
         if (!newSess) continue
@@ -1433,6 +1434,21 @@ function ProgramEditorPage({ params }) {
                   >
                     🔥 Warm-Up
                   </button>
+                  <select
+                    value={s.day_of_week ?? ''}
+                    onChange={e => { updateSession(s.id, 'day_of_week', e.target.value === '' ? null : parseInt(e.target.value)) }}
+                    onClick={e => e.stopPropagation()}
+                    title="Jour de la semaine (pour la vue chronologique de l'athlète, si plusieurs programmes sont actifs)"
+                    style={{
+                      flexShrink: 0, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 6px', cursor: 'pointer',
+                      border: s.day_of_week != null ? '1px solid var(--green)' : '1px solid var(--border2)',
+                      background: s.day_of_week != null ? 'var(--green-light)' : 'none',
+                      color: s.day_of_week != null ? 'var(--green)' : 'var(--text3)',
+                    }}
+                  >
+                    <option value="">📅 Jour</option>
+                    {WEEK_DAYS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+                  </select>
                   <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>
                     {s.exercises.filter(e => e.name.trim()).length} ex.
                   </span>

@@ -99,7 +99,7 @@ export async function POST(request, { params }) {
         program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id,
         activation: sess.activation || null, coach_notes: sess.coach_notes || null,
         activation_videos: sess.activation_videos || [], circuits: sess.circuits || [],
-        session_type: sess.session_type || null, week_number: sess.week_number,
+        session_type: sess.session_type || null, week_number: sess.week_number, day_of_week: sess.day_of_week ?? null,
       })
       .select().single()
     if (!newSess) continue

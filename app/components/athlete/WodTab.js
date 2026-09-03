@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { WEEK_DAYS, jsDayToWeekDay } from '@/lib/weekDays'
 
 // Page d'accueil : la prochaine séance doit être visible immédiatement, sans scroll (retour
 // terrain : objectifs/stats en haut noyaient l'élément principal) — ils ont leur propre onglet
@@ -20,13 +21,78 @@ export default function WodTab({
   }
 
   const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived)
-  const allTypes = [...new Set(boardPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
+
+  // Retour terrain (Simon) : avec 2 templates actifs en parallèle (ex: Course + Hyrox), les
+  // pastilles de sélection par programme/type ne donnent aucune vue d'ensemble claire de la
+  // semaine. Quand le coach a assigné un jour à ses séances (day_of_week), on fusionne toutes
+  // les séances de la semaine courante de chaque programme dans une seule vue par jour — peu
+  // importe de quel programme/template elles viennent. "Semaine courante" d'un programme = celle
+  // (week_number) de sa prochaine séance non complétée ; sans week_number, on ne montre que cette
+  // séance seule. Les programmes sans aucun jour assigné restent dans l'ancien système de
+  // pastilles ci-dessous (coexistence volontaire, pas de migration forcée des anciens templates).
+  const datedPrograms = []
+  const undatedPrograms = []
+  boardPrograms.forEach(prog => {
+    if (prog.sessions.some(s => s.day_of_week != null)) datedPrograms.push(prog)
+    else undatedPrograms.push(prog)
+  })
+
+  const dayGroups = WEEK_DAYS.map(d => ({ ...d, entries: [] }))
+  datedPrograms.forEach(prog => {
+    const nextUncompleted = prog.sessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
+    if (!nextUncompleted) return
+    const weekSessions = nextUncompleted.week_number != null
+      ? prog.sessions.filter(s => s.week_number === nextUncompleted.week_number)
+      : [nextUncompleted]
+    weekSessions.forEach(s => {
+      if (s.day_of_week != null) dayGroups[s.day_of_week].entries.push({ session: s, program: prog })
+    })
+  })
+  const todayWeekDay = jsDayToWeekDay(new Date().getDay())
+  const hasDayView = datedPrograms.length > 0
+
+  const renderSessionRow = (s, { showProgramLabel, isNext } = {}) => {
+    const isDone = completions.has(s.id) && !skippedSessions.has(s.id)
+    const isSkipped = skippedSessions.has(s.id)
+    return (
+      <div key={s.id} role="button" tabIndex={0} onClick={() => openSession(s.id)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openSession(s.id) }} style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none',
+        borderBottom: '1px solid var(--border)', padding: '13px 14px', cursor: 'pointer', textAlign: 'left',
+      }}>
+        {isDone ? (
+          <span style={{ color: 'var(--green)', fontSize: 15, flexShrink: 0 }}>✓</span>
+        ) : isSkipped ? (
+          <span style={{ color: '#DC2626', fontSize: 15, flexShrink: 0 }}>✗</span>
+        ) : (
+          <span style={{ width: 15, flexShrink: 0 }} />
+        )}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'block', fontSize: isNext ? 16 : 14, fontWeight: isNext ? 800 : 600, color: isDone || isSkipped ? 'var(--text3)' : 'var(--text)' }}>
+            {s.title || 'Séance'}
+          </span>
+          {showProgramLabel && (
+            <span style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{showProgramLabel}</span>
+          )}
+        </span>
+        {s.materiel && (
+          <button onClick={e => { e.stopPropagation(); setMaterielSession(s) }} title="Matériel à prévoir pour cette séance"
+            style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', fontSize: 13, cursor: 'pointer', flexShrink: 0, lineHeight: 1.4 }}>
+            🎒
+          </button>
+        )}
+        <span style={{ color: 'var(--text3)', fontSize: 16 }}>›</span>
+      </div>
+    )
+  }
+
+  const allTypes = [...new Set(undatedPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
   const effectiveType = allTypes.length <= 1 ? null
     : ((selectedType && allTypes.includes(selectedType)) ? selectedType
-      : ((boardPrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || boardPrograms[0]).activity_type || 'Musculation 🏋️'))
+      : ((undatedPrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || undatedPrograms[0]).activity_type || 'Musculation 🏋️'))
   const typePrograms = effectiveType
-    ? boardPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === effectiveType)
-    : boardPrograms
+    ? undatedPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === effectiveType)
+    : undatedPrograms
 
   const effectiveProgramId = (selectedProgramId && typePrograms.some(p => p.id === selectedProgramId)) ? selectedProgramId
     : (typePrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || typePrograms[0])?.id
@@ -71,12 +137,40 @@ export default function WodTab({
         </div>
       )}
 
+      {hasDayView && (
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>
+            📅 Ma semaine
+          </div>
+          {dayGroups.map(d => (
+            <div key={d.key}>
+              <div style={{
+                padding: '8px 14px', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px',
+                background: d.key === todayWeekDay ? 'var(--green-light)' : 'var(--bg2)',
+                color: d.key === todayWeekDay ? 'var(--green)' : 'var(--text3)',
+              }}>
+                {d.label}{d.key === todayWeekDay ? " · Aujourd'hui" : ''}
+              </div>
+              {d.entries.length === 0 ? (
+                <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', borderBottom: '1px solid var(--border)' }}>
+                  Repos
+                </div>
+              ) : (
+                d.entries.map(({ session, program }) => renderSessionRow(session, {
+                  showProgramLabel: datedPrograms.length > 1 ? program.title : null,
+                }))
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {allTypes.length > 1 && (
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${allTypes.length}, minmax(100px, 1fr))`, gap: 8, overflowX: 'auto' }}>
           {allTypes.map(t => {
-            const typePrograms = boardPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === t)
-            const total = typePrograms.reduce((n, p) => n + p.sessions.length, 0)
-            const done = typePrograms.reduce((n, p) => n + p.sessions.filter(s => completions.has(s.id) && !skippedSessions.has(s.id)).length, 0)
+            const tPrograms = undatedPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === t)
+            const total = tPrograms.reduce((n, p) => n + p.sessions.length, 0)
+            const done = tPrograms.reduce((n, p) => n + p.sessions.filter(s => completions.has(s.id) && !skippedSessions.has(s.id)).length, 0)
             const isSelected = effectiveType === t
             return (
               <button key={t} onClick={() => setSelectedType(t)} style={{
@@ -120,36 +214,7 @@ export default function WodTab({
           )}
           {(() => {
             const nextSessionId = prog.sessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)) && !skippedSessions.has(s.id))?.id
-            return prog.sessions.map(s => {
-              const isDone = completions.has(s.id) && !skippedSessions.has(s.id)
-              const isSkipped = skippedSessions.has(s.id)
-              const isNext = s.id === nextSessionId
-              return (
-                <div key={s.id} role="button" tabIndex={0} onClick={() => openSession(s.id)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openSession(s.id) }} style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none',
-                  borderBottom: '1px solid var(--border)', padding: '13px 14px', cursor: 'pointer', textAlign: 'left',
-                }}>
-                  {isDone ? (
-                    <span style={{ color: 'var(--green)', fontSize: 15, flexShrink: 0 }}>✓</span>
-                  ) : isSkipped ? (
-                    <span style={{ color: '#DC2626', fontSize: 15, flexShrink: 0 }}>✗</span>
-                  ) : (
-                    <span style={{ width: 15, flexShrink: 0 }} />
-                  )}
-                  <span style={{ flex: 1, fontSize: isNext ? 16 : 14, fontWeight: isNext ? 800 : 600, color: isDone || isSkipped ? 'var(--text3)' : 'var(--text)' }}>
-                    {s.title || 'Séance'}
-                  </span>
-                  {s.materiel && (
-                    <button onClick={e => { e.stopPropagation(); setMaterielSession(s) }} title="Matériel à prévoir pour cette séance"
-                      style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', fontSize: 13, cursor: 'pointer', flexShrink: 0, lineHeight: 1.4 }}>
-                      🎒
-                    </button>
-                  )}
-                  <span style={{ color: 'var(--text3)', fontSize: 16 }}>›</span>
-                </div>
-              )
-            })
+            return prog.sessions.map(s => renderSessionRow(s, { isNext: s.id === nextSessionId }))
           })()}
         </div>
       ))}
