@@ -32,6 +32,15 @@ function formatDuration(min) {
   return `${h}h${String(m).padStart(2, '0')}`
 }
 
+// Auto-agrandit une textarea pour montrer tout son contenu, sans scroll interne ni redimension
+// manuelle — passé en ref (fonction inline recréée à chaque render pour se redéclencher à
+// chaque frappe, cf. usages ci-dessous).
+function autoGrow(el) {
+  if (!el) return
+  el.style.height = 'auto'
+  el.style.height = `${el.scrollHeight}px`
+}
+
 function scoreColor(val, inverse) {
   const s = inverse ? (11 - val) : val
   if (s >= 7) return '#22c55e'
@@ -1326,7 +1335,8 @@ function ProgramEditorPage({ params }) {
                 </div>
                 <textarea placeholder="A1: Squat x10, A2: Fentes x10, A3: Row x10…" value={c.text || ''}
                   onChange={e => updateCircuitText(s.id, c.id, e.target.value)}
-                  rows={3} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)', boxSizing: 'border-box' }} />
+                  ref={el => autoGrow(el)}
+                  rows={3} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'none', overflow: 'hidden', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)', boxSizing: 'border-box' }} />
 
                 <div style={{ padding: '0 10px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', flexShrink: 0 }}>Résultat client</span>
@@ -1586,7 +1596,8 @@ function ProgramEditorPage({ params }) {
                           </div>
                           <textarea placeholder="Explique le programme au sportif…" value={s.coach_notes || ''}
                             onChange={e => updateSession(s.id, 'coach_notes', e.target.value)}
-                            rows={6} style={{ width: '100%', border: 'none', padding: '10px', fontSize: 13, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)', boxSizing: 'border-box' }} />
+                            ref={el => autoGrow(el)}
+                            rows={6} style={{ width: '100%', border: 'none', padding: '10px', fontSize: 13, outline: 'none', resize: 'none', overflow: 'hidden', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)', boxSizing: 'border-box' }} />
                         </div>
                         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
                           <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
@@ -1630,7 +1641,8 @@ function ProgramEditorPage({ params }) {
                       </div>
                       <textarea placeholder="Échauffement, mobilité…" value={s.activation || ''}
                         onChange={e => updateSession(s.id, 'activation', e.target.value)}
-                        rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)', boxSizing: 'border-box' }} />
+                        ref={el => autoGrow(el)}
+                        rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'none', overflow: 'hidden', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)', boxSizing: 'border-box' }} />
                     </div>
 
                     {/* Vidéos d'activation */}
@@ -1710,7 +1722,8 @@ function ProgramEditorPage({ params }) {
                       </div>
                       <textarea placeholder="Consignes pour le sportif…" value={s.coach_notes || ''}
                         onChange={e => updateSession(s.id, 'coach_notes', e.target.value)}
-                        rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)' }} />
+                        ref={el => autoGrow(el)}
+                        rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'none', overflow: 'hidden', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)' }} />
                     </div>
 
                     {/* Exercices */}
@@ -1964,8 +1977,9 @@ function ProgramEditorPage({ params }) {
                           )}
                           <textarea placeholder="Consignes (tempo, récup…)" value={exo.note}
                             onChange={e => updateExo(s.id, exo._key, 'note', e.target.value)}
+                            ref={el => autoGrow(el)}
                             rows={2}
-                            style={{ ...inp, fontSize: 12, color: 'var(--text2)', resize: 'vertical', lineHeight: 1.5 }} />
+                            style={{ ...inp, fontSize: 12, color: 'var(--text2)', resize: 'none', overflow: 'hidden', lineHeight: 1.5 }} />
                         </div>
 
                         {/* Bouton supersérie */}
@@ -2012,7 +2026,8 @@ function ProgramEditorPage({ params }) {
                       </div>
                       <textarea placeholder="Matériel à avoir pour cette séance…" value={s.materiel || ''}
                         onChange={e => updateSession(s.id, 'materiel', e.target.value)}
-                        rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'vertical', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)' }} />
+                        ref={el => autoGrow(el)}
+                        rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'none', overflow: 'hidden', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)' }} />
                     </div>
                     </>
                     )}
