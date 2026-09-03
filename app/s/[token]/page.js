@@ -156,7 +156,11 @@ function AthleteView({ params }) {
   const [subscribingFromGate, setSubscribingFromGate] = useState(false)
   const [pendingGroupSessions, setPendingGroupSessions] = useState([])
   const [completionFeedback, setCompletionFeedback] = useState({})
-  const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine)
+  // Ne se fie pas à navigator.onLine dès le premier rendu : ce signal est connu pour être
+  // temporairement faux juste après une navigation (ex. "Switch to athlete" du coach), affichant
+  // le bandeau hors-ligne alors que la connexion est bonne. On part de "en ligne" et on ne
+  // bascule vraiment que si l'état persiste (voir l'effet ci-dessous).
+  const [isOffline, setIsOffline] = useState(false)
   const [objectives, setObjectives] = useState([])
   const [noteBlocks, setNoteBlocks] = useState([])
   const [selectedType, setSelectedType] = useState(null)
@@ -235,14 +239,24 @@ function AthleteView({ params }) {
   }
 
   useEffect(() => {
-    const goOffline = () => setIsOffline(true)
-    const goOnline = () => { setIsOffline(false); flushQueue() }
+    // Débounce avant d'afficher le bandeau hors-ligne : navigator.onLine peut être brièvement
+    // faux juste après une navigation, le temps que le navigateur resynchronise son état réseau.
+    // Si ça se rétablit avant la fin du délai (cas courant), l'utilisateur ne voit jamais rien.
+    let offlineTimer = null
+    const goOffline = () => { offlineTimer = setTimeout(() => setIsOffline(true), 2000) }
+    const goOnline = () => {
+      if (offlineTimer) { clearTimeout(offlineTimer); offlineTimer = null }
+      setIsOffline(false)
+      flushQueue()
+    }
     window.addEventListener('offline', goOffline)
     window.addEventListener('online', goOnline)
-    if (typeof navigator !== 'undefined' && navigator.onLine) Promise.resolve().then(flushQueue)
+    if (typeof navigator !== 'undefined' && !navigator.onLine) goOffline()
+    else Promise.resolve().then(flushQueue)
     return () => {
       window.removeEventListener('offline', goOffline)
       window.removeEventListener('online', goOnline)
+      if (offlineTimer) clearTimeout(offlineTimer)
     }
   }, [])
 
