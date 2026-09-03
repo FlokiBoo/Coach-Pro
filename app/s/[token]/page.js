@@ -1470,6 +1470,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
             {session.locked && <span>🔒</span>}
+            {session.hidden && <span>🙈</span>}
             {session.title || `Séance ${idx + 1}`}
             {session.materiel && (
               <button onClick={e => { e.stopPropagation(); setShowMateriel(true) }} title="Matériel à prévoir pour cette séance"
@@ -1485,10 +1486,10 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
             )}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
-            {session.locked ? 'Réservé aux abonnés' : `${exos.length} exercice${exos.length !== 1 ? 's' : ''}${isCompleted ? ' · déjà validée' : isSkipped ? ' · sautée' : ''}`}
+            {session.locked ? 'Réservé aux abonnés' : session.hidden ? 'Pas encore dévoilée' : `${exos.length} exercice${exos.length !== 1 ? 's' : ''}${isCompleted ? ' · déjà validée' : isSkipped ? ' · sautée' : ''}`}
           </div>
         </div>
-        {isOpen && !isCompleted && !session.locked && onValidate && (
+        {isOpen && !isCompleted && !session.locked && !session.hidden && onValidate && (
           <button onClick={e => { e.stopPropagation(); onValidate() }} disabled={validating}
             style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
             ✓ Validé
@@ -1515,7 +1516,17 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
         </div>
       )}
 
-      {isOpen && !session.locked && (
+      {isOpen && session.hidden && (
+        <div style={{ padding: '20px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <div style={{ fontSize: 32 }}>🙈</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Séance pas encore dévoilée</div>
+          <div style={{ fontSize: 12, color: 'var(--text3)', maxWidth: 320 }}>
+            Ton coach garde le contenu secret jusqu&apos;à la séance en groupe — reviens juste après pour voir le détail et enregistrer ton résultat.
+          </div>
+        </div>
+      )}
+
+      {isOpen && !session.locked && !session.hidden && (
         <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {session.materiel && (
             <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>

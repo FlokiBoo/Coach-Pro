@@ -86,7 +86,7 @@ export default function WodTab({
         )}
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'block', fontSize: isNext ? 16 : 14, fontWeight: isNext ? 800 : 600, color: isDone || isSkipped ? 'var(--text3)' : 'var(--text)' }}>
-            {s.title || 'Séance'}
+            {s.hidden && '🙈 '}{s.title || 'Séance'}
           </span>
           {showProgramLabel && (
             <span style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{showProgramLabel}</span>

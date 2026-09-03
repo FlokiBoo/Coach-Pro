@@ -700,7 +700,7 @@ function ProgramEditorPage({ params }) {
       if (!clientSess) {
         // Nouvelle séance côté template, jamais vue par ce client : on la crée
         const { data: created } = await supabase.from('program_sessions')
-          .insert({ program_id: cp.id, order_index: sessOrderIndex, title: fields.title, source_session_id: sessId, session_type: fields.session_type || null, materiel: fields.materiel || null, day_of_week: fields.day_of_week ?? null })
+          .insert({ program_id: cp.id, order_index: sessOrderIndex, title: fields.title, source_session_id: sessId, session_type: fields.session_type || null, materiel: fields.materiel || null, day_of_week: fields.day_of_week ?? null, hidden_until_run: !!fields.hidden_until_run })
           .select().single()
         clientSess = created
         if (!clientSess) continue
@@ -714,7 +714,7 @@ function ProgramEditorPage({ params }) {
           title: fields.title, activation: fields.activation,
           coach_notes: fields.coach_notes, activation_videos: fields.activation_videos,
           circuits: fields.circuits, session_type: fields.session_type || null,
-          materiel: fields.materiel || null, day_of_week: fields.day_of_week ?? null,
+          materiel: fields.materiel || null, day_of_week: fields.day_of_week ?? null, hidden_until_run: !!fields.hidden_until_run,
         }).eq('id', clientSess.id)
       }
 
@@ -756,7 +756,7 @@ function ProgramEditorPage({ params }) {
       title: s.title || '', activation: s.activation || null,
       coach_notes: s.coach_notes || null, activation_videos: s.activation_videos || [],
       circuits: s.circuits || [], session_type: s.session_type || null,
-      materiel: s.materiel || null, day_of_week: s.day_of_week ?? null,
+      materiel: s.materiel || null, day_of_week: s.day_of_week ?? null, hidden_until_run: !!s.hidden_until_run,
     }
     const { error: sessErr } = await supabase.from('program_sessions').update(sessFields).eq('id', s.id)
     if (sessErr) { alert('Erreur sauvegarde séance : ' + sessErr.message); setSaving(false); return }
@@ -1008,7 +1008,7 @@ function ProgramEditorPage({ params }) {
             program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id,
             activation: sess.activation || null, coach_notes: sess.coach_notes || null,
             activation_videos: sess.activation_videos || [], circuits: sess.circuits || [],
-            session_type: sess.session_type || null, week_number: sess.week_number, day_of_week: sess.day_of_week ?? null,
+            session_type: sess.session_type || null, week_number: sess.week_number, day_of_week: sess.day_of_week ?? null, hidden_until_run: !!sess.hidden_until_run,
           })
           .select().single()
         if (!newSess) continue
@@ -1468,6 +1468,20 @@ function ProgramEditorPage({ params }) {
                     <option value="">📅 Jour</option>
                     {WEEK_DAYS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
                   </select>
+                  {program?.group_id && (
+                    <button
+                      onClick={e => { e.stopPropagation(); updateSession(s.id, 'hidden_until_run', !s.hidden_until_run) }}
+                      title="Contenu caché pour les clients tant que tu n'as pas validé la séance (présence + bilan) depuis l'espace groupe"
+                      style={{
+                        flexShrink: 0, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 9px', cursor: 'pointer',
+                        border: s.hidden_until_run ? '1px solid #A78BFA' : '1px solid var(--border2)',
+                        background: s.hidden_until_run ? '#F5F3FF' : 'none',
+                        color: s.hidden_until_run ? '#6D28D9' : 'var(--text3)',
+                      }}
+                    >
+                      {s.hidden_until_run ? '🙈 Caché' : '👁 Visible'}
+                    </button>
+                  )}
                   <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>
                     {s.exercises.filter(e => e.name.trim()).length} ex.
                   </span>

@@ -93,7 +93,30 @@ export async function GET(request, { params }) {
       })
     : (progs || [])
 
-  const hasExercises = (gatedProgs || []).some(p => (p.program_sessions || []).some(s => (s.program_exercises || []).some(e => e.name)))
+  // Séances de groupe volontairement cachées par le coach (contenu secret, comme en salle)
+  // jusqu'à ce qu'il les "révèle" en validant la séance depuis l'espace groupe (présence + bilan
+  // enregistrés dans group_session_runs). Le titre reste visible, le contenu est masqué.
+  const groupIdsWithHidden = isCoach ? [] : [...new Set(
+    gatedProgs.filter(p => p.group_id && (p.program_sessions || []).some(s => s.hidden_until_run)).map(p => p.group_id)
+  )]
+  let revealedKeys = new Set()
+  if (groupIdsWithHidden.length) {
+    const { data: runs } = await supabaseAdmin.from('group_session_runs')
+      .select('group_id, source_session_id').in('group_id', groupIdsWithHidden)
+    revealedKeys = new Set((runs || []).map(r => `${r.group_id}::${r.source_session_id}`))
+  }
+  const finalProgs = groupIdsWithHidden.length === 0 ? gatedProgs : gatedProgs.map(p => {
+    if (!p.group_id) return p
+    return {
+      ...p,
+      program_sessions: (p.program_sessions || []).map(s => {
+        if (!s.hidden_until_run || revealedKeys.has(`${p.group_id}::${s.source_session_id}`)) return s
+        return { ...s, hidden: true, program_exercises: [], activation: null, coach_notes: null, circuits: [], activation_videos: [] }
+      }),
+    }
+  })
+
+  const hasExercises = (finalProgs || []).some(p => (p.program_sessions || []).some(s => (s.program_exercises || []).some(e => e.name)))
   let movieMap = {}, musclesMap = {}, focusGroupsMap = {}
   if (hasExercises) {
     // Bibliothèque récupérée en entier (petit volume) plutôt que filtrée par .in('name', …), qui
@@ -113,7 +136,7 @@ export async function GET(request, { params }) {
 
   return NextResponse.json(
     {
-      athlete: responseAthlete, programs: gatedProgs, completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap, focusGroupsMap,
+      athlete: responseAthlete, programs: finalProgs, completions: comps || [], exerciseLogs: logs || [], movieMap, musclesMap, focusGroupsMap,
       objectives: objectives || [], noteBlocks: noteBlocks || [], exerciseSets: exoSets || [],
       raceKnown, trackedMovements, isCoach, isGroupLeader, circuitLogs: circuitLogsData || [],
     },
