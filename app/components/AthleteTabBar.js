@@ -1,11 +1,11 @@
 'use client'
 
 const TABS = [
-  { key: 'wod', label: 'WOD', icon: '🏋️' },
+  { key: 'wod', label: 'Séance', icon: '🏋️' },
   { key: 'stats', label: 'Stats', icon: '📊' },
 ]
 const TABS_RIGHT = [
-  { key: 'pr', label: 'PR', icon: '🏆' },
+  { key: 'pr', label: 'Records', icon: '🏆' },
   { key: 'profil', label: 'Profil', icon: '👤' },
 ]
 
