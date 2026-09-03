@@ -931,6 +931,14 @@ function ProgramEditorPage({ params }) {
     if (error) alert('Erreur lors de l\'enregistrement de l\'activité : ' + error.message)
   }
 
+  // Alternative aux jours fixés séance par séance : le coach conseille juste un rythme
+  // (ex: 2 séances/semaine, 48h d'écart mini), et c'est l'athlète qui choisit ses jours dans
+  // son espace — utile pour les templates existants qu'on ne veut pas réorganiser séance par séance.
+  const saveScheduleHint = async (field, value) => {
+    setProgram(p => ({ ...p, [field]: value }))
+    await supabase.from('programs').update({ [field]: value }).eq('id', programId)
+  }
+
   const deleteSession = async (id) => {
     if (!confirm('Supprimer cette séance ? Elle sera aussi supprimée chez les clients à qui ce programme est lié (sauf s\'ils l\'ont déjà validée).')) return
 
@@ -1145,6 +1153,17 @@ function ProgramEditorPage({ params }) {
                 style={{ marginTop: 4 }}
                 inputStyle={{ fontSize: 12, fontWeight: 600, borderRadius: 20, color: 'var(--text2)', padding: '4px 10px' }}
               />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: 'var(--text3)' }}>
+                <span>📅 Rythme conseillé (si l&apos;athlète choisit ses jours) :</span>
+                <input type="number" min="1" max="7" placeholder="X" value={program?.recommended_sessions_per_week ?? ''}
+                  onChange={e => saveScheduleHint('recommended_sessions_per_week', e.target.value ? parseInt(e.target.value) : null)}
+                  style={{ width: 32, boxSizing: 'border-box', padding: '2px 4px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', textAlign: 'center' }} />
+                <span>séances/sem., mini</span>
+                <input type="number" min="0" placeholder="48" value={program?.min_hours_between_sessions ?? ''}
+                  onChange={e => saveScheduleHint('min_hours_between_sessions', e.target.value ? parseInt(e.target.value) : null)}
+                  style={{ width: 32, boxSizing: 'border-box', padding: '2px 4px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', textAlign: 'center' }} />
+                <span>h d&apos;écart</span>
+              </div>
             </div>
             <button onClick={deleteWholeProgram} title="Supprimer le programme"
               style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: '#DC2626', cursor: 'pointer', flexShrink: 0 }}>

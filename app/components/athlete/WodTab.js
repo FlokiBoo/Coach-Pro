@@ -11,10 +11,11 @@ import { WEEK_DAYS, jsDayToWeekDay } from '@/lib/weekDays'
 export default function WodTab({
   isCoachView, noteBlocks,
   programs, completions, skippedSessions, selectedType, setSelectedType,
-  router, token, setActiveTab,
+  router, token, setActiveTab, onUpdateProgramDays,
 }) {
   const [selectedProgramId, setSelectedProgramId] = useState(null)
   const [materielSession, setMaterielSession] = useState(null)
+  const [dayPickerProgram, setDayPickerProgram] = useState(null)
 
   const openSession = (sessionId) => {
     router.push(`/s/${token}?session=${sessionId}&focus=1${isCoachView ? '&coach=1' : ''}`)
@@ -24,21 +25,25 @@ export default function WodTab({
 
   // Retour terrain (Simon) : avec 2 templates actifs en parallèle (ex: Course + Hyrox), les
   // pastilles de sélection par programme/type ne donnent aucune vue d'ensemble claire de la
-  // semaine. Quand le coach a assigné un jour à ses séances (day_of_week), on fusionne toutes
-  // les séances de la semaine courante de chaque programme dans une seule vue par jour — peu
-  // importe de quel programme/template elles viennent. "Semaine courante" d'un programme = celle
-  // (week_number) de sa prochaine séance non complétée ; sans week_number, on ne montre que cette
-  // séance seule. Les programmes sans aucun jour assigné restent dans l'ancien système de
-  // pastilles ci-dessous (coexistence volontaire, pas de migration forcée des anciens templates).
-  const datedPrograms = []
-  const undatedPrograms = []
+  // semaine. Deux façons d'obtenir un jour pour une séance : le coach le fixe séance par séance
+  // sur le template (day_of_week), ou — pour les templates existants qu'on ne veut pas
+  // réorganiser — le coach conseille juste un rythme (recommended_sessions_per_week) et c'est
+  // l'athlète qui choisit ses jours (athlete_days_of_week) depuis son espace. Dans les deux cas
+  // les séances rejoignent la même vue "Ma semaine", fusionnées par jour. Les programmes sans
+  // aucun jour restent dans l'ancien système de pastilles ci-dessous (coexistence volontaire,
+  // pas de migration forcée).
+  const coachDatedPrograms = []
+  const athleteDatedPrograms = []
+  const unscheduledPrograms = []
   boardPrograms.forEach(prog => {
-    if (prog.sessions.some(s => s.day_of_week != null)) datedPrograms.push(prog)
-    else undatedPrograms.push(prog)
+    if (prog.sessions.some(s => s.day_of_week != null)) coachDatedPrograms.push(prog)
+    else if (prog.athlete_days_of_week?.length) athleteDatedPrograms.push(prog)
+    else unscheduledPrograms.push(prog)
   })
+  const datedProgramsCount = coachDatedPrograms.length + athleteDatedPrograms.length
 
   const dayGroups = WEEK_DAYS.map(d => ({ ...d, entries: [] }))
-  datedPrograms.forEach(prog => {
+  coachDatedPrograms.forEach(prog => {
     const nextUncompleted = prog.sessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
     if (!nextUncompleted) return
     const weekSessions = nextUncompleted.week_number != null
@@ -48,8 +53,20 @@ export default function WodTab({
       if (s.day_of_week != null) dayGroups[s.day_of_week].entries.push({ session: s, program: prog })
     })
   })
+  // Jours choisis par l'athlète : chaque séance est assignée à un jour fixe selon sa position
+  // dans le programme (séance 1 → jour A, séance 2 → jour B, séance 3 → jour A à nouveau, etc.),
+  // pas recalculé "à plat" à chaque validation — sinon compléter une séance décale toutes les
+  // suivantes d'un jour à l'autre au lieu de garder chaque jour sur sa propre rotation stable.
+  athleteDatedPrograms.forEach(prog => {
+    const chosenDays = prog.athlete_days_of_week
+    chosenDays.forEach((day, slotIdx) => {
+      const sessionsForSlot = prog.sessions.filter((_, idx) => idx % chosenDays.length === slotIdx)
+      const nextForSlot = sessionsForSlot.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
+      if (nextForSlot) dayGroups[day].entries.push({ session: nextForSlot, program: prog })
+    })
+  })
   const todayWeekDay = jsDayToWeekDay(new Date().getDay())
-  const hasDayView = datedPrograms.length > 0
+  const hasDayView = datedProgramsCount > 0
 
   const renderSessionRow = (s, { showProgramLabel, isNext } = {}) => {
     const isDone = completions.has(s.id) && !skippedSessions.has(s.id)
@@ -86,13 +103,13 @@ export default function WodTab({
     )
   }
 
-  const allTypes = [...new Set(undatedPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
+  const allTypes = [...new Set(unscheduledPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
   const effectiveType = allTypes.length <= 1 ? null
     : ((selectedType && allTypes.includes(selectedType)) ? selectedType
-      : ((undatedPrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || undatedPrograms[0]).activity_type || 'Musculation 🏋️'))
+      : ((unscheduledPrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || unscheduledPrograms[0]).activity_type || 'Musculation 🏋️'))
   const typePrograms = effectiveType
-    ? undatedPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === effectiveType)
-    : undatedPrograms
+    ? unscheduledPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === effectiveType)
+    : unscheduledPrograms
 
   const effectiveProgramId = (selectedProgramId && typePrograms.some(p => p.id === selectedProgramId)) ? selectedProgramId
     : (typePrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || typePrograms[0])?.id
@@ -157,7 +174,7 @@ export default function WodTab({
                 </div>
               ) : (
                 d.entries.map(({ session, program }) => renderSessionRow(session, {
-                  showProgramLabel: datedPrograms.length > 1 ? program.title : null,
+                  showProgramLabel: datedProgramsCount > 1 ? program.title : null,
                 }))
               )}
             </div>
@@ -168,7 +185,7 @@ export default function WodTab({
       {allTypes.length > 1 && (
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(${allTypes.length}, minmax(100px, 1fr))`, gap: 8, overflowX: 'auto' }}>
           {allTypes.map(t => {
-            const tPrograms = undatedPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === t)
+            const tPrograms = unscheduledPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === t)
             const total = tPrograms.reduce((n, p) => n + p.sessions.length, 0)
             const done = tPrograms.reduce((n, p) => n + p.sessions.filter(s => completions.has(s.id) && !skippedSessions.has(s.id)).length, 0)
             const isSelected = effectiveType === t
@@ -208,8 +225,16 @@ export default function WodTab({
       {visiblePrograms.map(prog => (
         <div key={prog.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
           {typePrograms.length <= 1 && (
-            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>
-              {prog.title}
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>{prog.title}</span>
+              {!isCoachView && onUpdateProgramDays && (
+                <button onClick={() => setDayPickerProgram(prog)} style={{
+                  background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20,
+                  padding: '3px 10px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer', flexShrink: 0,
+                }}>
+                  📅 Choisir mes jours
+                </button>
+              )}
             </div>
           )}
           {(() => {
@@ -234,6 +259,62 @@ export default function WodTab({
           </div>
         </div>
       )}
+
+      {dayPickerProgram && (
+        <DayPickerModal
+          program={dayPickerProgram}
+          onClose={() => setDayPickerProgram(null)}
+          onSave={days => { onUpdateProgramDays(dayPickerProgram.id, days); setDayPickerProgram(null) }}
+        />
+      )}
+    </div>
+  )
+}
+
+function DayPickerModal({ program, onClose, onSave }) {
+  const [selected, setSelected] = useState(new Set(program.athlete_days_of_week || []))
+  const toggle = (key) => setSelected(prev => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>
+          📅 Mes jours — {program.title}
+        </div>
+        {(program.recommended_sessions_per_week || program.min_hours_between_sessions) && (
+          <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', marginBottom: 12 }}>
+            Conseillé par ton coach :{' '}
+            {program.recommended_sessions_per_week ? `${program.recommended_sessions_per_week} séances/semaine` : ''}
+            {program.recommended_sessions_per_week && program.min_hours_between_sessions ? ', ' : ''}
+            {program.min_hours_between_sessions ? `min. ${program.min_hours_between_sessions}h d'écart entre les séances` : ''}
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginBottom: 16 }}>
+          {WEEK_DAYS.map(d => (
+            <button key={d.key} onClick={() => toggle(d.key)} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--r)',
+              border: selected.has(d.key) ? '1.5px solid var(--green)' : '1px solid var(--border2)',
+              background: selected.has(d.key) ? 'var(--green-light)' : 'var(--bg2)',
+              color: selected.has(d.key) ? 'var(--green)' : 'var(--text2)',
+              fontWeight: 700, fontSize: 14, cursor: 'pointer', textAlign: 'left',
+            }}>
+              <span>{selected.has(d.key) ? '✓' : ''}</span>
+              {d.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => onSave([...selected])} disabled={selected.size === 0}
+          style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: selected.size === 0 ? 'default' : 'pointer', width: '100%', opacity: selected.size === 0 ? 0.5 : 1, marginBottom: 8 }}>
+          Valider
+        </button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', padding: 6 }}>
+          Annuler
+        </button>
+      </div>
     </div>
   )
 }

@@ -816,6 +816,17 @@ function AthleteView({ params }) {
     if (!res.ok) alert('Erreur lors de la mise à jour de la date.')
   }
 
+  const updateProgramDays = async (programId, daysOfWeek) => {
+    if (!requireOnline()) return
+    setPrograms(prev => prev.map(p => p.id === programId ? { ...p, athlete_days_of_week: daysOfWeek } : p))
+    const res = await fetch(`/api/athlete-view/${token}/program-days`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ programId, daysOfWeek }),
+    })
+    if (!res.ok) alert('Erreur lors de la mise à jour des jours.')
+  }
+
   const addFreeExercise = async (sessionId, { name, sets, reps, kg }) => {
     if (!requireOnline()) return
     const res = await fetch(`/api/athlete-view/${token}/free-session/exercise`, {
@@ -1024,6 +1035,7 @@ function AthleteView({ params }) {
             programs={programs} completions={completions} skippedSessions={skippedSessions}
             selectedType={selectedType} setSelectedType={setSelectedType}
             router={router} token={token} setActiveTab={setActiveTab}
+            onUpdateProgramDays={updateProgramDays}
           />
         </div>
       )}
