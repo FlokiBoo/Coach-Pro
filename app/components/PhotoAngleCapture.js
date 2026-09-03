@@ -337,15 +337,18 @@ const PhotoAngleCapture = forwardRef(function PhotoAngleCapture({ onAngleChange 
               <sup style={{ fontSize: 18, color: '#7C8493' }}>°</sup>
             </div>
           )}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={undoPoint} disabled={pointCount === 0} style={{ flex: 1, padding: '11px 10px', borderRadius: 10, border: '1px solid #2A3140', background: 'transparent', color: '#7C8493', fontSize: 12, fontWeight: 600, cursor: pointCount === 0 ? 'default' : 'pointer', opacity: pointCount === 0 ? 0.4 : 1, fontFamily: 'inherit' }}>
+          {/* flexWrap + flex-basis (pas juste flex:1) : sans ça, 3 boutons avec du texte ne
+              rétrécissent pas sous leur largeur de contenu sur un écran étroit et débordent hors
+              de l'écran au lieu de passer à la ligne (retour terrain : bouton Télécharger coupé). */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button onClick={undoPoint} disabled={pointCount === 0} style={{ flex: '1 1 100px', minWidth: 0, padding: '11px 8px', borderRadius: 10, border: '1px solid #2A3140', background: 'transparent', color: '#7C8493', fontSize: 12, fontWeight: 600, cursor: pointCount === 0 ? 'default' : 'pointer', opacity: pointCount === 0 ? 0.4 : 1, fontFamily: 'inherit' }}>
               Annuler point
             </button>
-            <button onClick={() => fileInputRef.current?.click()} style={{ flex: 1, padding: '11px 10px', borderRadius: 10, border: '1px solid #3FC1B0', background: 'transparent', color: '#3FC1B0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <button onClick={() => fileInputRef.current?.click()} style={{ flex: '1 1 100px', minWidth: 0, padding: '11px 8px', borderRadius: 10, border: '1px solid #3FC1B0', background: 'transparent', color: '#3FC1B0', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
               Nouvelle photo
             </button>
             <button onClick={downloadImage} disabled={angle == null} title={angle == null ? 'Place les 3 points pour pouvoir télécharger' : ''} style={{
-              flex: 1, padding: '11px 10px', borderRadius: 10, border: '1px solid #F2A93B', background: 'transparent',
+              flex: '1 1 100px', minWidth: 0, padding: '11px 8px', borderRadius: 10, border: '1px solid #F2A93B', background: 'transparent',
               color: '#F2A93B', fontSize: 12, fontWeight: 600, cursor: angle == null ? 'default' : 'pointer',
               opacity: angle == null ? 0.4 : 1, fontFamily: 'inherit',
             }}>
