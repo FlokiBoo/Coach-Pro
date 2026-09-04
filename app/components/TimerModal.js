@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { FloppyDisk } from '@phosphor-icons/react'
 import { HMSField, NumberField } from './TimerFields'
 import { beep, unlockAudio } from '@/lib/audioBeep'
 
@@ -329,8 +330,9 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
               <button onClick={saveCustomPreset} disabled={!customSteps.length} style={{
                 width: '100%', padding: 12, borderRadius: 10, border: '1px solid var(--border2)', background: 'transparent',
                 color: customSteps.length ? 'var(--text)' : '#4B5260', fontSize: 13, fontWeight: 700, cursor: customSteps.length ? 'pointer' : 'default', fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}>
-                💾 Enregistrer cette création
+                <FloppyDisk size={15} /> Enregistrer cette création
               </button>
             </div>
           )}

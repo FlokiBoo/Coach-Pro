@@ -1,6 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import {
+  Barbell, Bicycle, PersonSimpleRun, PersonSimpleSwim, Moon, PersonSimpleTaiChi, PersonSimpleWalk, Tag,
+  CalendarBlank, Trash,
+} from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 
 const DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
@@ -28,14 +32,14 @@ function colorFor(label) {
 
 function guessEmoji(label) {
   const l = label.toLowerCase()
-  if (l.includes('muscu')) return '🏋️'
-  if (l.includes('vélo') || l.includes('velo') || l.includes('cycl')) return '🚴'
-  if (l.includes('course') || l.includes('run')) return '🏃'
-  if (l.includes('nat')) return '🏊'
-  if (l.includes('repos') || l.includes('rest')) return '😴'
-  if (l.includes('yoga')) return '🧘'
-  if (l.includes('marche')) return '🚶'
-  return '🏷️'
+  if (l.includes('muscu')) return <Barbell size={13} />
+  if (l.includes('vélo') || l.includes('velo') || l.includes('cycl')) return <Bicycle size={13} />
+  if (l.includes('course') || l.includes('run')) return <PersonSimpleRun size={13} />
+  if (l.includes('nat')) return <PersonSimpleSwim size={13} />
+  if (l.includes('repos') || l.includes('rest')) return <Moon size={13} />
+  if (l.includes('yoga')) return <PersonSimpleTaiChi size={13} />
+  if (l.includes('marche')) return <PersonSimpleWalk size={13} />
+  return <Tag size={13} />
 }
 
 export default function WeeklyPlannerBlock({ athleteId }) {
@@ -92,8 +96,8 @@ export default function WeeklyPlannerBlock({ athleteId }) {
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
       <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-          🗓️ Semaine-type
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <CalendarBlank size={13} /> Semaine-type
         </div>
       </div>
 
@@ -189,6 +193,7 @@ export default function WeeklyPlannerBlock({ athleteId }) {
                   <button key={label} onClick={() => setModal(m => ({ ...m, discipline: label }))} style={{
                     background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '5px 10px',
                     fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer',
+                    display: 'inline-flex', alignItems: 'center', gap: 5,
                   }}>{guessEmoji(label)} {label}</button>
                 ))}
               </div>
@@ -196,8 +201,8 @@ export default function WeeklyPlannerBlock({ athleteId }) {
 
             <div style={{ display: 'flex', gap: 8 }}>
               {modal.id && (
-                <button onClick={deleteModal} disabled={saving} style={{ background: '#FEE2E2', color: '#991B1B', border: 'none', borderRadius: 'var(--r)', padding: '10px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                  🗑
+                <button onClick={deleteModal} disabled={saving} style={{ background: '#FEE2E2', color: '#991B1B', border: 'none', borderRadius: 'var(--r)', padding: '10px 14px', display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <Trash size={15} />
                 </button>
               )}
               <button onClick={closeModal} style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text3)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>

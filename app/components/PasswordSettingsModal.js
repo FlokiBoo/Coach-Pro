@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { GearSix, CheckCircle } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 
 const inputStyle = {
@@ -41,13 +42,13 @@ export default function PasswordSettingsModal({ onClose }) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 380, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '24px 22px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 18 }}>
-          <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>⚙️ Paramètres</div>
+          <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}><GearSix size={17} /> Paramètres</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)' }}>×</button>
         </div>
 
         {success ? (
           <div style={{ textAlign: 'center', padding: '10px 0 4px' }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+            <div style={{ display: 'flex', justifyContent: 'center', color: '#16A34A', marginBottom: 8 }}><CheckCircle size={32} /></div>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Mot de passe modifié</div>
             <button onClick={onClose} style={{ marginTop: 14, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--rl)', padding: '10px 20px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
               Fermer

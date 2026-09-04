@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Target, Warning, ChatCircleText, Brain } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import {
   TORQUE_TESTS, PSYCH_QUESTIONNAIRE,
@@ -106,8 +107,8 @@ export default function TorqueProfileSection({ athleteId }) {
         const c = verdictColor(synthesis.verdict)
         return (
           <div style={{ background: c.bg, border: `1px solid ${c.color}33`, borderRadius: 'var(--rl)', padding: '14px 16px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>
-              🎯 Synthèse des tests
+            <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Target size={11} /> Synthèse des tests
             </div>
             <div style={{ fontWeight: 800, fontSize: 15, color: c.color }}>{synthesis.label}</div>
           </div>
@@ -116,8 +117,8 @@ export default function TorqueProfileSection({ athleteId }) {
 
       {discordance && (
         <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 'var(--rl)', padding: '14px 16px' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#991B1B', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>
-            ⚠️ Signal d'alerte — discordance
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#991B1B', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Warning size={11} /> Signal d&apos;alerte — discordance
           </div>
           <div style={{ fontSize: 13, color: '#991B1B', lineHeight: 1.5 }}>{discordance}</div>
         </div>
@@ -175,8 +176,8 @@ export default function TorqueProfileSection({ athleteId }) {
                 ))}
 
                 <div style={{ background: 'var(--bg2)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 5 }}>
-                    🗣 Questions à poser
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 5, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <ChatCircleText size={11} /> Questions à poser
                   </div>
                   {t.questions.map((q, i) => (
                     <div key={i} style={{ marginTop: i > 0 ? 10 : 0 }}>
@@ -209,7 +210,7 @@ export default function TorqueProfileSection({ athleteId }) {
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
             <div onClick={() => setExpanded(isOpen ? null : 'questionnaire')} style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
               <span style={{ fontSize: 11, color: 'var(--text3)', width: 14 }}>{isOpen ? '▼' : '▶'}</span>
-              <div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>🧠 Questionnaire psychologique</div>
+              <div style={{ flex: 1, fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}><Brain size={15} /> Questionnaire psychologique</div>
               {questionnaireEntry?.verdict && (
                 <span style={{ fontSize: 11, fontWeight: 700, color: qColor.color, background: qColor.bg, borderRadius: 20, padding: '3px 10px' }}>
                   {questionnaireLabel(questionnaireEntry.verdict)}

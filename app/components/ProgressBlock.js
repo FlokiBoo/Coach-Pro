@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { TrendUp } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 
 export default function ProgressBlock({ athleteId }) {
@@ -62,8 +63,8 @@ export default function ProgressBlock({ athleteId }) {
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
 
       <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-          💪 Progressions récentes
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <TrendUp size={13} /> Progressions récentes
         </div>
       </div>
 

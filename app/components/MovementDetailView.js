@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Trophy } from '@phosphor-icons/react'
 import { estimate1RM, bestPerformance, unitOf, formatPerformance, ProgressChart, EntryForm, emptyEntryForm, CATEGORIES } from './TrackedMovementsBlock'
 
 const RM_LIST = [1, 2, 3, 4, 5, 6]
@@ -144,7 +145,7 @@ export default function MovementDetailView({ movement, athleteId, onClose, onSav
                         {isKg ? '1 RM' : cfg.suffix.toUpperCase() || 'PR'}
                       </span>
                       <div style={{ flex: 1, fontSize: 13, color: 'var(--text2)' }}>{formatDateFr(e.date)}</div>
-                      {e.is_pr && <span title="Marqué comme record" style={{ fontSize: 13, flexShrink: 0 }}>🏆</span>}
+                      {e.is_pr && <span title="Marqué comme record" style={{ display: 'flex', flexShrink: 0, color: '#D97706' }}><Trophy size={14} weight="fill" /></span>}
                       <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>
                         {isKg ? `${e.rm1} kg` : formatPerformance(movement, e.value)}
                       </div>

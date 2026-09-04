@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
+import { Trophy, PencilSimple, Trash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import MovementDetailView from './MovementDetailView'
 import { RACE_TARGETS, computeRaceEstimates, buildKnownRaces, computeThreshold60, computeDeltaZones, formatDistance, formatPace, parsePaceInput } from '@/lib/raceEstimates'
@@ -306,8 +307,8 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
       {/* Header */}
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-            🏆 Records & Tests
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', alignItems: 'center', gap: 5 }}>
+            <Trophy size={13} /> Records &amp; Tests
           </div>
           {isCoach && (
             <button onClick={() => { setCreating(v => !v); setNewName(''); setNewUnit('kg'); setNewCategory(selectedCategory === 'À classer' ? 'Lift' : selectedCategory); setNewSubcategory('') }} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
@@ -579,7 +580,7 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
                           </div>
                         )}
                         {isCoach && !isEditingName && (
-                          <button onClick={e => { e.stopPropagation(); startEditName(m) }} style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>✏️</button>
+                          <button onClick={e => { e.stopPropagation(); startEditName(m) }} style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}><PencilSimple size={13} /></button>
                         )}
                         {best ? (
                           <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--green)', flexShrink: 0 }}>{formatPerformance(m, best.value)}</div>
@@ -587,7 +588,7 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
                           <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
                         )}
                         {isCoach && !isEditingName && (
-                          <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>🗑️</button>
+                          <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}><Trash size={14} /></button>
                         )}
                       </div>
                     </div>
