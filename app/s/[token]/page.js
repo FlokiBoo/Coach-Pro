@@ -930,7 +930,9 @@ function AthleteView({ params }) {
         </div>
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <WellnessBlock athleteId={athlete.id} date={viewDate} mode="athlete" />
+          {/* Bien-être et bilan plaisir/difficulté réservés au coaching en direct (retour terrain) :
+              en usage autonome, le sportif ne renseigne que la durée et, pour le cardio, la distance. */}
+          {isCoachView && <WellnessBlock athleteId={athlete.id} date={viewDate} mode="athlete" />}
 
           {focusSession ? (
             <SessionCard
@@ -1856,7 +1858,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 </button>
               )}
               {onValidate && session.session_type !== 'explication' && (
-                <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} isWarmup={session.session_type === 'warmup'} isGroupSession={isGroupSession} />
+                <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} isWarmup={session.session_type === 'warmup'} isGroupSession={isGroupSession} isCoachView={isCoachView} />
               )}
               {isCompleted && onUnvalidate && (
                 <button onClick={onUnvalidate} disabled={validating}
@@ -2128,14 +2130,16 @@ function RatingRow({ label, hint, value, onChange, inverse = true }) {
   )
 }
 
-function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null, isEndurance = false, isWarmup = false, isGroupSession = false }) {
+function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null, isEndurance = false, isWarmup = false, isGroupSession = false, isCoachView = false }) {
   const [pleasure, setPleasure] = useState(initial?.pleasure ?? null)
   const [difficulty, setDifficulty] = useState(initial?.difficulty ?? null)
   const [duration, setDuration] = useState(initial?.duration_minutes ?? null)
   const [distanceKm, setDistanceKm] = useState(initial?.distance_km != null ? String(initial.distance_km) : '')
   const [comment, setComment] = useState(initial?.comment || '')
 
-  const canSubmit = pleasure !== null && difficulty !== null
+  // Plaisir/difficulté/commentaire réservés au coaching en direct (retour terrain) : en usage
+  // autonome, seuls durée et distance (cardio) restent — donc rien n'est obligatoire pour valider.
+  const canSubmit = isCoachView ? (pleasure !== null && difficulty !== null) : true
 
   return (
     <div style={{ marginTop: 8, background: 'var(--bg2)', borderRadius: 'var(--rl)', border: '1px solid var(--border)', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -2153,25 +2157,29 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
         </div>
       )}
 
-      <RatingRow
-        label={isWarmup ? 'Efficacité du Warm-Up' : 'Plaisir'}
-        hint={isWarmup ? '1 = pas efficace · 10 = très efficace' : '1 = pas du tout · 10 = énormément'}
-        value={pleasure} onChange={setPleasure} inverse={false}
-      />
-      <RatingRow
-        label={isWarmup ? 'Difficulté à mettre en place' : 'Difficulté de la séance'}
-        hint="1 = facile · 10 = très difficile"
-        value={difficulty} onChange={setDifficulty}
-      />
+      {isCoachView && (
+        <>
+          <RatingRow
+            label={isWarmup ? 'Efficacité du Warm-Up' : 'Plaisir'}
+            hint={isWarmup ? '1 = pas efficace · 10 = très efficace' : '1 = pas du tout · 10 = énormément'}
+            value={pleasure} onChange={setPleasure} inverse={false}
+          />
+          <RatingRow
+            label={isWarmup ? 'Difficulté à mettre en place' : 'Difficulté de la séance'}
+            hint="1 = facile · 10 = très difficile"
+            value={difficulty} onChange={setDifficulty}
+          />
 
-      <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Commentaire (optionnel)</div>
-        <textarea
-          value={comment} onChange={e => setComment(e.target.value)} rows={2}
-          placeholder={isWarmup ? 'Note tous les axes à améliorer selon toi, ou ce que tu aimerais me partager.' : "Comment s'est passée la séance ?"}
-          style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
-        />
-      </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Commentaire (optionnel)</div>
+            <textarea
+              value={comment} onChange={e => setComment(e.target.value)} rows={2}
+              placeholder={isWarmup ? 'Note tous les axes à améliorer selon toi, ou ce que tu aimerais me partager.' : "Comment s'est passée la séance ?"}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
+            />
+          </div>
+        </>
+      )}
 
       {!isGroupSession && (
         <div>
