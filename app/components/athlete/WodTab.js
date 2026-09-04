@@ -24,7 +24,10 @@ export default function WodTab({
     router.push(`/s/${token}?session=${sessionId}&focus=1${isCoachView ? '&coach=1' : ''}`)
   }
 
-  const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived)
+  // Un programme assigné à un groupe (fan-out depuis la fiche groupe) ne doit pas apparaître ici :
+  // le sportif le suit en direct pendant la séance collective, pas en autonomie — l'afficher aussi
+  // dans sa liste perso fait doublon avec ce qu'il vit en cours et surcharge l'écran pour rien.
+  const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived && !p.group_id)
 
   // Retour terrain (Simon) : avec 2 templates actifs en parallèle (ex: Course + Hyrox), les
   // pastilles de sélection par programme/type ne donnent aucune vue d'ensemble claire de la
