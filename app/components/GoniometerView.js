@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { Ruler, Camera, Prohibit, CheckCircle, DeviceMobile, Warning } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { JOINT_TESTS } from '@/lib/jointTests'
 import PhotoAngleCapture from './PhotoAngleCapture'
@@ -215,7 +216,7 @@ export default function GoniometerView({ athleteId, onClose }) {
   if (permissionState === 'needed' && mode === 'sensor') {
     return (
       <div style={{ position: 'fixed', inset: 0, background: '#0D1117', zIndex: 800, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 30, textAlign: 'center', gap: 18, fontFamily: "'Space Grotesk', sans-serif" }}>
-        <div style={{ fontSize: 40 }}>📐</div>
+        <Ruler size={40} />
         <h1 style={{ fontSize: 18, fontWeight: 700, color: '#EDEFF2', fontFamily: "'Space Grotesk', sans-serif", margin: 0 }}>Accès aux capteurs de mouvement</h1>
         <p style={{ fontSize: 13, color: '#7C8493', lineHeight: 1.5, margin: 0, maxWidth: 280 }}>
           iOS demande une autorisation explicite pour lire l'accéléromètre, nécessaire pour mesurer l'angle.
@@ -223,8 +224,8 @@ export default function GoniometerView({ athleteId, onClose }) {
         <button onClick={requestPermission} style={{ background: '#F2A93B', color: '#1a1400', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
           Activer les capteurs
         </button>
-        <button onClick={() => setMode('photo')} style={{ background: 'none', border: '1px solid #2A3140', color: '#EDEFF2', borderRadius: 10, padding: '12px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-          📷 Utiliser le mode photo à la place
+        <button onClick={() => setMode('photo')} style={{ background: 'none', border: '1px solid #2A3140', color: '#EDEFF2', borderRadius: 10, padding: '12px 28px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Camera size={14} /> Utiliser le mode photo à la place
         </button>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7C8493', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>Annuler</button>
       </div>
@@ -234,10 +235,10 @@ export default function GoniometerView({ athleteId, onClose }) {
   if (permissionState === 'denied' && mode === 'sensor') {
     return (
       <div style={{ position: 'fixed', inset: 0, background: '#0D1117', zIndex: 800, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 30, textAlign: 'center', gap: 14 }}>
-        <div style={{ fontSize: 32 }}>🚫</div>
+        <Prohibit size={32} />
         <div style={{ color: '#EDEFF2', fontWeight: 700 }}>Accès refusé</div>
         <div style={{ color: '#7C8493', fontSize: 13 }}>Autorise les capteurs de mouvement dans les réglages de ton navigateur, ou utilise le mode photo.</div>
-        <button onClick={() => setMode('photo')} style={{ background: '#F2A93B', color: '#1a1400', border: 'none', borderRadius: 10, padding: '12px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>📷 Mode photo</button>
+        <button onClick={() => setMode('photo')} style={{ background: '#F2A93B', color: '#1a1400', border: 'none', borderRadius: 10, padding: '12px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}><Camera size={14} /> Mode photo</button>
         <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#7C8493', fontSize: 13, cursor: 'pointer', textDecoration: 'underline' }}>Fermer</button>
       </div>
     )
@@ -254,7 +255,7 @@ export default function GoniometerView({ athleteId, onClose }) {
 
       {done ? (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 18, padding: 30, textAlign: 'center' }}>
-          <div style={{ fontSize: 40 }}>✅</div>
+          <CheckCircle size={40} color="#3FC1B0" />
           <div style={{ fontSize: 17, fontWeight: 700 }}>Passage "{side === 'D' ? 'Droite' : 'Gauche'}" terminé</div>
           <div style={{ color: '#7C8493', fontSize: 13 }}>Tous les tests ont été notés pour ce côté.</div>
           <div style={{ display: 'flex', gap: 10 }}>
@@ -269,13 +270,14 @@ export default function GoniometerView({ athleteId, onClose }) {
       ) : (
         <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', gap: 8, padding: '0 20px 8px' }}>
-            {[{ key: 'sensor', label: '📐 Capteur' }, { key: 'photo', label: '📷 Photo' }].map(m => (
+            {[{ key: 'sensor', label: 'Capteur', Icon: Ruler }, { key: 'photo', label: 'Photo', Icon: Camera }].map(m => (
               <button key={m.key} onClick={() => setMode(m.key)} style={{
                 flex: 1, padding: '9px 6px', borderRadius: 8, border: `1px solid ${mode === m.key ? '#3FC1B0' : '#2A3140'}`,
                 background: mode === m.key ? 'rgba(63,193,176,0.08)' : '#161B22', color: mode === m.key ? '#3FC1B0' : '#7C8493',
                 fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}>
-                {m.label}
+                <m.Icon size={13} /> {m.label}
               </button>
             ))}
           </div>
@@ -310,7 +312,7 @@ export default function GoniometerView({ athleteId, onClose }) {
             <>
               {isSpineRotation(test) ? (
                 <div style={{ margin: '0 20px 6px', padding: '10px 12px', borderRadius: 8, border: '1px solid #2A3140', background: '#161B22' }}>
-                  <div style={{ fontSize: 11, color: '#F2A93B', fontWeight: 700, marginBottom: 3 }}>📱 Position du téléphone</div>
+                  <div style={{ fontSize: 11, color: '#F2A93B', fontWeight: 700, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 5 }}><DeviceMobile size={12} /> Position du téléphone</div>
                   <div style={{ fontSize: 11.5, color: '#7C8493', lineHeight: 1.5 }}>
                     Plaque le bas du téléphone contre ton plexus, à plat, dos vers le sol. Tourne le buste pour mesurer la rotation.
                   </div>
@@ -410,8 +412,8 @@ export default function GoniometerView({ athleteId, onClose }) {
                     background: '#161B22', border: '1px solid #2A3140', borderRadius: 10, padding: '9px 12px',
                     cursor: 'pointer', fontFamily: 'inherit',
                   }}>
-                    {h.hasPhoto && <span style={{ fontSize: 12, flexShrink: 0 }}>📷</span>}
-                    {h.dafOui && <span style={{ fontSize: 12, flexShrink: 0 }}>⚠️</span>}
+                    {h.hasPhoto && <span style={{ display: 'flex', flexShrink: 0 }}><Camera size={13} /></span>}
+                    {h.dafOui && <span style={{ display: 'flex', flexShrink: 0, color: '#F87171' }}><Warning size={13} /></span>}
                     <span style={{ flex: 1, minWidth: 0, fontSize: 12, color: '#EDEFF2', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {h.testName} <span style={{ color: '#7C8493' }}>({h.side})</span>
                     </span>
@@ -454,8 +456,8 @@ export default function GoniometerView({ athleteId, onClose }) {
 
           <div style={{ padding: '14px 20px 24px', marginTop: mode === 'sensor' ? 'auto' : undefined }}>
             {flash && (
-              <div style={{ textAlign: 'center', marginBottom: 10, fontSize: 13, color: flash.dafOui ? '#F87171' : '#3FC1B0', fontWeight: 700 }}>
-                {flash.dafOui ? '⚠️' : '✓'} {flash.value}° noté{flash.pct != null ? ` (${flash.pct > 0 ? '+' : ''}${flash.pct}%)` : ''}{flash.dafOui ? ' — DAF présente' : ''}
+              <div style={{ textAlign: 'center', marginBottom: 10, fontSize: 13, color: flash.dafOui ? '#F87171' : '#3FC1B0', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                {flash.dafOui ? <Warning size={13} /> : '✓'} {flash.value}° noté{flash.pct != null ? ` (${flash.pct > 0 ? '+' : ''}${flash.pct}%)` : ''}{flash.dafOui ? ' — DAF présente' : ''}
               </div>
             )}
             <button onClick={save} disabled={!canSave || saving} style={{

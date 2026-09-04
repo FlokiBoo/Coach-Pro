@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, forwardRef, useImperativeHandle } from 'react'
+import { Camera } from '@phosphor-icons/react'
 
 function angleBetween(a, b, c) {
   const v1 = { x: a.x - b.x, y: a.y - b.y }
@@ -280,7 +281,7 @@ const PhotoAngleCapture = forwardRef(function PhotoAngleCapture({ onAngleChange 
               serait encore null au premier chargement — plantage ("Cannot set properties of null"). */}
           {!hasImage && (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: 30, textAlign: 'center' }}>
-              <div style={{ fontSize: 34 }}>📷</div>
+              <Camera size={34} />
               <p style={{ color: '#7C8493', fontSize: 13, margin: 0, maxWidth: 220, lineHeight: 1.5 }}>
                 Charge une photo, place 3 points : origine → sommet → extrémité. L&apos;angle se calcule au sommet.
               </p>
