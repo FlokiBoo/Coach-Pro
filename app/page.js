@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { User, Warning, Lightbulb, ClipboardText, Barbell, PersonSimpleRun, Bell } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -249,7 +250,7 @@ export default function Home() {
                 cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5
               }}
             >
-              👤 Switch to athlete
+              <User size={14} /> Switch to athlete
             </button>
           )}
           <button onClick={() => setShowForm(v => !v)} style={{
@@ -284,7 +285,7 @@ export default function Home() {
               display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', textAlign: 'left', width: '100%',
               background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 'var(--rl)', padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit',
             }}>
-              <span style={{ fontSize: 20, flexShrink: 0 }}>⚠️</span>
+              <span style={{ display: 'flex', flexShrink: 0, color: '#92400E' }}><Warning size={20} /></span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E' }}>
                   {movementsMissingMuscles.length} mouvement{movementsMissingMuscles.length !== 1 ? 's' : ''} sans muscle renseigné
@@ -303,7 +304,7 @@ export default function Home() {
               display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none', textAlign: 'left', width: '100%',
               background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 'var(--rl)', padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit',
             }}>
-              <span style={{ fontSize: 20, flexShrink: 0 }}>💡</span>
+              <span style={{ display: 'flex', flexShrink: 0, color: '#1E40AF' }}><Lightbulb size={20} /></span>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#1E40AF' }}>
                   {movementSuggestions.length} mouvement{movementSuggestions.length !== 1 ? 's' : ''} proposé{movementSuggestions.length !== 1 ? 's' : ''} par des clients
@@ -320,8 +321,8 @@ export default function Home() {
             <div onClick={() => setShowMovementSuggestionsModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
               <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 420, maxHeight: '80svh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>
-                    💡 {movementSuggestions.length} mouvement{movementSuggestions.length !== 1 ? 's' : ''} proposé{movementSuggestions.length !== 1 ? 's' : ''}
+                  <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Lightbulb size={16} /> {movementSuggestions.length} mouvement{movementSuggestions.length !== 1 ? 's' : ''} proposé{movementSuggestions.length !== 1 ? 's' : ''}
                   </div>
                   <button onClick={() => setShowMovementSuggestionsModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
                 </div>
@@ -361,8 +362,8 @@ export default function Home() {
             <div onClick={() => setShowMissingMusclesModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
               <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 400, maxHeight: '80svh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>
-                    ⚠️ {movementsMissingMuscles.length} mouvement{movementsMissingMuscles.length !== 1 ? 's' : ''} sans muscle
+                  <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Warning size={16} /> {movementsMissingMuscles.length} mouvement{movementsMissingMuscles.length !== 1 ? 's' : ''} sans muscle
                   </div>
                   <button onClick={() => setShowMissingMusclesModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
                 </div>
@@ -377,7 +378,7 @@ export default function Home() {
                     border: `1px solid ${copiedMissingMuscles ? '#BBF7D0' : 'var(--border2)'}`, borderRadius: 'var(--r)',
                     padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
                   }}>
-                  {copiedMissingMuscles ? '✓ Liste copiée' : '📋 Copier la liste'}
+                  {copiedMissingMuscles ? '✓ Liste copiée' : <><ClipboardText size={14} style={{ verticalAlign: -2, marginRight: 5 }} />Copier la liste</>}
                 </button>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {movementsMissingMuscles.map(m => (
@@ -396,7 +397,7 @@ export default function Home() {
           {/* Titre feed */}
           {!athletes.length && !showForm ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>🏋️</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><Barbell size={36} /></div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun sportif</div>
               <div style={{ fontSize: 13 }}>Clique sur « + Sportif » pour commencer</div>
             </div>
@@ -464,7 +465,7 @@ function SessionCard({ session, onOpen }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <div style={{ fontSize: 12, fontWeight: 700, background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px' }}>
-            {isActivity ? '🏃 Activité' : `✓ ${session.exosDone.length} exercice${session.exosDone.length !== 1 ? 's' : ''}`}
+            {isActivity ? <><PersonSimpleRun size={12} style={{ verticalAlign: -2, marginRight: 3 }} />Activité</> : `✓ ${session.exosDone.length} exercice${session.exosDone.length !== 1 ? 's' : ''}`}
           </div>
           <button
             onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
@@ -849,7 +850,7 @@ function SessionMiniCard({ session, onClose, onDuplicate, athleteId }) {
             background: notified ? '#DCFCE7' : 'var(--green)', color: notified ? '#166534' : '#fff', border: 'none',
             borderRadius: 'var(--r)', padding: '9px', fontSize: 12, fontWeight: 700, cursor: notified ? 'default' : 'pointer',
           }}>
-          {notified ? '✓ Message envoyé' : notifying ? 'Envoi…' : '🔔 Prévenir de mes retours'}
+          {notified ? '✓ Message envoyé' : notifying ? 'Envoi…' : <><Bell size={14} style={{ verticalAlign: -2, marginRight: 5 }} />Prévenir de mes retours</>}
         </button>
       )}
     </div>
