@@ -1,5 +1,7 @@
 'use client'
 
+import { PersonSimpleRun, Lightning } from '@phosphor-icons/react'
+
 export default function AddActionSheet({ onClose, onAddActivity, onFreeSession }) {
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 600, display: 'flex', alignItems: 'flex-end' }}>
@@ -13,7 +15,7 @@ export default function AddActionSheet({ onClose, onAddActivity, onFreeSession }
           display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)',
           borderRadius: 'var(--rl)', padding: '16px', cursor: 'pointer', textAlign: 'left',
         }}>
-          <span style={{ fontSize: 24 }}>🏃</span>
+          <span style={{ display: 'flex' }}><PersonSimpleRun size={24} /></span>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Ajouter une activité</div>
             <div style={{ fontSize: 12, color: 'var(--text3)' }}>Choisis une discipline, note ton bien-être et tes résultats</div>
@@ -24,7 +26,7 @@ export default function AddActionSheet({ onClose, onAddActivity, onFreeSession }
           display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)',
           borderRadius: 'var(--rl)', padding: '16px', cursor: 'pointer', textAlign: 'left',
         }}>
-          <span style={{ fontSize: 24 }}>⚡</span>
+          <span style={{ display: 'flex' }}><Lightning size={24} /></span>
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Séance libre</div>
             <div style={{ fontSize: 12, color: 'var(--text3)' }}>Ajoute des exercices et note tes performances</div>

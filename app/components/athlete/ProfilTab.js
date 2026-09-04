@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { User, PencilSimple, Medal, Target, ClipboardText, ChatCircle, ForkKnife, GearSix } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import BadgesBlock from '@/app/components/BadgesBlock'
 import MobilityRadarBlock from '@/app/components/MobilityRadarBlock'
@@ -73,7 +74,7 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
         <div style={{
           width: 56, height: 56, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, flexShrink: 0,
-        }}>👤</div>
+        }}><User size={28} /></div>
         <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 20 }}>{athlete.name}</div>
       </div>
 
@@ -99,7 +100,7 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
               ) : (
                 <div onClick={() => startEdit(f.field, f.value)} style={{ fontWeight: 700, fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
                   {f.value ? `${f.value} ${f.unit}` : '—'}
-                  <span style={editIconStyle}>✏️</span>
+                  <span style={{ ...editIconStyle, display: 'flex' }}><PencilSimple size={12} /></span>
                 </div>
               )}
             </div>
@@ -142,12 +143,12 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
       </div>
 
       <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>🏅 Badges de force</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Medal size={13} /> Badges de force</div>
         <BadgesBlock athleteId={athlete.id} weight={athlete.weight} sex={athlete.sex} birthDate={athlete.birth_date} />
       </div>
 
       <div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>🎯 Tests de mobilité</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Target size={13} /> Tests de mobilité</div>
         <MobilityRadarBlock athleteId={athlete.id} />
       </div>
 
@@ -155,7 +156,7 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
         background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
         padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
       }}>
-        <span style={{ fontSize: 20 }}>📋</span>
+        <span style={{ display: 'flex' }}><ClipboardText size={20} /></span>
         <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Changer de programme</span>
         <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
       </button>
@@ -164,7 +165,7 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
         background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
         padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
       }}>
-        <span style={{ fontSize: 20 }}>💬</span>
+        <span style={{ display: 'flex' }}><ChatCircle size={20} /></span>
         <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Messagerie</span>
         {unread > 0 && (
           <span style={{
@@ -179,7 +180,7 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
         background: 'var(--bg)', color: 'var(--text3)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
         padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10,
       }}>
-        <span style={{ fontSize: 20 }}>🍽</span>
+        <span style={{ display: 'flex' }}><ForkKnife size={20} /></span>
         <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Générateur de plan alimentaire</span>
         <span style={{ background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>À venir</span>
       </div>
@@ -188,7 +189,7 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
         background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
         padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
       }}>
-        <span style={{ fontSize: 20 }}>⚙️</span>
+        <span style={{ display: 'flex' }}><GearSix size={20} /></span>
         <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Réglages</span>
         <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
       </button>
@@ -199,7 +200,7 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
         <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
           <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <button onClick={() => setShowMessages(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
-            <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>💬 Messagerie</div>
+            <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}><ChatCircle size={17} /> Messagerie</div>
           </div>
           <ChatThread athleteId={athlete.id} myRole="athlete" onRead={() => setUnread(0)} />
         </div>

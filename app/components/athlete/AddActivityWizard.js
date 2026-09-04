@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { CalendarBlank, PencilSimple } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import WellnessBlock from '@/app/components/WellnessBlock'
 import { ActivityLogForm } from '@/app/components/ActivityBlock'
@@ -39,8 +40,8 @@ function DatePickerRow({ date, onChange }) {
         padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--text)',
         textTransform: 'capitalize',
       }}>
-        📅 {dateLabel(date)}
-        <span style={{ color: 'var(--text3)', fontSize: 11 }}>✏️</span>
+        <CalendarBlank size={14} /> {dateLabel(date)}
+        <span style={{ display: 'flex', color: 'var(--text3)' }}><PencilSimple size={11} /></span>
       </button>
 
       {open && (

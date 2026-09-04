@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { ClipboardText, CalendarBlank, ChatCircle } from '@phosphor-icons/react'
 
 export default function TemplatesTab({ token, programs = [], setActiveTab }) {
   const [availablePrograms, setAvailablePrograms] = useState(null)
@@ -59,7 +60,7 @@ export default function TemplatesTab({ token, programs = [], setActiveTab }) {
         <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 0' }}>Chargement…</div>
       ) : availablePrograms.length === 0 ? (
         <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}><ClipboardText size={32} /></div>
           <div style={{ fontSize: 13 }}>Ton coach n&apos;a rendu aucun programme disponible pour l&apos;instant.</div>
         </div>
       ) : (
@@ -88,7 +89,7 @@ export default function TemplatesTab({ token, programs = [], setActiveTab }) {
             <div style={{ fontWeight: 700, fontSize: 15 }}>{p.title}</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10 }}>
               {p.activity_type && <span>{p.activity_type}</span>}
-              <span>📅 {p.sessionCount} séance{p.sessionCount !== 1 ? 's' : ''}</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={12} /> {p.sessionCount} séance{p.sessionCount !== 1 ? 's' : ''}</span>
             </div>
             {p.description && <div style={{ fontSize: 13, color: 'var(--text2)' }}>{p.description}</div>}
             <button onClick={() => chooseProgram(p)} disabled={choosingId === p.id}
@@ -113,8 +114,9 @@ export default function TemplatesTab({ token, programs = [], setActiveTab }) {
             <button onClick={() => { setConflict(null); setActiveTab?.('profil') }} style={{
               background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px',
               fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%', marginBottom: 8,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}>
-              💬 Écrire à mon coach pour en discuter
+              <ChatCircle size={16} /> Écrire à mon coach pour en discuter
             </button>
             <button onClick={stopExistingAndChoose} disabled={archiving} style={{
               background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '11px',

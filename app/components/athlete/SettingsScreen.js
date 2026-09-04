@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { CreditCard, Circle, Lock, Question, Envelope, Bug, FileText } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import PasswordSettingsModal from '@/app/components/PasswordSettingsModal'
 import { SUBSCRIPTION_TIERS } from '@/lib/subscriptionTiers'
@@ -88,7 +89,7 @@ export default function SettingsScreen({ athlete, token, onClose }) {
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Compte</div>
 
         <button onClick={() => setShowSubscription(true)} style={rowStyle}>
-          <span style={{ fontSize: 20 }}>💳</span>
+          <span style={{ display: 'flex' }}><CreditCard size={20} /></span>
           <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>
             Offres &amp; abonnement
             {athlete.subscription_status === 'active' && SUBSCRIPTION_TIERS[athlete.subscription_tier] && (
@@ -102,7 +103,7 @@ export default function SettingsScreen({ athlete, token, onClose }) {
 
         {athlete.strava_athlete_id ? (
           <button onClick={disconnectStrava} disabled={stravaBusy} style={rowStyle}>
-            <span style={{ fontSize: 20 }}>🟠</span>
+            <span style={{ display: 'flex', color: '#FC4C02' }}><Circle size={20} weight="fill" /></span>
             <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>
               Strava
               <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: 'var(--green-light)', color: 'var(--green)', borderRadius: 10, padding: '2px 8px' }}>Connecté</span>
@@ -111,14 +112,14 @@ export default function SettingsScreen({ athlete, token, onClose }) {
           </button>
         ) : (
           <a href={`/api/strava/connect?token=${token}`} style={{ ...rowStyle, textDecoration: 'none' }}>
-            <span style={{ fontSize: 20 }}>🟠</span>
+            <span style={{ display: 'flex', color: '#FC4C02' }}><Circle size={20} weight="fill" /></span>
             <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Connecter Strava</span>
             <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
           </a>
         )}
 
         <button onClick={() => setShowPassword(true)} style={rowStyle}>
-          <span style={{ fontSize: 20 }}>🔒</span>
+          <span style={{ display: 'flex' }}><Lock size={20} /></span>
           <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Changer mon mot de passe</span>
           <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
         </button>
@@ -126,19 +127,19 @@ export default function SettingsScreen({ athlete, token, onClose }) {
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: 8 }}>Aide</div>
 
         <button onClick={() => setShowHelp(true)} style={rowStyle}>
-          <span style={{ fontSize: 20 }}>❓</span>
+          <span style={{ display: 'flex' }}><Question size={20} /></span>
           <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Centre d&apos;aide</span>
           <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
         </button>
 
         <a href="mailto:contact@ostryk.fr?subject=Contact%20OSTRYK" style={{ ...rowStyle, textDecoration: 'none' }}>
-          <span style={{ fontSize: 20 }}>✉️</span>
+          <span style={{ display: 'flex' }}><Envelope size={20} /></span>
           <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Contactez-nous</span>
           <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
         </a>
 
         <a href="mailto:contact@ostryk.fr?subject=Probl%C3%A8me%20OSTRYK" style={{ ...rowStyle, textDecoration: 'none' }}>
-          <span style={{ fontSize: 20 }}>🐛</span>
+          <span style={{ display: 'flex' }}><Bug size={20} /></span>
           <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Rapporter un problème</span>
           <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
         </a>
@@ -146,7 +147,7 @@ export default function SettingsScreen({ athlete, token, onClose }) {
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: 8 }}>Légal</div>
 
         <a href="/confidentialite" style={{ ...rowStyle, textDecoration: 'none' }}>
-          <span style={{ fontSize: 20 }}>📄</span>
+          <span style={{ display: 'flex' }}><FileText size={20} /></span>
           <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>CGU &amp; Confidentialité</span>
           <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
         </a>

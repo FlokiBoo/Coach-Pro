@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { EyeSlash, Backpack, ClipboardText, CalendarBlank } from '@phosphor-icons/react'
 import { WEEK_DAYS, jsDayToWeekDay } from '@/lib/weekDays'
 
 // Page d'accueil : la prochaine séance doit être visible immédiatement, sans scroll (retour
@@ -86,7 +87,7 @@ export default function WodTab({
         )}
         <span style={{ flex: 1, minWidth: 0 }}>
           <span style={{ display: 'block', fontSize: isNext ? 16 : 14, fontWeight: isNext ? 800 : 600, color: isDone || isSkipped ? 'var(--text3)' : 'var(--text)' }}>
-            {s.hidden && '🙈 '}{s.title || 'Séance'}
+            {s.hidden && <EyeSlash size={13} style={{ verticalAlign: -2, marginRight: 4 }} />}{s.title || 'Séance'}
           </span>
           {showProgramLabel && (
             <span style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{showProgramLabel}</span>
@@ -94,8 +95,8 @@ export default function WodTab({
         </span>
         {s.materiel && (
           <button onClick={e => { e.stopPropagation(); setMaterielSession(s) }} title="Matériel à prévoir pour cette séance"
-            style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', fontSize: 13, cursor: 'pointer', flexShrink: 0, lineHeight: 1.4 }}>
-            🎒
+            style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', display: 'flex', cursor: 'pointer', flexShrink: 0 }}>
+            <Backpack size={13} />
           </button>
         )}
         <span style={{ color: 'var(--text3)', fontSize: 16 }}>›</span>
@@ -132,7 +133,7 @@ export default function WodTab({
 
       {programs.length === 0 && (
         <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><ClipboardText size={36} /></div>
           <div style={{ fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>Aucun programme actif</div>
           {!isCoachView && (
             <>
@@ -156,8 +157,8 @@ export default function WodTab({
 
       {hasDayView && (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>
-            📅 Ma semaine
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <CalendarBlank size={14} /> Ma semaine
           </div>
           {dayGroups.map(d => (
             <div key={d.key}>
@@ -232,7 +233,7 @@ export default function WodTab({
                   background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20,
                   padding: '3px 10px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer', flexShrink: 0,
                 }}>
-                  📅 Choisir mes jours
+                  <CalendarBlank size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Choisir mes jours
                 </button>
               )}
             </div>
@@ -247,7 +248,7 @@ export default function WodTab({
       {materielSession && (
         <div onClick={() => setMaterielSession(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
-            <div style={{ fontSize: 32, marginBottom: 8, textAlign: 'center' }}>🎒</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><Backpack size={32} /></div>
             <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>
               Matériel à prévoir
             </div>
@@ -282,8 +283,8 @@ function DayPickerModal({ program, onClose, onSave }) {
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
-        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>
-          📅 Mes jours — {program.title}
+        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <CalendarBlank size={16} /> Mes jours — {program.title}
         </div>
         {(program.recommended_sessions_per_week || program.min_hours_between_sessions) && (
           <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', marginBottom: 12 }}>
