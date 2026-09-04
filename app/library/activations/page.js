@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { VideoCamera, Lightning, PencilSimple, Eye, EyeSlash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 
@@ -85,13 +86,13 @@ function MentionTextarea({ value, onChange, videos, onAddVideo, placeholder, row
             <button key={mi} onMouseDown={() => pick(mov)}
               style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
               <span style={{ flex: 1 }}>{mov.name}</span>
-              <span style={{ fontSize: 12 }}>{mov.youtube_url ? '🎥' : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
+              <span style={{ fontSize: 12, display: 'flex' }}>{mov.youtube_url ? <VideoCamera size={13} /> : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
             </button>
           ))}
           {!suggs.some(m => m.name.toLowerCase() === mention.query.trim().toLowerCase()) && (
             <button onMouseDown={createAndPick}
               style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'var(--bg2)', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--green)', cursor: 'pointer' }}>
-              <span>🎥</span>
+              <span style={{ display: 'flex' }}><VideoCamera size={14} /></span>
               <span>Créer « {mention.query.trim()} » et lier une vidéo</span>
             </button>
           )}
@@ -139,7 +140,7 @@ function VideoListEditor({ videos, onAdd, onRemove, onUpdateUrl }) {
           {videos.map((v, vi) => (
             v.video_url ? (
               <div key={vi} style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 20, padding: '4px 6px 4px 10px' }}>
-                <a href={v.video_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, textDecoration: 'none', flexShrink: 0 }} title="Voir la vidéo">🎥</a>
+                <a href={v.video_url} target="_blank" rel="noreferrer" style={{ display: 'flex', textDecoration: 'none', flexShrink: 0 }} title="Voir la vidéo"><VideoCamera size={13} /></a>
                 <span style={{ fontSize: 12, fontWeight: 700, color: '#4338CA' }}>{v.name}</span>
                 <button onClick={() => onRemove(vi)} style={{ background: 'none', border: 'none', color: '#4338CA', fontSize: 14, cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1, opacity: 0.6 }}>×</button>
               </div>
@@ -166,13 +167,13 @@ function VideoListEditor({ videos, onAdd, onRemove, onUpdateUrl }) {
               <button key={mi} onMouseDown={() => pick(mov)}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
                 <span style={{ flex: 1 }}>{mov.name}</span>
-                <span style={{ fontSize: 12 }}>{mov.youtube_url ? '🎥' : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
+                <span style={{ fontSize: 12, display: 'flex' }}>{mov.youtube_url ? <VideoCamera size={13} /> : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
               </button>
             ))}
             {!suggs.some(m => m.name.toLowerCase() === search.trim().toLowerCase()) && (
               <button onMouseDown={createAndPick}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'var(--bg2)', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--green)', cursor: 'pointer' }}>
-                <span>🎥</span>
+                <span style={{ display: 'flex' }}><VideoCamera size={14} /></span>
                 <span>Créer « {search} » et lier une vidéo</span>
               </button>
             )}
@@ -286,7 +287,7 @@ export default function ActivationsLibraryPage() {
           position: 'sticky', top: 0, zIndex: 10
         }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 21, fontWeight: 700 }}>⚡ Activations</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 21, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Lightning size={19} /> Activations</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>
               Protocoles d&apos;activation réutilisables — texte + vidéos
             </div>
@@ -322,7 +323,7 @@ export default function ActivationsLibraryPage() {
 
           {!items.length && !showCreate ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>⚡</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><Lightning size={36} /></div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucune activation</div>
               <div style={{ fontSize: 13 }}>Clique sur « + Activation » pour commencer</div>
             </div>
@@ -369,7 +370,7 @@ export default function ActivationsLibraryPage() {
                       {item.videos?.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                           {item.videos.map((v, vi) => (
-                            <span key={vi} style={{ fontSize: 11, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>🎥 {v.name}</span>
+                            <span key={vi} style={{ fontSize: 11, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '2px 8px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><VideoCamera size={11} /> {v.name}</span>
                           ))}
                         </div>
                       )}
@@ -379,14 +380,14 @@ export default function ActivationsLibraryPage() {
                         style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>⧉</button>
                       {(isAdmin || item.coach_id === userId) ? (
                         <>
-                          <button onClick={() => startEdit(item)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>✎</button>
+                          <button onClick={() => startEdit(item)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--text2)', cursor: 'pointer' }}><PencilSimple size={12} /></button>
                           <button onClick={() => remove(item.id)} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
                         </>
                       ) : (
                         <button onClick={() => toggleHidden(item.id, hiddenIds.has(item.id))}
                           title={hiddenIds.has(item.id) ? 'Afficher à mes clients' : 'Masquer à mes clients'}
-                          style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>
-                          {hiddenIds.has(item.id) ? '🙈' : '👁️'}
+                          style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--text2)', cursor: 'pointer' }}>
+                          {hiddenIds.has(item.id) ? <EyeSlash size={12} /> : <Eye size={12} />}
                         </button>
                       )}
                     </div>

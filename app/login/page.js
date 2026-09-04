@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, Suspense } from 'react'
+import { Eye, EyeSlash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { PASSWORD_MIN_LENGTH } from '@/lib/passwordPolicy'
@@ -225,8 +226,8 @@ function LoginPage() {
                 }}
               />
               <button type="button" onClick={() => setShowPwd(v => !v)}
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text3)', padding: 4 }}>
-                {showPwd ? '🙈' : '👁'}
+                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: 4 }}>
+                {showPwd ? <EyeSlash size={18} /> : <Eye size={18} />}
               </button>
             </div>
           )}

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Tag, Money, Warning, CheckCircle, Prohibit, Circle } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -70,7 +71,7 @@ function Row({ a, promoCodes, onAction }) {
           <div style={{ fontSize: 11, color: 'var(--text3)' }}>
             {tier?.label || '—'}
             {pay && ` · ${formatEur(pay.amount / 100)} le ${new Date(pay.date).toLocaleDateString('fr-FR')}`}
-            {a.discountCode && ` · 🏷 ${a.discountCode}`}
+            {a.discountCode && <> · <Tag size={10} style={{ verticalAlign: -1 }} /> {a.discountCode}</>}
           </div>
         </div>
         {pay && payStyle && (
@@ -100,8 +101,8 @@ function Row({ a, promoCodes, onAction }) {
               Retirer le code promo
             </button>
           ) : (
-            <button onClick={() => setShowPromoPicker(v => !v)} disabled={busy} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
-              🏷 Appliquer un code promo
+            <button onClick={() => setShowPromoPicker(v => !v)} disabled={busy} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <Tag size={11} /> Appliquer un code promo
             </button>
           )}
           {a.paused ? (
@@ -205,8 +206,8 @@ function PromoCodesSection({ codes, onReload }) {
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1 }}>
-          🏷 Codes promo {codes ? `(${codes.length})` : ''}
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <Tag size={13} /> Codes promo {codes ? `(${codes.length})` : ''}
         </div>
         <button onClick={() => open ? closeForm() : setOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
           {open ? 'Annuler' : '+ Nouveau code'}
@@ -333,7 +334,7 @@ function Group({ title, items, promoCodes, onAction }) {
   if (items.length === 0) return null
   return (
     <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
         {title} ({items.length})
       </div>
       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
@@ -410,7 +411,7 @@ export default function FinancesPage() {
       <div className="coach-main" style={{ paddingBottom: 40 }}>
 
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10 }}>
-          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>💰 Finances</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}><Money size={17} /> Finances</div>
           <div style={{ fontSize: 12, color: 'var(--text3)' }}>Abonnements, paiements et chiffre d&apos;affaires</div>
         </div>
 
@@ -444,8 +445,8 @@ export default function FinancesPage() {
               </div>
 
               {failedCount > 0 && (
-                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--rl)', padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#991B1B' }}>
-                  ⚠️ {failedCount} paiement{failedCount > 1 ? 's' : ''} échoué{failedCount > 1 ? 's' : ''} à traiter
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--rl)', padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#991B1B', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Warning size={15} /> {failedCount} paiement{failedCount > 1 ? 's' : ''} échoué{failedCount > 1 ? 's' : ''} à traiter
                 </div>
               )}
 
@@ -456,9 +457,9 @@ export default function FinancesPage() {
                 style={{ padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
               />
 
-              <Group title="✅ Actifs" items={actifs} promoCodes={promoCodes} onAction={handleAthleteAction} />
-              <Group title="⛔ Arrêtés / en souci" items={arretes} promoCodes={promoCodes} onAction={handleAthleteAction} />
-              <Group title="⚪ Jamais abonnés" items={jamais} promoCodes={promoCodes} onAction={handleAthleteAction} />
+              <Group title={<><CheckCircle size={13} color="#166534" /> Actifs</>} items={actifs} promoCodes={promoCodes} onAction={handleAthleteAction} />
+              <Group title={<><Prohibit size={13} color="#991B1B" /> Arrêtés / en souci</>} items={arretes} promoCodes={promoCodes} onAction={handleAthleteAction} />
+              <Group title={<><Circle size={13} /> Jamais abonnés</>} items={jamais} promoCodes={promoCodes} onAction={handleAthleteAction} />
 
               <PromoCodesSection codes={promoCodes} onReload={loadPromoCodes} />
             </>

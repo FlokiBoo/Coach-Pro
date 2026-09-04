@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { LockKey, Eye, EyeSlash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { isPasswordValid, passwordPolicyMessage } from '@/lib/passwordPolicy'
 import PasswordChecklist from '@/app/components/PasswordChecklist'
@@ -94,7 +95,7 @@ function DefinirMotDePasseInner() {
     <div style={{ minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg2)', padding: 20 }}>
       <div style={{ width: '100%', maxWidth: 380, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '32px 28px' }}>
         <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🔐</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><LockKey size={32} /></div>
           <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 22, fontWeight: 700 }}>Crée ton compte</div>
           <div style={{ fontSize: 13, color: 'var(--text3)', marginTop: 6, lineHeight: 1.5 }}>
             Quelques infos pour préparer ton espace personnel.
@@ -163,8 +164,8 @@ function DefinirMotDePasseInner() {
                   style={{ ...inputStyle, paddingRight: 44 }}
                 />
                 <button type="button" onClick={() => setShowPwd(v => !v)}
-                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--text3)', padding: 4 }}>
-                  {showPwd ? '🙈' : '👁'}
+                  style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: 4 }}>
+                  {showPwd ? <EyeSlash size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </Field>
