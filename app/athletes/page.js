@@ -38,6 +38,7 @@ export default function AthletesPage() {
   const router = useRouter()
   const [athletes, setAthletes] = useState(null)
   const [groupsByAthlete, setGroupsByAthlete] = useState({})
+  const [programsByAthlete, setProgramsByAthlete] = useState({})
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('alpha')
   const [showTests, setShowTests] = useState(false)
@@ -62,9 +63,10 @@ export default function AthletesPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data }, { data: groups }] = await Promise.all([
+    const [{ data }, { data: groups }, { data: progs }] = await Promise.all([
       supabase.from('athletes').select('*').neq('archived', true).order('name'),
       supabase.from('groups').select('id, name, group_members(athlete_id, is_leader)'),
+      supabase.from('programs').select('title, athlete_id').not('athlete_id', 'is', null).neq('archived', true),
     ])
     setAthletes(data || [])
     const byAthlete = {}
@@ -74,6 +76,9 @@ export default function AthletesPage() {
       })
     })
     setGroupsByAthlete(byAthlete)
+    const progsByAthlete = {}
+    ;(progs || []).forEach(p => { (progsByAthlete[p.athlete_id] ||= []).push(p.title) })
+    setProgramsByAthlete(progsByAthlete)
   }
 
   const toggleLeaderFromList = async (athleteId, groupId, current) => {
@@ -300,6 +305,19 @@ export default function AthletesPage() {
                               </button>
                             )
                           })}
+                        </div>
+                      )}
+                      {programsByAthlete[a.id]?.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                          {programsByAthlete[a.id].map((title, idx) => (
+                            <span key={idx} style={{
+                              flexShrink: 0, background: 'var(--bg2)', color: 'var(--text2)',
+                              border: '1px solid var(--border2)', borderRadius: 20,
+                              padding: '2px 8px', fontSize: 10, fontWeight: 700,
+                            }}>
+                              📋 {title}
+                            </span>
+                          ))}
                         </div>
                       )}
                     </div>
