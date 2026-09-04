@@ -1028,11 +1028,6 @@ function AthleteView({ params }) {
             </button>
           )}
         </div>
-        {isCoachView && (
-          <Link href="/" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600 }}>
-            ← Vue coach
-          </Link>
-        )}
       </div>
 
       {isOffline && (
