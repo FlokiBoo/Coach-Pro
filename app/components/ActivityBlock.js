@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { PersonSimpleRun, PencilSimple, Trash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 
 const VISIBLE_COUNT = 3
@@ -199,8 +200,8 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false,
 
       {/* Header */}
       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', borderBottom: open ? '1px solid var(--border)' : 'none' }}>
-        <div onClick={() => setOpen(v => !v)} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1, cursor: 'pointer' }}>
-          🏃 Activité du jour
+        <div onClick={() => setOpen(v => !v)} style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <PersonSimpleRun size={14} /> Activité du jour
         </div>
         {defs.length > 0 && !open && (
           <span style={{ fontSize: 12, color: 'var(--green)', fontWeight: 600, marginRight: 8 }}>
@@ -264,9 +265,9 @@ export default function ActivityBlock({ athleteId, date = null, isCoach = false,
                       {isCoach && (
                         <>
                           <button onClick={() => { setEditingId(def.id); setEditForm({ label: def.label, show_km: def.show_km, show_duration: def.show_duration }) }}
-                            style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '3px 9px', fontSize: 13, cursor: 'pointer', color: 'var(--text2)' }}>✏️</button>
+                            style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '3px 9px', display: 'flex', cursor: 'pointer', color: 'var(--text2)' }}><PencilSimple size={13} /></button>
                           <button onClick={() => deleteDef(def.id)}
-                            style={{ background: 'none', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '3px 9px', fontSize: 13, cursor: 'pointer', color: '#DC2626' }}>🗑️</button>
+                            style={{ background: 'none', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '3px 9px', display: 'flex', cursor: 'pointer', color: '#DC2626' }}><Trash size={13} /></button>
                         </>
                       )}
                     </div>

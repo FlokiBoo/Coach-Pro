@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { User, ChartLineUp, Ruler, Bone, Scales, Key, EnvelopeSimple, PencilSimple, Warning, CheckCircle } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock from './TrackedMovementsBlock'
 import GoniometerView from './GoniometerView'
@@ -19,11 +20,11 @@ function calcAge(birthDate) {
 }
 
 const SECTIONS = [
-  { key: 'infos', emoji: '👤', label: 'Infos' },
-  { key: 'metrics', emoji: '📈', label: 'Metrics' },
-  { key: 'mensurations', emoji: '📏', label: 'Mensurations' },
-  { key: 'tests', emoji: '🦴', label: 'Tests articulaires' },
-  { key: 'torque', emoji: '⚖️', label: 'Test' },
+  { key: 'infos', Icon: User, label: 'Infos' },
+  { key: 'metrics', Icon: ChartLineUp, label: 'Metrics' },
+  { key: 'mensurations', Icon: Ruler, label: 'Mensurations' },
+  { key: 'tests', Icon: Bone, label: 'Tests articulaires' },
+  { key: 'torque', Icon: Scales, label: 'Test' },
 ]
 
 function FullscreenSection({ title, onClose, children }) {
@@ -31,7 +32,7 @@ function FullscreenSection({ title, onClose, children }) {
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 600, display: 'flex', flexDirection: 'column' }}>
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
         <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
-        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>{title}</div>
+        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8 }}>{title}</div>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
         {children}
@@ -111,14 +112,15 @@ function InfosSection({ athlete, onUpdate }) {
           <button onClick={sendInvite} disabled={inviting || !athlete.email} style={{
             background: athlete.email ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none',
             borderRadius: 'var(--r)', padding: 12, fontSize: 14, fontWeight: 700, cursor: athlete.email ? 'pointer' : 'default',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}>
-            {inviting ? '…' : athlete.email ? (athlete.auth_user_id ? '🔑 Renvoyer un lien de connexion' : '✉️ Envoyer le lien d\'invitation') : 'Ajoute un email pour inviter'}
+            {inviting ? '…' : athlete.email ? (athlete.auth_user_id ? <><Key size={15} /> Renvoyer un lien de connexion</> : <><EnvelopeSimple size={15} /> Envoyer le lien d&apos;invitation</>) : 'Ajoute un email pour inviter'}
           </button>
           {inviteMsg && <div style={{ fontSize: 12, color: inviteMsg.startsWith('Erreur') ? '#DC2626' : '#166534', fontWeight: 600 }}>{inviteMsg}</div>}
         </div>
 
-        <button onClick={() => setEditing(true)} style={{ background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-          ✏️ Modifier
+        <button onClick={() => setEditing(true)} style={{ background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: 12, fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <PencilSimple size={15} /> Modifier
         </button>
       </div>
     )
@@ -254,12 +256,14 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose, onPrev,
       <div style={{ flex: 1, overflowY: 'auto', maxWidth: 480, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16 }}>
         {result ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div style={{ textAlign: 'center', fontSize: 40, marginBottom: -4 }}>{result.new.daf_oui ? '⚠️' : '✅'}</div>
+            <div style={{ display: 'flex', justifyContent: 'center', color: result.new.daf_oui ? '#DC2626' : '#16A34A', marginBottom: -4 }}>
+              {result.new.daf_oui ? <Warning size={40} /> : <CheckCircle size={40} />}
+            </div>
             <div style={{ textAlign: 'center', fontWeight: 800, fontSize: 17 }}>Test validé</div>
 
             {result.new.daf_oui && (
-              <div style={{ background: '#FEE2E2', border: '1px solid #F1B8B8', borderRadius: 'var(--r)', padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#991B1B', fontSize: 13 }}>
-                ⚠️ DAF présente — signal de danger
+              <div style={{ background: '#FEE2E2', border: '1px solid #F1B8B8', borderRadius: 'var(--r)', padding: '10px 12px', textAlign: 'center', fontWeight: 700, color: '#991B1B', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                <Warning size={15} /> DAF présente — signal de danger
               </div>
             )}
 
@@ -608,7 +612,7 @@ function TestsArticulairesSection({ athleteId }) {
         background: '#0D1117', color: '#F2A93B', border: '1px solid #2A3140', borderRadius: 'var(--rl)',
         padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontFamily: 'inherit',
       }}>
-        <span style={{ fontSize: 20 }}>📐</span>
+        <Ruler size={20} />
         <span style={{ flex: 1, fontWeight: 700, fontSize: 14, textAlign: 'left' }}>Lancer le goniomètre</span>
         <span style={{ color: '#7C8493', fontSize: 18 }}>›</span>
       </button>
@@ -651,7 +655,7 @@ function TestsArticulairesSection({ athleteId }) {
                   const rd = analyzeADMPRisk(group.joint, t, entry.value_d, norms)
                   const rg = analyzeADMPRisk(group.joint, t, entry.value_g, norms)
                   const worst = [rd, rg].filter(Boolean).sort((a, b) => b.deficit - a.deficit)[0]
-                  if (worst?.atRisk) admpBadge = { label: `⚠️ -${worst.deficit}° vs norme`, color: '#991B1B', bg: '#FEE2E2' }
+                  if (worst?.atRisk) admpBadge = { label: `-${worst.deficit}° vs norme`, warn: true, color: '#991B1B', bg: '#FEE2E2' }
                   else if (rd || rg) admpBadge = { label: 'OK', color: '#166534', bg: '#DCFCE7' }
                 } else if (variant === 'Actif') {
                   const passifEntry = latestByTest[testKey(group.joint, `${baseName} (Passif)`)]
@@ -659,7 +663,7 @@ function TestsArticulairesSection({ athleteId }) {
                     const gd = analyzeActifPassifGap(group.joint, t, passifEntry.value_d, entry.value_d, norms)
                     const gg = analyzeActifPassifGap(group.joint, t, passifEntry.value_g, entry.value_g, norms)
                     const worst = [gd, gg].filter(Boolean).sort((a, b) => b.gap - a.gap)[0]
-                    if (worst?.atRisk) admpBadge = { label: `⚠️ Déficit actif -${worst.gap}°`, color: '#991B1B', bg: '#FEE2E2' }
+                    if (worst?.atRisk) admpBadge = { label: `Déficit actif -${worst.gap}°`, warn: true, color: '#991B1B', bg: '#FEE2E2' }
                   }
                 }
               }
@@ -701,19 +705,19 @@ function TestsArticulairesSection({ athleteId }) {
                         <>
                           {entry.value_d != null && (
                             <span onClick={() => startEditValue(group.joint, t, 'D', entry)}
-                              style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
-                              D {entry.value_d}° ✏️
+                              style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                              D {entry.value_d}° <PencilSimple size={10} />
                             </span>
                           )}
                           {entry.value_g != null && (
                             <span onClick={() => startEditValue(group.joint, t, 'G', entry)}
-                              style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer' }}>
-                              G {entry.value_g}° ✏️
+                              style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                              G {entry.value_g}° <PencilSimple size={10} />
                             </span>
                           )}
                           {admpBadge && (
-                            <span style={{ fontSize: 11, fontWeight: 700, color: admpBadge.color, background: admpBadge.bg, borderRadius: 20, padding: '3px 8px' }}>
-                              {admpBadge.label}
+                            <span style={{ fontSize: 11, fontWeight: 700, color: admpBadge.color, background: admpBadge.bg, borderRadius: 20, padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                              {admpBadge.warn && <Warning size={11} />} {admpBadge.label}
                             </span>
                           )}
                         </>
@@ -734,8 +738,8 @@ function TestsArticulairesSection({ athleteId }) {
                     )}
 
                     {entry?.daf_oui && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#991B1B', background: '#FEE2E2', borderRadius: 20, padding: '3px 8px' }}>
-                        ⚠️ DAF
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#991B1B', background: '#FEE2E2', borderRadius: 20, padding: '3px 8px', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <Warning size={11} /> DAF
                       </span>
                     )}
 
@@ -748,8 +752,8 @@ function TestsArticulairesSection({ athleteId }) {
                       </button>
                     )}
                     <button onClick={() => startEdit(t)}
-                      style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '4px 8px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)', flexShrink: 0 }}>
-                      {hasVideo ? '✏️' : '+ Vidéo'}
+                      style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '4px 8px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                      {hasVideo ? <PencilSimple size={12} /> : '+ Vidéo'}
                     </button>
                   </div>
 
@@ -854,34 +858,34 @@ export default function AthleteQuickNav({ athlete, onUpdate }) {
             flex: 1, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)',
             padding: '10px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', fontFamily: 'inherit',
           }}>
-            <span style={{ fontSize: 18 }}>{s.emoji}</span>
+            <s.Icon size={18} />
             <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text2)', textAlign: 'center' }}>{s.label}</span>
           </button>
         ))}
       </div>
 
       {open === 'infos' && (
-        <FullscreenSection title="👤 Infos" onClose={() => setOpen(null)}>
+        <FullscreenSection title={<><User size={17} /> Infos</>} onClose={() => setOpen(null)}>
           <InfosSection athlete={athlete} onUpdate={a => { onUpdate?.(a); }} />
         </FullscreenSection>
       )}
       {open === 'metrics' && (
-        <FullscreenSection title="📈 Metrics" onClose={() => setOpen(null)}>
+        <FullscreenSection title={<><ChartLineUp size={17} /> Metrics</>} onClose={() => setOpen(null)}>
           <TrackedMovementsBlock athleteId={athlete.id} isCoach />
         </FullscreenSection>
       )}
       {open === 'mensurations' && (
-        <FullscreenSection title="📏 Mensurations" onClose={() => setOpen(null)}>
+        <FullscreenSection title={<><Ruler size={17} /> Mensurations</>} onClose={() => setOpen(null)}>
           <ComingSoon label="Mensurations" />
         </FullscreenSection>
       )}
       {open === 'tests' && (
-        <FullscreenSection title="🦴 Tests articulaires" onClose={() => setOpen(null)}>
+        <FullscreenSection title={<><Bone size={17} /> Tests articulaires</>} onClose={() => setOpen(null)}>
           <TestsArticulairesSection athleteId={athlete.id} />
         </FullscreenSection>
       )}
       {open === 'torque' && (
-        <FullscreenSection title="⚖️ Test Torque" onClose={() => setOpen(null)}>
+        <FullscreenSection title={<><Scales size={17} /> Test Torque</>} onClose={() => setOpen(null)}>
           <TorqueProfileSection athleteId={athlete.id} />
         </FullscreenSection>
       )}
