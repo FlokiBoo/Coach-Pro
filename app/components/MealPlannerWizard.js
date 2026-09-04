@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { MagnifyingGlass, Calculator, Fish, Avocado, Carrot, Bread, ForkKnife, Warning } from '@phosphor-icons/react'
 import { searchFood, generatePlan, OLIVE_OIL, ACTIVITY_LEVELS, GOALS, computeCalorieTarget } from '@/lib/mealPlanner'
 
 const inputStyle = {
@@ -52,8 +53,8 @@ function FoodPicker({ label, value, onChange, placeholder }) {
               style={inputStyle}
             />
             <button onClick={doSearch} disabled={searching || !query.trim()}
-              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '0 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-              {searching ? '…' : '🔍'}
+              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '0 14px', display: 'flex', alignItems: 'center', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+              {searching ? '…' : <MagnifyingGlass size={14} />}
             </button>
           </div>
           {open && results.length > 0 && (
@@ -177,7 +178,7 @@ export default function MealPlannerWizard() {
             </div>
 
             <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontSize: 12, fontWeight: 800 }}>🔢 Calculateur de besoin calorique</div>
+              <div style={{ fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}><Calculator size={14} /> Calculateur de besoin calorique</div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <div style={{ flex: 1 }}>
                   <div style={labelStyle}>Sexe</div>
@@ -292,7 +293,7 @@ export default function MealPlannerWizard() {
             </div>
 
             <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🍗 Protéines</div>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}><Fish size={14} /> Protéines</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <PoolPicker label="Protéines" items={pools.proteins} onChange={v => setPools(p => ({ ...p, proteins: v }))} />
 
@@ -313,23 +314,23 @@ export default function MealPlannerWizard() {
             </div>
 
             <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🫒 Lipides (huile d&apos;olive par défaut)</div>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}><Avocado size={14} /> Lipides (huile d&apos;olive par défaut)</div>
               <PoolPicker label="Lipides" items={pools.fats} onChange={v => setPools(p => ({ ...p, fats: v }))} />
             </div>
 
             <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🥦 Légumes</div>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}><Carrot size={14} /> Légumes</div>
               <PoolPicker label="Légumes" items={pools.vegetables} onChange={v => setPools(p => ({ ...p, vegetables: v }))} />
             </div>
 
             <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>🍞 Glucides</div>
+              <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}><Bread size={14} /> Glucides</div>
               <PoolPicker label="Glucides" items={pools.carbs} onChange={v => setPools(p => ({ ...p, carbs: v }))} />
             </div>
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setStep(2)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, padding: '10px 16px', fontSize: 14, fontWeight: 700, cursor: 'pointer', color: 'var(--text3)' }}>← Retour</button>
-              <button onClick={generate} style={{ flex: 1, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>🍽 Générer le plan</button>
+              <button onClick={generate} style={{ flex: 1, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><ForkKnife size={15} /> Générer le plan</button>
             </div>
           </div>
         )}
@@ -356,7 +357,7 @@ export default function MealPlannerWizard() {
                         {m.fruitOrVeg?.food && <span>{m.fruitOrVeg.food.name} ({m.fruitOrVeg.label}) — {m.fruitOrVeg.qty}g</span>}
                       </div>
                       {m.warnings.length > 0 && (
-                        <div style={{ marginTop: 3, color: '#DC2626', fontSize: 11 }}>⚠ {m.warnings.join(' · ')}</div>
+                        <div style={{ marginTop: 3, color: '#DC2626', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}><Warning size={11} /> {m.warnings.join(' · ')}</div>
                       )}
                     </div>
                   ))}
