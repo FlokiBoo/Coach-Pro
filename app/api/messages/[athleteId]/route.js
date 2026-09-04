@@ -24,7 +24,11 @@ async function authenticate(athleteId) {
   const isCoach = athlete.coach_id === user.id
   if (!isOwner && !isCoach) return { error: NextResponse.json({ error: 'forbidden' }, { status: 403 }) }
 
-  return { athlete, user, role: isCoach ? 'coach' : 'athlete' }
+  // Le profil perso du coach ("Switch to athlete") a le même auth_user_id que son compte coach,
+  // donc isOwner ET isCoach sont vrais dessus — isOwner doit gagner (on est dans son propre fil
+  // en tant qu'athlète), sinon le PATCH marque read_by_coach_at au lieu de read_by_athlete_at et
+  // le badge de messages non lus ne redescend jamais à zéro sur ce profil.
+  return { athlete, user, role: isOwner ? 'athlete' : 'coach' }
 }
 
 export async function GET(request, { params }) {
