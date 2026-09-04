@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { Medal, Circle } from '@phosphor-icons/react'
 import { ONE_TIME_OFFERS } from '@/lib/offers'
 
 const cardStyle = {
@@ -116,7 +117,7 @@ export default function OffresPage() {
         <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
           <div style={cardStyle}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text3)', marginBottom: 2 }}>🥉 PROGRAMME SUR-MESURE</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text3)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}><Medal size={14} color="#8A5A2B" weight="fill" /> PROGRAMME SUR-MESURE</div>
               <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 30, fontWeight: 700 }}>300€</div>
               <div className="font-editorial" style={{ fontSize: 14, color: 'var(--text3)', fontStyle: 'italic', marginTop: 2 }}>Le plan, sans l&apos;accompagnement</div>
             </div>
@@ -151,7 +152,7 @@ export default function OffresPage() {
 
           <div style={{ ...cardStyle, border: '1.5px solid var(--green)' }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', marginBottom: 2 }}>🟢 SUIVI 1:1</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--green)', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6 }}><Circle size={11} weight="fill" /> SUIVI 1:1</div>
               <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 30, fontWeight: 700 }}>1500€ <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text3)' }}>/ 3 mois</span></div>
               <div className="font-editorial" style={{ fontSize: 14, color: 'var(--text3)', fontStyle: 'italic', marginTop: 2 }}>L&apos;accompagnement complet</div>
             </div>

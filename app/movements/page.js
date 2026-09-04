@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
+import { VideoCamera, BookOpen, MagnifyingGlass, PencilSimple, Trash, Eye, EyeSlash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 
@@ -28,7 +29,7 @@ const SORT_CYCLES = {
 
 function sortIndicator(colKey, sort) {
   if (sort.key !== colKey) return ''
-  if (colKey === 'youtube_url') return sort.dir === 'with' ? ' 🎥 d\'abord' : ' — d\'abord'
+  if (colKey === 'youtube_url') return sort.dir === 'with' ? <> <VideoCamera size={11} style={{ verticalAlign: -1 }} /> d&apos;abord</> : ' — d\'abord'
   if (sort.dir === 'empty') return ' (vide d\'abord)'
   return sort.dir === 'asc' ? ' ▲' : ' ▼'
 }
@@ -197,7 +198,7 @@ export default function MovementsPage() {
         {/* Header */}
         <div style={{ padding: '18px 24px 0', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', paddingBottom: 14 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 19, fontWeight: 700 }}>📚 Exercice</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 19, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><BookOpen size={18} /> Exercice</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{movements.length} mouvements</div>
           </div>
           <button
@@ -246,7 +247,7 @@ export default function MovementsPage() {
         {/* Barre de recherche */}
         <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)' }}>
           <div style={{ position: 'relative' }}>
-            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)', fontSize: 14 }}>🔍</span>
+            <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', display: 'flex', color: 'var(--text3)' }}><MagnifyingGlass size={14} /></span>
             <input
               placeholder="Rechercher par nom, muscle…"
               value={search}
@@ -351,15 +352,15 @@ export default function MovementsPage() {
                     {(isAdmin || m.coach_id === userId) ? (
                       <>
                         <button onClick={e => { e.stopPropagation(); setEditingId(m.id); setEditForm({ name: m.name, muscles: m.muscles || '', torque: m.torque || '', youtube_url: m.youtube_url || '' }) }}
-                          style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 15, cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}>✏️</button>
+                          style={{ background: 'none', border: 'none', color: 'var(--text3)', display: 'flex', cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}><PencilSimple size={14} /></button>
                         <button onClick={e => { e.stopPropagation(); remove(m.id) }}
-                          style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 14, cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}>🗑️</button>
+                          style={{ background: 'none', border: 'none', color: 'var(--text3)', display: 'flex', cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}><Trash size={14} /></button>
                       </>
                     ) : (
                       <button onClick={e => { e.stopPropagation(); toggleHidden(m.id, hiddenIds.has(m.id)) }}
                         title={hiddenIds.has(m.id) ? 'Afficher à mes clients' : 'Masquer à mes clients'}
-                        style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 14, cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}>
-                        {hiddenIds.has(m.id) ? '🙈' : '👁️'}
+                        style={{ background: 'none', border: 'none', color: 'var(--text3)', display: 'flex', cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}>
+                        {hiddenIds.has(m.id) ? <EyeSlash size={14} /> : <Eye size={14} />}
                       </button>
                     )}
                   </div>
