@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { EyeSlash, Backpack, ClipboardText, CalendarBlank } from '@phosphor-icons/react'
+import { EyeSlash, Backpack, ClipboardText, CalendarBlank, ClockCounterClockwise, CaretDown, CaretUp } from '@phosphor-icons/react'
 import { WEEK_DAYS, jsDayToWeekDay } from '@/lib/weekDays'
 
 // Page d'accueil : la prochaine séance doit être visible immédiatement, sans scroll (retour
@@ -17,6 +17,8 @@ export default function WodTab({
   const [selectedProgramId, setSelectedProgramId] = useState(null)
   const [materielSession, setMaterielSession] = useState(null)
   const [dayPickerProgram, setDayPickerProgram] = useState(null)
+  const [expandedUpcoming, setExpandedUpcoming] = useState(() => new Set())
+  const [historyProgram, setHistoryProgram] = useState(null)
 
   const openSession = (sessionId) => {
     router.push(`/s/${token}?session=${sessionId}&focus=1${isCoachView ? '&coach=1' : ''}`)
@@ -223,11 +225,29 @@ export default function WodTab({
         </div>
       )}
 
-      {visiblePrograms.map(prog => (
-        <div key={prog.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-          {typePrograms.length <= 1 && (
+      {visiblePrograms.map(prog => {
+        const nextIdx = prog.sessions.findIndex(s => !completions.has(s.id) && !skippedSessions.has(s.id))
+        const pastSessions = nextIdx === -1 ? prog.sessions : prog.sessions.slice(0, nextIdx)
+        const upcomingSessions = nextIdx === -1 ? [] : prog.sessions.slice(nextIdx)
+        const isExpanded = expandedUpcoming.has(prog.id)
+        const visibleUpcoming = isExpanded ? upcomingSessions : upcomingSessions.slice(0, 3)
+        const remainingCount = upcomingSessions.length - visibleUpcoming.length
+        return (
+          <div key={prog.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
             <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>{prog.title}</span>
+              {typePrograms.length <= 1 && (
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>{prog.title}</span>
+              )}
+              {pastSessions.length > 0 && (
+                <button onClick={() => setHistoryProgram(prog)} style={{
+                  marginLeft: typePrograms.length <= 1 ? 0 : 'auto',
+                  background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20,
+                  padding: '3px 10px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                  <ClockCounterClockwise size={12} />Historique
+                </button>
+              )}
               {!isCoachView && onUpdateProgramDays && (
                 <button onClick={() => setDayPickerProgram(prog)} style={{
                   background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20,
@@ -237,13 +257,36 @@ export default function WodTab({
                 </button>
               )}
             </div>
-          )}
-          {(() => {
-            const nextSessionId = prog.sessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)) && !skippedSessions.has(s.id))?.id
-            return prog.sessions.map(s => renderSessionRow(s, { isNext: s.id === nextSessionId }))
-          })()}
-        </div>
-      ))}
+            {upcomingSessions.length === 0 ? (
+              <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text3)', textAlign: 'center' }}>
+                Programme terminé — consulte l&apos;historique ci-dessus.
+              </div>
+            ) : (
+              <>
+                {visibleUpcoming.map((s, i) => renderSessionRow(s, { isNext: i === 0 }))}
+                {remainingCount > 0 && (
+                  <button onClick={() => setExpandedUpcoming(prev => new Set(prev).add(prog.id))} style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                    background: 'none', border: 'none', borderTop: '1px solid var(--border)', padding: '10px',
+                    fontSize: 12, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer',
+                  }}>
+                    <CaretDown size={12} />Voir les {remainingCount} séances suivantes
+                  </button>
+                )}
+                {isExpanded && upcomingSessions.length > 3 && (
+                  <button onClick={() => setExpandedUpcoming(prev => { const next = new Set(prev); next.delete(prog.id); return next })} style={{
+                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                    background: 'none', border: 'none', borderTop: '1px solid var(--border)', padding: '10px',
+                    fontSize: 12, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer',
+                  }}>
+                    <CaretUp size={12} />Réduire
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        )
+      })}
 
       {materielSession && (
         <div onClick={() => setMaterielSession(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
@@ -256,6 +299,28 @@ export default function WodTab({
             <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 16 }}>{materielSession.materiel}</div>
             <button onClick={() => setMaterielSession(null)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
               Compris
+            </button>
+          </div>
+        </div>
+      )}
+
+      {historyProgram && (
+        <div onClick={() => setHistoryProgram(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', maxWidth: 420, width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <ClockCounterClockwise size={16} />
+              <span style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 16, fontWeight: 700, flex: 1 }}>Historique</span>
+              <span style={{ fontSize: 12, color: 'var(--text3)' }}>{historyProgram.title}</span>
+            </div>
+            <div style={{ overflowY: 'auto' }}>
+              {(() => {
+                const idx = historyProgram.sessions.findIndex(s => !completions.has(s.id) && !skippedSessions.has(s.id))
+                const past = idx === -1 ? historyProgram.sessions : historyProgram.sessions.slice(0, idx)
+                return past.slice().reverse().map(s => renderSessionRow(s))
+              })()}
+            </div>
+            <button onClick={() => setHistoryProgram(null)} style={{ background: 'none', border: 'none', borderTop: '1px solid var(--border)', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', padding: 12 }}>
+              Fermer
             </button>
           </div>
         </div>
