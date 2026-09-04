@@ -9,6 +9,11 @@ import TimerModal from './TimerModal'
 import GoniometerView from './GoniometerView'
 import QuickAngleModal from './QuickAngleModal'
 import { guardNavigation, hasUnsavedChanges } from '@/lib/unsavedChanges'
+import {
+  House, User, UsersThree, Robot, Timer as TimerIcon, Ruler, CalendarBlank, CookingPot, Carrot,
+  ForkKnife, ClipboardText, ChartLineUp, Lightbulb, BookOpen, Lightning, Money, EnvelopeSimple,
+  MagnifyingGlass, GearSix, SignOut,
+} from '@phosphor-icons/react'
 
 async function logout() {
   await supabase.auth.signOut()
@@ -192,22 +197,22 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
-        }}>🏠 Tableau de bord</Link>
+        }}><House size={16} /> Tableau de bord</Link>
         <Link href="/athletes" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
-        }}>👤 Sportifs</Link>
+        }}><User size={16} /> Sportifs</Link>
         <Link href="/groups" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
-        }}>👥 Groupes</Link>
+        }}><UsersThree size={16} /> Groupes</Link>
         <Link href="/assistant" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
-        }}>🤖 Assistant IA</Link>
+        }}><Robot size={16} /> Assistant IA</Link>
 
         <button onClick={() => toggleSection('outils')} style={{
           display: 'flex', alignItems: 'center', gap: 4, width: '100%', background: 'none', border: 'none', cursor: 'pointer',
@@ -222,12 +227,12 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', width: '100%', textAlign: 'left',
               borderRadius: 'var(--r)', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
               fontSize: 13, fontWeight: 600, color: 'var(--text2)',
-            }}>⏱ Timer</button>
+            }}><TimerIcon size={16} /> Timer</button>
             <button onClick={() => setGonioChoice(true)} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', width: '100%', textAlign: 'left',
               borderRadius: 'var(--r)', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit',
               fontSize: 13, fontWeight: 600, color: 'var(--text2)',
-            }}>📐 Goniomètre</button>
+            }}><Ruler size={16} /> Goniomètre</button>
           </>
         )}
 
@@ -244,22 +249,22 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}>🗓 Plans</Link>
+            }}><CalendarBlank size={16} /> Plans</Link>
             <Link href="/nutrition/recettes" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}>🍳 Recettes</Link>
+            }}><CookingPot size={16} /> Recettes</Link>
             <Link href="/nutrition/aliments" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}>🍎 Aliments</Link>
+            }}><Carrot size={16} /> Aliments</Link>
             <Link href="/meal-planner" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}>🍽 Générateur de plan</Link>
+            }}><ForkKnife size={16} /> Générateur de plan</Link>
           </>
         )}
 
@@ -276,17 +281,17 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}>📋 Templates</Link>
+            }}><ClipboardText size={16} /> Templates</Link>
             <Link href="/metrics" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}>📈 Metrics</Link>
+            }}><ChartLineUp size={16} /> Metrics</Link>
             <Link href="/tips" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}>💡 Tips</Link>
+            }}><Lightbulb size={16} /> Tips</Link>
           </>
         )}
 
@@ -303,12 +308,12 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}>📚 Mouvements</Link>
+            }}><BookOpen size={16} /> Mouvements</Link>
             <Link href="/library/activations" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}>⚡ Activations</Link>
+            }}><Lightning size={16} /> Activations</Link>
           </>
         )}
 
@@ -325,12 +330,12 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}>💰 Finances</Link>
+            }}><Money size={16} /> Finances</Link>
             <Link href="/demandes" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}>📨 Demandes</Link>
+            }}><EnvelopeSimple size={16} /> Demandes</Link>
           </>
         )}
       </div>
@@ -342,7 +347,7 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
         </div>
 
         <div style={{ position: 'relative', marginBottom: 4 }}>
-          <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--text3)' }}>🔍</span>
+          <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', color: 'var(--text3)' }}><MagnifyingGlass size={13} /></span>
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -424,15 +429,15 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
       <div style={{ padding: '10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
         <button
           onClick={() => setShowSettings(true)}
-          style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left' }}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left' }}
         >
-          ⚙️ Paramètres
+          <GearSix size={14} /> Paramètres
         </button>
         <button
           onClick={() => { if (hasUnsavedChanges() && !window.confirm('Tu as des modifications non sauvegardées sur cette page. Te déconnecter sans enregistrer ?')) return; logout() }}
-          style={{ width: '100%', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left' }}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', textAlign: 'left' }}
         >
-          ⎋ Déconnexion
+          <SignOut size={14} /> Déconnexion
         </button>
         <Link href="/" onClick={guardNavigation} style={{ fontSize: 12, color: 'var(--text3)', textDecoration: 'none', fontWeight: 600, padding: '2px 0' }}>
           ← Accueil
@@ -459,7 +464,7 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
     {gonioChoice && (
       <div onClick={() => setGonioChoice(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 850, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
         <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4 }}>📐 Goniomètre</div>
+          <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><Ruler size={18} /> Goniomètre</div>
           <button onClick={() => { setGonioChoice(false); setShowQuickAngle(true) }} style={{
             textAlign: 'left', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
             padding: '12px 14px', cursor: 'pointer', fontFamily: 'inherit',
