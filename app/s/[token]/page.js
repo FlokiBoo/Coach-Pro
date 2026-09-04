@@ -23,6 +23,11 @@ import ProfilTab from '@/app/components/athlete/ProfilTab'
 import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 import TimerModal from '@/app/components/TimerModal'
 import SplitTimerSession from '@/app/components/SplitTimerSession'
+import {
+  House, WifiSlash, Bell, Target, Repeat, SkipForward, Lock, EyeSlash, Backpack, UsersThree,
+  Lightning, PencilSimple, Calculator, CalendarBlank, Prohibit, Lightbulb, ChartBar, ChartLineUp,
+  LinkSimple, Circle, Clock,
+} from '@phosphor-icons/react'
 import { annotatePaceReferences, formatPace, isRunMovement, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, formatDistance, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
 import { CIRCUIT_MODES } from '@/lib/circuitModes'
 import { registerPushNotifications } from '@/lib/pushRegistration'
@@ -1024,7 +1029,7 @@ function AthleteView({ params }) {
                 cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5
               }}
             >
-              🏠 Switch to coach
+              <House size={14} /> Switch to coach
             </button>
           )}
         </div>
@@ -1032,7 +1037,7 @@ function AthleteView({ params }) {
 
       {isOffline && (
         <div style={{ background: '#FEF3C7', borderBottom: '1px solid #FDE68A', padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 14 }}>📴</span>
+          <span style={{ display: 'flex' }}><WifiSlash size={14} /></span>
           <span style={{ fontSize: 12, fontWeight: 600, color: '#92400E' }}>Hors ligne — tu vois les dernières données chargées. Les actions (valider, enregistrer) reprendront une fois reconnecté.</span>
         </div>
       )}
@@ -1133,7 +1138,7 @@ function AthleteView({ params }) {
       {!celebration && pendingGroupSessions.length === 0 && showRenewalPopup && (
         <div onClick={dismissRenewalPopup} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
-            <div style={{ fontSize: 32, marginBottom: 8, textAlign: 'center' }}>🔔</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><Bell size={32} /></div>
             <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>
               Renouvellement à venir
             </div>
@@ -1329,7 +1334,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
 
       {onSaveTargetPace && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 8, borderTop: '1px dashed var(--border)' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🎯 Mes allures cibles</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 4 }}><Target size={11} /> Mes allures cibles</div>
           <div style={{ display: 'flex', gap: 6 }}>
             {TARGET_RACE_KEYS.map(r => (
               <div key={r.key} style={{ flex: 1 }}>
@@ -1398,7 +1403,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
   const renderCircuit = (c) => (
     <div key={c.id} style={{ background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 'var(--r)', padding: '10px 12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-        <div style={{ flex: 1, fontSize: 10, fontWeight: 800, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🔁 {c.name || 'Circuit'}</div>
+        <div style={{ flex: 1, fontSize: 10, fontWeight: 800, color: '#4338CA', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 4 }}><Repeat size={11} /> {c.name || 'Circuit'}</div>
         {c.timer && (
           <button onClick={() => { unlockAudio(); onLaunchTimer?.(c.timer, c.name || 'Circuit') }}
             style={{ background: '#4338CA', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 12, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
@@ -1475,23 +1480,23 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
           color: isCompleted ? '#166534' : isSkipped ? 'var(--text3)' : (isOpen ? '#fff' : 'var(--green)'),
           display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 800
         }}>
-          {isCompleted ? '✓' : isSkipped ? '⏭' : idx + 1}
+          {isCompleted ? '✓' : isSkipped ? <SkipForward size={14} /> : idx + 1}
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            {session.locked && <span>🔒</span>}
-            {session.hidden && <span>🙈</span>}
+            {session.locked && <span style={{ display: 'flex' }}><Lock size={13} /></span>}
+            {session.hidden && <span style={{ display: 'flex' }}><EyeSlash size={13} /></span>}
             {session.title || `Séance ${idx + 1}`}
             {session.materiel && (
               <button onClick={e => { e.stopPropagation(); setShowMateriel(true) }} title="Matériel à prévoir pour cette séance"
-                style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', fontSize: 12, cursor: 'pointer', flexShrink: 0, lineHeight: 1.4 }}>
-                🎒
+                style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', display: 'flex', cursor: 'pointer', flexShrink: 0 }}>
+                <Backpack size={13} />
               </button>
             )}
             {isGroupLeader && session.source_session_id && (
               <button onClick={e => { e.stopPropagation(); setShowGroupPaces(true) }} title="Voir les allures/distances de tout le groupe pour cette séance"
-                style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', fontSize: 12, cursor: 'pointer', flexShrink: 0, lineHeight: 1.4 }}>
-                👥
+                style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', display: 'flex', cursor: 'pointer', flexShrink: 0 }}>
+                <UsersThree size={13} />
               </button>
             )}
           </div>
@@ -1510,7 +1515,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
 
       {isOpen && session.locked && (
         <div style={{ padding: '20px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-          <div style={{ fontSize: 32 }}>🔒</div>
+          <Lock size={32} />
           <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Cette séance fait partie d&apos;une formule payante</div>
           <div style={{ fontSize: 12, color: 'var(--text3)', maxWidth: 320 }}>
             L&apos;accès gratuit couvre les premières séances du programme. Passe à une formule payante pour continuer.
@@ -1528,7 +1533,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
 
       {isOpen && session.hidden && (
         <div style={{ padding: '20px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-          <div style={{ fontSize: 32 }}>🙈</div>
+          <EyeSlash size={32} />
           <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Séance pas encore dévoilée</div>
           <div style={{ fontSize: 12, color: 'var(--text3)', maxWidth: 320 }}>
             Ton coach garde le contenu secret jusqu&apos;à la séance en groupe — reviens juste après pour voir le détail et enregistrer ton résultat.
@@ -1540,13 +1545,13 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
         <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {session.materiel && (
             <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>🎒 Matériel</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}><Backpack size={11} /> Matériel</div>
               <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{session.materiel}</div>
             </div>
           )}
           {(session.activation || (session.activation_videos?.length > 0)) && (
             <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6 }}>⚡ Activation</div>
+              <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}><Lightning size={11} /> Activation</div>
               {session.activation && (
                 <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: session.activation_videos?.length > 0 ? 8 : 0 }}>{session.activation}</div>
               )}
@@ -1631,10 +1636,10 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                         background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FCA5A5', borderRadius: 20,
                         padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
                       }}>
-                        🎯 FOCUS · {MUSCLE_GROUPS.filter(z => zones.includes(z.key)).map(z => z.label).join(', ')}
+                        <Target size={12} /> FOCUS · {MUSCLE_GROUPS.filter(z => zones.includes(z.key)).map(z => z.label).join(', ')}
                         {isAuto && <span style={{ fontWeight: 500, opacity: 0.75 }}>(auto)</span>}
                         {isCoach && (
-                          <span onClick={e => { e.stopPropagation(); setFocusPicker(exo.id) }} style={{ marginLeft: 2 }}>✏️</span>
+                          <span onClick={e => { e.stopPropagation(); setFocusPicker(exo.id) }} style={{ marginLeft: 2, display: 'inline-flex' }}><PencilSimple size={11} /></span>
                         )}
                       </button>
                     ) : (
@@ -1689,8 +1694,8 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                         )}
                         <button onClick={() => setCalcModal({ pace1, pace2: samePace ? null : pace2 })}
                           title="Calculer la distance parcourue pour un temps donné"
-                          style={{ background: 'var(--bg)', border: '1px solid #B8EAD8', borderRadius: 20, padding: '3px 9px', fontSize: 12, fontWeight: 700, color: 'var(--green)', cursor: 'pointer' }}>
-                          🧮 Distance
+                          style={{ background: 'var(--bg)', border: '1px solid #B8EAD8', borderRadius: 20, padding: '3px 9px', fontSize: 12, fontWeight: 700, color: 'var(--green)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <Calculator size={12} /> Distance
                         </button>
                       </>
                     )}
@@ -1805,7 +1810,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
 
           {isFreeSession && onUpdateFreeSessionDate && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', flexShrink: 0 }}>📅 Date</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={12} /> Date</span>
               <input type="date" value={session.date || ''} onChange={e => e.target.value && onUpdateFreeSessionDate(e.target.value)}
                 style={{ flex: 1, boxSizing: 'border-box', padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
             </div>
@@ -1826,8 +1831,8 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
 
           {isSkipped ? (
             <>
-              <div style={{ textAlign: 'center', padding: '10px 0', color: 'var(--text3)', fontSize: 13, fontWeight: 600 }}>
-                ⏭ Séance sautée
+              <div style={{ textAlign: 'center', padding: '10px 0', color: 'var(--text3)', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                <SkipForward size={13} /> Séance sautée
               </div>
               {onUnvalidate && (
                 <button onClick={onUnvalidate} disabled={validating}
@@ -1863,14 +1868,14 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
                   {onPostpone && (
                     <button onClick={() => setShowPostpone(true)} disabled={validating}
-                      style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--rl)', padding: '11px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                      ⏭ Reporter
+                      style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--rl)', padding: '11px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                      <SkipForward size={13} /> Reporter
                     </button>
                   )}
                   {onSkip && (
                     <button onClick={() => { if (confirm('Sauter cette séance sans la valider ? Tu passeras directement à la suivante.')) onSkip() }} disabled={validating}
-                      style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--rl)', padding: '11px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                      🚫 Sauter
+                      style={{ flex: 1, background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--rl)', padding: '11px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                      <Prohibit size={13} /> Sauter
                     </button>
                   )}
                 </div>
@@ -1926,7 +1931,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
       {showMateriel && (
         <div onClick={() => setShowMateriel(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
-            <div style={{ fontSize: 32, marginBottom: 8, textAlign: 'center' }}>🎒</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><Backpack size={32} /></div>
             <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 12, textAlign: 'center' }}>
               Matériel à prévoir
             </div>
@@ -1958,7 +1963,7 @@ function GroupPacesModal({ token, sessionId, onClose }) {
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 420, width: '100%', maxHeight: '80svh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700 }}>👥 Allures du groupe</div>
+          <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><UsersThree size={16} /> Allures du groupe</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
         </div>
         {state.loading ? (
@@ -1997,7 +2002,7 @@ function FocusPicker({ initial, onCancel, onSave }) {
   return (
     <div onClick={onCancel} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 20, padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: '90svh', overflowY: 'auto' }}>
-        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4 }}>🎯 Focus</div>
+        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><Target size={16} /> Focus</div>
         <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14 }}>Choisis le ou les muscles à ressentir</div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
@@ -2047,7 +2052,7 @@ function PaceDistanceCalc({ pace1, pace2, onClose }) {
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: 16 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 20, padding: 20, maxWidth: 340, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
-        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4 }}>🧮 Calculateur distance</div>
+        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}><Calculator size={16} /> Calculateur distance</div>
         <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 16 }}>Temps à courir + allure → distance à parcourir.</div>
 
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Temps à courir</div>
@@ -2230,8 +2235,8 @@ function TipsButton() {
 
   return (
     <>
-      <button onClick={openModal} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-        💡
+      <button onClick={openModal} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 'var(--r)', padding: '4px 10px', display: 'flex', cursor: 'pointer', flexShrink: 0 }}>
+        <Lightbulb size={13} />
       </button>
       {open && (
         <div onClick={() => setOpen(false)} style={{
@@ -2246,7 +2251,7 @@ function TipsButton() {
               {selected && (
                 <button onClick={() => setSelected(null)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>←</button>
               )}
-              <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, flex: 1 }}>💡 {selected ? selected.title : 'Tips'}</div>
+              <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}><Lightbulb size={16} /> {selected ? selected.title : 'Tips'}</div>
               <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
             </div>
 
@@ -2372,7 +2377,7 @@ function MetricResultField({ movement, onSave }) {
   return (
     <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px' }}>
       <div style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span>📊 Résultat ({cfg.label})</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ChartBar size={11} /> Résultat ({cfg.label})</span>
         {saved && <span>✓ Enregistré</span>}
       </div>
       {isTime ? (
@@ -2405,8 +2410,8 @@ function ExerciseHistoryButton({ athleteId, exerciseName }) {
 
   return (
     <>
-      <button onClick={openModal} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-        📈
+      <button onClick={openModal} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 'var(--r)', padding: '4px 10px', display: 'flex', cursor: 'pointer', flexShrink: 0 }}>
+        <ChartLineUp size={13} />
       </button>
       {open && (
         <div onClick={() => setOpen(false)} style={{
@@ -2418,7 +2423,7 @@ function ExerciseHistoryButton({ athleteId, exerciseName }) {
             maxHeight: '75vh', overflowY: 'auto', padding: 18
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
-              <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, flex: 1 }}>📈 {exerciseName}</div>
+              <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, flex: 1, display: 'flex', alignItems: 'center', gap: 8 }}><ChartLineUp size={16} /> {exerciseName}</div>
               <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 0 }}>×</button>
             </div>
 
@@ -2514,8 +2519,9 @@ function FreeExerciseAdder({ sessionId, exos, onAdd, onToggleSuperset }) {
         <button onClick={toggleSuperset} disabled={togglingSuperset} style={{
           alignSelf: 'flex-start', background: lastPairGrouped ? '#EEF2FF' : 'none', color: '#6366f1',
           border: '1px solid #C7D2FE', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+          display: 'flex', alignItems: 'center', gap: 5,
         }}>
-          {togglingSuperset ? '…' : lastPairGrouped ? '✕ Retirer la supersérie' : '🔗 Supersérie avec le précédent'}
+          {togglingSuperset ? '…' : lastPairGrouped ? '✕ Retirer la supersérie' : <><LinkSimple size={12} /> Supersérie avec le précédent</>}
         </button>
       )}
 
@@ -2550,14 +2556,16 @@ function FreeExerciseAdder({ sessionId, exos, onAdd, onToggleSuperset }) {
             <button onClick={() => setMode('live')} style={{
               flex: 1, background: mode === 'live' ? 'var(--green)' : 'var(--bg)', color: mode === 'live' ? '#fff' : 'var(--text2)',
               border: '1px solid ' + (mode === 'live' ? 'var(--green)' : 'var(--border2)'), borderRadius: 20, padding: '7px 4px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
             }}>
-              🔴 En direct
+              <Circle size={9} weight="fill" color="#DC2626" /> En direct
             </button>
             <button onClick={() => setMode('later')} style={{
               flex: 1, background: mode === 'later' ? 'var(--green)' : 'var(--bg)', color: mode === 'later' ? '#fff' : 'var(--text2)',
               border: '1px solid ' + (mode === 'later' ? 'var(--green)' : 'var(--border2)'), borderRadius: 20, padding: '7px 4px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
             }}>
-              🕓 Objectif, plus tard
+              <Clock size={12} /> Objectif, plus tard
             </button>
           </div>
 
