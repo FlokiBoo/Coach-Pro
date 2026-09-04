@@ -216,6 +216,39 @@ export default function GroupDetailPage({ params }) {
     }
   }
 
+  // Partagé entre le programme direct du groupe et les programmes liés (templates) : même aperçu
+  // dépliable, seule la cible de navigation (programId) change — sans ça, un programme lié
+  // n'affichait qu'un compteur "X séances" et forçait à cliquer "Modifier" pour tout voir.
+  const renderSessionRow = (programId, s, i) => (
+    <div key={s.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg2)' }}>
+        <button onClick={() => toggleSessionExpand(s.id)} title="Aperçu"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 13, padding: '9px 6px 9px 10px', flexShrink: 0 }}>
+          {expandedSessionId === s.id ? '▾' : '▸'}
+        </button>
+        <button onClick={() => router.push(`/programs/templates/${programId}?open=${s.id}`)}
+          style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text)', padding: '9px 10px 9px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {s.title || `Séance ${i + 1}`}
+        </button>
+      </div>
+      {expandedSessionId === s.id && (
+        <div style={{ padding: '8px 12px 10px', fontSize: 12, color: 'var(--text2)', borderTop: '1px solid var(--border)' }}>
+          {sessionExercises[s.id] === undefined ? (
+            <span style={{ color: 'var(--text3)' }}>Chargement…</span>
+          ) : sessionExercises[s.id].length === 0 ? (
+            <span style={{ fontStyle: 'italic', color: 'var(--text3)' }}>Aucun exercice</span>
+          ) : (
+            sessionExercises[s.id].map(e => (
+              <div key={e.id} style={{ padding: '2px 0' }}>
+                {e.name}{e.sets ? ` — ${e.sets}${e.reps ? `x${e.reps}` : ''}` : ''}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+
   const toggleLeader = async (athleteId, current) => {
     setTogglingLeader(athleteId)
     await supabase.from('group_members').update({ is_leader: !current }).eq('group_id', groupId).eq('athlete_id', athleteId)
@@ -446,17 +479,25 @@ export default function GroupDetailPage({ params }) {
             {linkedTemplates.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: currentProgram ? 10 : 0 }}>
                 {linkedTemplates.map(l => (
-                  <div key={l.program_id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>🔗 {l.programs?.title}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-                        {(l.programs?.program_sessions || []).length} séance{(l.programs?.program_sessions || []).length !== 1 ? 's' : ''} — lié au groupe, synchronisé pour les futurs membres
+                  <div key={l.program_id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14 }}>🔗 {l.programs?.title}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                          {(l.programs?.program_sessions || []).length} séance{(l.programs?.program_sessions || []).length !== 1 ? 's' : ''} — lié au groupe, synchronisé pour les futurs membres
+                        </div>
                       </div>
+                      <Link href={`/programs/templates/${l.program_id}`} style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', textDecoration: 'none', flexShrink: 0 }}>✏️ Modifier</Link>
+                      <button onClick={() => unlinkTemplate(l.program_id)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer', flexShrink: 0 }}>
+                        Retirer
+                      </button>
                     </div>
-                    <Link href={`/programs/templates/${l.program_id}`} style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', textDecoration: 'none', flexShrink: 0 }}>✏️ Modifier</Link>
-                    <button onClick={() => unlinkTemplate(l.program_id)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer', flexShrink: 0 }}>
-                      Retirer
-                    </button>
+                    {(l.programs?.program_sessions || []).length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '0 10px 10px' }}>
+                        {[...(l.programs.program_sessions || [])].sort((a, b) => a.order_index - b.order_index)
+                          .map((s, i) => renderSessionRow(l.program_id, s, i))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -473,35 +514,8 @@ export default function GroupDetailPage({ params }) {
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {[...(currentProgram.program_sessions || [])].sort((a, b) => a.order_index - b.order_index).map((s, i) => (
-                    <div key={s.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'var(--bg2)' }}>
-                        <button onClick={() => toggleSessionExpand(s.id)} title="Aperçu"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 13, padding: '9px 6px 9px 10px', flexShrink: 0 }}>
-                          {expandedSessionId === s.id ? '▾' : '▸'}
-                        </button>
-                        <button onClick={() => router.push(`/programs/templates/${currentProgram.id}?open=${s.id}`)}
-                          style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text)', padding: '9px 10px 9px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {s.title || `Séance ${i + 1}`}
-                        </button>
-                      </div>
-                      {expandedSessionId === s.id && (
-                        <div style={{ padding: '8px 12px 10px', fontSize: 12, color: 'var(--text2)', borderTop: '1px solid var(--border)' }}>
-                          {sessionExercises[s.id] === undefined ? (
-                            <span style={{ color: 'var(--text3)' }}>Chargement…</span>
-                          ) : sessionExercises[s.id].length === 0 ? (
-                            <span style={{ fontStyle: 'italic', color: 'var(--text3)' }}>Aucun exercice</span>
-                          ) : (
-                            sessionExercises[s.id].map(e => (
-                              <div key={e.id} style={{ padding: '2px 0' }}>
-                                {e.name}{e.sets ? ` — ${e.sets}${e.reps ? `x${e.reps}` : ''}` : ''}
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                  {[...(currentProgram.program_sessions || [])].sort((a, b) => a.order_index - b.order_index)
+                    .map((s, i) => renderSessionRow(currentProgram.id, s, i))}
                   <button onClick={quickAddSession} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'none',
                     border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '8px 10px',
