@@ -1,12 +1,14 @@
 'use client'
 
+import { Barbell, ChartBar, Trophy, User } from '@phosphor-icons/react'
+
 const TABS = [
-  { key: 'wod', label: 'Séance', icon: '🏋️' },
-  { key: 'stats', label: 'Stats', icon: '📊' },
+  { key: 'wod', label: 'Séance', Icon: Barbell },
+  { key: 'stats', label: 'Stats', Icon: ChartBar },
 ]
 const TABS_RIGHT = [
-  { key: 'pr', label: 'Records', icon: '🏆' },
-  { key: 'profil', label: 'Profil', icon: '👤' },
+  { key: 'pr', label: 'Records', Icon: Trophy },
+  { key: 'profil', label: 'Profil', Icon: User },
 ]
 
 export default function AthleteTabBar({ active, onChange, onAdd, addActive = false, unreadMessages = 0 }) {
@@ -18,8 +20,8 @@ export default function AthleteTabBar({ active, onChange, onAdd, addActive = fal
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
         padding: '10px 4px 8px', color: isActive ? 'var(--green)' : 'var(--text3)',
       }}>
-        <span style={{ position: 'relative', fontSize: 19, lineHeight: 1, opacity: isActive ? 1 : 0.7 }}>
-          {t.icon}
+        <span style={{ position: 'relative', lineHeight: 1, opacity: isActive ? 1 : 0.7 }}>
+          <t.Icon size={22} weight={isActive ? 'fill' : 'regular'} />
           {t.key === 'profil' && unreadMessages > 0 && (
             <span style={{
               position: 'absolute', top: -4, right: -8, background: '#DC2626', color: '#fff',
