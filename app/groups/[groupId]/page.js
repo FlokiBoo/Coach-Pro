@@ -3,6 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { UsersThree, User, CalendarBlank, PencilSimple, NotePencil, ClipboardText, LinkSimple, Hourglass, SkipForward } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
@@ -290,7 +291,7 @@ export default function GroupDetailPage({ params }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <Link href="/groups" style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none' }}>←</Link>
             <div style={{ flex: 1 }}>
-              <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>👥 {group?.name}</div>
+              <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}><UsersThree size={17} /> {group?.name}</div>
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>
                 {members.length} membre{members.length !== 1 ? 's' : ''}{members.length > 0 && ` · ${members.map(m => m.name).join(', ')}`}
               </div>
@@ -312,7 +313,7 @@ export default function GroupDetailPage({ params }) {
               padding: 16, display: 'flex', alignItems: 'center', gap: 8,
             }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1 }}>
-                👤 Membres ({members.length})
+                <User size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Membres ({members.length})
               </div>
               <span style={{ color: 'var(--text3)', fontSize: 13 }}>{membersExpanded ? '▲' : '▼'}</span>
             </button>
@@ -344,8 +345,8 @@ export default function GroupDetailPage({ params }) {
           {/* Bilan de présence */}
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                📅 Bilan
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <CalendarBlank size={13} /> Bilan
               </div>
               <div style={{ display: 'flex', gap: 4 }}>
                 {[{ key: 'month', label: 'Mois' }, { key: 'year', label: 'Année' }].map(o => (
@@ -421,11 +422,11 @@ export default function GroupDetailPage({ params }) {
                     {isExpanded && (
                       <div style={{ borderTop: '1px solid var(--border)', padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <button onClick={() => router.push(`/groups/${groupId}/session/${run.source_session_id}?date=${run.date}`)}
-                          style={{ alignSelf: 'flex-start', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '5px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer' }}>
-                          ✏️ Modifier mon retour et les présents
+                          style={{ alignSelf: 'flex-start', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '5px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <PencilSimple size={11} /> Modifier mon retour et les présents
                         </button>
                         {run.coach_note && (
-                          <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginBottom: 4 }}>📝 {run.coach_note}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><NotePencil size={12} /> {run.coach_note}</div>
                         )}
                         {(stats?.details || []).map(d => {
                           const athleteName = members.find(m => m.id === d.athleteId)?.name || '—'
@@ -435,9 +436,9 @@ export default function GroupDetailPage({ params }) {
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                 <span style={{ flex: 1, fontWeight: 700, fontSize: 13 }}>{athleteName}</span>
                                 {!c ? (
-                                  <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700 }}>⏳ En attente</span>
+                                  <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Hourglass size={11} /> En attente</span>
                                 ) : c.skipped ? (
-                                  <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700 }}>⏭ Sautée</span>
+                                  <span style={{ fontSize: 11, color: 'var(--text3)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><SkipForward size={11} /> Sautée</span>
                                 ) : (
                                   <span style={{ fontSize: 11, fontWeight: 700, display: 'flex', gap: 8 }}>
                                     <span>😤 {c.difficulty ?? '—'}</span>
@@ -463,7 +464,7 @@ export default function GroupDetailPage({ params }) {
           {/* Programme en cours */}
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1 }}>📋 Programme en cours</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}><ClipboardText size={13} /> Programme en cours</div>
               {!creatingProgram && (
                 <button onClick={() => { setCreatingProgram(true); setNewTitle('') }} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>+ Créer</button>
               )}
@@ -482,12 +483,12 @@ export default function GroupDetailPage({ params }) {
                   <div key={l.program_id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px' }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>🔗 {l.programs?.title}</div>
+                        <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 5 }}><LinkSimple size={13} /> {l.programs?.title}</div>
                         <div style={{ fontSize: 12, color: 'var(--text3)' }}>
                           {(l.programs?.program_sessions || []).length} séance{(l.programs?.program_sessions || []).length !== 1 ? 's' : ''} — lié au groupe, synchronisé pour les futurs membres
                         </div>
                       </div>
-                      <Link href={`/programs/templates/${l.program_id}`} style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', textDecoration: 'none', flexShrink: 0 }}>✏️ Modifier</Link>
+                      <Link href={`/programs/templates/${l.program_id}`} style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', textDecoration: 'none', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}><PencilSimple size={11} /> Modifier</Link>
                       <button onClick={() => unlinkTemplate(l.program_id)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer', flexShrink: 0 }}>
                         Retirer
                       </button>
@@ -509,8 +510,8 @@ export default function GroupDetailPage({ params }) {
                     <div style={{ fontWeight: 700, fontSize: 14 }}>{currentProgram.title}</div>
                     <div style={{ fontSize: 12, color: 'var(--text3)' }}>{(currentProgram.program_sessions || []).length} séance{(currentProgram.program_sessions || []).length !== 1 ? 's' : ''}</div>
                   </div>
-                  <button onClick={() => fanOutToGroup(currentProgram)} disabled={fanningOut === currentProgram.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', flexShrink: 0 }}>
-                    {fanningOut === currentProgram.id ? '…' : '👥 Assigner au groupe'}
+                  <button onClick={() => fanOutToGroup(currentProgram)} disabled={fanningOut === currentProgram.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
+                    {fanningOut === currentProgram.id ? '…' : <><UsersThree size={13} /> Assigner au groupe</>}
                   </button>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

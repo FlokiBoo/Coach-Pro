@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { UsersThree, Lightning, FlagCheckered, FloppyDisk } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { getCoachId } from '@/lib/coach'
 import { notifyGroupSessionReminder } from '@/lib/notify'
@@ -144,7 +145,7 @@ function GroupCoachingSessionPage({ params }) {
         {/* Présence */}
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
-            👥 Présents ({presentIds.size}/{members.length})
+            <UsersThree size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Présents ({presentIds.size}/{members.length})
           </div>
           {members.length === 0 ? (
             <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun membre dans ce groupe</div>
@@ -182,7 +183,7 @@ function GroupCoachingSessionPage({ params }) {
 
         {circuits.map(c => (
           <div key={c.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>⚡ {c.name || 'Circuit'}</div>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><Lightning size={13} /> {c.name || 'Circuit'}</div>
             {c.text && <div style={{ fontSize: 12, color: 'var(--text2)', whiteSpace: 'pre-wrap', marginBottom: 8 }}>{c.text}</div>}
             <textarea placeholder="Note perso (visible uniquement par toi)…" value={exerciseNotes[`circuit:${c.id}`] || ''}
               onChange={e => setExerciseNotes(prev => ({ ...prev, [`circuit:${c.id}`]: e.target.value }))}
@@ -193,7 +194,7 @@ function GroupCoachingSessionPage({ params }) {
         {/* Fin de séance */}
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 10 }}>
-            🏁 Fin de séance (ton ressenti)
+            <FlagCheckered size={11} style={{ verticalAlign: -1, marginRight: 4 }} />Fin de séance (ton ressenti)
           </div>
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 12, color: 'var(--text3)', fontWeight: 600, marginBottom: 6 }}>Difficulté ressentie pour le groupe (1-10)</div>
@@ -214,7 +215,7 @@ function GroupCoachingSessionPage({ params }) {
           background: saved ? '#DCFCE7' : 'var(--green)', color: saved ? '#166534' : '#fff', border: saved ? '1px solid #BBF7D0' : 'none',
           borderRadius: 'var(--rl)', padding: 14, fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%',
         }}>
-          {saving ? '…' : saved ? '✓ Enregistré' : '💾 Enregistrer'}
+          {saving ? '…' : saved ? '✓ Enregistré' : <><FloppyDisk size={15} style={{ verticalAlign: -2, marginRight: 5 }} />Enregistrer</>}
         </button>
         <div style={{ fontSize: 11, color: 'var(--text3)', textAlign: 'center' }}>
           Les présents recevront une notification pour compléter leur séance (charges, notes, difficulté, plaisir) à leur prochaine connexion.

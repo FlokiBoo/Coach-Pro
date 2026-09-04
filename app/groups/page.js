@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { UsersThree, Trash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
@@ -119,7 +120,7 @@ export default function GroupsPage() {
 
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, marginBottom: 2 }}>👥 Groupes</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}><UsersThree size={17} /> Groupes</div>
             <div style={{ fontSize: 12, color: 'var(--text3)' }}>{groups.length} groupe{groups.length !== 1 ? 's' : ''}</div>
           </div>
           <button onClick={openAdd} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
@@ -163,7 +164,7 @@ export default function GroupsPage() {
 
           {groups.length === 0 && !showAdd ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>👥</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><UsersThree size={36} /></div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun groupe</div>
               <div style={{ fontSize: 13 }}>Crée un groupe pour assigner des séances à plusieurs clients d'un coup</div>
             </div>
@@ -230,8 +231,8 @@ export default function GroupsPage() {
                         })}
                       </div>
                     )}
-                    <button onClick={() => deleteGroup(g)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: '6px 0 0', fontWeight: 600, textAlign: 'left' }}>
-                      🗑 Supprimer le groupe
+                    <button onClick={() => deleteGroup(g)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: '6px 0 0', fontWeight: 600, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      <Trash size={12} /> Supprimer le groupe
                     </button>
                   </div>
                 )}
