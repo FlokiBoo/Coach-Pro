@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, use } from 'react'
 import { useRouter } from 'next/navigation'
+import { Package, Trash, User, Key, EnvelopeSimple, Barbell, LinkSimple, CalendarBlank } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -224,8 +225,8 @@ export default function AthletePage({ params }) {
           </div>
           {showDanger && (
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <button onClick={archiveAthlete} style={{ flex: 1, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 'var(--r)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>📦 Archiver</button>
-              <button onClick={deleteAthlete} style={{ flex: 1, background: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>🗑 Supprimer</button>
+              <button onClick={archiveAthlete} style={{ flex: 1, background: '#FEF3C7', color: '#92400E', border: '1px solid #FDE68A', borderRadius: 'var(--r)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><Package size={13} /> Archiver</button>
+              <button onClick={deleteAthlete} style={{ flex: 1, background: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><Trash size={13} /> Supprimer</button>
             </div>
           )}
         </div>
@@ -237,7 +238,7 @@ export default function AthletePage({ params }) {
           {/* ── PROFIL ── */}
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>👤 Profil</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', alignItems: 'center', gap: 5 }}><User size={13} /> Profil</div>
               <button onClick={() => { setEditingProfile(v => !v); setInviteMsg('') }} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
                 {editingProfile ? 'Annuler' : 'Modifier'}
               </button>
@@ -254,8 +255,8 @@ export default function AthletePage({ params }) {
                 <Field label="Email">
                   <div style={{ display: 'flex', gap: 8 }}>
                     <input type="email" placeholder="client@mail.com" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
-                    <button onClick={inviteClient} disabled={inviting || !form.email.trim()} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-                      {inviting ? '…' : (athlete?.auth_user_id ? '🔑 Renvoyer un lien' : '✉️ Inviter')}
+                    <button onClick={inviteClient} disabled={inviting || !form.email.trim()} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
+                      {inviting ? '…' : (athlete?.auth_user_id ? <><Key size={12} /> Renvoyer un lien</> : <><EnvelopeSimple size={12} /> Inviter</>)}
                     </button>
                   </div>
                 </Field>
@@ -291,7 +292,7 @@ export default function AthletePage({ params }) {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <Link href={`/s/${athlete.token}/lancer`} target="_blank"
                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-                      🏋️ Coaching — lancer une séance
+                      <Barbell size={15} /> Coaching — lancer une séance
                     </Link>
                   </div>
                 ) : (
@@ -299,8 +300,8 @@ export default function AthletePage({ params }) {
                     const token = crypto.randomUUID()
                     const { data } = await supabase.from('athletes').update({ token }).eq('id', athleteId).select().single()
                     if (data) setAthlete(data)
-                  }} style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start' }}>
-                    🔗 Générer un lien personnel
+                  }} style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <LinkSimple size={12} /> Générer un lien personnel
                   </button>
                 )}
               </div>
@@ -373,7 +374,7 @@ export default function AthletePage({ params }) {
           {/* ── AUJOURD'HUI ── */}
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>📅 Aujourd'hui</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'inline-flex', alignItems: 'center', gap: 5 }}><CalendarBlank size={13} /> Aujourd&apos;hui</span>
             </div>
 
             {/* Bien-être */}

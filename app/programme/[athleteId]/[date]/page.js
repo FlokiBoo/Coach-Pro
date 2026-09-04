@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, use } from 'react'
+import { VideoCamera, ClockCounterClockwise, CalendarBlank, Lightning, LinkSimple, ClipboardText } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import WellnessBlock from '@/app/components/WellnessBlock'
@@ -360,11 +361,11 @@ export default function ProgrammePage({ params }) {
             )}
           </div>
           <button onClick={() => setVideoOpen(prev => ({ ...prev, [exo._key]: !prev[exo._key] }))} title="Lien vidéo"
-            style={{ background: exo.video_url ? 'var(--green-light)' : 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '4px 8px', fontSize: 13, color: exo.video_url ? 'var(--green)' : 'var(--text3)', cursor: 'pointer', flexShrink: 0 }}>🎬</button>
+            style={{ background: exo.video_url ? 'var(--green-light)' : 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '4px 8px', display: 'flex', color: exo.video_url ? 'var(--green)' : 'var(--text3)', cursor: 'pointer', flexShrink: 0 }}><VideoCamera size={13} /></button>
           {exo.id && (
             <button onClick={() => loadHistory(exo.name)} title="Voir l'historique"
-              style={{ background: histOpen ? 'var(--green-light)' : 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '4px 8px', fontSize: 13, color: histOpen ? 'var(--green)' : 'var(--text3)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-              {hist === 'loading' ? '…' : '🕐'}
+              style={{ background: histOpen ? 'var(--green-light)' : 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '4px 8px', display: 'flex', color: histOpen ? 'var(--green)' : 'var(--text3)', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              {hist === 'loading' ? '…' : <ClockCounterClockwise size={13} />}
             </button>
           )}
           <DragHandle dragProps={dragProps} />
@@ -480,8 +481,8 @@ export default function ProgrammePage({ params }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
           <Link href="/" style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none' }}>←</Link>
           <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, flex: 1 }}>{athlete.name}</div>
-          <Link href={`/semaine/${athleteId}/${date}`} title="Vue semaine" style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '5px 9px', fontSize: 14, textDecoration: 'none', color: 'var(--text2)' }}>📅</Link>
-          <button onClick={openWellnessHistory} title="Historique forme" style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '5px 9px', fontSize: 16, cursor: 'pointer', color: 'var(--text2)' }}>⚡</button>
+          <Link href={`/semaine/${athleteId}/${date}`} title="Vue semaine" style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '5px 9px', display: 'flex', textDecoration: 'none', color: 'var(--text2)' }}><CalendarBlank size={14} /></Link>
+          <button onClick={openWellnessHistory} title="Historique forme" style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '5px 9px', display: 'flex', cursor: 'pointer', color: 'var(--text2)' }}><Lightning size={16} /></button>
           {hasLogs && (
             <div style={{ fontSize: 12, fontWeight: 700, background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '4px 10px' }}>
               ✓ Séance faite
@@ -535,13 +536,13 @@ export default function ProgrammePage({ params }) {
         {/* Lien sportif */}
         {athlete.token ? (
           <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: '#0D6B4F', flex: 1 }}>🔗 <strong>/s/{athlete.token}</strong></span>
+            <span style={{ fontSize: 12, color: '#0D6B4F', flex: 1, display: 'inline-flex', alignItems: 'center', gap: 4 }}><LinkSimple size={12} /> <strong>/s/{athlete.token}</strong></span>
             <button onClick={() => navigator.clipboard.writeText(`${window.location.origin}/s/${athlete.token}`)}
               style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 11, cursor: 'pointer' }}>Copier</button>
           </div>
         ) : (
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, color: 'var(--text3)', flex: 1 }}>🔗 Aucun lien de partage</span>
+            <span style={{ fontSize: 12, color: 'var(--text3)', flex: 1, display: 'inline-flex', alignItems: 'center', gap: 4 }}><LinkSimple size={12} /> Aucun lien de partage</span>
             <button onClick={async () => {
               const token = crypto.randomUUID()
               const { data } = await supabase.from('athletes').update({ token }).eq('id', athleteId).select().single()
@@ -573,7 +574,7 @@ export default function ProgrammePage({ params }) {
           return (
             <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
               <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid var(--border)' }}>
-                <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>⚡ Activation</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Lightning size={13} /> Activation</span>
               </div>
               <textarea
                 placeholder="Échauffement, mobilité, activation…"
@@ -600,7 +601,7 @@ export default function ProgrammePage({ params }) {
                             cursor: 'pointer',
                           }}
                         >
-                          {hasLink ? '🎬 ' : ''}{w}
+                          {hasLink && <VideoCamera size={11} style={{ verticalAlign: -1, marginRight: 3 }} />}{w}
                         </button>
                         {isEditing && (
                           <input
@@ -631,7 +632,7 @@ export default function ProgrammePage({ params }) {
         {/* Note */}
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
           <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📋 Note</span>
+            <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardText size={11} /> Note</span>
           </div>
           <textarea
             placeholder="Message pour le sportif…"
@@ -710,7 +711,7 @@ function WellnessHistoryPanel({ athleteName, history, onClose }) {
         <div style={{ padding: '12px 16px 0', flexShrink: 0 }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border2)', margin: '0 auto 12px' }} />
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>⚡ Forme — {athleteName}</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8 }}><Lightning size={16} /> Forme — {athleteName}</div>
             <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text3)', cursor: 'pointer', lineHeight: 1 }}>×</button>
           </div>
           {history === null ? (
