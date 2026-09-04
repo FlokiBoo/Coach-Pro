@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { CookingPot, MagnifyingGlass, Trash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { getCoachId } from '@/lib/coach'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -109,7 +110,7 @@ export default function RecettesPage() {
 
         <div style={{ padding: '18px 24px 0', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', paddingBottom: 14 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 19, fontWeight: 700 }}>🍳 Recettes</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 19, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><CookingPot size={18} /> Recettes</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{recettes.length} recette{recettes.length !== 1 ? 's' : ''}</div>
           </div>
           <button
@@ -121,7 +122,7 @@ export default function RecettesPage() {
         </div>
 
         <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)' }}>🥄 Importer depuis Spoonacular</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 5 }}><MagnifyingGlass size={13} /> Importer depuis Spoonacular</div>
           <div style={{ display: 'flex', gap: 6 }}>
             <input
               value={spoonQuery}
@@ -132,7 +133,7 @@ export default function RecettesPage() {
             />
             <button onClick={spoonSearch} disabled={spoonSearching || !spoonQuery.trim()}
               style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 6, padding: '0 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
-              {spoonSearching ? '…' : '🔍 Chercher'}
+              {spoonSearching ? '…' : <><MagnifyingGlass size={13} style={{ verticalAlign: -2, marginRight: 5 }} />Chercher</>}
             </button>
           </div>
           {spoonError && <div style={{ fontSize: 12, color: '#DC2626' }}>{spoonError}</div>}
@@ -226,7 +227,7 @@ export default function RecettesPage() {
                   <div style={{ flex: 1, fontSize: 12, color: 'var(--text3)' }}>P {r.proteines ?? '—'}g</div>
                   <div style={{ flex: 1, fontSize: 12, color: 'var(--text3)' }}>G {r.glucides ?? '—'}g</div>
                   <div style={{ flex: 1, fontSize: 12, color: 'var(--text3)' }}>L {r.lipides ?? '—'}g</div>
-                  <button onClick={() => remove(r.id)} style={{ background: 'none', border: 'none', color: '#991B1B', cursor: 'pointer', fontSize: 13, flexShrink: 0 }}>🗑</button>
+                  <button onClick={() => remove(r.id)} style={{ background: 'none', border: 'none', color: '#991B1B', cursor: 'pointer', display: 'flex', flexShrink: 0 }}><Trash size={13} /></button>
                 </div>
               ))}
             </div>

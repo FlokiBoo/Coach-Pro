@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { ChartLineUp, BookOpen, Trophy, PencilSimple, Trash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { UNITS, unitOf, estimate1RM, formatPerformance, CATEGORIES, DOT_COLORS } from '@/app/components/TrackedMovementsBlock'
@@ -137,7 +138,7 @@ export default function MetricsPage() {
 
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, marginBottom: 2 }}>📈 Metrics</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}><ChartLineUp size={17} /> Metrics</div>
             <div style={{ fontSize: 12, color: 'var(--text3)' }}>Catalogue de mouvements suivis, accessible à tous les clients</div>
           </div>
           <button onClick={() => { setCreating(v => !v); setNewName(''); setNewUnit('kg'); setNewCategory(selectedCategory === 'À classer' ? 'Lift' : selectedCategory); setNewSubcategory('') }} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
@@ -162,8 +163,8 @@ export default function MetricsPage() {
                 <div style={{ position: 'absolute', left: 14, right: 14, top: 58, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden' }}>
                   {suggestions.map((s, i) => (
                     <button key={i} onMouseDown={() => createMovement(s)}
-                      style={{ display: 'block', width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
-                      📚 {s}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: i < suggestions.length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
+                      <BookOpen size={13} /> {s}
                     </button>
                   ))}
                 </div>
@@ -205,7 +206,7 @@ export default function MetricsPage() {
             <div style={{ color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>Chargement…</div>
           ) : filtered.length === 0 ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>🏆</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><Trophy size={36} /></div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun mouvement</div>
               <div style={{ fontSize: 13 }}>Clique sur "+ Mouvement" pour ajouter le premier au catalogue.</div>
             </div>
@@ -293,8 +294,8 @@ export default function MetricsPage() {
                           )}
                           {!isEditingName && (
                             <button onClick={e => { e.stopPropagation(); startEditName(m) }}
-                              style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>
-                              ✏️
+                              style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>
+                              <PencilSimple size={13} />
                             </button>
                           )}
                           {isEditingUnit ? (
@@ -317,7 +318,7 @@ export default function MetricsPage() {
                           <div style={{ fontSize: 12, color: 'var(--text3)', flexShrink: 0 }}>
                             {m.entries.length} perf.
                           </div>
-                          <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>🗑️</button>
+                          <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}><Trash size={14} /></button>
                         </div>
 
                         {isOpen && (

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { Lightbulb, PencilSimple, Eye, EyeSlash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import MuscleAnatomyDiagram from '@/app/components/MuscleAnatomyDiagram'
@@ -135,7 +136,7 @@ export default function TipsPage() {
           position: 'sticky', top: 0, zIndex: 10
         }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 21, fontWeight: 700 }}>💡 Tips</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 21, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Lightbulb size={19} /> Tips</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>
               Glossaire visible par tes sportifs sur chaque exercice
             </div>
@@ -177,7 +178,7 @@ export default function TipsPage() {
 
           {!tips.length && !showCreate ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>💡</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><Lightbulb size={36} /></div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun tip</div>
               <div style={{ fontSize: 13 }}>Clique sur « + Tip » pour commencer</div>
             </div>
@@ -240,14 +241,14 @@ export default function TipsPage() {
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                       {(isAdmin || t.coach_id === userId) ? (
                         <>
-                          <button onClick={() => startEdit(t)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>✎</button>
+                          <button onClick={() => startEdit(t)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--text2)', cursor: 'pointer' }}><PencilSimple size={12} /></button>
                           <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
                         </>
                       ) : (
                         <button onClick={() => toggleHidden(t.id, hiddenIds.has(t.id))}
                           title={hiddenIds.has(t.id) ? 'Afficher à mes clients' : 'Masquer à mes clients'}
-                          style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>
-                          {hiddenIds.has(t.id) ? '🙈' : '👁️'}
+                          style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--text2)', cursor: 'pointer' }}>
+                          {hiddenIds.has(t.id) ? <EyeSlash size={12} /> : <Eye size={12} />}
                         </button>
                       )}
                     </div>

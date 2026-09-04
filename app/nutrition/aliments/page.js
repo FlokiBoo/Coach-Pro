@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { Carrot, Trash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { getCoachId } from '@/lib/coach'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -72,7 +73,7 @@ export default function AlimentsPage() {
 
         <div style={{ padding: '18px 24px 0', display: 'flex', alignItems: 'center', gap: 12, borderBottom: '1px solid var(--border)', paddingBottom: 14 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 19, fontWeight: 700 }}>🍎 Aliments</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 19, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}><Carrot size={18} /> Aliments</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{aliments.length} aliment{aliments.length !== 1 ? 's' : ''}</div>
           </div>
           <button
@@ -139,7 +140,7 @@ export default function AlimentsPage() {
                   <div style={{ flex: 1, fontSize: 12, color: 'var(--text3)' }}>P {a.proteines_100g ?? '—'}g</div>
                   <div style={{ flex: 1, fontSize: 12, color: 'var(--text3)' }}>G {a.glucides_100g ?? '—'}g</div>
                   <div style={{ flex: 1, fontSize: 12, color: 'var(--text3)' }}>L {a.lipides_100g ?? '—'}g</div>
-                  <button onClick={() => remove(a.id)} style={{ background: 'none', border: 'none', color: '#991B1B', cursor: 'pointer', fontSize: 13, flexShrink: 0 }}>🗑</button>
+                  <button onClick={() => remove(a.id)} style={{ background: 'none', border: 'none', color: '#991B1B', cursor: 'pointer', display: 'flex', flexShrink: 0 }}><Trash size={13} /></button>
                 </div>
               ))}
             </div>
