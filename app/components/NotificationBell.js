@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { Bell } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 
 function timeAgo(dateStr) {
@@ -59,8 +60,8 @@ export default function NotificationBell({ coachId, athleteId }) {
   return (
     <div style={{ position: 'relative' }}>
       <button onClick={() => setOpen(v => !v)} title="Notifications"
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, position: 'relative', fontSize: 20, lineHeight: 1, color: 'var(--text2)' }}>
-        🔔
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, position: 'relative', display: 'flex', lineHeight: 1, color: 'var(--text2)' }}>
+        <Bell size={20} />
         {unread > 0 && (
           <span style={{
             position: 'absolute', top: 0, right: 0, background: '#DC2626', color: '#fff',

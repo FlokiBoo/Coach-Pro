@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import { Target, CalendarBlank, ClipboardText } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 
 function formatDateFr(date) {
@@ -125,7 +126,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>🎯 Objectifs</span>
+        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Target size={13} /> Objectifs</span>
       </div>
 
       <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -165,8 +166,8 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
                     </div>
                     {obj.target_date && (
                       <>
-                        <div style={{ fontSize: 11, color: style.textDate, marginTop: 3 }}>
-                          📅 {formatDateFr(obj.target_date)} · {timeRemaining(obj.target_date)}
+                        <div style={{ fontSize: 11, color: style.textDate, marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <CalendarBlank size={11} /> {formatDateFr(obj.target_date)} · {timeRemaining(obj.target_date)}
                         </div>
                         <div style={{ position: 'relative', marginTop: 14, marginBottom: 4, paddingTop: 6 }}>
                           <div style={{ height: 6, borderRadius: 20, background: 'rgba(255,255,255,0.6)', overflow: 'hidden' }}>
@@ -191,8 +192,8 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
             </div>
             {!isEditing && isCoach && (
               <Link href={`/programs/${athleteId}?objective=${obj.id}`} title="Programmer cet objectif"
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, flexShrink: 0, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 16 }}>
-                📋
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, flexShrink: 0, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', textDecoration: 'none' }}>
+                <ClipboardText size={16} />
               </Link>
             )}
             </div>

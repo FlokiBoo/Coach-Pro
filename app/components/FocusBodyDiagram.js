@@ -1,5 +1,6 @@
 'use client'
 
+import { Target } from '@phosphor-icons/react'
 import { FRONT_MUSCLES, BACK_MUSCLES, FRONT_VIEWBOX, BACK_VIEWBOX } from '@/app/data/bodyMap'
 import { MUSCLE_GROUPS } from './MuscleAnatomyDiagram'
 
@@ -41,7 +42,7 @@ export default function FocusBodyDiagram({ groups = [], onClose }) {
         boxShadow: '0 20px 60px rgba(0,0,0,0.4)', maxHeight: '90svh', overflowY: 'auto',
       }}>
         <div style={{ textAlign: 'center', marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>🎯 Focus</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}><Target size={13} /> Focus</div>
           <div style={{ fontSize: 16, fontWeight: 800, marginTop: 2 }}>{labels.join(', ') || '—'}</div>
         </div>
 

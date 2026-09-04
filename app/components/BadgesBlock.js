@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { CheckCircle } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { bestPerformance, formatTime } from './TrackedMovementsBlock'
 import { BADGE_MOVEMENTS, BINARY_BADGE_MOVEMENTS, TIER_STYLES, computeBadge } from '@/lib/badges'
@@ -60,7 +61,7 @@ function BinaryBadgeCard({ name, acquired }) {
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
       <div style={{ fontWeight: 700, fontSize: 15 }}>{name}</div>
       {acquired ? (
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#0D6B4F', background: '#DDF3EA', borderRadius: 20, padding: '5px 12px', flexShrink: 0 }}>✅ Acquis</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#0D6B4F', background: '#DDF3EA', borderRadius: 20, padding: '5px 12px', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}><CheckCircle size={13} /> Acquis</span>
       ) : (
         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 20, padding: '5px 12px', flexShrink: 0 }}>Pas encore acquis</span>
       )}

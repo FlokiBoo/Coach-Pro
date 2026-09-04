@@ -1,5 +1,6 @@
 'use client'
 
+import { Barbell } from '@phosphor-icons/react'
 import { RADAR_GROUPS, computeMuscleScores } from '@/lib/muscleRadar'
 
 const ACCENT = '#2D3A30' // = var(--green) — valeur figée pour permettre le calcul d'opacité hexa ci-dessous
@@ -42,7 +43,7 @@ export default function ForceRadarBlock({ strengthCards, cardioCards, expanded, 
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', width: '100%',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', width: '100%', marginBottom: 6 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', flex: 1, textAlign: 'left' }}>💪 Force par muscle</div>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', flex: 1, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6 }}><Barbell size={15} /> Force par muscle</div>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 3 }}>
           {expanded ? 'Réduire' : 'Voir le détail'}
           <span style={{ display: 'inline-block', transition: 'transform .2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>▾</span>

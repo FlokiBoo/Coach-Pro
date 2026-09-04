@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { Target, Wrench, Scales, Warning } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { JOINT_TESTS } from '@/lib/jointTests'
 import { scoreJoint, scoreQualitativeJoint, jointTestKey } from '@/lib/jointTestThresholds'
@@ -84,7 +85,7 @@ export default function MobilityRadarBlock({ athleteId }) {
 
   return (
     <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>🎯 Bilan mobilité & profil</div>
+      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}><Target size={15} /> Bilan mobilité &amp; profil</div>
 
       {hasAnyData && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
@@ -138,8 +139,8 @@ export default function MobilityRadarBlock({ athleteId }) {
             if (!weakest.length) return null
             return (
               <div style={{ width: '100%', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 'var(--r)', padding: '10px 12px', marginTop: 4 }}>
-                <div style={{ fontSize: 10, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>
-                  🔧 À travailler en priorité
+                <div style={{ fontSize: 10, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Wrench size={11} /> À travailler en priorité
                 </div>
                 <div style={{ fontSize: 12, color: '#92400E' }}>
                   {weakest.map(w => `${w.joint} (${Math.round(w.score)})`).join(' · ')}
@@ -154,8 +155,8 @@ export default function MobilityRadarBlock({ athleteId }) {
         const c = verdictColor(torqueVerdict.verdict)
         return (
           <div style={{ background: c.bg, border: `1px solid ${c.color}33`, borderRadius: 'var(--r)', padding: '10px 12px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>
-              ⚖️ Profil Torque
+            <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Scales size={11} /> Profil Torque
             </div>
             <div style={{ fontWeight: 800, fontSize: 14, color: c.color }}>{torqueVerdict.label}</div>
           </div>
@@ -173,8 +174,8 @@ export default function MobilityRadarBlock({ athleteId }) {
 
       {discordance && (
         <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#991B1B', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3 }}>
-            ⚠️ Discordance
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#991B1B', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Warning size={11} /> Discordance
           </div>
           <div style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.5 }}>{discordance}</div>
         </div>

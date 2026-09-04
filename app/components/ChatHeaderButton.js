@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { ChatCircle } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 
 // Déclenche le panneau de ChatWidget (monté globalement dans layout.js) via un événement custom —
@@ -36,8 +37,8 @@ export default function ChatHeaderButton({ coachId, athleteId }) {
   return (
     <button onClick={() => window.dispatchEvent(new Event('open-chat-widget'))}
       title="Messages"
-      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, position: 'relative', fontSize: 20, lineHeight: 1, color: 'var(--text2)' }}>
-      💬
+      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, position: 'relative', display: 'flex', lineHeight: 1, color: 'var(--text2)' }}>
+      <ChatCircle size={20} />
       {unread > 0 && (
         <span style={{
           position: 'absolute', top: 0, right: 0, background: '#DC2626', color: '#fff',

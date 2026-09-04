@@ -2,6 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  ArrowsClockwise, SquaresFour, Lightning, PencilSimple, PushPin, UsersThree, Package, Trash,
+  Barbell, CheckCircle,
+} from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { getCoachId } from '@/lib/coach'
@@ -265,22 +269,22 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
 
       {/* Header */}
       <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-          🔄 Micro-cycles
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', alignItems: 'center', gap: 5 }}>
+          <ArrowsClockwise size={13} /> Micro-cycles
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           <Link
             href={`/programs/${athleteId}`}
-            style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center' }}
+            style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5 }}
           >
-            🗂️ Tableau de bord
+            <SquaresFour size={13} /> Tableau de bord
           </Link>
           <button
             onClick={createFreeSession}
             disabled={creatingFree}
-            style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}
           >
-            {creatingFree ? '…' : '⚡ Séance libre'}
+            {creatingFree ? '…' : <><Lightning size={13} /> Séance libre</>}
           </button>
           <button
             onClick={() => { setCreating(true); setNewName('') }}
@@ -362,30 +366,30 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                 <button
                   onClick={e => { e.stopPropagation(); setRenamingId(prog.id); setRenameVal(prog.title) }}
                   title="Renommer"
-                  style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
-                >✏️</button>
+                  style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
+                ><PencilSimple size={13} /></button>
               )}
               <button
                 onClick={e => { e.stopPropagation(); togglePinned(prog) }}
                 title={prog.pinned_board === false ? 'Afficher dans le tableau de bord côte à côte' : 'Masquer du tableau de bord côte à côte'}
-                style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: prog.pinned_board === false ? 'var(--text3)' : 'var(--green)', padding: '0 2px', flexShrink: 0 }}
-              >{prog.pinned_board === false ? '📌' : '📍'}</button>
+                style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: prog.pinned_board === false ? 'var(--text3)' : 'var(--green)', padding: '0 2px', flexShrink: 0 }}
+              ><PushPin size={13} weight={prog.pinned_board === false ? 'regular' : 'fill'} /></button>
               {allAthletes.length > 0 && (
                 <button
                   onClick={e => { e.stopPropagation(); openAssign(prog) }}
                   title="Copier chez un autre sportif"
-                  style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
-                >👥</button>
+                  style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
+                ><UsersThree size={13} /></button>
               )}
               <button
                 onClick={e => { e.stopPropagation(); toggleArchived(prog) }}
                 title="Archiver"
-                style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
-              >📦</button>
+                style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
+              ><Package size={13} /></button>
               <button
                 onClick={e => { e.stopPropagation(); deleteProgram(prog.id) }}
-                style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
-              >🗑️</button>
+                style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
+              ><Trash size={14} /></button>
             </div>
 
             {/* Séances */}
@@ -420,8 +424,8 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                         href={`/s/${athleteToken}?coach=1&session=${sess.id}&focus=1`}
                         target="_blank" rel="noreferrer"
                         title="Lancer cette séance (coaching)"
-                        style={{ background: 'none', border: 'none', fontSize: 16, cursor: 'pointer', color: 'var(--green)', padding: '2px 4px', flexShrink: 0, textDecoration: 'none' }}
-                      >🏋️</a>
+                        style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--green)', padding: '2px 4px', flexShrink: 0, textDecoration: 'none' }}
+                      ><Barbell size={16} /></a>
                     )}
                     <button
                       onClick={() => duplicateSession(sess, prog.id)}
@@ -431,8 +435,8 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                     <button
                       onClick={() => deleteSession(sess.id, prog.id)}
                       title="Supprimer"
-                      style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '2px 4px', flexShrink: 0 }}
-                    >🗑️</button>
+                      style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '2px 4px', flexShrink: 0 }}
+                    ><Trash size={14} /></button>
                   </div>
                 ))}
 
@@ -486,9 +490,9 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                 {prog.sessions.length} séance{prog.sessions.length !== 1 ? 's' : ''}
               </span>
               <button onClick={() => toggleArchived(prog)} title="Désarchiver"
-                style={{ background: 'none', border: 'none', fontSize: 13, cursor: 'pointer', color: 'var(--green)', padding: '0 2px', flexShrink: 0 }}>♻️</button>
+                style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--green)', padding: '0 2px', flexShrink: 0 }}><ArrowsClockwise size={13} /></button>
               <button onClick={() => deleteProgram(prog.id)} title="Supprimer"
-                style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>🗑️</button>
+                style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}><Trash size={14} /></button>
             </div>
           ))}
         </div>
@@ -505,7 +509,7 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
 
             {assignDone ? (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+                <div style={{ display: 'flex', justifyContent: 'center', color: '#16A34A', marginBottom: 8 }}><CheckCircle size={32} /></div>
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>Micro-cycle copié !</div>
                 <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16 }}>
                   Une copie a été créée pour {selectedIds.length} sportif{selectedIds.length > 1 ? 's' : ''}.

@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { Paperclip } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 
 const BUCKET = 'chat-attachments'
@@ -138,9 +139,9 @@ export default function ChatThread({ athleteId, myRole, onRead }) {
       <div style={{ display: 'flex', gap: 8, padding: 12, borderTop: '1px solid var(--border)', flexShrink: 0, alignItems: 'center' }}>
         <input ref={fileInputRef} type="file" accept="image/*,video/*" onChange={handleFilePick} style={{ display: 'none' }} />
         <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
-          style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', padding: '4px 2px', flexShrink: 0, opacity: uploading ? 0.5 : 1 }}
+          style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', padding: '4px 2px', flexShrink: 0, opacity: uploading ? 0.5 : 1 }}
           title="Envoyer une photo ou vidéo">
-          📎
+          <Paperclip size={20} />
         </button>
         <input
           value={text}
