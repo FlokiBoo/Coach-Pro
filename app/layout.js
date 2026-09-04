@@ -1,8 +1,10 @@
+import { Suspense } from "react";
 import { Cinzel, Merriweather, Work_Sans } from "next/font/google";
 import "./globals.css";
 import ServiceWorkerRegistration from "@/app/components/ServiceWorkerRegistration";
 import ChatWidget from "@/app/components/ChatWidget";
 import CapacitorInit from "@/app/components/CapacitorInit";
+import ResumeLastView from "@/app/components/ResumeLastView";
 
 const cinzel = Cinzel({ subsets: ["latin"], weight: ["400", "600", "700", "900"], variable: "--font-cinzel" });
 const merriweather = Merriweather({ subsets: ["latin"], weight: ["300", "400", "700", "900"], style: ["normal", "italic"], variable: "--font-merriweather" });
@@ -33,6 +35,9 @@ export default function RootLayout({ children }) {
         <ServiceWorkerRegistration />
         <ChatWidget />
         <CapacitorInit />
+        <Suspense fallback={null}>
+          <ResumeLastView />
+        </Suspense>
       </body>
     </html>
   );

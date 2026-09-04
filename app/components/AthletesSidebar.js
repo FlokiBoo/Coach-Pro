@@ -9,6 +9,7 @@ import TimerModal from './TimerModal'
 import GoniometerView from './GoniometerView'
 import QuickAngleModal from './QuickAngleModal'
 import { guardNavigation, hasUnsavedChanges } from '@/lib/unsavedChanges'
+import { clearLastPath } from '@/lib/lastPath'
 import {
   House, User, UsersThree, Robot, Timer as TimerIcon, Ruler, CalendarBlank, CookingPot, Carrot,
   ForkKnife, ClipboardText, ChartLineUp, Lightbulb, BookOpen, Lightning, Money, EnvelopeSimple,
@@ -16,6 +17,7 @@ import {
 } from '@phosphor-icons/react'
 
 async function logout() {
+  clearLastPath()
   await supabase.auth.signOut()
   window.location.href = '/login'
 }

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import PasswordSettingsModal from '@/app/components/PasswordSettingsModal'
 import { SUBSCRIPTION_TIERS } from '@/lib/subscriptionTiers'
 import { ONE_TIME_OFFERS } from '@/lib/offers'
+import { clearLastPath } from '@/lib/lastPath'
 
 const rowStyle = {
   background: 'var(--bg)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
@@ -155,7 +156,7 @@ export default function SettingsScreen({ athlete, token, onClose }) {
         <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--text3)', marginTop: 4 }}>OSTRYK — version 1.0</div>
 
         <button
-          onClick={async () => { await supabase.auth.signOut(); window.location.href = '/login' }}
+          onClick={async () => { clearLastPath(); await supabase.auth.signOut(); window.location.href = '/login' }}
           style={{ ...rowStyle, marginTop: 10, color: '#B91C1C', justifyContent: 'center' }}
         >
           ⎋ Déconnexion
