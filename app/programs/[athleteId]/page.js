@@ -2,6 +2,10 @@
 
 import { useState, useEffect, use, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import {
+  Lightning, Target, CalendarBlank, ClipboardText, PencilSimple, UsersThree, PushPin, Package,
+  Trash, ArrowsClockwise, CheckCircle,
+} from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -278,8 +282,8 @@ function ProgramsPageInner({ params }) {
               <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>{athlete?.name}</div>
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>Programmes d'entraînement</div>
             </div>
-            <button onClick={createFreeSession} disabled={creating} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-              ⚡ Séance libre
+            <button onClick={createFreeSession} disabled={creating} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text2)', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+              <Lightning size={13} /> Séance libre
             </button>
             <button onClick={() => setShowForm(v => !v)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               {objectiveId ? '+ Micro-cycle' : '+ Programme'}
@@ -295,10 +299,10 @@ function ProgramsPageInner({ params }) {
                 const style = PRIORITY_STYLES[activeObjective.priority] || PRIORITY_STYLES[2]
                 return (
                   <div style={{ background: style.bg, border: `1px solid ${style.border}`, borderRadius: 'var(--rl)', padding: '12px 14px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, color: style.text, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 2 }}>🎯 Objectif</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: style.text, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 2, display: 'flex', alignItems: 'center', gap: 4 }}><Target size={11} /> Objectif</div>
                     <div style={{ fontWeight: 800, fontSize: 16, color: style.text }}>{activeObjective.text}</div>
                     {activeObjective.target_date && (
-                      <div style={{ fontSize: 12, color: style.text, marginTop: 2, opacity: 0.85 }}>📅 {formatDateFr(activeObjective.target_date)}</div>
+                      <div style={{ fontSize: 12, color: style.text, marginTop: 2, opacity: 0.85, display: 'flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={11} /> {formatDateFr(activeObjective.target_date)}</div>
                     )}
                   </div>
                 )
@@ -369,7 +373,7 @@ function ProgramsPageInner({ params }) {
 
           {visiblePrograms.length === 0 && !showForm ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><ClipboardText size={36} /></div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun programme</div>
               <div style={{ fontSize: 13 }}>Crée un programme structuré pour {athlete?.name}</div>
             </div>
@@ -425,26 +429,26 @@ function ProgramsPageInner({ params }) {
                                 </div>
                               </Link>
                               <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                                <Link href={`/programs/${athleteId}/${p.id}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)', textDecoration: 'none' }}>
-                                  ✏️ Modifier
+                                <Link href={`/programs/${athleteId}/${p.id}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <PencilSimple size={12} /> Modifier
                                 </Link>
                                 {allAthletes.length > 0 && (
-                                  <button onClick={() => openAssign(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
-                                    👥 Assigner
+                                  <button onClick={() => openAssign(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                    <UsersThree size={12} /> Assigner
                                   </button>
                                 )}
                                 <button
                                   onClick={() => togglePinned(p)}
                                   title={p.pinned_board === false ? 'Afficher dans le tableau de bord côte à côte' : 'Masquer du tableau de bord côte à côte'}
-                                  style={{ background: 'none', border: 'none', fontSize: 12, color: p.pinned_board === false ? 'var(--text3)' : 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600 }}
+                                  style={{ background: 'none', border: 'none', fontSize: 12, color: p.pinned_board === false ? 'var(--text3)' : 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}
                                 >
-                                  {p.pinned_board === false ? '📌 Épingler' : '📍 Épinglé'}
+                                  <PushPin size={12} weight={p.pinned_board === false ? 'regular' : 'fill'} /> {p.pinned_board === false ? 'Épingler' : 'Épinglé'}
                                 </button>
-                                <button onClick={() => toggleArchived(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
-                                  📦 Archiver
+                                <button onClick={() => toggleArchived(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Package size={12} /> Archiver
                                 </button>
-                                <button onClick={() => deleteProgram(p.id)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
-                                  🗑 Supprimer
+                                <button onClick={() => deleteProgram(p.id)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <Trash size={12} /> Supprimer
                                 </button>
                               </div>
                             </div>
@@ -474,11 +478,11 @@ function ProgramsPageInner({ params }) {
                         </div>
                       </Link>
                       <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                        <button onClick={() => toggleArchived(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
-                          ♻️ Désarchiver
+                        <button onClick={() => toggleArchived(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <ArrowsClockwise size={12} /> Désarchiver
                         </button>
-                        <button onClick={() => deleteProgram(p.id)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
-                          🗑 Supprimer
+                        <button onClick={() => deleteProgram(p.id)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Trash size={12} /> Supprimer
                         </button>
                       </div>
                     </div>
@@ -501,7 +505,7 @@ function ProgramsPageInner({ params }) {
 
             {assignDone ? (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+                <div style={{ display: 'flex', justifyContent: 'center', color: '#16A34A', marginBottom: 8 }}><CheckCircle size={32} /></div>
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>Programme assigné !</div>
                 <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16 }}>
                   Une copie a été créée pour {selectedIds.length} client{selectedIds.length > 1 ? 's' : ''}.
@@ -524,7 +528,7 @@ function ProgramsPageInner({ params }) {
                             border: allSelected ? 'none' : '1px solid var(--border2)', borderRadius: 20, padding: '6px 12px',
                             fontSize: 12, fontWeight: 700, cursor: memberIds.length === 0 ? 'default' : 'pointer', opacity: memberIds.length === 0 ? 0.5 : 1,
                           }}>
-                          👥 {g.name} ({memberIds.length})
+                          <UsersThree size={12} style={{ verticalAlign: -2, marginRight: 4 }} />{g.name} ({memberIds.length})
                         </button>
                       )
                     })}

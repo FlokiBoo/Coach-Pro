@@ -1,6 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import {
+  ClipboardText, User, CalendarBlank, Tag, PencilSimple, UsersThree, Prohibit, Megaphone, Gift,
+  Trash, LinkSimple, CheckCircle,
+} from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -254,7 +258,7 @@ export default function ProgramsPage() {
 
           {programs.filter(p => !p.athlete_id).length === 0 && !showForm ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-              <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><ClipboardText size={36} /></div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun template</div>
               <div style={{ fontSize: 13 }}>Clique sur "+ Programme" pour créer ton premier template</div>
             </div>
@@ -268,27 +272,27 @@ export default function ProgramsPage() {
                 <div key={p.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
                   <Link href={href} style={{ display: 'block', padding: '14px 16px', textDecoration: 'none', color: 'inherit' }}>
                     <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{p.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10 }}>
-                      <span>{p.athlete_id ? `👤 ${p.athletes?.name || '—'}` : '📋 Template'}</span>
-                      <span>📅 {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}</span>
-                      {p.activity_type && <span style={{ color: 'var(--green)' }}>🏷 {p.activity_type}</span>}
+                    <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{p.athlete_id ? <><User size={11} /> {p.athletes?.name || '—'}</> : <><ClipboardText size={11} /> Template</>}</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={11} /> {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}</span>
+                      {p.activity_type && <span style={{ color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Tag size={11} /> {p.activity_type}</span>}
                       {p.available_to_clients && <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓ Disponible sportifs</span>}
                     </div>
                   </Link>
                   <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    <Link href={href} style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)', textDecoration: 'none' }}>✏️ Modifier</Link>
+                    <Link href={href} style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}><PencilSimple size={12} /> Modifier</Link>
                     {athletes.length > 0 && (
-                      <button onClick={() => openAssign(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>👥 Assigner</button>
+                      <button onClick={() => openAssign(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><UsersThree size={12} /> Assigner</button>
                     )}
                     {!p.athlete_id && (
-                      <button onClick={() => toggleAvailable(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: p.available_to_clients ? '#B91C1C' : 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
-                        {p.available_to_clients ? '🚫 Retirer de la sélection' : '📢 Rendre disponible aux sportifs'}
+                      <button onClick={() => toggleAvailable(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: p.available_to_clients ? '#B91C1C' : 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {p.available_to_clients ? <><Prohibit size={12} /> Retirer de la sélection</> : <><Megaphone size={12} /> Rendre disponible aux sportifs</>}
                       </button>
                     )}
                     {!p.athlete_id && p.available_to_clients && (
                       p.free_sessions_count >= FULLY_FREE_SESSIONS ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>🎁 Programme entièrement gratuit</span>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Gift size={12} /> Programme entièrement gratuit</span>
                           <button onClick={() => saveFreeSessionsCount(p, '')} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', padding: 0, fontWeight: 600, textDecoration: 'underline' }}>
                             Limiter
                           </button>
@@ -300,13 +304,13 @@ export default function ProgramsPage() {
                             defaultValue={p.free_sessions_count ?? ''}
                             onBlur={e => saveFreeSessionsCount(p, e.target.value)}
                             style={{ width: 50, boxSizing: 'border-box', padding: '3px 6px', border: '1px solid var(--border2)', borderRadius: 6, fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
-                          <button onClick={() => saveFreeSessionsCount(p, String(FULLY_FREE_SESSIONS))} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
-                            🎁 Rendre tout gratuit
+                          <button onClick={() => saveFreeSessionsCount(p, String(FULLY_FREE_SESSIONS))} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <Gift size={12} /> Rendre tout gratuit
                           </button>
                         </label>
                       )
                     )}
-                    <button onClick={() => deleteProgram(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600 }}>🗑 Supprimer</button>
+                    <button onClick={() => deleteProgram(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Trash size={12} /> Supprimer</button>
                   </div>
                 </div>
               )
@@ -314,7 +318,7 @@ export default function ProgramsPage() {
             return (
               <>
                 {allTemplates.length > 0 && (
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 2px' }}>📋 Templates</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 2px', display: 'flex', alignItems: 'center', gap: 5 }}><ClipboardText size={13} /> Templates</div>
                 )}
                 {allCategories.length > 0 && (
                   <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
@@ -361,7 +365,7 @@ export default function ProgramsPage() {
 
             {assignDone ? (
               <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>✅</div>
+                <div style={{ display: 'flex', justifyContent: 'center', color: '#16A34A', marginBottom: 8 }}><CheckCircle size={32} /></div>
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>Programme assigné !</div>
                 <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16 }}>
                   Une copie a été créée pour {selectedIds.length} client{selectedIds.length > 1 ? 's' : ''}.
@@ -385,7 +389,7 @@ export default function ProgramsPage() {
                             border: allSelected ? 'none' : '1px solid var(--border2)', borderRadius: 20, padding: '6px 12px',
                             fontSize: 12, fontWeight: 700, cursor: memberIds.length === 0 ? 'default' : 'pointer', opacity: memberIds.length === 0 ? 0.5 : 1,
                           }}>
-                          👥 {g.name} ({memberIds.length}){linked ? ' 🔗' : ''}
+                          <UsersThree size={12} style={{ verticalAlign: -2, marginRight: 4 }} />{g.name} ({memberIds.length}){linked ? <LinkSimple size={11} style={{ verticalAlign: -1, marginLeft: 4 }} /> : ''}
                         </button>
                       )
                     })}
@@ -394,7 +398,7 @@ export default function ProgramsPage() {
                 {assignGroupId && (
                   isGroupLinked(assignGroupId, assignModal.id) ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px', marginBottom: 12, fontSize: 12, color: 'var(--green)' }}>
-                      <span style={{ flex: 1 }}>🔗 Ce programme est lié à ce groupe — les nouveaux membres le reçoivent automatiquement.</span>
+                      <span style={{ flex: 1, display: 'inline-flex', alignItems: 'center', gap: 5 }}><LinkSimple size={12} /> Ce programme est lié à ce groupe — les nouveaux membres le reçoivent automatiquement.</span>
                       <button type="button" onClick={() => unlinkGroupTemplate(assignGroupId, assignModal.id)}
                         style={{ background: 'none', border: 'none', color: 'var(--green)', textDecoration: 'underline', fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
                         Retirer
@@ -404,7 +408,7 @@ export default function ProgramsPage() {
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, fontSize: 13, color: 'var(--text2)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={keepSynced} onChange={e => setKeepSynced(e.target.checked)}
                         style={{ accentColor: 'var(--green)', width: 16, height: 16 }} />
-                      🔗 Garder synchronisé — les futurs membres de ce groupe recevront aussi ce programme automatiquement
+                      <LinkSimple size={12} style={{ verticalAlign: -1, marginRight: 4 }} />Garder synchronisé — les futurs membres de ce groupe recevront aussi ce programme automatiquement
                     </label>
                   )
                 )}
