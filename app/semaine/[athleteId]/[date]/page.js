@@ -290,7 +290,10 @@ export default function AthletePage({ params }) {
                 {/* Lien personnel */}
                 {athlete?.token ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <Link href={`/s/${athlete.token}/lancer`} target="_blank"
+                    {/* Reste dans l'app (pas de target="_blank") : le coaching en direct doit être un
+                        espace normal de l'app, pas un onglet séparé qui peut se perdre si le coach
+                        quitte l'app pendant la séance — retour terrain. */}
+                    <Link href={`/s/${athlete.token}/lancer`}
                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
                       <Barbell size={15} /> Coaching — lancer une séance
                     </Link>

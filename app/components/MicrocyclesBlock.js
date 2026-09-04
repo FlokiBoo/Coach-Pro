@@ -420,12 +420,14 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                       {sess.title || `Séance ${si + 1}`}
                     </Link>
                     {athleteToken && (
-                      <a
+                      // Reste dans l'app (Link + pas de target="_blank") : le coaching en direct est
+                      // un espace normal de l'app, pas un onglet séparé qui peut se perdre si le coach
+                      // quitte l'app pendant la séance — retour terrain.
+                      <Link
                         href={`/s/${athleteToken}?coach=1&session=${sess.id}&focus=1`}
-                        target="_blank" rel="noreferrer"
                         title="Lancer cette séance (coaching)"
                         style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--green)', padding: '2px 4px', flexShrink: 0, textDecoration: 'none' }}
-                      ><Barbell size={16} /></a>
+                      ><Barbell size={16} /></Link>
                     )}
                     <button
                       onClick={() => duplicateSession(sess, prog.id)}
