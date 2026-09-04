@@ -1142,7 +1142,11 @@ function ProgramEditorPage({ params }) {
         {/* Header */}
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Link href={isTemplate ? '/programs' : `/programs/${athleteId}`} onClick={guardNavigation} style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none' }}>←</Link>
+            {/* router.back() plutôt qu'un href fixe : cette page est atteignable depuis plusieurs
+                endroits (liste des programmes, mais aussi un groupe via son programme lié) —
+                un lien fixe vers /programs ramenait toujours à la liste complète même en venant
+                d'un groupe, au lieu d'y revenir (retour terrain). */}
+            <button onClick={() => { if (guardNavigation({ preventDefault() {} })) router.back() }} style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none', background: 'none', border: 'none', cursor: 'pointer', padding: 0, lineHeight: 1 }}>←</button>
             <div style={{ flex: 1, minWidth: 0 }}>
               <input
                 value={program?.title || ''}
