@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { ChartBar, TrendUp, ClipboardText, ShareNetwork } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { shareCardImage } from '@/lib/shareCard'
 
@@ -300,8 +301,8 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
 
       {/* Header avec toggle */}
       <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1 }}>
-          📊 {mode === 'week' ? 'Ma semaine' : 'Mon mois'}
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}>
+          <ChartBar size={13} /> {mode === 'week' ? 'Ma semaine' : 'Mon mois'}
         </div>
 
         <div style={{ position: 'relative', display: 'flex', width: 100, flexShrink: 0, background: 'var(--bg2)', borderRadius: 20, padding: 2, border: '1px solid var(--border)' }}>
@@ -335,7 +336,7 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
             borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
             display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap', flexShrink: 0,
           }}>
-            {view === 'stats' ? '📈 Progression ›' : '‹ Stats'}
+            {view === 'stats' ? <><TrendUp size={12} /> Progression ›</> : '‹ Stats'}
           </button>
         )}
       </div>
@@ -465,8 +466,9 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
             <button onClick={openRecap} style={{
               width: '100%', background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8',
               borderRadius: 20, padding: '9px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
             }}>
-              📋 Récap {mode === 'week' ? 'de la semaine' : 'du mois'}
+              <ClipboardText size={14} /> Récap {mode === 'week' ? 'de la semaine' : 'du mois'}
             </button>
           </div>
         </>
@@ -554,7 +556,7 @@ function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel
             visibility: page === 1 ? 'visible' : 'hidden', background: 'none', border: 'none', fontSize: 22, color: 'var(--text3)', cursor: 'pointer', padding: '2px 6px', lineHeight: 1,
           }}>‹</button>
           <div style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{ fontSize: 44, lineHeight: 1, marginBottom: 8 }}>{page === 0 ? '📊' : '📈'}</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>{page === 0 ? <ChartBar size={44} /> : <TrendUp size={44} />}</div>
             <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>
               {page === 0 ? `Récap ${mode === 'week' ? 'de la semaine' : 'du mois'}` : 'Progressions'}
             </div>
@@ -710,8 +712,9 @@ function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel
           <button onClick={share} disabled={sharing} style={{
             flex: 1, background: 'var(--bg2)', color: 'var(--text)', border: '1px solid var(--border2)', borderRadius: 20,
             padding: '13px 0', fontSize: 15, fontWeight: 700, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
           }}>
-            {sharing ? '…' : '📤 Partager'}
+            {sharing ? '…' : <><ShareNetwork size={16} /> Partager</>}
           </button>
           <button onClick={onClose} style={{
           flex: 2, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20,
