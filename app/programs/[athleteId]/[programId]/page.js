@@ -17,6 +17,10 @@ import { getCoachId } from '@/lib/coach'
 import ActivityTypeSelect from '@/app/components/ActivityTypeSelect'
 import { notifyAssigned } from '@/lib/notify'
 import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerConfigEditor'
+import {
+  ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat,
+  VideoCamera, Lightbulb, Flame, Target, ChartLineUp, Backpack, FloppyDisk, Lightning,
+} from '@phosphor-icons/react'
 
 function today() {
   const n = new Date()
@@ -177,10 +181,10 @@ function SessionSummaryBlock({ exercises }) {
       ...(pinned ? { position: 'sticky', top: 90, zIndex: 30, boxShadow: '0 4px 16px rgba(0,0,0,.12)' } : {}),
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ flex: 1, fontSize: 10, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📊 Résumé de séance</div>
+        <div style={{ flex: 1, fontSize: 10, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 5 }}><ChartBar size={12} /> Résumé de séance</div>
         <button onClick={() => setPinned(v => !v)} title={pinned ? 'Désépingler' : 'Épingler en haut pendant le scroll'}
-          style={{ background: pinned ? 'var(--green-light)' : 'none', border: pinned ? '1px solid #B8EAD8' : '1px solid var(--border2)', borderRadius: 20, padding: '2px 7px', fontSize: 12, cursor: 'pointer', color: pinned ? 'var(--green)' : 'var(--text3)', lineHeight: 1 }}>
-          📌
+          style={{ background: pinned ? 'var(--green-light)' : 'none', border: pinned ? '1px solid #B8EAD8' : '1px solid var(--border2)', borderRadius: 20, padding: '2px 7px', display: 'flex', cursor: 'pointer', color: pinned ? 'var(--green)' : 'var(--text3)', lineHeight: 1 }}>
+          <PushPin size={12} weight={pinned ? 'fill' : 'regular'} />
         </button>
         <button onClick={() => setShowModal(true)} title="Voir le détail (séries par muscle)"
           style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 7px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)', lineHeight: 1 }}>
@@ -203,7 +207,7 @@ function SessionSummaryBlock({ exercises }) {
         <div onClick={() => setShowModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 400, maxHeight: '80svh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>📊 Résumé de séance</div>
+              <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8 }}><ChartBar size={16} /> Résumé de séance</div>
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
             </div>
 
@@ -1157,8 +1161,8 @@ function ProgramEditorPage({ params }) {
                 placeholder="Nom du programme"
               />
               {titleSaving && <div style={{ fontSize: 10, color: 'var(--text3)' }}>Enregistrement…</div>}
-              <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-                {isTemplate ? '📋 Template' : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
+              <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {isTemplate ? <><ClipboardText size={11} /> Template</> : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
               </div>
               <ActivityTypeSelect
                 value={program?.activity_type || 'Musculation 🏋️'}
@@ -1167,7 +1171,7 @@ function ProgramEditorPage({ params }) {
                 inputStyle={{ fontSize: 12, fontWeight: 600, borderRadius: 20, color: 'var(--text2)', padding: '4px 10px' }}
               />
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: 'var(--text3)' }}>
-                <span>📅 Rythme conseillé (si l&apos;athlète choisit ses jours) :</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={11} /> Rythme conseillé (si l&apos;athlète choisit ses jours) :</span>
                 <input type="number" min="1" max="7" placeholder="X" value={program?.recommended_sessions_per_week ?? ''}
                   onChange={e => saveScheduleHint('recommended_sessions_per_week', e.target.value ? parseInt(e.target.value) : null)}
                   style={{ width: 44, boxSizing: 'border-box', padding: '2px 4px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', textAlign: 'center' }} />
@@ -1179,8 +1183,8 @@ function ProgramEditorPage({ params }) {
               </div>
             </div>
             <button onClick={deleteWholeProgram} title="Supprimer le programme"
-              style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: '#DC2626', cursor: 'pointer', flexShrink: 0 }}>
-              🗑 Supprimer
+              style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: '#DC2626', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Trash size={12} /> Supprimer
             </button>
             {sessions.length > 1 && (
               <div style={{ display: 'flex', gap: 2, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 2, flexShrink: 0 }}>
@@ -1205,8 +1209,8 @@ function ProgramEditorPage({ params }) {
         {!isTemplate && program?.group_batch_id && (
           <div style={{ margin: '12px 16px 0', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1 }}>
-                👥 Participants ({participants.length})
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <UsersThree size={12} /> Participants ({participants.length})
               </div>
               <button onClick={openAddParticipant} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
                 + Ajouter un client
@@ -1290,12 +1294,12 @@ function ProgramEditorPage({ params }) {
 
         {hiddenSessions.size > 0 && (
           <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--bg2)', border: '1px solid var(--border)', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)' }}>🙈 Masquées :</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><EyeSlash size={12} /> Masquées :</span>
             {sessions.filter(s => hiddenSessions.has(s.id)).map(s => (
               <button key={s.id} onClick={() => toggleHiddenSession(s.id)}
                 title="Réafficher cette séance"
-                style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer' }}>
-                {s.title || `Séance ${sessions.indexOf(s) + 1}`} 👁
+                style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                {s.title || `Séance ${sessions.indexOf(s) + 1}`} <Eye size={12} />
               </button>
             ))}
           </div>
@@ -1323,7 +1327,7 @@ function ProgramEditorPage({ params }) {
                     <button onClick={() => moveCircuit(s.id, c.id, 1)} disabled={circuitSlot(c) === maxCircuitSlot}
                       style={{ background: 'none', border: 'none', color: circuitSlot(c) === maxCircuitSlot ? 'var(--border2)' : 'var(--text3)', fontSize: 10, cursor: circuitSlot(c) === maxCircuitSlot ? 'default' : 'pointer', padding: 0, lineHeight: 1 }}>▼</button>
                   </div>
-                  <span style={{ fontSize: 10, flexShrink: 0 }}>🔁</span>
+                  <span style={{ fontSize: 10, flexShrink: 0, display: 'flex' }}><Repeat size={10} /></span>
                   <input
                     value={c.name || ''}
                     onChange={e => updateCircuitName(s.id, c.id, e.target.value)}
@@ -1357,7 +1361,7 @@ function ProgramEditorPage({ params }) {
                       {(c.videos || []).map((v, vi) => (
                         v.video_url ? (
                           <div key={vi} style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 20, padding: '4px 6px 4px 10px' }}>
-                            <a href={v.video_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, textDecoration: 'none', flexShrink: 0 }} title="Voir la vidéo">🎥</a>
+                            <a href={v.video_url} target="_blank" rel="noreferrer" style={{ display: 'flex', textDecoration: 'none', flexShrink: 0 }} title="Voir la vidéo"><VideoCamera size={12} /></a>
                             <span style={{ fontSize: 12, fontWeight: 700, color: '#4338CA' }}>{v.name}</span>
                             <button onClick={() => removeCircuitVideo(s.id, c.id, vi)}
                               style={{ background: 'none', border: 'none', color: '#4338CA', fontSize: 14, cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1, opacity: 0.6 }}>×</button>
@@ -1393,13 +1397,13 @@ function ProgramEditorPage({ params }) {
                           <button key={mi} onMouseDown={() => addCircuitVideo(s.id, c.id, `${s.id}:circuit:${c.id}`, mov)}
                             style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
                             <span style={{ flex: 1 }}>{mov.name}</span>
-                            <span style={{ fontSize: 12 }}>{mov.youtube_url ? '🎥' : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
+                            <span style={{ fontSize: 12, display: 'flex' }}>{mov.youtube_url ? <VideoCamera size={13} /> : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
                           </button>
                         ))}
                         {!(actVideoSuggs[`${s.id}:circuit:${c.id}`] || []).some(m => m.name.toLowerCase() === (actVideoSearch[`${s.id}:circuit:${c.id}`] || '').trim().toLowerCase()) && (
                           <button onMouseDown={() => createCircuitVideo(s.id, c.id, `${s.id}:circuit:${c.id}`, actVideoSearch[`${s.id}:circuit:${c.id}`])}
                             style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'var(--bg2)', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--green)', cursor: 'pointer' }}>
-                            <span>🎥</span>
+                            <span style={{ display: 'flex' }}><VideoCamera size={13} /></span>
                             <span>Créer « {actVideoSearch[`${s.id}:circuit:${c.id}`]} » et lier une vidéo</span>
                           </button>
                         )}
@@ -1453,7 +1457,7 @@ function ProgramEditorPage({ params }) {
                       color: s.session_type === 'explication' ? '#1D4ED8' : 'var(--text3)',
                     }}
                   >
-                    💡 Explication
+                    <Lightbulb size={11} style={{ verticalAlign: -1, marginRight: 3 }} />Explication
                   </button>
                   <button
                     onClick={e => { e.stopPropagation(); updateSession(s.id, 'session_type', s.session_type === 'warmup' ? null : 'warmup') }}
@@ -1465,7 +1469,7 @@ function ProgramEditorPage({ params }) {
                       color: s.session_type === 'warmup' ? '#C2410C' : 'var(--text3)',
                     }}
                   >
-                    🔥 Warm-Up
+                    <Flame size={11} style={{ verticalAlign: -1, marginRight: 3 }} />Warm-Up
                   </button>
                   <select
                     value={s.day_of_week ?? ''}
@@ -1479,7 +1483,7 @@ function ProgramEditorPage({ params }) {
                       color: s.day_of_week != null ? 'var(--green)' : 'var(--text3)',
                     }}
                   >
-                    <option value="">📅 Jour</option>
+                    <option value="">Jour</option>
                     {WEEK_DAYS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
                   </select>
                   {program?.group_id && (
@@ -1493,7 +1497,7 @@ function ProgramEditorPage({ params }) {
                         color: s.hidden_until_run ? '#6D28D9' : 'var(--text3)',
                       }}
                     >
-                      {s.hidden_until_run ? '🙈 Caché' : '👁 Visible'}
+                      {s.hidden_until_run ? <><EyeSlash size={11} style={{ verticalAlign: -1, marginRight: 3 }} />Caché</> : <><Eye size={11} style={{ verticalAlign: -1, marginRight: 3 }} />Visible</>}
                     </button>
                   )}
                   <span style={{ fontSize: 11, color: 'var(--text3)', flexShrink: 0 }}>
@@ -1522,11 +1526,11 @@ function ProgramEditorPage({ params }) {
                       background: isPinned ? 'var(--green-light)' : 'none',
                       border: isPinned ? '1px solid var(--green)' : '1px solid var(--border2)',
                       borderRadius: 4, padding: '2px 6px', fontSize: 11,
-                      color: isPinned ? 'var(--green)' : 'var(--text3)', cursor: 'pointer',
-                    }}>📌</button>
+                      color: isPinned ? 'var(--green)' : 'var(--text3)', cursor: 'pointer', display: 'flex',
+                    }}><PushPin size={11} weight={isPinned ? 'fill' : 'regular'} /></button>
                   <button onClick={e => { e.stopPropagation(); toggleHiddenSession(s.id) }}
                     title="Masquer cette séance (n'affecte pas son ordre)"
-                    style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: 'var(--text3)', cursor: 'pointer' }}>🙈</button>
+                    style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', display: 'flex', color: 'var(--text3)', cursor: 'pointer' }}><EyeSlash size={11} /></button>
                   <button onClick={e => { e.stopPropagation(); deleteSession(s.id) }}
                     style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>×</button>
                   <span style={{ fontSize: 14, color: 'var(--text3)' }}>{isOpen ? '▲' : '▼'}</span>
@@ -1596,7 +1600,7 @@ function ProgramEditorPage({ params }) {
                         {/* Séance "Explication" : juste une note libre + une vidéo, pas d'activation ni d'exercices */}
                         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
                           <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📋 Explication</span>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardText size={11} /> Explication</span>
                           </div>
                           <textarea placeholder="Explique le programme au sportif…" value={s.coach_notes || ''}
                             onChange={e => updateSession(s.id, 'coach_notes', e.target.value)}
@@ -1605,7 +1609,7 @@ function ProgramEditorPage({ params }) {
                         </div>
                         <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
                           <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🎥 Vidéo</span>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><VideoCamera size={11} /> Vidéo</span>
                           </div>
                           <input
                             placeholder="Lien vidéo (YouTube, etc.)"
@@ -1620,7 +1624,7 @@ function ProgramEditorPage({ params }) {
                     {/* Activation */}
                     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'visible' }}>
                       <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>⚡ Activation</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lightning size={11} /> Activation</span>
                       </div>
                       <div style={{ position: 'relative', padding: '8px 10px 0' }}>
                         <input
@@ -1637,7 +1641,7 @@ function ProgramEditorPage({ params }) {
                               <button key={preset.id} onMouseDown={() => applyActPreset(s.id, preset)}
                                 style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: pi < actPresetSuggs[s.id].length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
                                 <span style={{ flex: 1 }}>{preset.name}</span>
-                                {preset.videos?.length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)' }}>{preset.videos.length} 🎥</span>}
+                                {preset.videos?.length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>{preset.videos.length} <VideoCamera size={11} /></span>}
                               </button>
                             ))}
                           </div>
@@ -1652,7 +1656,7 @@ function ProgramEditorPage({ params }) {
                     {/* Vidéos d'activation */}
                     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'visible' }}>
                       <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🎥 Vidéos d'activation</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><VideoCamera size={11} /> Vidéos d&apos;activation</span>
                       </div>
                       <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
 
@@ -1662,7 +1666,7 @@ function ProgramEditorPage({ params }) {
                             {(s.activation_videos || []).map((v, vi) => (
                               v.video_url ? (
                                 <div key={vi} style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 20, padding: '4px 6px 4px 10px' }}>
-                                  <a href={v.video_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, textDecoration: 'none', flexShrink: 0 }} title="Voir la vidéo">🎥</a>
+                                  <a href={v.video_url} target="_blank" rel="noreferrer" style={{ display: 'flex', textDecoration: 'none', flexShrink: 0 }} title="Voir la vidéo"><VideoCamera size={12} /></a>
                                   <span style={{ fontSize: 12, fontWeight: 700, color: '#4338CA' }}>{v.name}</span>
                                   <button onClick={() => removeActVideo(s.id, vi)}
                                     style={{ background: 'none', border: 'none', color: '#4338CA', fontSize: 14, cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1, opacity: 0.6 }}>×</button>
@@ -1699,13 +1703,13 @@ function ProgramEditorPage({ params }) {
                                 <button key={mi} onMouseDown={() => addActVideo(s.id, mov)}
                                   style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
                                   <span style={{ flex: 1 }}>{mov.name}</span>
-                                  <span style={{ fontSize: 12 }}>{mov.youtube_url ? '🎥' : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
+                                  <span style={{ fontSize: 12, display: 'flex' }}>{mov.youtube_url ? <VideoCamera size={13} /> : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
                                 </button>
                               ))}
                               {!(actVideoSuggs[s.id] || []).some(m => m.name.toLowerCase() === (actVideoSearch[s.id] || '').trim().toLowerCase()) && (
                                 <button onMouseDown={() => createActVideo(s.id, actVideoSearch[s.id])}
                                   style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'var(--bg2)', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--green)', cursor: 'pointer' }}>
-                                  <span>🎥</span>
+                                  <span style={{ display: 'flex' }}><VideoCamera size={13} /></span>
                                   <span>Créer « {actVideoSearch[s.id]} » et lier une vidéo</span>
                                 </button>
                               )}
@@ -1722,7 +1726,7 @@ function ProgramEditorPage({ params }) {
                     {/* Note */}
                     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
                       <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>📋 Note</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardText size={11} /> Note</span>
                       </div>
                       <textarea placeholder="Consignes pour le sportif…" value={s.coach_notes || ''}
                         onChange={e => updateSession(s.id, 'coach_notes', e.target.value)}
@@ -1773,12 +1777,12 @@ function ProgramEditorPage({ params }) {
                             {exo.name.trim() && (
                               exo.video_url ? (
                                 <button onClick={() => setVideoPreviewKey(videoPreviewKey === exo._key ? null : exo._key)}
-                                  style={{ background: 'none', border: 'none', fontSize: 17, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
-                                  title="Voir la vidéo">🎥</button>
+                                  style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
+                                  title="Voir la vidéo"><VideoCamera size={17} /></button>
                               ) : (
                                 <button onClick={() => { setVideoInputKey(exo._key); setVideoInputVal(''); setVideoPreviewKey(null) }}
-                                  style={{ background: 'none', border: 'none', fontSize: 17, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1, opacity: 0.25, filter: 'grayscale(1)' }}
-                                  title="Ajouter une vidéo">🎥</button>
+                                  style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1, opacity: 0.25, filter: 'grayscale(1)' }}
+                                  title="Ajouter une vidéo"><VideoCamera size={17} /></button>
                               )
                             )}
                             {exo.name.trim() && (() => {
@@ -1787,14 +1791,14 @@ function ProgramEditorPage({ params }) {
                               const hasFocus = exo.focus_muscles || autoGroups.length > 0
                               return (
                                 <button onClick={() => setFocusPickerKey(focusPickerKey === exo._key ? null : exo._key)}
-                                  style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1, opacity: hasFocus ? 1 : 0.3 }}
-                                  title="Focus muscles">🎯</button>
+                                  style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1, opacity: hasFocus ? 1 : 0.3 }}
+                                  title="Focus muscles"><Target size={15} /></button>
                               )
                             })()}
                             {!isTemplate && exo.name.trim() && (
                               <button onClick={() => setHistoryExo({ name: exo.name.trim() })}
-                                style={{ background: 'none', border: 'none', fontSize: 15, cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
-                                title="Historique de l'exercice">📈</button>
+                                style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', flexShrink: 0, padding: 0, lineHeight: 1 }}
+                                title="Historique de l'exercice"><ChartLineUp size={15} /></button>
                             )}
                             <button onClick={() => removeExo(s.id, exo._key)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 18, padding: '0 2px', cursor: 'pointer', flexShrink: 0 }}>×</button>
                           </div>
@@ -1840,8 +1844,8 @@ function ProgramEditorPage({ params }) {
                                     supabase.from('movements').update({ youtube_url: null }).eq('name', exo.name)
                                     setVideoPreviewKey(null)
                                   }}
-                                    style={{ flex: 1, background: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '8px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                                    🗑 Supprimer
+                                    style={{ flex: 1, background: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '8px', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                                    <Trash size={13} /> Supprimer
                                   </button>
                                 </div>
                               </div>
@@ -1856,16 +1860,16 @@ function ProgramEditorPage({ params }) {
                             const groups = isAuto ? autoGroups : manualGroups
                             if (groups.length === 0) return null
                             return (
-                              <div style={{ marginBottom: 6, background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 20, padding: '4px 10px', display: 'inline-block', fontSize: 11, fontWeight: 700, color: '#B91C1C' }}>
-                                🎯 {MUSCLE_GROUPS.filter(g => groups.includes(g.key)).map(g => g.label).join(', ')}
+              <div style={{ marginBottom: 6, background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 20, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#B91C1C' }}>
+                                <Target size={11} /> {MUSCLE_GROUPS.filter(g => groups.includes(g.key)).map(g => g.label).join(', ')}
                                 {isAuto && <span style={{ fontWeight: 500, opacity: 0.75 }}> (auto)</span>}
                               </div>
                             )
                           })()}
                           {focusPickerKey === exo._key && (
                             <div style={{ marginBottom: 8, border: '1px solid var(--border2)', borderRadius: 'var(--r)', background: 'var(--bg2)', padding: 8 }}>
-                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
-                                🎯 Focus — muscles à ressentir
+                              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <Target size={11} /> Focus — muscles à ressentir
                               </div>
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                                 {MUSCLE_GROUPS.map(g => {
@@ -2026,7 +2030,7 @@ function ProgramEditorPage({ params }) {
                     {/* Matériel */}
                     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
                       <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>🎒 Matériel</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Backpack size={11} /> Matériel</span>
                       </div>
                       <textarea placeholder="Matériel à avoir pour cette séance…" value={s.materiel || ''}
                         onChange={e => updateSession(s.id, 'materiel', e.target.value)}
@@ -2049,7 +2053,7 @@ function ProgramEditorPage({ params }) {
                             border: savedIds.has(s.id) ? '1px solid #BBF7D0' : 'none',
                             borderRadius: 'var(--r)', padding: '12px', fontSize: 14,
                             fontWeight: 700, cursor: saving ? 'default' : 'pointer', width: '100%',
-                            transition: 'all .2s',
+                            transition: 'all .2s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                           }}
                         >
                           {saving && !savedIds.has(s.id)
@@ -2057,8 +2061,8 @@ function ProgramEditorPage({ params }) {
                             : savedIds.has(s.id)
                               ? '✓ Séance sauvegardée'
                               : otherDirtyCount > 0
-                                ? `💾 Tout sauvegarder (${otherDirtyCount + 1} séances)`
-                                : '💾 Sauvegarder la séance'}
+                                ? <><FloppyDisk size={15} /> Tout sauvegarder ({otherDirtyCount + 1} séances)</>
+                                : <><FloppyDisk size={15} /> Sauvegarder la séance</>}
                         </button>
                       )
                     })()}
@@ -2124,7 +2128,7 @@ function ExerciseHistoryModal({ athleteId, exerciseName, onClose }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>📈 Historique</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8 }}><ChartLineUp size={16} /> Historique</div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 1 }}>{exerciseName}</div>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: 'var(--text3)', padding: 4 }}>✕</button>
