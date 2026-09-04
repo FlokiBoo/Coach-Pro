@@ -1052,7 +1052,7 @@ function AthleteView({ params }) {
             programs={programs} completions={completions} skippedSessions={skippedSessions}
             selectedType={selectedType} setSelectedType={setSelectedType}
             router={router} token={token} setActiveTab={setActiveTab}
-            onUpdateProgramDays={updateProgramDays}
+            onUpdateProgramDays={updateProgramDays} isGroupLeader={isGroupLeader}
           />
         </div>
       )}

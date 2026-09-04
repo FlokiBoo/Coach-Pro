@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { EyeSlash, Backpack, ClipboardText, CalendarBlank, ClockCounterClockwise, CaretDown, CaretUp } from '@phosphor-icons/react'
+import { useState, useEffect } from 'react'
+import { EyeSlash, Backpack, ClipboardText, CalendarBlank, ClockCounterClockwise, CaretDown, CaretUp, UsersThree, Play } from '@phosphor-icons/react'
 import { WEEK_DAYS, jsDayToWeekDay } from '@/lib/weekDays'
 
 // Page d'accueil : la prochaine séance doit être visible immédiatement, sans scroll (retour
@@ -12,17 +12,25 @@ import { WEEK_DAYS, jsDayToWeekDay } from '@/lib/weekDays'
 export default function WodTab({
   isCoachView, noteBlocks,
   programs, completions, skippedSessions, selectedType, setSelectedType,
-  router, token, setActiveTab, onUpdateProgramDays,
+  router, token, setActiveTab, onUpdateProgramDays, isGroupLeader,
 }) {
   const [selectedProgramId, setSelectedProgramId] = useState(null)
   const [materielSession, setMaterielSession] = useState(null)
   const [dayPickerProgram, setDayPickerProgram] = useState(null)
   const [expandedUpcoming, setExpandedUpcoming] = useState(() => new Set())
   const [historyProgram, setHistoryProgram] = useState(null)
+  const [leaderGroups, setLeaderGroups] = useState([])
 
   const openSession = (sessionId) => {
     router.push(`/s/${token}?session=${sessionId}&focus=1${isCoachView ? '&coach=1' : ''}`)
   }
+
+  // Un leader de groupe n'a pas accès à l'espace coach (/groups/...), confiné comme tout athlète à
+  // /s/[token] — il pilote donc sa séance de groupe (présence, contenu, ressenti) depuis ici.
+  useEffect(() => {
+    if (!isGroupLeader || isCoachView) return
+    fetch(`/api/athlete-view/${token}/leader-groups`).then(r => r.json()).then(data => setLeaderGroups(data.groups || []))
+  }, [isGroupLeader, isCoachView, token])
 
   // Un programme assigné à un groupe (fan-out depuis la fiche groupe) ne doit pas apparaître ici :
   // le sportif le suit en direct pendant la séance collective, pas en autonomie — l'afficher aussi
@@ -133,6 +141,28 @@ export default function WodTab({
           {b.content && (
             <div className="font-editorial" style={{ padding: 14, fontSize: 14, color: 'var(--text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{b.content}</div>
           )}
+        </div>
+      ))}
+
+      {leaderGroups.map(g => (
+        <div key={g.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <UsersThree size={14} /> {g.name}
+          </div>
+          {g.sessions.map(s => (
+            <div key={s.id} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border)',
+            }}>
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{s.title || 'Séance'}</span>
+              <button onClick={() => router.push(`/s/${token}/groupe/${s.id}`)} style={{
+                background: s.ranToday ? 'var(--bg2)' : 'var(--green)', color: s.ranToday ? 'var(--text2)' : '#fff',
+                border: s.ranToday ? '1px solid var(--border2)' : 'none', borderRadius: 20, padding: '6px 12px',
+                fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+              }}>
+                <Play size={11} weight="fill" />{s.ranToday ? 'Modifier' : 'Lancer'}
+              </button>
+            </div>
+          ))}
         </div>
       ))}
 
