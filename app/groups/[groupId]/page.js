@@ -40,6 +40,15 @@ async function copyProgramToAthletes(sourceProgram, targetAthleteIds, { coachId,
   const { data: sessions } = await supabase.from('program_sessions')
     .select('*, program_exercises(*)').eq('program_id', sourceProgram.id).order('order_index')
 
+  // Un nouvel "Assigner au groupe" sur le même template ne doit pas laisser vivre l'ancienne
+  // copie de chaque athlète à côté de la nouvelle (doublons dans "Lancer un coaching" et sur
+  // le tableau de bord) — on archive d'abord les copies précédentes de ce template.
+  await supabase.from('programs')
+    .update({ archived: true })
+    .in('athlete_id', targetAthleteIds)
+    .eq('source_program_id', sourceProgram.id)
+    .eq('archived', false)
+
   for (const targetId of targetAthleteIds) {
     const { data: newProg } = await supabase.from('programs')
       .insert({
