@@ -29,7 +29,9 @@ export default function WodTab({
   // /s/[token] — il pilote donc sa séance de groupe (présence, contenu, ressenti) depuis ici.
   useEffect(() => {
     if (!isGroupLeader || isCoachView) return
-    fetch(`/api/athlete-view/${token}/leader-groups`).then(r => r.json()).then(data => setLeaderGroups(data.groups || []))
+    const n = new Date()
+    const localDate = [n.getFullYear(), String(n.getMonth() + 1).padStart(2, '0'), String(n.getDate()).padStart(2, '0')].join('-')
+    fetch(`/api/athlete-view/${token}/leader-groups?date=${localDate}`).then(r => r.json()).then(data => setLeaderGroups(data.groups || []))
   }, [isGroupLeader, isCoachView, token])
 
   // Un programme assigné à un groupe (fan-out depuis la fiche groupe) ne doit pas apparaître ici :

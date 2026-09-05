@@ -15,6 +15,7 @@ function today() {
 // en cours, pour afficher un bouton "Lancer" directement depuis son onglet Séance.
 export async function GET(request, { params }) {
   const { token } = await params
+  const { searchParams } = new URL(request.url)
   const { data: athlete } = await supabaseAdmin.from('athletes').select('id, auth_user_id').eq('token', token).single()
   if (!athlete) return NextResponse.json({ error: 'introuvable' }, { status: 404 })
 
@@ -33,7 +34,10 @@ export async function GET(request, { params }) {
 
   const { data: groupsData } = await supabaseAdmin.from('groups').select('id, name').in('id', groupIds)
 
-  const runDate = today()
+  // Le serveur (Vercel, UTC) et l'appareil du leader (heure locale FR) peuvent désigner des
+  // "aujourd'hui" différents près de minuit — on privilégie la date du client si elle est fournie,
+  // pour ne pas faire disparaître une séance tout juste lancée à cause d'un décalage de fuseau.
+  const runDate = searchParams.get('date') || today()
   const groups = []
   for (const g of (groupsData || [])) {
     const { data: prog } = await supabaseAdmin.from('programs')

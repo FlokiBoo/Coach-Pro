@@ -6,6 +6,9 @@ import { UsersThree, Lightning, FlagCheckered, FloppyDisk } from '@phosphor-icon
 import { supabase } from '@/lib/supabase'
 import { getCoachId } from '@/lib/coach'
 import { notifyGroupSessionReminder } from '@/lib/notify'
+import { unlockAudio } from '@/lib/audioBeep'
+import SplitTimerSession from '@/app/components/SplitTimerSession'
+import TimerModal from '@/app/components/TimerModal'
 
 function today() {
   const n = new Date()
@@ -45,6 +48,8 @@ function GroupCoachingSessionPage({ params }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [runningTimer, setRunningTimer] = useState(null) // { config, label } | null — timer préparé sur un circuit/exercice
+  const [showTimer, setShowTimer] = useState(null) // { seconds, label } | null — chrono libre sans config préparée
 
   useEffect(() => { load() }, [groupId, sessionId, runDate])
 
@@ -127,8 +132,8 @@ function GroupCoachingSessionPage({ params }) {
 
   const circuits = session?.circuits || []
 
-  return (
-    <div style={{ maxWidth: 640, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 60 }}>
+  const content = (
+    <div style={{ maxWidth: 640, margin: '0 auto', minHeight: runningTimer ? undefined : '100svh', background: 'var(--bg2)', paddingBottom: 60 }}>
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, position: 'sticky', top: 0, zIndex: 10 }}>
         <button onClick={() => router.push(`/groups/${groupId}`)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1, flexShrink: 0 }}>←</button>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -167,7 +172,13 @@ function GroupCoachingSessionPage({ params }) {
         {/* Contenu de la séance */}
         {exercises.map(exo => (
           <div key={exo.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{exo.name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>{exo.name}</span>
+              <button onClick={() => { unlockAudio(); exo.timer_config ? setRunningTimer({ config: exo.timer_config, label: `Timer ${exo.name || ''}` }) : setShowTimer({}) }}
+                style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
+                {exo.timer_config ? '▶⏱' : '⏱'}
+              </button>
+            </div>
             <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 8, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
               {exo.sets && <span>{exo.sets} séries</span>}
               {exo.reps && <span>{exo.reps} reps</span>}
@@ -183,7 +194,15 @@ function GroupCoachingSessionPage({ params }) {
 
         {circuits.map(c => (
           <div key={c.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 5 }}><Lightning size={13} /> {c.name || 'Circuit'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <span style={{ fontWeight: 700, fontSize: 14, flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}><Lightning size={13} /> {c.name || 'Circuit'}</span>
+              {c.timer && (
+                <button onClick={() => { unlockAudio(); setRunningTimer({ config: c.timer, label: c.name || 'Circuit' }) }}
+                  style={{ background: '#4338CA', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 12, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
+                  ▶⏱ Timer
+                </button>
+              )}
+            </div>
             {c.text && <div style={{ fontSize: 12, color: 'var(--text2)', whiteSpace: 'pre-wrap', marginBottom: 8 }}>{c.text}</div>}
             <textarea placeholder="Note perso (visible uniquement par toi)…" value={exerciseNotes[`circuit:${c.id}`] || ''}
               onChange={e => setExerciseNotes(prev => ({ ...prev, [`circuit:${c.id}`]: e.target.value }))}
@@ -222,5 +241,20 @@ function GroupCoachingSessionPage({ params }) {
         </div>
       </div>
     </div>
+  )
+
+  if (runningTimer) {
+    return (
+      <SplitTimerSession config={runningTimer.config} timerLabel={runningTimer.label} onClose={() => setRunningTimer(null)}>
+        {content}
+      </SplitTimerSession>
+    )
+  }
+
+  return (
+    <>
+      {content}
+      {showTimer && <TimerModal onClose={() => setShowTimer(null)} presetSeconds={showTimer.seconds} presetLabel={showTimer.label} />}
+    </>
   )
 }

@@ -108,6 +108,7 @@ export default function GroupDetailPage({ params }) {
   const [periodMode, setPeriodMode] = useState('month') // 'month' | 'year'
   const [yearMode, setYearMode] = useState('scolaire') // 'scolaire' | 'civile'
   const [monthCursor, setMonthCursor] = useState(new Date())
+  const [ranPastSessionIds, setRanPastSessionIds] = useState(new Set()) // séances déjà lancées un jour passé, à masquer du picker de démarrage
 
   const month = monthBounds(monthCursor)
   const period = periodMode === 'month' ? month : yearBounds(yearMode)
@@ -133,6 +134,12 @@ export default function GroupDetailPage({ params }) {
     const { data: links } = await supabase.from('group_program_templates')
       .select('program_id, programs(title, program_sessions(id, order_index, title))').eq('group_id', groupId)
     setLinkedTemplates(links || [])
+
+    // Séances déjà lancées un jour passé : à exclure du picker "Choisir la séance à débuter",
+    // sinon on retombe dessus indéfiniment (celle du jour reste proposée, au cas où).
+    const { data: pastRuns } = await supabase.from('group_session_runs')
+      .select('source_session_id').eq('group_id', groupId).lt('date', today())
+    setRanPastSessionIds(new Set((pastRuns || []).map(r => r.source_session_id)))
 
     const { data: runsData } = await supabase.from('group_session_runs')
       .select('*').eq('group_id', groupId).gte('date', period.start).lte('date', period.end).order('date', { ascending: false })
@@ -549,19 +556,26 @@ export default function GroupDetailPage({ params }) {
             {[
               ...(currentProgram ? [{ key: 'programme', label: 'Programme', prog: currentProgram }] : []),
               ...linkedTemplates.map(l => ({ key: `template-${l.program_id}`, label: 'Template', prog: { title: l.programs?.title, program_sessions: l.programs?.program_sessions } })),
-            ].map(({ key, label, prog }) => prog && (
-              <div key={key} style={{ marginBottom: 14 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>{label} · {prog.title}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {(prog.program_sessions || []).sort((a, b) => a.order_index - b.order_index).map((s, i) => (
-                    <button key={s.id} onClick={() => startCoaching(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}>
-                      <span style={{ color: 'var(--text3)', fontWeight: 700 }}>{i + 1}</span>
-                      {s.title || `Séance ${i + 1}`}
-                    </button>
-                  ))}
+            ].map(({ key, label, prog }) => {
+              if (!prog) return null
+              const upcoming = (prog.program_sessions || [])
+                .filter(s => !ranPastSessionIds.has(s.id))
+                .sort((a, b) => a.order_index - b.order_index)
+              if (!upcoming.length) return null
+              return (
+                <div key={key} style={{ marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>{label} · {prog.title}</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {upcoming.map((s, i) => (
+                      <button key={s.id} onClick={() => startCoaching(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}>
+                        <span style={{ color: 'var(--text3)', fontWeight: 700 }}>{i + 1}</span>
+                        {s.title || `Séance ${i + 1}`}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
             <button onClick={() => setShowStartPicker(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Annuler</button>
           </div>
         </div>
