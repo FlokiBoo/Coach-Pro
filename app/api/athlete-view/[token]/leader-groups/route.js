@@ -43,13 +43,20 @@ export async function GET(request, { params }) {
     const sessions = (prog?.[0]?.program_sessions || []).sort((a, b) => a.order_index - b.order_index)
     if (!sessions.length) continue
 
-    const { data: runsToday } = await supabaseAdmin.from('group_session_runs')
-      .select('source_session_id').eq('group_id', g.id).eq('date', runDate)
-    const ranToday = new Set((runsToday || []).map(r => r.source_session_id))
+    // On ne veut voir que la ou les séances à faire : une séance déjà lancée un jour passé
+    // disparaît de la liste. Celle lancée AUJOURD'HUI reste affichée (avec "Modifier") pour
+    // pouvoir corriger la présence dans la foulée, plutôt que de disparaître aussitôt enregistrée.
+    const { data: runs } = await supabaseAdmin.from('group_session_runs')
+      .select('source_session_id, date').eq('group_id', g.id).in('source_session_id', sessions.map(s => s.id))
+    const ranPast = new Set((runs || []).filter(r => r.date < runDate).map(r => r.source_session_id))
+    const ranToday = new Set((runs || []).filter(r => r.date === runDate).map(r => r.source_session_id))
+
+    const upcomingSessions = sessions.filter(s => !ranPast.has(s.id))
+    if (!upcomingSessions.length) continue
 
     groups.push({
       id: g.id, name: g.name,
-      sessions: sessions.map(s => ({ id: s.id, title: s.title, ranToday: ranToday.has(s.id) })),
+      sessions: upcomingSessions.map(s => ({ id: s.id, title: s.title, ranToday: ranToday.has(s.id) })),
     })
   }
 
