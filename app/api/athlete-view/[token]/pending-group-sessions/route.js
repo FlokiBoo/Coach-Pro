@@ -28,8 +28,11 @@ export async function GET(request, { params }) {
   const { data: ownPrograms } = await supabaseAdmin.from('programs')
     .select('id, group_id').eq('athlete_id', athlete.id).in('group_id', groupIds)
   const ownProgramIds = ownPrograms.map(p => p.id)
-  const ownProgramByGroup = {}
-  ownPrograms.forEach(p => { ownProgramByGroup[p.group_id] = p.id })
+  // Un athlète peut avoir PLUSIEURS copies personnelles pour le même groupe (un programme créé
+  // directement dessus ET un template lié, par exemple) — garder toutes les candidates, pas
+  // seulement la dernière, sinon les séances rattachées aux autres copies sont ignorées en silence.
+  const ownProgramsByGroup = {}
+  ownPrograms.forEach(p => { (ownProgramsByGroup[p.group_id] ||= []).push(p.id) })
 
   const sourceSessionIds = [...new Set(attendance.map(a => a.group_session_runs?.source_session_id).filter(Boolean))]
   const { data: ownSessions } = ownProgramIds.length
@@ -48,9 +51,10 @@ export async function GET(request, { params }) {
   for (const a of attendance) {
     const run = a.group_session_runs
     if (!run) continue
-    const ownProgramId = ownProgramByGroup[run.group_id]
-    if (!ownProgramId) continue
-    const ownSessionId = ownSessionByProgramAndSource[`${ownProgramId}::${run.source_session_id}`]
+    const candidateProgramIds = ownProgramsByGroup[run.group_id] || []
+    const ownSessionId = candidateProgramIds
+      .map(pid => ownSessionByProgramAndSource[`${pid}::${run.source_session_id}`])
+      .find(Boolean)
     if (!ownSessionId || completedSessionIds.has(ownSessionId)) continue
     pending.push({ runId: run.id, title: run.title, date: run.date, ownSessionId })
   }

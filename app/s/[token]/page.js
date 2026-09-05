@@ -1122,7 +1122,7 @@ function AthleteView({ params }) {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {pendingGroupSessions.map(p => (
-                <button key={p.runId} onClick={() => router.push(`/s/${token}?session=${p.ownSessionId}&focus=1`)}
+                <button key={p.runId} onClick={() => router.push(`/s/${token}?session=${p.ownSessionId}&focus=1${isCoachView ? '&coach=1' : ''}`)}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '12px 14px', cursor: 'pointer', textAlign: 'left' }}>
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--green)' }}>{p.title || 'Séance'}</div>
