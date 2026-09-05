@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Bell } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
@@ -17,6 +17,8 @@ export default function NotificationBell({ coachId, athleteId }) {
   const router = useRouter()
   const [items, setItems] = useState([])
   const [open, setOpen] = useState(false)
+  const [panelPos, setPanelPos] = useState(null)
+  const btnRef = useRef(null)
 
   const load = useCallback(async () => {
     let q = supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(20)
@@ -37,6 +39,23 @@ export default function NotificationBell({ coachId, athleteId }) {
   }, [coachId, athleteId, load])
 
   const unread = items.filter(n => !n.read_at).length
+
+  // Le bouton est logé dans un petit conteneur d'icônes tôt dans le header (à côté du titre), pas
+  // collé au bord droit de l'écran — ancrer le panneau en `right:0` relatif à ce conteneur (comme
+  // avant) le faisait déborder hors écran sur iPhone, une bonne partie du texte coupée à gauche.
+  // On calcule donc sa position en `fixed` par rapport au viewport au moment de l'ouverture, avec
+  // une marge de sécurité des deux côtés.
+  const toggleOpen = () => {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      const panelWidth = Math.min(320, window.innerWidth - 16)
+      let right = Math.max(8, window.innerWidth - rect.right)
+      const maxRight = Math.max(8, window.innerWidth - panelWidth - 8)
+      if (right > maxRight) right = maxRight
+      setPanelPos({ top: rect.bottom + 6, right, width: panelWidth })
+    }
+    setOpen(v => !v)
+  }
 
   const markRead = async (n) => {
     setOpen(false)
@@ -59,7 +78,7 @@ export default function NotificationBell({ coachId, athleteId }) {
 
   return (
     <div style={{ position: 'relative' }}>
-      <button onClick={() => setOpen(v => !v)} title="Notifications"
+      <button ref={btnRef} onClick={toggleOpen} title="Notifications"
         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 6, position: 'relative', display: 'flex', lineHeight: 1, color: 'var(--text2)' }}>
         <Bell size={20} />
         {unread > 0 && (
@@ -73,11 +92,11 @@ export default function NotificationBell({ coachId, athleteId }) {
         )}
       </button>
 
-      {open && (
+      {open && panelPos && (
         <>
           <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 800 }} />
           <div style={{
-            position: 'absolute', top: '100%', right: 0, marginTop: 6, width: 320, maxWidth: '85vw',
+            position: 'fixed', top: panelPos.top, right: panelPos.right, width: panelPos.width,
             maxHeight: 420, overflowY: 'auto', background: 'var(--bg)', border: '1px solid var(--border)',
             borderRadius: 'var(--rl)', boxShadow: '0 10px 40px rgba(0,0,0,0.18)', zIndex: 801,
           }}>
