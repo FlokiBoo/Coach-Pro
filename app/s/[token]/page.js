@@ -52,6 +52,26 @@ function computeLabels(exercises) {
   return labels
 }
 
+const BIRTHDAY_MESSAGES = [
+  'Joyeux anniversaire ! Ton coach et toute l’équipe OSTRYK te souhaitent une année pleine de progrès 🎉',
+  'Une bougie de plus, une motivation en plus ! Joyeux anniversaire 🎂',
+  'Aujourd’hui c’est ton jour ! Profite bien, et joyeux anniversaire de la part de ton coach.',
+  'Joyeux anniversaire ! Que cette nouvelle année soit à la hauteur de tes efforts.',
+  '🎈 Joyeux anniversaire ! On espère que ta journée sera aussi solide que tes séances.',
+  'Toute l’équipe te souhaite un très joyeux anniversaire — repose-toi bien aujourd’hui, tu l’as mérité !',
+  'Joyeux anniversaire ! Une année de plus, une force de plus.',
+  '🎉 C’est ton anniversaire aujourd’hui — profites-en à fond, les séances peuvent attendre demain.',
+  'Joyeux anniversaire ! Merci de faire partie de l’aventure, on est fiers de tes progrès.',
+  'Une nouvelle année commence — joyeux anniversaire, et encore merci pour ta motivation sans faille !',
+]
+
+function isBirthdayToday(birthDate) {
+  if (!birthDate) return false
+  const d = new Date(birthDate + 'T00:00:00')
+  const now = new Date()
+  return d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+}
+
 // Convertit un temps de récup écrit librement par le coach ("90s", "2min", "1min30", "2-3min", "60"…)
 // en secondes, pour pouvoir lancer un chrono en un clic. Un nombre seul est traité comme des
 // secondes (aligné sur les valeurs réellement saisies : "60"/"90"/"180" à côté de "60s"/"90s"),
@@ -177,6 +197,8 @@ function AthleteView({ params }) {
   const [trackedMovements, setTrackedMovements] = useState([])
   const [raceKnown, setRaceKnown] = useState({})
   const [renewalDismissed, setRenewalDismissed] = useState(false)
+  const [birthdayDismissed, setBirthdayDismissed] = useState(false)
+  const [birthdayMessage] = useState(() => BIRTHDAY_MESSAGES[Math.floor(Math.random() * BIRTHDAY_MESSAGES.length)])
 
   const queueKey = `coachpro_offline_queue_${token}`
   const loadQueue = () => { try { return JSON.parse(localStorage.getItem(queueKey) || '[]') } catch { return [] } }
@@ -404,6 +426,18 @@ function AthleteView({ params }) {
   const dismissRenewalPopup = () => {
     if (renewalDismissKey) localStorage.setItem(renewalDismissKey, '1')
     setRenewalDismissed(true)
+  }
+
+  // Une seule fois par jour d'anniversaire (clé datée, comme le rappel de renouvellement) —
+  // sinon le pop-up reviendrait à chaque rechargement de la page tant que c'est encore le jour J.
+  const todayKey = (() => { const n = new Date(); return `${n.getFullYear()}-${n.getMonth() + 1}-${n.getDate()}` })()
+  const birthdayDismissKey = athlete ? `coachpro_birthday_dismissed_${athlete.id}_${todayKey}` : null
+  const showBirthdayPopup = !!athlete && isBirthdayToday(athlete.birth_date)
+    && !birthdayDismissed && !!birthdayDismissKey && !localStorage.getItem(birthdayDismissKey)
+
+  const dismissBirthdayPopup = () => {
+    if (birthdayDismissKey) localStorage.setItem(birthdayDismissKey, '1')
+    setBirthdayDismissed(true)
   }
 
   const subscribeFromGate = async (tier) => {
@@ -1142,7 +1176,24 @@ function AthleteView({ params }) {
         </div>
       )}
 
-      {!celebration && pendingGroupSessions.length === 0 && showRenewalPopup && (
+      {!celebration && pendingGroupSessions.length === 0 && showBirthdayPopup && (
+        <div onClick={dismissBirthdayPopup} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            <div style={{ fontSize: 40, marginBottom: 8, textAlign: 'center' }}>🎂</div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>
+              Joyeux anniversaire !
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16, textAlign: 'center' }}>
+              {birthdayMessage}
+            </div>
+            <button onClick={dismissBirthdayPopup} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
+              Merci !
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!celebration && pendingGroupSessions.length === 0 && !showBirthdayPopup && showRenewalPopup && (
         <div onClick={dismissRenewalPopup} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><Bell size={32} /></div>
@@ -1160,7 +1211,7 @@ function AthleteView({ params }) {
         </div>
       )}
 
-      {!celebration && pendingGroupSessions.length === 0 && !showRenewalPopup && freeGateUpsell && (
+      {!celebration && pendingGroupSessions.length === 0 && !showBirthdayPopup && !showRenewalPopup && freeGateUpsell && (
         <FreeGateUpsellModal upsell={freeGateUpsell} subscribing={subscribingFromGate} onSubscribe={subscribeFromGate} onClose={() => setFreeGateUpsell(null)} />
       )}
 
