@@ -301,6 +301,12 @@ export default function GroupDetailPage({ params }) {
     router.push(`/groups/${groupId}/session/${sessionId}`)
   }
 
+  const updateGroupVisibility = async (programId, visibility) => {
+    setCurrentProgram(prev => prev && prev.id === programId ? { ...prev, group_visibility: visibility } : prev)
+    const { error } = await supabase.from('programs').update({ group_visibility: visibility }).eq('id', programId)
+    if (error) alert('Erreur : ' + error.message)
+  }
+
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100svh', color: 'var(--text3)' }}>Chargement…</div>
   )
@@ -536,6 +542,27 @@ export default function GroupDetailPage({ params }) {
                   <button onClick={() => fanOutToGroup(currentProgram)} disabled={fanningOut === currentProgram.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}>
                     {fanningOut === currentProgram.id ? '…' : <><UsersThree size={13} /> Assigner au groupe</>}
                   </button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Visible pour</span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {[
+                      { key: 'none', label: 'Personne' },
+                      { key: 'leader', label: 'Leader' },
+                      { key: 'everyone', label: 'Tout le monde' },
+                    ].map(opt => {
+                      const active = (currentProgram.group_visibility || 'leader') === opt.key
+                      return (
+                        <button key={opt.key} onClick={() => updateGroupVisibility(currentProgram.id, opt.key)} style={{
+                          background: active ? 'var(--green)' : 'var(--bg2)', color: active ? '#fff' : 'var(--text2)',
+                          border: active ? 'none' : '1px solid var(--border2)', borderRadius: 20, padding: '4px 10px',
+                          fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                        }}>
+                          {opt.label}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {[...(currentProgram.program_sessions || [])].sort((a, b) => a.order_index - b.order_index)

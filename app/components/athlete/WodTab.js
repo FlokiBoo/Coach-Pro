@@ -12,7 +12,7 @@ import { WEEK_DAYS, jsDayToWeekDay } from '@/lib/weekDays'
 export default function WodTab({
   isCoachView, noteBlocks,
   programs, completions, skippedSessions, selectedType, setSelectedType,
-  router, token, setActiveTab, onUpdateProgramDays, isGroupLeader,
+  router, token, setActiveTab, onUpdateProgramDays,
 }) {
   const [selectedProgramId, setSelectedProgramId] = useState(null)
   const [materielSession, setMaterielSession] = useState(null)
@@ -26,13 +26,15 @@ export default function WodTab({
   }
 
   // Un leader de groupe n'a pas accès à l'espace coach (/groups/...), confiné comme tout athlète à
-  // /s/[token] — il pilote donc sa séance de groupe (présence, contenu, ressenti) depuis ici.
+  // /s/[token] — il pilote donc sa séance de groupe (présence, contenu, ressenti) depuis ici. Un
+  // membre normal peut aussi voir apparaître le programme du groupe (sans bouton Lancer) si le
+  // coach a réglé sa visibilité sur "Tout le monde" — le serveur tranche selon le rôle réel.
   useEffect(() => {
-    if (!isGroupLeader || isCoachView) return
+    if (isCoachView) return
     const n = new Date()
     const localDate = [n.getFullYear(), String(n.getMonth() + 1).padStart(2, '0'), String(n.getDate()).padStart(2, '0')].join('-')
     fetch(`/api/athlete-view/${token}/leader-groups?date=${localDate}`).then(r => r.json()).then(data => setLeaderGroups(data.groups || []))
-  }, [isGroupLeader, isCoachView, token])
+  }, [isCoachView, token])
 
   // Un programme assigné à un groupe (fan-out depuis la fiche groupe) ne doit pas apparaître ici :
   // le sportif le suit en direct pendant la séance collective, pas en autonomie — l'afficher aussi
@@ -156,13 +158,15 @@ export default function WodTab({
               display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border)',
             }}>
               <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{s.title || 'Séance'}</span>
-              <button onClick={() => router.push(`/s/${token}/groupe/${s.id}`)} style={{
-                background: s.ranToday ? 'var(--bg2)' : 'var(--green)', color: s.ranToday ? 'var(--text2)' : '#fff',
-                border: s.ranToday ? '1px solid var(--border2)' : 'none', borderRadius: 20, padding: '6px 12px',
-                fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
-              }}>
-                <Play size={11} weight="fill" />{s.ranToday ? 'Modifier' : 'Lancer'}
-              </button>
+              {g.canLaunch && (
+                <button onClick={() => router.push(`/s/${token}/groupe/${s.id}`)} style={{
+                  background: s.ranToday ? 'var(--bg2)' : 'var(--green)', color: s.ranToday ? 'var(--text2)' : '#fff',
+                  border: s.ranToday ? '1px solid var(--border2)' : 'none', borderRadius: 20, padding: '6px 12px',
+                  fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+                }}>
+                  <Play size={11} weight="fill" />{s.ranToday ? 'Modifier' : 'Lancer'}
+                </button>
+              )}
             </div>
           ))}
         </div>
