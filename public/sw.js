@@ -1,4 +1,4 @@
-const CACHE = 'coachpro-v3'
+const CACHE = 'ostryk-v4'
 
 // Installation : cache les pages essentielles
 self.addEventListener('install', event => {
