@@ -114,7 +114,7 @@ export default function EmbeddedTimer({ config, label }) {
     const remInt = Math.ceil(state.remaining)
     const key = `${state.phaseKey}-${remInt}`
     if (lastBeepKeyRef.current === key) return
-    if (remInt <= 3 && remInt >= 1) { beep(660, 0.08); lastBeepKeyRef.current = key }
+    if (remInt <= 5 && remInt >= 1) { beep(660, 0.08); lastBeepKeyRef.current = key }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.remaining, state.finished, running])
 

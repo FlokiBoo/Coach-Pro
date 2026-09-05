@@ -203,7 +203,7 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
     const remInt = Math.ceil(state.remaining)
     const key = `${state.phaseKey}-${remInt}`
     if (lastBeepKeyRef.current === key) return
-    if (remInt <= 3 && remInt >= 1) {
+    if (remInt <= 5 && remInt >= 1) {
       beep(660, 0.08)
       lastBeepKeyRef.current = key
     }
