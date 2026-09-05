@@ -57,9 +57,16 @@ export async function proxy(request) {
 
   const athleteToken = user.app_metadata?.athlete_token
   const needsPassword = user.app_metadata?.needs_password
+  // Une route API attend du JSON en réponse à un fetch() — jamais une redirection vers une page
+  // HTML (le fetch la suit silencieusement, .json() plante ensuite sur le HTML reçu). Rediriger
+  // un appel /api/... ici a déjà cassé la messagerie et la vérification d'appareil pour de vrais
+  // comptes athlète : chaque route API fait de toute façon sa propre vérification d'appartenance
+  // (voir CLAUDE.md, pattern "defense in depth"), donc ces deux redirections ne doivent jamais
+  // s'appliquer aux chemins /api/.
+  const isApiRoute = pathname.startsWith('/api/')
 
   // Forcer la création de mot de passe à la première connexion (athlète ou coach invité)
-  if (needsPassword) {
+  if (needsPassword && !isApiRoute) {
     if (!pathname.startsWith('/definir-mot-de-passe')) {
       return NextResponse.redirect(new URL('/definir-mot-de-passe', request.url))
     }
@@ -73,7 +80,7 @@ export async function proxy(request) {
   }
 
   // Si c'est un compte client (pas le coach), le cantonner à son espace
-  if (athleteToken && !pathname.startsWith(`/s/${athleteToken}`)) {
+  if (athleteToken && !isApiRoute && !pathname.startsWith(`/s/${athleteToken}`)) {
     return NextResponse.redirect(new URL(`/s/${athleteToken}`, request.url))
   }
 

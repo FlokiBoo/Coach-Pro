@@ -109,6 +109,7 @@ export default function GroupDetailPage({ params }) {
   const [yearMode, setYearMode] = useState('scolaire') // 'scolaire' | 'civile'
   const [monthCursor, setMonthCursor] = useState(new Date())
   const [ranPastSessionIds, setRanPastSessionIds] = useState(new Set()) // séances déjà lancées un jour passé, à masquer du picker de démarrage
+  const [ranTodaySessionIds, setRanTodaySessionIds] = useState(new Set()) // séances déjà lancées aujourd'hui, à signaler (pas à masquer) dans le picker
 
   const month = monthBounds(monthCursor)
   const period = periodMode === 'month' ? month : yearBounds(yearMode)
@@ -136,10 +137,16 @@ export default function GroupDetailPage({ params }) {
     setLinkedTemplates(links || [])
 
     // Séances déjà lancées un jour passé : à exclure du picker "Choisir la séance à débuter",
-    // sinon on retombe dessus indéfiniment (celle du jour reste proposée, au cas où).
-    const { data: pastRuns } = await supabase.from('group_session_runs')
-      .select('source_session_id').eq('group_id', groupId).lt('date', today())
+    // sinon on retombe dessus indéfiniment. Celle lancée AUJOURD'HUI reste proposée (pour pouvoir
+    // corriger la présence dans la foulée) mais doit être signalée, sinon rien ne la distingue
+    // visuellement d'une séance jamais lancée — retour terrain : le coach a relancé par erreur une
+    // séance déjà faite le jour même, faute d'indication.
+    const [{ data: pastRuns }, { data: todayRuns }] = await Promise.all([
+      supabase.from('group_session_runs').select('source_session_id').eq('group_id', groupId).lt('date', today()),
+      supabase.from('group_session_runs').select('source_session_id').eq('group_id', groupId).eq('date', today()),
+    ])
     setRanPastSessionIds(new Set((pastRuns || []).map(r => r.source_session_id)))
+    setRanTodaySessionIds(new Set((todayRuns || []).map(r => r.source_session_id)))
 
     const { data: runsData } = await supabase.from('group_session_runs')
       .select('*').eq('group_id', groupId).gte('date', period.start).lte('date', period.end).order('date', { ascending: false })
@@ -566,12 +573,16 @@ export default function GroupDetailPage({ params }) {
                 <div key={key} style={{ marginBottom: 14 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>{label} · {prog.title}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {upcoming.map((s, i) => (
-                      <button key={s.id} onClick={() => startCoaching(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}>
-                        <span style={{ color: 'var(--text3)', fontWeight: 700 }}>{i + 1}</span>
-                        {s.title || `Séance ${i + 1}`}
-                      </button>
-                    ))}
+                    {upcoming.map((s, i) => {
+                      const ranToday = ranTodaySessionIds.has(s.id)
+                      return (
+                        <button key={s.id} onClick={() => startCoaching(s.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: ranToday ? '#FEF3C7' : 'var(--bg2)', border: ranToday ? '1px solid #FDE68A' : '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}>
+                          <span style={{ color: 'var(--text3)', fontWeight: 700 }}>{i + 1}</span>
+                          <span style={{ flex: 1 }}>{s.title || `Séance ${i + 1}`}</span>
+                          {ranToday && <span style={{ fontSize: 11, fontWeight: 700, color: '#92400E' }}>Déjà lancée aujourd&apos;hui</span>}
+                        </button>
+                      )
+                    })}
                   </div>
                 </div>
               )

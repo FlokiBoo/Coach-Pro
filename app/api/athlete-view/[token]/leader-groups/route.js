@@ -44,7 +44,16 @@ export async function GET(request, { params }) {
       .select('id, program_sessions(id, title, order_index)')
       .eq('group_id', g.id).eq('is_microcycle', false).is('athlete_id', null)
       .order('created_at', { ascending: false }).limit(1)
-    const sessions = (prog?.[0]?.program_sessions || []).sort((a, b) => a.order_index - b.order_index)
+
+    // Un programme peut aussi être rattaché au groupe via la bibliothèque de templates réutilisables
+    // (group_program_templates) plutôt que créé directement dessus (group_id) — un coach qui a un
+    // circuit-type qu'il relance chaque semaine passe par ce chemin. Sans ça, le leader n'a aucune
+    // visibilité sur son groupe alors que le coach voit tout normalement sur sa propre fiche.
+    const { data: links } = await supabaseAdmin.from('group_program_templates')
+      .select('programs(program_sessions(id, title, order_index))').eq('group_id', g.id)
+    const linkedSessions = (links || []).flatMap(l => l.programs?.program_sessions || [])
+
+    const sessions = [...(prog?.[0]?.program_sessions || []), ...linkedSessions].sort((a, b) => a.order_index - b.order_index)
     if (!sessions.length) continue
 
     // On ne veut voir que la ou les séances à faire : une séance déjà lancée un jour passé
