@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { getValidStravaToken, fetchStravaActivity, findOrCreateRunningSession } from '@/lib/strava'
+import { getValidStravaToken, fetchStravaActivity, findOrCreateSessionForActivity, stravaActivityLabel } from '@/lib/strava'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -17,8 +17,8 @@ export async function GET(request) {
   return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 }
 
-// Événement d'activité Strava. On répond vite (Strava exige <2s) : seules les activités de
-// course fraîchement créées déclenchent un traitement, tout le reste est ignoré immédiatement.
+// Événement d'activité Strava. On répond vite (Strava exige <2s) : seules les activités
+// fraîchement créées déclenchent un traitement, tout le reste est ignoré immédiatement.
 export async function POST(request) {
   const body = await request.json().catch(() => null)
   if (!body) return NextResponse.json({ ok: true })
@@ -36,9 +36,10 @@ export async function POST(request) {
   if (!accessToken) return NextResponse.json({ ok: true })
 
   const activity = await fetchStravaActivity(accessToken, body.object_id)
-  if (!activity || activity.type !== 'Run') return NextResponse.json({ ok: true })
+  if (!activity) return NextResponse.json({ ok: true })
 
-  const sessionId = await findOrCreateRunningSession(athlete.id)
+  const activityTypeLabel = stravaActivityLabel(activity.type)
+  const sessionId = await findOrCreateSessionForActivity(athlete.id, activityTypeLabel)
   if (!sessionId) return NextResponse.json({ ok: true })
 
   // Upsert sur (athlete_id, program_session_id) : si le client a déjà validé la séance à la
@@ -47,9 +48,11 @@ export async function POST(request) {
   const { data: existing } = await supabaseAdmin.from('program_completions')
     .select('id').eq('athlete_id', athlete.id).eq('program_session_id', sessionId).maybeSingle()
 
+  // La distance n'a de sens que pour les activités qui en rapportent une (course, vélo,
+  // natation...) — une séance de muscu/yoga Strava a toujours distance=0, inutile de la stocker.
   const stravaFields = {
-    distance_km: Math.round((activity.distance / 1000) * 100) / 100,
     duration_minutes: Math.round(activity.moving_time / 60),
+    ...(activity.distance > 0 ? { distance_km: Math.round((activity.distance / 1000) * 100) / 100 } : {}),
   }
 
   if (existing) {
