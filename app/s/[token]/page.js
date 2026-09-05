@@ -171,6 +171,7 @@ function AthleteView({ params }) {
   const [noteBlocks, setNoteBlocks] = useState([])
   const [selectedType, setSelectedType] = useState(null)
   const [toast, setToast] = useState(null)
+  const [exerciseToast, setExerciseToast] = useState(null)
   const [runningTimer, setRunningTimer] = useState(null) // { config, label } | null
   const [sessionRecords, setSessionRecords] = useState([])
   const [trackedMovements, setTrackedMovements] = useState([])
@@ -978,6 +979,7 @@ function AthleteView({ params }) {
               isGroupLeader={isGroupLeader}
               isGroupSession={focusIsGroupSession}
               onLaunchTimer={(config, label) => setRunningTimer({ config, label })}
+              onExerciseSaved={() => setExerciseToast('Enregistré')}
               token={token}
             />
           ) : (
@@ -992,6 +994,7 @@ function AthleteView({ params }) {
           <FreeGateUpsellModal upsell={freeGateUpsell} subscribing={subscribingFromGate} onSubscribe={subscribeFromGate} onClose={() => setFreeGateUpsell(null)} />
         )}
         <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
+        <Toast message={exerciseToast} show={!!exerciseToast} onDone={() => setExerciseToast(null)} position="top" />
       </>
     )
 
@@ -1357,7 +1360,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
 
 const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
 
-function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, onUpdateFreeSessionDate, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, isGroupSession = false, onLaunchTimer, onSaveCoachNote, token }) {
+function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, onUpdateFreeSessionDate, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, isGroupSession = false, onLaunchTimer, onSaveCoachNote, onExerciseSaved, token }) {
   const [showGroupPaces, setShowGroupPaces] = useState(false)
   const [showPostpone, setShowPostpone] = useState(false)
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
@@ -1401,6 +1404,10 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
   const exos = session.exercises.filter(e => e.name)
   const labels = computeLabels(session.exercises)
   const [savedIds, setSavedIds] = useState({})
+  // Une fois enregistré, l'exercice se replie automatiquement (retour terrain : la card pleine
+  // taille reste ouverte et encombre l'écran pendant tout le reste de la séance) — un tap sur la
+  // ligne repliée le rouvre pour corriger un chiffre ; ré-enregistrer le referme aussitôt.
+  const [expandedOverride, setExpandedOverride] = useState({})
   // Position d'un circuit dans la séquence (0 = avant le 1er exercice, exos.length = après le
   // dernier) — cf. côté coach pour le détail du positionnement interleavé avec les exercices.
   const circuitSlot = (c) => Math.max(0, Math.min(c.afterExerciseIndex ?? 0, exos.length))
@@ -1473,6 +1480,8 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
       if (kgSetEl) onSaveExerciseSet(exo.id, s.id, 'kg_done', kgSetEl.value)
     })
     setSavedIds(p => ({ ...p, [exo.id]: true }))
+    setExpandedOverride(p => ({ ...p, [exo.id]: false }))
+    onExerciseSaved?.()
   }
 
   return (
@@ -1604,26 +1613,42 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
             </div>
           )}
           {(session.circuits || []).filter(c => circuitSlot(c) === 0).map(c => renderCircuit(c))}
-          {exos.map((exo, ei) => (
+          {exos.map((exo, ei) => {
+            const isCollapsed = savedIds[exo.id] && !expandedOverride[exo.id]
+            const log = exerciseLogs[exo.id] || {}
+            const summaryParts = [log.sets_done, log.reps_done].filter(Boolean).join('×') + (log.kg_done ? ` @ ${log.kg_done}kg` : '')
+            return (
             <Fragment key={exo.id}>
             <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '12px 14px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: (exo.sets || exo.reps || exo.kg || exo.note) ? 8 : 0 }}>
-                <div style={{ minWidth: 24, height: 24, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, padding: '0 4px', flexShrink: 0 }}>
-                  {labels[exo.id] || String.fromCharCode(65 + ei)}
+              <div onClick={isCollapsed ? () => setExpandedOverride(p => ({ ...p, [exo.id]: true })) : undefined}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: (!isCollapsed && (exo.sets || exo.reps || exo.kg || exo.note)) ? 8 : 0, cursor: isCollapsed ? 'pointer' : 'default' }}>
+                <div style={{
+                  minWidth: 24, height: 24, borderRadius: '50%',
+                  background: isCollapsed ? '#DCFCE7' : 'var(--green-light)', color: isCollapsed ? '#166534' : 'var(--green)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, padding: '0 4px', flexShrink: 0,
+                }}>
+                  {isCollapsed ? '✓' : (labels[exo.id] || String.fromCharCode(65 + ei))}
                 </div>
                 <span style={{ fontWeight: 700, fontSize: 15, flex: 1 }}>{exo.name}</span>
-                <TipsButton />
-                <ExerciseHistoryButton athleteId={athleteId} exerciseName={exo.name} />
-                {exo.video_url && (
-                  <VideoButton url={exo.video_url} label="▶"
-                    style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0 }} />
+                {isCollapsed ? (
+                  <span style={{ fontSize: 13, color: 'var(--text3)', fontWeight: 600 }}>{summaryParts || 'Enregistré'}</span>
+                ) : (
+                  <>
+                    <TipsButton />
+                    <ExerciseHistoryButton athleteId={athleteId} exerciseName={exo.name} />
+                    {exo.video_url && (
+                      <VideoButton url={exo.video_url} label="▶"
+                        style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0 }} />
+                    )}
+                    <button onClick={() => { unlockAudio(); exo.timer_config ? onLaunchTimer?.(exo.timer_config, `Timer ${labels[exo.id] || ''}`) : setShowTimer({}) }}
+                      style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
+                      {exo.timer_config ? '▶⏱' : '⏱'}
+                    </button>
+                  </>
                 )}
-                <button onClick={() => { unlockAudio(); exo.timer_config ? onLaunchTimer?.(exo.timer_config, `Timer ${labels[exo.id] || ''}`) : setShowTimer({}) }}
-                  style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
-                  {exo.timer_config ? '▶⏱' : '⏱'}
-                </button>
               </div>
 
+              {!isCollapsed && <>
               {(() => {
                 const focusValue = focusOverrides[exo.id] !== undefined ? focusOverrides[exo.id] : exo.focus_muscles
                 const manualZones = focusValue ? focusValue.split(',').filter(Boolean) : []
@@ -1807,10 +1832,12 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                   </button>
                 </div>
               )}
+              </>}
             </div>
             {(session.circuits || []).filter(c => circuitSlot(c) === ei + 1).map(c => renderCircuit(c))}
             </Fragment>
-          ))}
+            )
+          })}
 
           {isFreeSession && onUpdateFreeSessionDate && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
