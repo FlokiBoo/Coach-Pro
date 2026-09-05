@@ -359,8 +359,10 @@ function AthleteView({ params }) {
         if (next) { setOpenSessionId(next.id); break }
       }
 
-      // Séances de groupe où le coach l'a marqué présent, à compléter (pas en vue coach)
-      if (!isCoachView) {
+      // Séances de groupe où le coach l'a marqué présent, à compléter (pas en vue coach — sauf
+      // sur le profil perso du coach : "Switch to athlete" passe toujours par ?coach=1, donc
+      // isCoachView y est vrai même quand c'est lui-même qui a participé et doit voir le rappel).
+      if (!isCoachView || ath.is_coach) {
         const pendingRes = await fetch(`/api/athlete-view/${token}/pending-group-sessions`, { cache: 'no-store' })
         const pendingJson = await pendingRes.json().catch(() => ({}))
         setPendingGroupSessions(pendingJson.pending || [])
