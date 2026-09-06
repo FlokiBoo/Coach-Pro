@@ -156,6 +156,14 @@ export default function GoniometerView({ athleteId, onClose }) {
     beginStartCountdown()
   }
 
+  // "Reprendre" continuait juste la mesure figée — retour terrain : après un verrouillage, on
+  // veut refaire proprement le mouvement depuis une position neutre, pas repartir de l'angle
+  // verrouillé. Relance donc le décompte de départ complet (nouveau zéro compris).
+  const handleRestart = () => {
+    setPaused(false)
+    handleStart()
+  }
+
   useEffect(() => {
     if (permissionState !== 'granted' || mode !== 'sensor') return
     const STABLE_RANGE = 5 // °
@@ -536,12 +544,12 @@ export default function GoniometerView({ athleteId, onClose }) {
               </div>
 
               <div style={{ padding: '10px 20px 0' }}>
-                <button onClick={() => setPaused(p => !p)} style={{
+                <button onClick={() => paused ? handleRestart() : setPaused(true)} style={{
                   width: '100%', padding: '13px 10px', borderRadius: 10, border: `1px solid ${paused ? '#E5636B' : '#2A3140'}`,
                   background: paused ? 'rgba(229,99,107,0.1)' : 'transparent', color: paused ? '#E5636B' : '#EDEFF2',
                   fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
                 }}>
-                  {paused ? '▶ Reprendre' : '⏸ Pause'}
+                  {paused ? '↻ Recommencer' : '⏸ Pause'}
                 </button>
                 {paused && autoPaused && (
                   <div style={{ textAlign: 'center', fontSize: 11, color: '#E5636B', marginTop: 6 }}>
