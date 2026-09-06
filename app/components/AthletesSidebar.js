@@ -361,7 +361,9 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           />
         </div>
 
-        {athletes.filter(a => a.name.toLowerCase().includes(search.trim().toLowerCase())).map(a => {
+        {/* Retour terrain : la liste complète (trop de sportifs) encombrait la barre latérale —
+            on ne l'affiche plus que pendant une recherche active. */}
+        {search.trim() && athletes.filter(a => a.name.toLowerCase().includes(search.trim().toLowerCase())).map(a => {
           const active = a.id === athleteId
           const w = wellness[a.id]
           const seanceFaite = done.has(a.id)
