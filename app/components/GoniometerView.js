@@ -56,6 +56,7 @@ export default function GoniometerView({ athleteId, onClose }) {
   const [daf, setDaf] = useState('')
   const [dafOui, setDafOui] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [started, setStarted] = useState(false)
   const [startCountdown, setStartCountdown] = useState(null)
   const [lockCountdown, setLockCountdown] = useState(null)
   const liveRawRef = useRef(0)
@@ -136,11 +137,24 @@ export default function GoniometerView({ athleteId, onClose }) {
   useEffect(() => { pausedRef.current = paused }, [paused])
   useEffect(() => { if (!paused) { resetStability(); setAutoPaused(false) } }, [paused])
 
+  // Le décompte ne se lance plus tout seul à l'ouverture d'un test : le temps de mettre le
+  // téléphone en place (ex. dans la main pour l'épaule, dans la chaussette pour la hanche) était
+  // souvent plus long que les 5s, qui démarraient donc avant que le sportif soit prêt. Un nouveau
+  // test/côté remet juste l'écran sur le bouton "Démarrer".
   useEffect(() => {
-    if (permissionState !== 'granted' || mode !== 'sensor') return
-    beginStartCountdown()
-    return () => { clearStartTimer(); clearLockTimer() }
+    clearStartTimer()
+    clearLockTimer()
+    resetStability()
+    testReadyRef.current = false
+    hasMovedRef.current = false
+    setStarted(false)
   }, [permissionState, mode, test?.name, side])
+
+  const handleStart = () => {
+    unlockAudio()
+    setStarted(true)
+    beginStartCountdown()
+  }
 
   useEffect(() => {
     if (permissionState !== 'granted' || mode !== 'sensor') return
@@ -408,7 +422,36 @@ export default function GoniometerView({ athleteId, onClose }) {
           </div>
 
           {mode === 'sensor' ? (
-            startCountdown != null ? (
+            !started ? (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 14, padding: '20px 20px 30px' }}>
+                {isSpineRotation(test) ? (
+                  <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #2A3140', background: '#161B22' }}>
+                    <div style={{ fontSize: 11, color: '#F2A93B', fontWeight: 700, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 5 }}><DeviceMobile size={12} /> Position du téléphone</div>
+                    <div style={{ fontSize: 11.5, color: '#7C8493', lineHeight: 1.5 }}>
+                      Plaque le bas du téléphone contre ton plexus, à plat, dos vers le sol. Tourne le buste pour mesurer la rotation.
+                    </div>
+                  </div>
+                ) : calibration ? (
+                  <div style={{ padding: '10px 12px', borderRadius: 8, border: '1px solid #2A3140', background: '#161B22' }}>
+                    <div style={{ fontSize: 11, color: '#F2A93B', fontWeight: 700, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 5 }}><DeviceMobile size={12} /> Position du téléphone</div>
+                    <div style={{ fontSize: 11.5, color: '#7C8493', lineHeight: 1.5 }}>
+                      {calibration.instructions}
+                    </div>
+                  </div>
+                ) : null}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+                  <div style={{ fontSize: 12, color: '#7C8493', textAlign: 'center', maxWidth: 260 }}>
+                    Mets le téléphone en place, puis lance le décompte quand tu es prêt.
+                  </div>
+                  <button onClick={handleStart} style={{
+                    background: '#F2A93B', color: '#1a1400', border: 'none', borderRadius: 14, padding: '18px 36px',
+                    fontSize: 16, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    ▶ Démarrer (5s)
+                  </button>
+                </div>
+              </div>
+            ) : startCountdown != null ? (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '40px 20px' }}>
                 <div style={{ fontSize: 13, color: '#7C8493', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Prépare-toi…</div>
                 <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 96, fontWeight: 700, color: '#F2A93B', lineHeight: 1 }}>
