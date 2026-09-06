@@ -7,7 +7,7 @@ import TrackedMovementsBlock from './TrackedMovementsBlock'
 import GoniometerView from './GoniometerView'
 import { unlockAudio } from '@/lib/audioBeep'
 import TorqueProfileSection from './TorqueProfileSection'
-import { JOINT_TESTS, isBilateralQualitative, isQualitativeJoint, QUALITY_LEVELS, qualityLevel } from '@/lib/jointTests'
+import { JOINT_TESTS, isQualitativeJoint, QUALITY_LEVELS, qualityLevel, HAND_POSITION_OPTIONS, handPositionLabel } from '@/lib/jointTests'
 import { ADMP_NORMS, isADMPJoint, analyzeADMPRisk, analyzeActifPassifGap } from '@/lib/jointTestThresholds'
 
 function calcAge(birthDate) {
@@ -182,12 +182,11 @@ function DafField({ dafOui, setDafOui, daf, setDaf }) {
 
 function TestLaunchView({ athleteId, testName, joint, movement, onClose, onPrev, onNext, hasPrev, hasNext }) {
   const qualitative = isQualitativeJoint(joint)
-  const bilateral = qualitative && isBilateralQualitative(testName)
   const [previous, setPrevious] = useState(undefined) // undefined = chargement, null = aucun
   const [d, setD] = useState('')
   const [g, setG] = useState('')
   const [qualityD, setQualityD] = useState(null)
-  const [qualityG, setQualityG] = useState(null)
+  const [handPosition, setHandPosition] = useState(null)
   const [note, setNote] = useState('')
   const [daf, setDaf] = useState('')
   const [dafOui, setDafOui] = useState(false)
@@ -209,11 +208,14 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose, onPrev,
 
   const submit = async () => {
     if (qualitative) {
-      if (!qualityD && !(bilateral && qualityG)) return
+      if (!qualityD) return
       setSaving(true)
-      const { data, error } = await supabase.from('joint_test_entries')
-        .insert({ athlete_id: athleteId, test_name: testName, joint, quality_d: qualityD, quality_g: bilateral ? qualityG : null, note: note.trim() || null, daf: daf.trim() || null, daf_oui: dafOui })
-        .select().single()
+      const payload = { athlete_id: athleteId, test_name: testName, joint, quality_d: qualityD, hand_position: handPosition, note: note.trim() || null, daf: daf.trim() || null, daf_oui: dafOui }
+      let { data, error } = await supabase.from('joint_test_entries').insert(payload).select().single()
+      if (error?.message?.includes('hand_position')) {
+        // Colonne "hand_position" pas encore migrée en base : réessaie sans ce champ.
+        ;({ data, error } = await supabase.from('joint_test_entries').insert({ ...payload, hand_position: undefined }).select().single())
+      }
       setSaving(false)
       if (error) { alert('Erreur : ' + error.message); return }
       setResult({ old: previous, new: data })
@@ -238,9 +240,7 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose, onPrev,
 
   // Sauvegarde la saisie en cours (si non déjà validée) avant de changer de test.
   const navigate = async (goTo) => {
-    const hasUnsavedInput = !result && (qualitative
-      ? (qualityD || (bilateral && qualityG))
-      : (d.trim() || g.trim()))
+    const hasUnsavedInput = !result && (qualitative ? !!qualityD : (d.trim() || g.trim()))
     if (hasUnsavedInput) await submit()
     goTo()
   }
@@ -270,20 +270,17 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose, onPrev,
 
             {qualitative ? (
               <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {[
-                  { label: bilateral ? 'Droite' : null, val: result.new.quality_d },
-                  { label: 'Gauche', val: result.new.quality_g },
-                ].filter(r => r.val != null).map((r, i) => {
-                  const lvl = qualityLevel(r.val)
+                {(() => {
+                  const lvl = qualityLevel(result.new.quality_d)
                   return (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      {r.label && <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>{r.label} :</span>}
-                      <span style={{ fontSize: 13, fontWeight: 700, color: lvl?.color, background: lvl?.bg, borderRadius: 20, padding: '4px 10px' }}>
-                        {lvl?.label}
-                      </span>
-                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: lvl?.color, background: lvl?.bg, borderRadius: 20, padding: '4px 10px', alignSelf: 'flex-start' }}>
+                      {lvl?.label}
+                    </span>
                   )
-                })}
+                })()}
+                {result.new.hand_position && (
+                  <div style={{ fontSize: 12, color: 'var(--text3)' }}>Mains : {handPositionLabel(result.new.hand_position)}</div>
+                )}
                 {result.new.note && (
                   <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>« {result.new.note} »</div>
                 )}
@@ -347,8 +344,8 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose, onPrev,
                 ) : previous ? (
                   <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 12, color: 'var(--text3)' }}>
                     Dernier test ({new Date(previous.date + 'T00:00:00').toLocaleDateString('fr-FR')}) :
-                    {previous.quality_d != null && ` ${bilateral ? 'D ' : ''}${qualityLevel(previous.quality_d)?.label}`}
-                    {bilateral && previous.quality_g != null && ` · G ${qualityLevel(previous.quality_g)?.label}`}
+                    {previous.quality_d != null && ` ${qualityLevel(previous.quality_d)?.label}`}
+                    {previous.hand_position && ` · Mains : ${handPositionLabel(previous.hand_position)}`}
                   </div>
                 ) : (
                   <div style={{ textAlign: 'center', color: 'var(--text3)', fontSize: 12, fontStyle: 'italic' }}>Aucun test précédent.</div>
@@ -356,41 +353,29 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose, onPrev,
 
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
-                    {bilateral ? 'Droite' : 'Évaluation'}
+                    Ressenti
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <select value={qualityD || ''} onChange={e => setQualityD(e.target.value || null)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', borderRadius: 'var(--r)', border: '1px solid var(--border2)', fontSize: 13, fontWeight: 600, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}>
+                    <option value="" disabled>Choisis un niveau…</option>
                     {QUALITY_LEVELS.map(l => (
-                      <button key={l.key} onClick={() => setQualityD(l.key)} style={{
-                        textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                        border: `1px solid ${qualityD === l.key ? l.color : 'var(--border2)'}`,
-                        background: qualityD === l.key ? l.bg : 'var(--bg2)',
-                        color: qualityD === l.key ? l.color : 'var(--text2)',
-                      }}>
-                        {l.label}
-                      </button>
+                      <option key={l.key} value={l.key}>{l.label} — {l.description}</option>
                     ))}
-                  </div>
+                  </select>
                 </div>
 
-                {bilateral && (
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
-                      Gauche
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {QUALITY_LEVELS.map(l => (
-                        <button key={l.key} onClick={() => setQualityG(l.key)} style={{
-                          textAlign: 'left', padding: '10px 12px', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                          border: `1px solid ${qualityG === l.key ? l.color : 'var(--border2)'}`,
-                          background: qualityG === l.key ? l.bg : 'var(--bg2)',
-                          color: qualityG === l.key ? l.color : 'var(--text2)',
-                        }}>
-                          {l.label}
-                        </button>
-                      ))}
-                    </div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
+                    Où as-tu posé les mains ?
                   </div>
-                )}
+                  <select value={handPosition || ''} onChange={e => setHandPosition(e.target.value || null)}
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px', borderRadius: 'var(--r)', border: '1px solid var(--border2)', fontSize: 13, fontWeight: 600, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}>
+                    <option value="" disabled>Choisis…</option>
+                    {HAND_POSITION_OPTIONS.map(o => (
+                      <option key={o.key} value={o.key}>{o.label}</option>
+                    ))}
+                  </select>
+                </div>
 
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 5 }}>Note (zone, douleur…)</div>
@@ -400,8 +385,8 @@ function TestLaunchView({ athleteId, testName, joint, movement, onClose, onPrev,
 
                 <DafField dafOui={dafOui} setDafOui={setDafOui} daf={daf} setDaf={setDaf} />
 
-                <button onClick={submit} disabled={saving || (!qualityD && !(bilateral && qualityG))}
-                  style={{ background: (qualityD || (bilateral && qualityG)) ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                <button onClick={submit} disabled={saving || !qualityD}
+                  style={{ background: qualityD ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: 13, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                   {saving ? '…' : '✓ Valider le test'}
                 </button>
               </>
@@ -686,18 +671,15 @@ function TestsArticulairesSection({ athleteId }) {
                             const lvl = qualityLevel(entry.quality_d)
                             return (
                               <span style={{ fontSize: 11, fontWeight: 700, color: lvl?.color || 'var(--text2)', background: lvl?.bg || 'var(--bg2)', borderRadius: 20, padding: '3px 8px' }}>
-                                {isBilateralQualitative(t) ? 'D : ' : ''}{lvl?.label || entry.quality_d}
+                                {lvl?.label || entry.quality_d}
                               </span>
                             )
                           })()}
-                          {isBilateralQualitative(t) && entry.quality_g != null && (() => {
-                            const lvl = qualityLevel(entry.quality_g)
-                            return (
-                              <span style={{ fontSize: 11, fontWeight: 700, color: lvl?.color || 'var(--text2)', background: lvl?.bg || 'var(--bg2)', borderRadius: 20, padding: '3px 8px' }}>
-                                G : {lvl?.label || entry.quality_g}
-                              </span>
-                            )
-                          })()}
+                          {entry.hand_position && (
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '3px 8px' }}>
+                              Mains : {handPositionLabel(entry.hand_position)}
+                            </span>
+                          )}
                           {entry.note && (
                             <span style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>« {entry.note} »</span>
                           )}

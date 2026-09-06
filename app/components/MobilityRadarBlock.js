@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Target, Wrench, Scales, Warning } from '@phosphor-icons/react'
+import { useState, useEffect, useCallback } from 'react'
+import { Target, Wrench, Scales, Warning, Plus } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { JOINT_TESTS } from '@/lib/jointTests'
 import { scoreJoint, scoreQualitativeJoint, jointTestKey } from '@/lib/jointTestThresholds'
@@ -11,6 +11,7 @@ import {
   questionnaireLabel, questionnaireLean,
   computeSynthesis, computeDiscordance,
 } from '@/lib/torqueTests'
+import NewMobilityTestModal from './NewMobilityTestModal'
 
 const ALL_QUESTIONS = PSYCH_QUESTIONNAIRE.flatMap(b => b.questions)
 const ACCENT = '#1F9D6B' // vert accent
@@ -25,10 +26,10 @@ export default function MobilityRadarBlock({ athleteId }) {
   const [torqueVerdict, setTorqueVerdict] = useState(null)
   const [questEntry, setQuestEntry] = useState(null)
   const [discordance, setDiscordance] = useState(null)
+  const [showNewTest, setShowNewTest] = useState(false)
 
-  useEffect(() => {
+  const loadJointScores = useCallback(() => {
     if (!athleteId) return
-
     supabase.from('joint_test_entries').select('*').eq('athlete_id', athleteId)
       .then(({ data }) => {
         const byTest = {}
@@ -44,7 +45,12 @@ export default function MobilityRadarBlock({ athleteId }) {
         })
         setJoints(scores)
       })
+  }, [athleteId])
 
+  useEffect(() => { loadJointScores() }, [loadJointScores])
+
+  useEffect(() => {
+    if (!athleteId) return
     supabase.from('torque_test_entries').select('*').eq('athlete_id', athleteId)
       .order('date', { ascending: false }).order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -60,12 +66,13 @@ export default function MobilityRadarBlock({ athleteId }) {
       })
   }, [athleteId])
 
+  const closeNewTest = () => { setShowNewTest(false); loadJointScores() }
+
   if (!joints) return null
 
   const axes = JOINT_TESTS.map(g => g.joint)
   const values = axes.map(a => joints[a])
   const hasAnyData = values.some(v => v != null)
-  if (!hasAnyData && !torqueVerdict) return null
 
   const size = 220
   const cx = size / 2, cy = size / 2, maxR = 82
@@ -87,8 +94,10 @@ export default function MobilityRadarBlock({ athleteId }) {
     <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}><Target size={15} /> Bilan mobilité &amp; profil</div>
 
-      {hasAnyData && (
+      {hasAnyData ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+          <button onClick={() => setShowNewTest(true)} title="Toucher pour lancer un nouveau test"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex' }}>
           <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
             {ringLevels.map(lvl => {
               const pts = axes.map((_, i) => polarPoint(cx, cy, (lvl / 100) * maxR, i * angleStep))
@@ -123,6 +132,8 @@ export default function MobilityRadarBlock({ athleteId }) {
             </text>
             <text x={cx} y={cy + 14} textAnchor="middle" fontSize="10" fill="var(--text3)">/100</text>
           </svg>
+          </button>
+          <div style={{ fontSize: 10, color: 'var(--text3)' }}>Toucher le radar pour lancer un nouveau test</div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: 4 }}>
             {axes.map((a, i) => (
@@ -149,7 +160,17 @@ export default function MobilityRadarBlock({ athleteId }) {
             )
           })()}
         </div>
+      ) : (
+        <button onClick={() => setShowNewTest(true)} style={{
+          background: 'var(--green-light)', border: '1px dashed #B8EAD8', borderRadius: 'var(--r)', padding: '18px 14px',
+          cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+        }}>
+          <span style={{ display: 'flex', color: 'var(--green)' }}><Plus size={20} /></span>
+          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--green)' }}>Lancer ton premier test de mobilité</span>
+        </button>
       )}
+
+      {showNewTest && <NewMobilityTestModal athleteId={athleteId} onClose={closeNewTest} />}
 
       {torqueVerdict && (() => {
         const c = verdictColor(torqueVerdict.verdict)
