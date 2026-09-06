@@ -8,7 +8,7 @@ import GoniometerView from './GoniometerView'
 import { unlockAudio } from '@/lib/audioBeep'
 import TorqueProfileSection from './TorqueProfileSection'
 import { JOINT_TESTS, isQualitativeJoint, QUALITY_LEVELS, qualityLevel, HAND_POSITION_OPTIONS, handPositionLabel } from '@/lib/jointTests'
-import { ADMP_NORMS, isADMPJoint, analyzeADMPRisk, analyzeActifPassifGap } from '@/lib/jointTestThresholds'
+import { ADMP_NORMS, isADMPJoint, analyzeADMPRisk } from '@/lib/jointTestThresholds'
 
 function calcAge(birthDate) {
   if (!birthDate) return null
@@ -492,7 +492,7 @@ function TestsArticulairesSection({ athleteId }) {
     load()
   }, [])
 
-  // Plusieurs articulations partagent les mêmes noms de test (ex. "Rotation externe (Passif)"
+  // Plusieurs articulations partagent les mêmes noms de test (ex. "Rotation externe (Actif)"
   // existe pour Épaule ET Hanche) : la clé doit combiner articulation + nom de test, sinon
   // une saisie sur l'un écrase la valeur de l'autre.
   const testKey = (joint, testName) => `${joint}::${testName}`
@@ -634,24 +634,11 @@ function TestsArticulairesSection({ athleteId }) {
 
               let admpBadge = null
               if (isADMPJoint(group.joint, norms) && entry) {
-                const variantMatch = t.match(/ \((Passif|Actif)\)$/)
-                const variant = variantMatch?.[1]
-                const baseName = variant ? t.slice(0, -variantMatch[0].length) : t
-                if (variant === 'Passif') {
-                  const rd = analyzeADMPRisk(group.joint, t, entry.value_d, norms)
-                  const rg = analyzeADMPRisk(group.joint, t, entry.value_g, norms)
-                  const worst = [rd, rg].filter(Boolean).sort((a, b) => b.deficit - a.deficit)[0]
-                  if (worst?.atRisk) admpBadge = { label: `-${worst.deficit}° vs norme`, warn: true, color: '#991B1B', bg: '#FEE2E2' }
-                  else if (rd || rg) admpBadge = { label: 'OK', color: '#166534', bg: '#DCFCE7' }
-                } else if (variant === 'Actif') {
-                  const passifEntry = latestByTest[testKey(group.joint, `${baseName} (Passif)`)]
-                  if (passifEntry) {
-                    const gd = analyzeActifPassifGap(group.joint, t, passifEntry.value_d, entry.value_d, norms)
-                    const gg = analyzeActifPassifGap(group.joint, t, passifEntry.value_g, entry.value_g, norms)
-                    const worst = [gd, gg].filter(Boolean).sort((a, b) => b.gap - a.gap)[0]
-                    if (worst?.atRisk) admpBadge = { label: `Déficit actif -${worst.gap}°`, warn: true, color: '#991B1B', bg: '#FEE2E2' }
-                  }
-                }
+                const rd = analyzeADMPRisk(group.joint, t, entry.value_d, norms)
+                const rg = analyzeADMPRisk(group.joint, t, entry.value_g, norms)
+                const worst = [rd, rg].filter(Boolean).sort((a, b) => b.deficit - a.deficit)[0]
+                if (worst?.atRisk) admpBadge = { label: `-${worst.deficit}° vs norme`, warn: true, color: '#991B1B', bg: '#FEE2E2' }
+                else if (rd || rg) admpBadge = { label: 'OK', color: '#166534', bg: '#DCFCE7' }
               }
               return (
                 <div key={t} style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
