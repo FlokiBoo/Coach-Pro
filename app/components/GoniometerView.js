@@ -447,6 +447,25 @@ export default function GoniometerView({ athleteId, onClose }) {
                     </div>
                   </div>
                 ) : null}
+
+                {/* Choix de l'axe avant de lancer, pour pouvoir essayer Sagittal puis Frontal sans
+                    refaire tout le décompte à chaque fois si la calibration par défaut ne suit pas. */}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[
+                    { key: 'beta', label: 'Sagittal' },
+                    { key: 'gamma', label: 'Frontal' },
+                    { key: 'alpha', label: 'Rotation' },
+                  ].map(a => (
+                    <button key={a.key} onClick={() => setAxis(a.key)} style={{
+                      flex: 1, padding: '7px 6px', borderRadius: 8, border: `1px solid ${axis === a.key ? '#F2A93B' : '#2A3140'}`,
+                      background: axis === a.key ? 'rgba(242,169,59,0.08)' : '#161B22', color: axis === a.key ? '#F2A93B' : '#7C8493',
+                      fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                      {a.label}
+                    </button>
+                  ))}
+                </div>
+
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
                   <div style={{ fontSize: 12, color: '#7C8493', textAlign: 'center', maxWidth: 260 }}>
                     Mets le téléphone en place, puis lance le décompte quand tu es prêt.
