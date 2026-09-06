@@ -4,7 +4,12 @@ import { useState, useEffect, useRef } from 'react'
 import { Ruler, Camera, Prohibit, CheckCircle, DeviceMobile, Warning } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { JOINT_TESTS } from '@/lib/jointTests'
+import { beep, unlockAudio } from '@/lib/audioBeep'
+import { vibrate } from '@/lib/vibrate'
 import PhotoAngleCapture from './PhotoAngleCapture'
+
+const START_COUNTDOWN_SECONDS = 5
+const LOCK_COUNTDOWN_SECONDS = 3
 
 const ALL_TESTS = JOINT_TESTS.filter(g => !g.qualitative).flatMap(g => g.tests.map(name => ({ joint: g.joint, name })))
 const BUCKET = 'joint-test-photos'
@@ -50,22 +55,88 @@ export default function GoniometerView({ athleteId, onClose }) {
   const [daf, setDaf] = useState('')
   const [dafOui, setDafOui] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [startCountdown, setStartCountdown] = useState(null)
+  const [lockCountdown, setLockCountdown] = useState(null)
   const liveRawRef = useRef(0)
   const pausedRef = useRef(false)
   const photoRef = useRef(null)
   const stableRef = useRef({ value: null, since: null })
+  const startTimerRef = useRef(null)
+  const lockTimerRef = useRef(null)
+  const testReadyRef = useRef(false)
 
   const test = ALL_TESTS[testIndex]
 
   const resetStability = () => { stableRef.current = { value: null, since: null } }
+
+  const clearLockTimer = () => {
+    if (lockTimerRef.current) { clearInterval(lockTimerRef.current); lockTimerRef.current = null }
+    setLockCountdown(null)
+  }
+
+  const clearStartTimer = () => {
+    if (startTimerRef.current) { clearInterval(startTimerRef.current); startTimerRef.current = null }
+    setStartCountdown(null)
+  }
+
+  // Décompte de 3s pour verrouiller (auto-pause) la mesure une fois la position stabilisée en
+  // fin d'amplitude — remplace l'ancienne pause silencieuse après 2s d'immobilité : le son et la
+  // vibration à chaque seconde donnent une confirmation claire qu'il faut tenir la position.
+  const startLockCountdown = () => {
+    if (lockTimerRef.current) return
+    let remaining = LOCK_COUNTDOWN_SECONDS
+    setLockCountdown(remaining)
+    beep(880, 0.1); vibrate('light')
+    lockTimerRef.current = setInterval(() => {
+      if (pausedRef.current) { clearLockTimer(); return }
+      remaining -= 1
+      if (remaining <= 0) {
+        clearLockTimer()
+        beep(1300, 0.3); vibrate('heavy')
+        setPaused(true)
+        setAutoPaused(true)
+      } else {
+        setLockCountdown(remaining)
+        beep(880, 0.1); vibrate('light')
+      }
+    }, 1000)
+  }
+
+  // Décompte de 5s au lancement d'un nouveau test/côté, pour laisser le temps de se positionner
+  // avant que la détection de stabilité (fin d'amplitude) ne puisse s'activer.
+  const beginStartCountdown = () => {
+    clearStartTimer()
+    clearLockTimer()
+    resetStability()
+    testReadyRef.current = false
+    let remaining = START_COUNTDOWN_SECONDS
+    setStartCountdown(remaining)
+    beep(660, 0.1); vibrate('light')
+    startTimerRef.current = setInterval(() => {
+      remaining -= 1
+      if (remaining <= 0) {
+        clearStartTimer()
+        testReadyRef.current = true
+        beep(1000, 0.25); vibrate('medium')
+      } else {
+        setStartCountdown(remaining)
+        beep(660, 0.1); vibrate('light')
+      }
+    }, 1000)
+  }
 
   useEffect(() => { pausedRef.current = paused }, [paused])
   useEffect(() => { if (!paused) { resetStability(); setAutoPaused(false) } }, [paused])
 
   useEffect(() => {
     if (permissionState !== 'granted' || mode !== 'sensor') return
+    beginStartCountdown()
+    return () => { clearStartTimer(); clearLockTimer() }
+  }, [permissionState, mode, test?.name, side])
+
+  useEffect(() => {
+    if (permissionState !== 'granted' || mode !== 'sensor') return
     const STABLE_RANGE = 5 // °
-    const STABLE_MS = 2000
     const handler = (e) => {
       if (pausedRef.current) return
       const raw = axis === 'beta' ? e.beta : axis === 'gamma' ? e.gamma : e.alpha
@@ -73,12 +144,14 @@ export default function GoniometerView({ athleteId, onClose }) {
       liveRawRef.current = raw
       setLiveRaw(raw)
 
+      if (!testReadyRef.current) return
+
       const st = stableRef.current
       if (st.value == null || Math.abs(raw - st.value) > STABLE_RANGE) {
         stableRef.current = { value: raw, since: Date.now() }
-      } else if (Date.now() - st.since >= STABLE_MS) {
-        setPaused(true)
-        setAutoPaused(true)
+        clearLockTimer()
+      } else if (!lockTimerRef.current) {
+        startLockCountdown()
       }
     }
     window.addEventListener('deviceorientation', handler)
@@ -309,6 +382,17 @@ export default function GoniometerView({ athleteId, onClose }) {
           </div>
 
           {mode === 'sensor' ? (
+            startCountdown != null ? (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '40px 20px' }}>
+                <div style={{ fontSize: 13, color: '#7C8493', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Prépare-toi…</div>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 96, fontWeight: 700, color: '#F2A93B', lineHeight: 1 }}>
+                  {startCountdown}
+                </div>
+                <div style={{ fontSize: 12, color: '#7C8493', textAlign: 'center', maxWidth: 240 }}>
+                  Positionne le téléphone, la mesure démarre au signal.
+                </div>
+              </div>
+            ) : (
             <>
               {isSpineRotation(test) ? (
                 <div style={{ margin: '0 20px 6px', padding: '10px 12px', borderRadius: 8, border: '1px solid #2A3140', background: '#161B22' }}>
@@ -345,12 +429,18 @@ export default function GoniometerView({ athleteId, onClose }) {
               </div>
 
               <div style={{ textAlign: 'center', marginTop: -18 }}>
-                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 56, fontWeight: 600, lineHeight: 1 }}>
+                <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 56, fontWeight: 600, lineHeight: 1, color: lockCountdown != null ? '#F2A93B' : undefined }}>
                   {displayAngle.toFixed(1)}<sup style={{ fontSize: 22, color: '#7C8493', fontWeight: 400 }}>°</sup>
                 </div>
-                <div style={{ fontSize: 11, color: '#7C8493', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>
-                  {axis === 'beta' ? 'Plan sagittal — écran face à toi' : axis === 'gamma' ? 'Plan frontal — écran de côté' : 'Rotation colonne — boussole'}
-                </div>
+                {lockCountdown != null ? (
+                  <div style={{ fontSize: 12, color: '#F2A93B', fontWeight: 700, letterSpacing: '0.05em', marginTop: 6 }}>
+                    Tiens la position — verrouillage dans {lockCountdown}…
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 11, color: '#7C8493', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>
+                    {axis === 'beta' ? 'Plan sagittal — écran face à toi' : axis === 'gamma' ? 'Plan frontal — écran de côté' : 'Rotation colonne — boussole'}
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: 10, padding: '18px 20px 0' }}>
@@ -396,6 +486,7 @@ export default function GoniometerView({ athleteId, onClose }) {
                 </div>
               </div>
             </>
+            )
           ) : (
             <PhotoAngleCapture ref={photoRef} onAngleChange={setPhotoAngle} />
           )}

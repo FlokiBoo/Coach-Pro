@@ -8,6 +8,7 @@ import PasswordSettingsModal from './PasswordSettingsModal'
 import TimerModal from './TimerModal'
 import GoniometerView from './GoniometerView'
 import QuickAngleModal from './QuickAngleModal'
+import { unlockAudio } from '@/lib/audioBeep'
 import { guardNavigation, hasUnsavedChanges } from '@/lib/unsavedChanges'
 import { clearLastPath } from '@/lib/lastPath'
 import {
@@ -140,6 +141,7 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
   }, [date])
 
   const startNamedGonioTest = async () => {
+    unlockAudio()
     const name = window.prompt('Nom de ce test (ex: "Cliente Insta — épaule D") ?')
     if (!name || !name.trim()) return
     setCreatingTest(true)

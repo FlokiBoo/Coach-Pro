@@ -5,6 +5,7 @@ import { User, ChartLineUp, Ruler, Bone, Scales, Key, EnvelopeSimple, PencilSimp
 import { supabase } from '@/lib/supabase'
 import TrackedMovementsBlock from './TrackedMovementsBlock'
 import GoniometerView from './GoniometerView'
+import { unlockAudio } from '@/lib/audioBeep'
 import TorqueProfileSection from './TorqueProfileSection'
 import { JOINT_TESTS, isBilateralQualitative, isQualitativeJoint, QUALITY_LEVELS, qualityLevel } from '@/lib/jointTests'
 import { ADMP_NORMS, isADMPJoint, analyzeADMPRisk, analyzeActifPassifGap } from '@/lib/jointTestThresholds'
@@ -608,7 +609,7 @@ function TestsArticulairesSection({ athleteId }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <button onClick={() => setShowGonio(true)} style={{
+      <button onClick={() => { unlockAudio(); setShowGonio(true) }} style={{
         background: '#0D1117', color: '#F2A93B', border: '1px solid #2A3140', borderRadius: 'var(--rl)',
         padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontFamily: 'inherit',
       }}>
