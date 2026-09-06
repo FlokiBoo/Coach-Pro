@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { JOINT_TESTS } from '@/lib/jointTests'
 import { beep, unlockAudio } from '@/lib/audioBeep'
 import { vibrate } from '@/lib/vibrate'
+import { getCalibration } from '@/lib/goniometerCalibration'
 import PhotoAngleCapture from './PhotoAngleCapture'
 
 const START_COUNTDOWN_SECONDS = 5
@@ -165,7 +166,9 @@ export default function GoniometerView({ athleteId, onClose }) {
 
   useEffect(() => {
     if (!test) return
-    setAxis(isSpineRotation(test) ? 'alpha' : (a => (a === 'alpha' ? 'beta' : a)))
+    const calibration = getCalibration(test.joint, test.name)
+    if (calibration) setAxis(calibration.axis)
+    else setAxis(isSpineRotation(test) ? 'alpha' : (a => (a === 'alpha' ? 'beta' : a)))
   }, [test?.name])
 
   useEffect(() => {
@@ -208,6 +211,8 @@ export default function GoniometerView({ athleteId, onClose }) {
       isMajor,
     })
   }
+
+  const calibration = getCalibration(test?.joint, test?.name)
 
   const calibrateZero = () => setZeroOffset(liveRawRef.current)
 
@@ -401,19 +406,33 @@ export default function GoniometerView({ athleteId, onClose }) {
                     Plaque le bas du téléphone contre ton plexus, à plat, dos vers le sol. Tourne le buste pour mesurer la rotation.
                   </div>
                 </div>
-              ) : (
-                <div style={{ display: 'flex', gap: 8, padding: '0 20px 6px' }}>
-                  {[{ key: 'beta', label: 'Sagittal (flexion/ext)' }, { key: 'gamma', label: 'Frontal (abd/add)' }].map(a => (
-                    <button key={a.key} onClick={() => setAxis(a.key)} style={{
-                      flex: 1, padding: '7px 6px', borderRadius: 8, border: `1px solid ${axis === a.key ? '#F2A93B' : '#2A3140'}`,
-                      background: axis === a.key ? 'rgba(242,169,59,0.08)' : '#161B22', color: axis === a.key ? '#F2A93B' : '#7C8493',
-                      fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
-                    }}>
-                      {a.label}
-                    </button>
-                  ))}
+              ) : calibration ? (
+                <div style={{ margin: '0 20px 6px', padding: '10px 12px', borderRadius: 8, border: '1px solid #2A3140', background: '#161B22' }}>
+                  <div style={{ fontSize: 11, color: '#F2A93B', fontWeight: 700, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 5 }}><DeviceMobile size={12} /> Position du téléphone</div>
+                  <div style={{ fontSize: 11.5, color: '#7C8493', lineHeight: 1.5 }}>
+                    {calibration.instructions}
+                  </div>
                 </div>
-              )}
+              ) : null}
+
+              {/* Sélecteur d'axe toujours visible, même sur un test calibré : la calibration est
+                  une estimation (pas testée sur un vrai téléphone pour chaque prise en main),
+                  donc l'axe doit rester corrigeable manuellement si la lecture ne bouge pas. */}
+              <div style={{ display: 'flex', gap: 8, padding: '0 20px 6px' }}>
+                {[
+                  { key: 'beta', label: 'Sagittal' },
+                  { key: 'gamma', label: 'Frontal' },
+                  { key: 'alpha', label: 'Rotation' },
+                ].map(a => (
+                  <button key={a.key} onClick={() => setAxis(a.key)} style={{
+                    flex: 1, padding: '7px 6px', borderRadius: 8, border: `1px solid ${axis === a.key ? '#F2A93B' : '#2A3140'}`,
+                    background: axis === a.key ? 'rgba(242,169,59,0.08)' : '#161B22', color: axis === a.key ? '#F2A93B' : '#7C8493',
+                    fontSize: 11, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
+                  }}>
+                    {a.label}
+                  </button>
+                ))}
+              </div>
 
               <div style={{ position: 'relative', margin: '6px auto 4px', width: 'min(78vw, 320px)' }}>
                 <svg viewBox="0 0 300 190" style={{ display: 'block', width: '100%', height: 'auto' }}>
@@ -438,7 +457,7 @@ export default function GoniometerView({ athleteId, onClose }) {
                   </div>
                 ) : (
                   <div style={{ fontSize: 11, color: '#7C8493', letterSpacing: '0.1em', textTransform: 'uppercase', marginTop: 6 }}>
-                    {axis === 'beta' ? 'Plan sagittal — écran face à toi' : axis === 'gamma' ? 'Plan frontal — écran de côté' : 'Rotation colonne — boussole'}
+                    {axis === 'beta' ? 'Plan sagittal — écran face à toi' : axis === 'gamma' ? 'Plan frontal — écran de côté' : 'Rotation — boussole'}
                   </div>
                 )}
               </div>
