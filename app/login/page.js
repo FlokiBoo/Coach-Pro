@@ -104,7 +104,7 @@ function LoginPage() {
       }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-ostryk-transparent.png" alt="OSTRYK" style={{ width: 130, height: 'auto', marginBottom: 4 }} />
+          <img src="/logo-ostryk-transparent.png" alt="OSTRYK" style={{ width: 130, height: 'auto', margin: '0 auto 4px' }} />
           <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '1.2px', marginTop: 2 }}>
             Built to grow
           </div>
