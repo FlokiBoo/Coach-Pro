@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CreditCard, Circle, Lock, Question, Envelope, Bug, FileText } from '@phosphor-icons/react'
+import { CreditCard, Circle, Lock, Question, Envelope, Bug, FileText, DownloadSimple } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import PasswordSettingsModal from '@/app/components/PasswordSettingsModal'
 import { SUBSCRIPTION_TIERS } from '@/lib/subscriptionTiers'
@@ -18,6 +18,10 @@ export default function SettingsScreen({ athlete, token, onClose }) {
   const [showSubscription, setShowSubscription] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [stravaBusy, setStravaBusy] = useState(false)
+  const [showStravaImport, setShowStravaImport] = useState(false)
+  const [importStartDate, setImportStartDate] = useState('')
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState(null)
   const [subscribing, setSubscribing] = useState(null)
   const [changingPlan, setChangingPlan] = useState(null)
   const [portalLoading, setPortalLoading] = useState(false)
@@ -70,6 +74,19 @@ export default function SettingsScreen({ athlete, token, onClose }) {
     setOfferSent(prev => ({ ...prev, [offerKey]: true }))
   }
 
+  const runStravaImport = async () => {
+    if (!importStartDate) return
+    setImporting(true)
+    setImportResult(null)
+    const res = await fetch(`/api/athlete-view/${token}/strava-import`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startDate: importStartDate }),
+    })
+    const json = await res.json().catch(() => ({}))
+    setImporting(false)
+    if (!res.ok) { alert('Erreur : ' + (json.error || '')); return }
+    setImportResult(json)
+  }
+
   const openPortal = async () => {
     setPortalLoading(true)
     const res = await fetch(`/api/athlete-view/${token}/portal`, { method: 'POST' })
@@ -103,14 +120,21 @@ export default function SettingsScreen({ athlete, token, onClose }) {
         </button>
 
         {athlete.strava_athlete_id ? (
-          <button onClick={disconnectStrava} disabled={stravaBusy} style={rowStyle}>
-            <span style={{ display: 'flex', color: '#FC4C02' }}><Circle size={20} weight="fill" /></span>
-            <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>
-              Strava
-              <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: 'var(--green-light)', color: 'var(--green)', borderRadius: 10, padding: '2px 8px' }}>Connecté</span>
-            </span>
-            <span style={{ color: 'var(--text3)', fontSize: 12 }}>{stravaBusy ? '…' : 'Déconnecter'}</span>
-          </button>
+          <>
+            <button onClick={disconnectStrava} disabled={stravaBusy} style={rowStyle}>
+              <span style={{ display: 'flex', color: '#FC4C02' }}><Circle size={20} weight="fill" /></span>
+              <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>
+                Strava
+                <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, background: 'var(--green-light)', color: 'var(--green)', borderRadius: 10, padding: '2px 8px' }}>Connecté</span>
+              </span>
+              <span style={{ color: 'var(--text3)', fontSize: 12 }}>{stravaBusy ? '…' : 'Déconnecter'}</span>
+            </button>
+            <button onClick={() => { setImportResult(null); setShowStravaImport(true) }} style={rowStyle}>
+              <span style={{ display: 'flex' }}><DownloadSimple size={20} /></span>
+              <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Importer mes activités Strava</span>
+              <span style={{ color: 'var(--text3)', fontSize: 18 }}>›</span>
+            </button>
+          </>
         ) : (
           <a href={`/api/strava/connect?token=${token}`} style={{ ...rowStyle, textDecoration: 'none' }}>
             <span style={{ display: 'flex', color: '#FC4C02' }}><Circle size={20} weight="fill" /></span>
@@ -275,6 +299,39 @@ export default function SettingsScreen({ athlete, token, onClose }) {
           <div style={{ flex: 1, padding: 16, textAlign: 'center', color: 'var(--text3)' }}>
             <div style={{ fontSize: 32, marginBottom: 10 }}>🚧</div>
             <div style={{ fontSize: 13 }}>Bientôt disponible. En attendant, utilise &quot;Contactez-nous&quot; pour toute question.</div>
+          </div>
+        </div>
+      )}
+
+      {showStravaImport && (
+        <div onClick={() => !importing && setShowStravaImport(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 600, padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><DownloadSimple size={32} /></div>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>
+              Importer mes activités Strava
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16, textAlign: 'center' }}>
+              Choisis la date à partir de laquelle récupérer tes activités (par exemple le 1er septembre pour tout ce qui a eu lieu depuis).
+            </div>
+            <input type="date" value={importStartDate} onChange={e => setImportStartDate(e.target.value)} max={new Date().toISOString().slice(0, 10)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, fontWeight: 700, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', marginBottom: 12 }} />
+
+            {importResult && (
+              <div style={{ background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, color: '#0D6B4F', marginBottom: 12, textAlign: 'center' }}>
+                {importResult.imported} activité{importResult.imported !== 1 ? 's' : ''} importée{importResult.imported !== 1 ? 's' : ''}
+                {importResult.total > importResult.imported ? ` (${importResult.total - importResult.imported} déjà connue${importResult.total - importResult.imported !== 1 ? 's' : ''})` : ''}.
+              </div>
+            )}
+
+            <button onClick={runStravaImport} disabled={!importStartDate || importing} style={{
+              background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700,
+              cursor: (!importStartDate || importing) ? 'default' : 'pointer', width: '100%', opacity: (!importStartDate || importing) ? 0.6 : 1, marginBottom: 8,
+            }}>
+              {importing ? 'Import en cours…' : 'Importer'}
+            </button>
+            <button onClick={() => setShowStravaImport(false)} disabled={importing} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', padding: 6 }}>
+              Fermer
+            </button>
           </div>
         </div>
       )}

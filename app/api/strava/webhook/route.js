@@ -1,5 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase-admin'
-import { getValidStravaToken, fetchStravaActivity, findOrCreateSessionForActivity, stravaActivityLabel } from '@/lib/strava'
+import { getValidStravaToken, fetchStravaActivity, processStravaActivity } from '@/lib/strava'
 import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
@@ -48,39 +48,6 @@ export async function POST(request) {
   const activity = await fetchStravaActivity(accessToken, stravaActivityId)
   if (!activity) return NextResponse.json({ ok: true })
 
-  const activityTypeLabel = stravaActivityLabel(activity.type)
-  const sessionId = await findOrCreateSessionForActivity(athlete.id, activityTypeLabel)
-  if (!sessionId) return NextResponse.json({ ok: true })
-
-  // Si le client a déjà validé la séance à la main, ça complète juste les chiffres sans toucher
-  // à son ressenti/difficulté/commentaire — si Strava arrive en premier, le client peut ensuite
-  // ajouter son ressenti par-dessus.
-  const { data: existing } = await supabaseAdmin.from('program_completions')
-    .select('id').eq('athlete_id', athlete.id).eq('program_session_id', sessionId).maybeSingle()
-
-  // La distance n'a de sens que pour les activités qui en rapportent une (course, vélo,
-  // natation...) — une séance de muscu/yoga Strava a toujours distance=0, inutile de la stocker.
-  const stravaFields = {
-    duration_minutes: Math.round(activity.moving_time / 60),
-    strava_activity_id: stravaActivityId,
-    ...(activity.distance > 0 ? { distance_km: Math.round((activity.distance / 1000) * 100) / 100 } : {}),
-  }
-
-  if (existing) {
-    await supabaseAdmin.from('program_completions').update(stravaFields).eq('id', existing.id)
-  } else {
-    await supabaseAdmin.from('program_completions').insert({
-      athlete_id: athlete.id, program_session_id: sessionId, completed_at: activity.start_date, ...stravaFields,
-    })
-  }
-
-  // Le client ne verrait sinon aucun signe que quelque chose vient de se passer — même mécanisme
-  // que le rappel "séance de groupe à compléter".
-  await supabaseAdmin.from('notifications').insert({
-    athlete_id: athlete.id, type: 'strava_activity_imported',
-    title: 'Séance importée depuis Strava',
-    body: activity.name || activityTypeLabel,
-  })
-
+  await processStravaActivity(athlete, activity)
   return NextResponse.json({ ok: true })
 }
