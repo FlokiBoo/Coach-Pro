@@ -297,9 +297,16 @@ function AthleteView({ params }) {
   useEffect(() => {
     const strava = searchParams.get('strava')
     if (!strava) return
-    setToast(strava === 'connected' ? 'Strava connecté ✓' : 'Erreur de connexion à Strava')
     const url = new URL(window.location.href)
     url.searchParams.delete('strava')
+    if (strava === 'connected') {
+      // `athlete` a été chargé au montage de la page, avant l'aller-retour OAuth Strava — sans
+      // rechargement complet, les Réglages continuent d'afficher "Connecter Strava" même si
+      // strava_athlete_id est bien à jour en base (retour terrain : semblait "ne pas marcher").
+      window.location.href = url.pathname + url.search
+      return
+    }
+    setToast('Erreur de connexion à Strava')
     router.replace(url.pathname + url.search)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
