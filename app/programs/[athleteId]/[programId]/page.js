@@ -19,7 +19,7 @@ import { notifyAssigned } from '@/lib/notify'
 import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerConfigEditor'
 import {
   ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat,
-  VideoCamera, Lightbulb, Flame, Target, ChartLineUp, Backpack, FloppyDisk, Lightning,
+  VideoCamera, Lightbulb, Target, ChartLineUp, Backpack, FloppyDisk, Lightning,
 } from '@phosphor-icons/react'
 
 function today() {
@@ -1460,16 +1460,16 @@ function ProgramEditorPage({ params }) {
                     <Lightbulb size={11} style={{ verticalAlign: -1, marginRight: 3 }} />Explication
                   </button>
                   <button
-                    onClick={e => { e.stopPropagation(); updateSession(s.id, 'session_type', s.session_type === 'warmup' ? null : 'warmup') }}
-                    title="Séance de type Warm-Up : bilan de fin de séance adapté (efficacité, facilité de mise en place)"
+                    onClick={e => { e.stopPropagation(); updateSession(s.id, 'session_type', s.session_type === 'recurrent' ? null : 'recurrent') }}
+                    title="Séance récurrente"
                     style={{
                       flexShrink: 0, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 9px', cursor: 'pointer',
-                      border: s.session_type === 'warmup' ? '1px solid #FDBA74' : '1px solid var(--border2)',
-                      background: s.session_type === 'warmup' ? '#FFF7ED' : 'none',
-                      color: s.session_type === 'warmup' ? '#C2410C' : 'var(--text3)',
+                      border: s.session_type === 'recurrent' ? '1px solid #FDBA74' : '1px solid var(--border2)',
+                      background: s.session_type === 'recurrent' ? '#FFF7ED' : 'none',
+                      color: s.session_type === 'recurrent' ? '#C2410C' : 'var(--text3)',
                     }}
                   >
-                    <Flame size={11} style={{ verticalAlign: -1, marginRight: 3 }} />Warm-Up
+                    <Repeat size={11} style={{ verticalAlign: -1, marginRight: 3 }} />Récurrent
                   </button>
                   <select
                     value={s.day_of_week ?? ''}

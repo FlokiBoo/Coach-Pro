@@ -1945,7 +1945,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 </button>
               )}
               {onValidate && session.session_type !== 'explication' && (
-                <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} isWarmup={session.session_type === 'warmup'} isGroupSession={isGroupSession} isCoachView={isCoachView} />
+                <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} isGroupSession={isGroupSession} isCoachView={isCoachView} />
               )}
               {isCompleted && onUnvalidate && (
                 <button onClick={onUnvalidate} disabled={validating}
@@ -2217,7 +2217,7 @@ function RatingRow({ label, hint, value, onChange, inverse = true }) {
   )
 }
 
-function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null, isEndurance = false, isWarmup = false, isGroupSession = false, isCoachView = false }) {
+function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null, isEndurance = false, isGroupSession = false, isCoachView = false }) {
   const [pleasure, setPleasure] = useState(initial?.pleasure ?? null)
   const [difficulty, setDifficulty] = useState(initial?.difficulty ?? null)
   const [duration, setDuration] = useState(initial?.duration_minutes ?? null)
@@ -2247,12 +2247,12 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
       {isCoachView && (
         <>
           <RatingRow
-            label={isWarmup ? 'Efficacité du Warm-Up' : 'Plaisir'}
-            hint={isWarmup ? '1 = pas efficace · 10 = très efficace' : '1 = pas du tout · 10 = énormément'}
+            label="Plaisir"
+            hint="1 = pas du tout · 10 = énormément"
             value={pleasure} onChange={setPleasure} inverse={false}
           />
           <RatingRow
-            label={isWarmup ? 'Difficulté à mettre en place' : 'Difficulté de la séance'}
+            label="Difficulté de la séance"
             hint="1 = facile · 10 = très difficile"
             value={difficulty} onChange={setDifficulty}
           />
@@ -2261,7 +2261,7 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Commentaire (optionnel)</div>
             <textarea
               value={comment} onChange={e => setComment(e.target.value)} rows={2}
-              placeholder={isWarmup ? 'Note tous les axes à améliorer selon toi, ou ce que tu aimerais me partager.' : "Comment s'est passée la séance ?"}
+              placeholder="Comment s'est passée la séance ?"
               style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
             />
           </div>
@@ -2270,7 +2270,7 @@ function SessionFeedback({ onValidate, validating, isUpdate = false, initial = n
 
       {!isGroupSession && (
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>{isWarmup ? 'Durée du Warm-Up' : 'Durée'}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Durée</div>
           <DurationHMSInput
             initialMinutes={duration}
             onSave={setDuration}
