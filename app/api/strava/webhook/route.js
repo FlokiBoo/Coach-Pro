@@ -32,19 +32,29 @@ export async function POST(request) {
     .eq('strava_athlete_id', body.owner_id).maybeSingle()
   if (!athlete) return NextResponse.json({ ok: true })
 
+  // Strava redélivre parfois le même événement plusieurs fois (retry si on met trop de temps à
+  // répondre) — sans ça, chaque retry consommait une séance de plus dans le programme réel de
+  // l'athlète (3 séances marquées faites pour une seule vraie sortie) ou recréait une nouvelle
+  // "Séance libre" en double. L'id d'activité Strava est stable d'un retry à l'autre : on
+  // l'utilise comme clé d'idempotence, avant même d'aller chercher/créer une séance.
+  const stravaActivityId = body.object_id
+  const { data: alreadyProcessed } = await supabaseAdmin.from('program_completions')
+    .select('id').eq('athlete_id', athlete.id).eq('strava_activity_id', stravaActivityId).maybeSingle()
+  if (alreadyProcessed) return NextResponse.json({ ok: true })
+
   const accessToken = await getValidStravaToken(athlete)
   if (!accessToken) return NextResponse.json({ ok: true })
 
-  const activity = await fetchStravaActivity(accessToken, body.object_id)
+  const activity = await fetchStravaActivity(accessToken, stravaActivityId)
   if (!activity) return NextResponse.json({ ok: true })
 
   const activityTypeLabel = stravaActivityLabel(activity.type)
   const sessionId = await findOrCreateSessionForActivity(athlete.id, activityTypeLabel)
   if (!sessionId) return NextResponse.json({ ok: true })
 
-  // Upsert sur (athlete_id, program_session_id) : si le client a déjà validé la séance à la
-  // main, ça complète juste les chiffres sans toucher à son ressenti/difficulté/commentaire —
-  // si Strava arrive en premier, le client peut ensuite ajouter son ressenti par-dessus.
+  // Si le client a déjà validé la séance à la main, ça complète juste les chiffres sans toucher
+  // à son ressenti/difficulté/commentaire — si Strava arrive en premier, le client peut ensuite
+  // ajouter son ressenti par-dessus.
   const { data: existing } = await supabaseAdmin.from('program_completions')
     .select('id').eq('athlete_id', athlete.id).eq('program_session_id', sessionId).maybeSingle()
 
@@ -52,6 +62,7 @@ export async function POST(request) {
   // natation...) — une séance de muscu/yoga Strava a toujours distance=0, inutile de la stocker.
   const stravaFields = {
     duration_minutes: Math.round(activity.moving_time / 60),
+    strava_activity_id: stravaActivityId,
     ...(activity.distance > 0 ? { distance_km: Math.round((activity.distance / 1000) * 100) / 100 } : {}),
   }
 
@@ -62,6 +73,14 @@ export async function POST(request) {
       athlete_id: athlete.id, program_session_id: sessionId, completed_at: activity.start_date, ...stravaFields,
     })
   }
+
+  // Le client ne verrait sinon aucun signe que quelque chose vient de se passer — même mécanisme
+  // que le rappel "séance de groupe à compléter".
+  await supabaseAdmin.from('notifications').insert({
+    athlete_id: athlete.id, type: 'strava_activity_imported',
+    title: 'Séance importée depuis Strava',
+    body: activity.name || activityTypeLabel,
+  })
 
   return NextResponse.json({ ok: true })
 }
