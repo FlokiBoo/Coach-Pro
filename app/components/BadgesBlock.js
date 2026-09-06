@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { CheckCircle } from '@phosphor-icons/react'
+import { CheckCircle, Barbell } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { bestPerformance, formatTime } from './TrackedMovementsBlock'
 import { BADGE_MOVEMENTS, BINARY_BADGE_MOVEMENTS, TIER_STYLES, computeBadge } from '@/lib/badges'
@@ -163,53 +163,64 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      <ForceRadarBlock strengthCards={cards} cardioCards={cardioCards} expanded={showDetail} onToggle={() => setShowDetail(v => !v)} />
+      <ForceRadarBlock strengthCards={cards} cardioCards={cardioCards} onOpen={() => setShowDetail(true)} />
 
-      {showDetail && hasStrength && !weight && (
-        <div style={{ background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', padding: 16, textAlign: 'center', fontSize: 13, color: 'var(--text3)' }}>
-          Renseigne ton poids (dans ton profil) pour débloquer tes badges de force.
+      {showDetail && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
+          <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <button onClick={() => setShowDetail(false)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
+            <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, display: 'flex', alignItems: 'center', gap: 8 }}><Barbell size={17} /> Force par muscle</div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {hasStrength && !weight && (
+              <div style={{ background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', padding: 16, textAlign: 'center', fontSize: 13, color: 'var(--text3)' }}>
+                Renseigne ton poids (dans ton profil) pour débloquer tes badges de force.
+              </div>
+            )}
+
+            {weight && cards.map(card => {
+              if (card.missing) return null
+              const isReps = card.mode === 'reps'
+              const pct = !card.noData && !isReps ? (card.value / weight) * 100 : null
+              return (
+                <BadgeCard key={card.name} name={card.name} noData={card.noData}
+                  subtitle={!card.noData ? (isReps ? `${card.value} reps` : `${card.value}kg · ${Math.round(pct)}% PDC (${weight}kg)`) : null}
+                  footerValue={!card.noData ? (isReps ? `${card.value} reps` : `${card.value}kg`) : null}
+                  current={card.current} next={card.next} progress={card.progress}
+                  nextHint={card.next
+                    ? (isReps
+                      ? `à ${card.next.value} reps — encore ${Math.max(0, card.next.value - card.value)} reps`
+                      : `à ${Math.round((card.next.value / 100) * weight)}kg — encore ${Math.max(0, Math.round((card.next.value / 100) * weight - card.value))}kg`)
+                    : null}
+                />
+              )
+            })}
+
+            {hasCardio && age == null && (
+              <div style={{ background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', padding: 16, textAlign: 'center', fontSize: 13, color: 'var(--text3)' }}>
+                Renseigne ta date de naissance (dans ton profil) pour débloquer tes badges cardio.
+              </div>
+            )}
+
+            {age != null && cardioCards.map(card => {
+              if (card.missing) return null
+              return (
+                <BadgeCard key={card.name} name={card.name} noData={card.noData}
+                  subtitle={!card.noData ? formatTime(card.value) : null}
+                  footerValue={!card.noData ? formatTime(card.value) : null}
+                  current={card.current} next={card.next} progress={card.progress}
+                  nextHint={card.next ? `en ${formatTime(card.next.seconds)} — encore ${formatTime(Math.max(0, card.value - card.next.seconds))}` : null}
+                />
+              )
+            })}
+
+            {binaryCards.map(card => card.missing ? null : (
+              <BinaryBadgeCard key={card.name} name={card.name} acquired={card.acquired} />
+            ))}
+          </div>
         </div>
       )}
-
-      {showDetail && weight && cards.map(card => {
-        if (card.missing) return null
-        const isReps = card.mode === 'reps'
-        const pct = !card.noData && !isReps ? (card.value / weight) * 100 : null
-        return (
-          <BadgeCard key={card.name} name={card.name} noData={card.noData}
-            subtitle={!card.noData ? (isReps ? `${card.value} reps` : `${card.value}kg · ${Math.round(pct)}% PDC (${weight}kg)`) : null}
-            footerValue={!card.noData ? (isReps ? `${card.value} reps` : `${card.value}kg`) : null}
-            current={card.current} next={card.next} progress={card.progress}
-            nextHint={card.next
-              ? (isReps
-                ? `à ${card.next.value} reps — encore ${Math.max(0, card.next.value - card.value)} reps`
-                : `à ${Math.round((card.next.value / 100) * weight)}kg — encore ${Math.max(0, Math.round((card.next.value / 100) * weight - card.value))}kg`)
-              : null}
-          />
-        )
-      })}
-
-      {showDetail && hasCardio && age == null && (
-        <div style={{ background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', padding: 16, textAlign: 'center', fontSize: 13, color: 'var(--text3)' }}>
-          Renseigne ta date de naissance (dans ton profil) pour débloquer tes badges cardio.
-        </div>
-      )}
-
-      {showDetail && age != null && cardioCards.map(card => {
-        if (card.missing) return null
-        return (
-          <BadgeCard key={card.name} name={card.name} noData={card.noData}
-            subtitle={!card.noData ? formatTime(card.value) : null}
-            footerValue={!card.noData ? formatTime(card.value) : null}
-            current={card.current} next={card.next} progress={card.progress}
-            nextHint={card.next ? `en ${formatTime(card.next.seconds)} — encore ${formatTime(Math.max(0, card.value - card.next.seconds))}` : null}
-          />
-        )
-      })}
-
-      {showDetail && binaryCards.map(card => card.missing ? null : (
-        <BinaryBadgeCard key={card.name} name={card.name} acquired={card.acquired} />
-      ))}
     </div>
   )
 }
