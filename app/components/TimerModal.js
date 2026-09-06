@@ -80,11 +80,14 @@ function useBeeper() {
   return { beep, speak, unlock: getCtx }
 }
 
+const PRE_START_SECONDS = 10
+
 export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
   const hasPreset = presetSeconds != null && presetSeconds > 0
   const [type, setType] = useState(hasPreset ? 'AMRAP' : 'EMOM')
-  const [screen, setScreen] = useState(hasPreset ? 'run' : 'setup') // 'setup' | 'run'
+  const [screen, setScreen] = useState(hasPreset ? 'run' : 'setup') // 'setup' | 'countdown' | 'run'
   const [running, setRunning] = useState(false)
+  const [preCountdown, setPreCountdown] = useState(null)
   const [, forceTick] = useState(0)
 
   const [emomRoundSec, setEmomRoundSec] = useState(60)
@@ -144,13 +147,35 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
 
   const getElapsed = () => elapsedBaseRef.current + (runStartRef.current ? (Date.now() - runStartRef.current) / 1000 : 0)
 
-  const start = () => {
-    if (type === 'CUSTOM' && !customSteps.length) return
+  const beginRun = () => {
     unlock()
     runStartRef.current = Date.now()
     setRunning(true)
     setScreen('run')
   }
+  // Démarrage depuis l'écran de config : décompte de préparation de 10s (bip chaque seconde) avant
+  // que le chrono ne se lance vraiment. Pas de décompte pour une récup lancée directement (hasPreset)
+  // ni pour une reprise après pause (screen déjà sur 'run').
+  const start = () => {
+    if (type === 'CUSTOM' && !customSteps.length) return
+    unlock()
+    if (hasPreset || screen === 'run') { beginRun(); return }
+    setScreen('countdown')
+    setPreCountdown(PRE_START_SECONDS)
+  }
+  useEffect(() => {
+    if (preCountdown === null) return
+    if (preCountdown <= 0) {
+      setPreCountdown(null)
+      beep(1300, 0.25, 0.45)
+      beginRun()
+      return
+    }
+    beep(700, 0.08)
+    const id = setTimeout(() => setPreCountdown(c => c - 1), 1000)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preCountdown])
   // Lancement direct (ex: clic sur la pastille "récup" d'un exercice) : on démarre tout de
   // suite sur le temps proposé, sans passer par l'écran de configuration.
   useEffect(() => {
@@ -169,6 +194,7 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
     lastBeepKeyRef.current = null
     prevPhaseKeyRef.current = null
     prevRoundRef.current = null
+    setPreCountdown(null)
     setRunning(false)
     forceTick(t => t + 1)
   }
@@ -277,7 +303,7 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 900, display: 'flex', flexDirection: 'column', color: 'var(--text)' }}>
       <div style={{ padding: '16px 20px 8px', display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button onClick={() => screen === 'run' ? backToSetup() : onClose()} style={{ background: 'none', border: 'none', color: 'var(--text)', fontSize: 22, cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
+        <button onClick={() => screen === 'setup' ? onClose() : backToSetup()} style={{ background: 'none', border: 'none', color: 'var(--text)', fontSize: 22, cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>←</button>
         <div style={{ flex: 1, fontSize: 13, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase' }}>
           <span style={{ color: 'var(--green)' }}>TIMER</span>
         </div>
@@ -394,6 +420,13 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
           }}>
             Démarrer →
           </button>
+        </div>
+      ) : screen === 'countdown' ? (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, gap: 10 }}>
+          <div style={{ fontSize: 13, color: 'var(--green)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>PRÊT ?</div>
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 96, fontWeight: 700, color: 'var(--green)', margin: '10px 0' }}>
+            {preCountdown}
+          </div>
         </div>
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20, gap: 10 }}>

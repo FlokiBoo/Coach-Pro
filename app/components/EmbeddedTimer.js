@@ -58,12 +58,15 @@ function useBeeper() {
   return { beep, speak, unlock: getCtx }
 }
 
+const PRE_START_SECONDS = 10
+
 // Timer qui se lance automatiquement à partir d'une config déjà décidée par le coach (pas d'écran
 // de réglage) — pensé pour être embarqué dans SplitTimerSession, jamais démonté pendant qu'il
 // tourne (sinon le chrono perdrait son état), donc pas de position fixed ici : c'est au parent de
 // gérer la mise en page.
 export default function EmbeddedTimer({ config, label }) {
-  const [running, setRunning] = useState(true)
+  const [running, setRunning] = useState(false)
+  const [preCountdown, setPreCountdown] = useState(PRE_START_SECONDS)
   const [, forceTick] = useState(0)
   const elapsedBaseRef = useRef(0)
   const runStartRef = useRef(null)
@@ -72,11 +75,31 @@ export default function EmbeddedTimer({ config, label }) {
   const prevRoundRef = useRef(null)
   const { beep, speak, unlock } = useBeeper()
 
-  useEffect(() => {
+  const beginRun = () => {
+    unlock()
     runStartRef.current = Date.now()
+    setRunning(true)
+  }
+
+  useEffect(() => {
     unlock()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Décompte de préparation de 10s (bip chaque seconde) avant que le chrono ne démarre vraiment.
+  useEffect(() => {
+    if (preCountdown === null) return
+    if (preCountdown <= 0) {
+      setPreCountdown(null)
+      beep(1300, 0.25, 0.45)
+      beginRun()
+      return
+    }
+    beep(700, 0.08)
+    const id = setTimeout(() => setPreCountdown(c => c - 1), 1000)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preCountdown])
 
   useEffect(() => {
     if (!running) return
@@ -180,6 +203,18 @@ export default function EmbeddedTimer({ config, label }) {
   }, [state.phaseKey, running])
 
   const accent = (config.type === 'TABATA' || config.type === 'CUSTOM') && state.isWork === false ? '#1D4ED8' : 'var(--green)'
+
+  if (preCountdown !== null) {
+    return (
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, gap: 8, background: 'var(--bg2)' }}>
+        {label && <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)' }}>{label}</div>}
+        <div style={{ fontSize: 13, color: 'var(--green)', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>PRÊT ?</div>
+        <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 56, fontWeight: 700, color: 'var(--green)', margin: '4px 0' }}>
+          {preCountdown}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, gap: 8, background: 'var(--bg2)' }}>
