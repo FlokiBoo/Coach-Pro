@@ -65,6 +65,8 @@ export default function GoniometerView({ athleteId, onClose }) {
   const startTimerRef = useRef(null)
   const lockTimerRef = useRef(null)
   const testReadyRef = useRef(false)
+  const readyBaselineRef = useRef(0)
+  const hasMovedRef = useRef(false)
 
   const test = ALL_TESTS[testIndex]
 
@@ -110,6 +112,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     clearLockTimer()
     resetStability()
     testReadyRef.current = false
+    hasMovedRef.current = false
     let remaining = START_COUNTDOWN_SECONDS
     setStartCountdown(remaining)
     beep(660, 0.1); vibrate('light')
@@ -117,6 +120,10 @@ export default function GoniometerView({ athleteId, onClose }) {
       remaining -= 1
       if (remaining <= 0) {
         clearStartTimer()
+        // Le goniomètre se met à 0 sur la position tenue à la fin du décompte de départ (position
+        // neutre) — l'amplitude mesurée ensuite part bien de zéro, pas de l'angle brut du capteur.
+        readyBaselineRef.current = liveRawRef.current
+        setZeroOffset(liveRawRef.current)
         testReadyRef.current = true
         beep(1000, 0.25); vibrate('medium')
       } else {
@@ -146,6 +153,14 @@ export default function GoniometerView({ athleteId, onClose }) {
       setLiveRaw(raw)
 
       if (!testReadyRef.current) return
+
+      // Le verrouillage ne peut s'armer qu'après un vrai mouvement depuis la position neutre
+      // (zéro) — sinon la première lecture après le décompte de départ est déjà "stable" (on n'a
+      // pas encore bougé) et le goniomètre se verrouillerait instantanément à 0°.
+      if (!hasMovedRef.current) {
+        if (Math.abs(angleDiff(raw, readyBaselineRef.current)) > STABLE_RANGE) hasMovedRef.current = true
+        return
+      }
 
       const st = stableRef.current
       if (st.value == null || Math.abs(raw - st.value) > STABLE_RANGE) {
@@ -214,7 +229,13 @@ export default function GoniometerView({ athleteId, onClose }) {
 
   const calibration = getCalibration(test?.joint, test?.name)
 
-  const calibrateZero = () => setZeroOffset(liveRawRef.current)
+  const calibrateZero = () => {
+    setZeroOffset(liveRawRef.current)
+    readyBaselineRef.current = liveRawRef.current
+    hasMovedRef.current = false
+    resetStability()
+    clearLockTimer()
+  }
 
   const canSave = mode === 'sensor' ? true : photoAngle != null
 
@@ -466,7 +487,7 @@ export default function GoniometerView({ athleteId, onClose }) {
                 <button onClick={calibrateZero} style={{ flex: 1, padding: '13px 10px', borderRadius: 10, border: '1px solid #3FC1B0', background: 'transparent', color: '#3FC1B0', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Zéro ici
                 </button>
-                <button onClick={() => { setZeroOffset(0); setPaused(false); resetStability() }} style={{ flex: 1, padding: '13px 10px', borderRadius: 10, border: '1px solid #2A3140', background: 'transparent', color: '#7C8493', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
+                <button onClick={() => { setZeroOffset(0); setPaused(false); readyBaselineRef.current = 0; hasMovedRef.current = false; resetStability(); clearLockTimer() }} style={{ flex: 1, padding: '13px 10px', borderRadius: 10, border: '1px solid #2A3140', background: 'transparent', color: '#7C8493', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   Reset zéro
                 </button>
               </div>
