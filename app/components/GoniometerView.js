@@ -5,7 +5,8 @@ import { Ruler, Camera, Prohibit, CheckCircle, DeviceMobile, Warning } from '@ph
 import { supabase } from '@/lib/supabase'
 import { JOINT_TESTS } from '@/lib/jointTests'
 import { beep, unlockAudio } from '@/lib/audioBeep'
-import { vibrate } from '@/lib/vibrate'
+import { vibrate, vibrateTriple } from '@/lib/vibrate'
+import { speak, unlockSpeech } from '@/lib/speak'
 import { getCalibration } from '@/lib/goniometerCalibration'
 import PhotoAngleCapture from './PhotoAngleCapture'
 
@@ -96,7 +97,7 @@ export default function GoniometerView({ athleteId, onClose }) {
       remaining -= 1
       if (remaining <= 0) {
         clearLockTimer()
-        beep(1300, 0.3); vibrate('heavy')
+        beep(1300, 0.3); vibrateTriple(); speak('Stop')
         setPaused(true)
         setAutoPaused(true)
       } else {
@@ -126,7 +127,7 @@ export default function GoniometerView({ athleteId, onClose }) {
         readyBaselineRef.current = liveRawRef.current
         setZeroOffset(liveRawRef.current)
         testReadyRef.current = true
-        beep(1000, 0.25); vibrate('medium')
+        beep(1000, 0.25); vibrateTriple(); speak('Go')
       } else {
         setStartCountdown(remaining)
         beep(660, 0.1); vibrate('light')
@@ -152,6 +153,7 @@ export default function GoniometerView({ athleteId, onClose }) {
 
   const handleStart = () => {
     unlockAudio()
+    unlockSpeech()
     setStarted(true)
     beginStartCountdown()
   }
