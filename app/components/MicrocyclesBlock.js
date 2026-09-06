@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   ArrowsClockwise, SquaresFour, Lightning, PencilSimple, PushPin, UsersThree, Package, Trash,
-  Barbell, CheckCircle,
+  Barbell, CheckCircle, Repeat,
 } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
@@ -32,6 +32,7 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
   const [assigning, setAssigning] = useState(false)
   const [assignDone, setAssignDone] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
+  const [completedSessionIds, setCompletedSessionIds] = useState(new Set())
 
   useEffect(() => { load() }, [athleteId])
 
@@ -47,16 +48,25 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
   }, [assignModal])
 
   async function load() {
-    const { data } = await supabase
-      .from('programs')
-      .select('*, program_sessions(id, title, order_index)')
-      .eq('athlete_id', athleteId)
-      .order('created_at', { ascending: false })
+    const [{ data }, { data: completions }] = await Promise.all([
+      supabase
+        .from('programs')
+        .select('*, program_sessions(id, title, order_index)')
+        .eq('athlete_id', athleteId)
+        .order('created_at', { ascending: false }),
+      supabase.from('program_completions').select('program_session_id').eq('athlete_id', athleteId),
+    ])
+    const completedIds = new Set((completions || []).map(c => c.program_session_id))
     const progs = (data || []).map(p => ({
       ...p,
       sessions: [...(p.program_sessions || [])].sort((a, b) => a.order_index - b.order_index)
     }))
+    // Un programme récurrent (ex: "Avant-Match" chaque semaine) se retrouve en haut, avec sa
+    // prochaine séance visible sans avoir à déplier — retour terrain : trop de clics pour un
+    // programme qu'on relance sans arrêt.
+    progs.sort((a, b) => (b.is_recurrent === true) - (a.is_recurrent === true))
     setPrograms(progs)
+    setCompletedSessionIds(completedIds)
   }
 
   async function createFreeSession() {
@@ -124,6 +134,17 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
     const next = p.pinned_board === false ? true : false
     await supabase.from('programs').update({ pinned_board: next }).eq('id', p.id)
     setPrograms(prev => prev.map(x => x.id === p.id ? { ...x, pinned_board: next } : x))
+  }
+
+  async function toggleRecurrent(p) {
+    const next = !p.is_recurrent
+    const { error } = await supabase.from('programs').update({ is_recurrent: next }).eq('id', p.id)
+    if (error) { alert("Cette version n'est pas encore déployée, réessaie dans quelques minutes."); return }
+    setPrograms(prev => {
+      const updated = prev.map(x => x.id === p.id ? { ...x, is_recurrent: next } : x)
+      updated.sort((a, b) => (b.is_recurrent === true) - (a.is_recurrent === true))
+      return updated
+    })
   }
 
   async function toggleArchived(p) {
@@ -328,6 +349,9 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
       {programs.filter(p => !p.archived).map((prog, pi) => {
         const isOpen = expandedId === prog.id
         const isRenaming = renamingId === prog.id
+        const nextSession = prog.is_recurrent
+          ? prog.sessions.find(s => !completedSessionIds.has(s.id))
+          : null
 
         return (
           <div key={prog.id} style={{ borderTop: '1px solid var(--border)' }}>
@@ -374,6 +398,11 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                 title={prog.pinned_board === false ? 'Afficher dans le tableau de bord côte à côte' : 'Masquer du tableau de bord côte à côte'}
                 style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: prog.pinned_board === false ? 'var(--text3)' : 'var(--green)', padding: '0 2px', flexShrink: 0 }}
               ><PushPin size={13} weight={prog.pinned_board === false ? 'regular' : 'fill'} /></button>
+              <button
+                onClick={e => { e.stopPropagation(); toggleRecurrent(prog) }}
+                title={prog.is_recurrent ? 'Retirer des programmes récurrents' : 'Marquer comme programme récurrent'}
+                style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: prog.is_recurrent ? 'var(--green)' : 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
+              ><Repeat size={13} weight={prog.is_recurrent ? 'bold' : 'regular'} /></button>
               {allAthletes.length > 0 && (
                 <button
                   onClick={e => { e.stopPropagation(); openAssign(prog) }}
@@ -391,6 +420,32 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                 style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}
               ><Trash size={14} /></button>
             </div>
+
+            {/* Prochaine séance du programme récurrent, visible sans déplier */}
+            {prog.is_recurrent && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 14px 11px 36px' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', background: 'var(--green-light)', border: '1px solid #B8EAD8', borderRadius: 20, padding: '2px 8px', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                  <Repeat size={11} weight="bold" /> Récurrent
+                </span>
+                {nextSession ? (
+                  <>
+                    <span style={{ flex: 1, fontSize: 13, color: 'var(--text2)' }}>
+                      Prochaine séance : <strong>{nextSession.title}</strong>
+                    </span>
+                    {athleteToken && (
+                      <Link
+                        href={`/s/${athleteToken}?coach=1&session=${nextSession.id}&focus=1`}
+                        onClick={e => e.stopPropagation()}
+                        title="Lancer cette séance (coaching)"
+                        style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--green)', padding: '2px 4px', flexShrink: 0, textDecoration: 'none' }}
+                      ><Barbell size={16} /></Link>
+                    )}
+                  </>
+                ) : (
+                  <span style={{ flex: 1, fontSize: 13, color: 'var(--text3)' }}>Toutes les séances ont été faites</span>
+                )}
+              </div>
+            )}
 
             {/* Séances */}
             {isOpen && (
