@@ -384,7 +384,7 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
-            }}><ClipboardText size={16} /> Templates</Link>
+            }}><ClipboardText size={16} /> Programmes</Link>
             <Link href="/metrics" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
