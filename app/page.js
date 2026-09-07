@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Warning, Lightbulb, ClipboardText, Barbell, PersonSimpleRun, Bell, CalendarBlank, Backpack, Plus, X } from '@phosphor-icons/react'
+import { User, Warning, Lightbulb, ClipboardText, Barbell, PersonSimpleRun, Bell, CalendarBlank, Backpack, Plus, X, UsersThree } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -53,6 +53,7 @@ export default function Home() {
   const [suggestionBusy, setSuggestionBusy] = useState(null) // id being accepted/rejected
   const [tomorrowPlan, setTomorrowPlan] = useState(null)
   const [showAddCoaching, setShowAddCoaching] = useState(false)
+  const [groups, setGroups] = useState([])
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -73,7 +74,7 @@ export default function Home() {
       }
       setCoachId(me.id)
 
-      const [{ data: aths }, { data: sessions }, { data: progComps }, { data: actValidated }, { data: coachingPlan }] = await Promise.all([
+      const [{ data: aths }, { data: sessions }, { data: progComps }, { data: actValidated }, { data: coachingPlan }, { data: myGroups }] = await Promise.all([
         supabase.from('athletes').select('*').neq('archived', true).order('created_at'),
         supabase
           .from('sessions')
@@ -91,16 +92,29 @@ export default function Home() {
           .not('validated_at', 'is', null)
           .order('validated_at', { ascending: false })
           .limit(40),
-        supabase
-          .from('coaching_schedule')
-          .select('id, athlete_id, athletes(id, name), program_sessions(id, title, materiel, programs(title))')
-          .eq('coach_id', me.id)
-          .eq('date', tomorrow())
-          .order('created_at'),
+        // group_id/groups() pas encore migrés en base tant que le SQL n'a pas tourné : retombe sur
+        // le select d'origine (sans groupe) plutôt que de faire planter tout le chargement du dashboard.
+        (async () => {
+          const res = await supabase
+            .from('coaching_schedule')
+            .select('id, athlete_id, group_id, athletes(id, name), groups(id, name), program_sessions(id, title, materiel, programs(title))')
+            .eq('coach_id', me.id)
+            .eq('date', tomorrow())
+            .order('created_at')
+          if (!res.error) return res
+          return supabase
+            .from('coaching_schedule')
+            .select('id, athlete_id, athletes(id, name), program_sessions(id, title, materiel, programs(title))')
+            .eq('coach_id', me.id)
+            .eq('date', tomorrow())
+            .order('created_at')
+        })(),
+        supabase.from('groups').select('id, name').order('name'),
       ])
       const athList = aths || []
       setTomorrowPlan(coachingPlan || [])
       setAthletes(athList)
+      setGroups(myGroups || [])
 
       const progSessionIds = (progComps || []).flatMap(c => (c.program_sessions?.program_exercises || []).map(e => e.id))
       const { data: progLogs } = progSessionIds.length
@@ -224,12 +238,15 @@ export default function Home() {
     setSaving(false)
   }
 
-  const addCoachingEntry = async (athleteId, programSessionId) => {
-    const { data, error } = await supabase
-      .from('coaching_schedule')
-      .insert({ coach_id: coachId, athlete_id: athleteId, program_session_id: programSessionId, date: tomorrow() })
-      .select('id, athlete_id, athletes(id, name), program_sessions(id, title, materiel, programs(title))')
-      .single()
+  const addCoachingEntry = async ({ athleteId, groupId, sessionId }) => {
+    const payload = { coach_id: coachId, athlete_id: athleteId || null, group_id: groupId || null, program_session_id: sessionId, date: tomorrow() }
+    const selectStr = 'id, athlete_id, group_id, athletes(id, name), groups(id, name), program_sessions(id, title, materiel, programs(title))'
+    let { data, error } = await supabase.from('coaching_schedule').insert(payload).select(selectStr).single()
+    if (error?.message?.includes('group_id')) {
+      // Colonne group_id pas encore migrée en base : réessaie sans (coaching individuel classique
+      // continue de fonctionner pendant que la migration groupe n'est pas encore passée).
+      ;({ data, error } = await supabase.from('coaching_schedule').insert({ ...payload, group_id: undefined }).select(selectStr).single())
+    }
     if (error) { alert('Erreur : ' + error.message); return }
     setTomorrowPlan(prev => [...(prev || []), data])
     setShowAddCoaching(false)
@@ -452,7 +469,10 @@ export default function Home() {
                     <div key={entry.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontWeight: 700, fontSize: 13 }}>{entry.athletes?.name || '—'}</div>
+                          <div style={{ fontWeight: 700, fontSize: 13, display: 'flex', alignItems: 'center', gap: 5 }}>
+                            {entry.group_id && <UsersThree size={13} style={{ flexShrink: 0, color: 'var(--text3)' }} />}
+                            {entry.athletes?.name || entry.groups?.name || '—'}
+                          </div>
                           <div style={{ fontSize: 12, color: 'var(--text3)' }}>
                             {entry.program_sessions?.title || 'Séance'}
                             {entry.program_sessions?.programs?.title ? ` · ${entry.program_sessions.programs.title}` : ''}
@@ -479,6 +499,7 @@ export default function Home() {
           {showAddCoaching && (
             <AddCoachingModal
               athletes={athletes.filter(a => !a.is_coach)}
+              groups={groups}
               onClose={() => setShowAddCoaching(false)}
               onAdd={addCoachingEntry}
             />
@@ -952,16 +973,21 @@ const selectStyle = {
   borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
 }
 
-function AddCoachingModal({ athletes, onClose, onAdd }) {
+function AddCoachingModal({ athletes, groups, onClose, onAdd }) {
+  const [mode, setMode] = useState('athlete') // 'athlete' | 'group'
   const [athleteId, setAthleteId] = useState('')
   const [athleteSearch, setAthleteSearch] = useState('')
+  const [groupId, setGroupId] = useState('')
+  const [groupSearch, setGroupSearch] = useState('')
   const [sessionId, setSessionId] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const switchMode = (m) => { setMode(m); setAthleteId(''); setGroupId(''); setSessionId(''); setAthleteSearch(''); setGroupSearch('') }
+
   const confirm = async () => {
-    if (!athleteId || !sessionId) return
+    if (mode === 'athlete' ? (!athleteId || !sessionId) : (!groupId || !sessionId)) return
     setSaving(true)
-    await onAdd(athleteId, sessionId)
+    await onAdd(mode === 'athlete' ? { athleteId, sessionId } : { groupId, sessionId })
     setSaving(false)
   }
 
@@ -969,6 +995,11 @@ function AddCoachingModal({ athletes, onClose, onAdd }) {
   const filteredAthletes = athleteSearch.trim()
     ? athletes.filter(a => a.name.toLowerCase().includes(athleteSearch.trim().toLowerCase()))
     : athletes
+
+  const selectedGroup = groups.find(g => g.id === groupId)
+  const filteredGroups = groupSearch.trim()
+    ? groups.filter(g => g.name.toLowerCase().includes(groupSearch.trim().toLowerCase()))
+    : groups
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -978,44 +1009,95 @@ function AddCoachingModal({ athletes, onClose, onAdd }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
         </div>
 
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Sportif</div>
-          {selectedAthlete ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 'var(--r)', border: '1px solid var(--border2)', background: 'var(--bg2)' }}>
-              <span style={{ flex: 1, fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{selectedAthlete.name}</span>
-              <button onClick={() => { setAthleteId(''); setSessionId(''); setAthleteSearch('') }} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                Changer
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* Retour terrain : avec beaucoup de sportifs, faire défiler une longue liste
-                  déroulante est pénible — taper pour filtrer est plus rapide. */}
-              <input
-                value={athleteSearch}
-                onChange={e => setAthleteSearch(e.target.value)}
-                placeholder="Rechercher un sportif…"
-                autoFocus
-                style={selectStyle}
-              />
-              <div style={{ maxHeight: 200, overflowY: 'auto', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {filteredAthletes.length === 0 ? (
-                  <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 4px' }}>Aucun sportif trouvé.</div>
-                ) : filteredAthletes.map(a => (
-                  <button key={a.id} onClick={() => { setAthleteId(a.id); setSessionId('') }} style={{
-                    textAlign: 'left', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)',
-                    background: 'var(--bg2)', color: 'var(--text)', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                  }}>
-                    {a.name}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
+        <div style={{ display: 'flex', border: '1px solid var(--border2)', borderRadius: 'var(--rl)', padding: 3 }}>
+          {[{ key: 'athlete', label: 'Individuel' }, { key: 'group', label: 'Groupe' }].map(t => (
+            <button key={t.key} onClick={() => switchMode(t.key)} style={{
+              flex: 1, padding: '8px 0', border: 'none', borderRadius: 'var(--r)', cursor: 'pointer',
+              fontSize: 13, fontWeight: 700, background: mode === t.key ? 'var(--green)' : 'none',
+              color: mode === t.key ? '#fff' : 'var(--text3)',
+            }}>
+              {t.label}
+            </button>
+          ))}
         </div>
 
-        {athleteId && (
+        {mode === 'athlete' ? (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Sportif</div>
+            {selectedAthlete ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 'var(--r)', border: '1px solid var(--border2)', background: 'var(--bg2)' }}>
+                <span style={{ flex: 1, fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{selectedAthlete.name}</span>
+                <button onClick={() => { setAthleteId(''); setSessionId(''); setAthleteSearch('') }} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  Changer
+                </button>
+              </div>
+            ) : (
+              <>
+                {/* Retour terrain : avec beaucoup de sportifs, faire défiler une longue liste
+                    déroulante est pénible — taper pour filtrer est plus rapide. */}
+                <input
+                  value={athleteSearch}
+                  onChange={e => setAthleteSearch(e.target.value)}
+                  placeholder="Rechercher un sportif…"
+                  autoFocus
+                  style={selectStyle}
+                />
+                <div style={{ maxHeight: 200, overflowY: 'auto', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {filteredAthletes.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 4px' }}>Aucun sportif trouvé.</div>
+                  ) : filteredAthletes.map(a => (
+                    <button key={a.id} onClick={() => { setAthleteId(a.id); setSessionId('') }} style={{
+                      textAlign: 'left', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)',
+                      background: 'var(--bg2)', color: 'var(--text)', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                    }}>
+                      {a.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Groupe</div>
+            {selectedGroup ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 'var(--r)', border: '1px solid var(--border2)', background: 'var(--bg2)' }}>
+                <span style={{ flex: 1, fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{selectedGroup.name}</span>
+                <button onClick={() => { setGroupId(''); setSessionId(''); setGroupSearch('') }} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                  Changer
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  value={groupSearch}
+                  onChange={e => setGroupSearch(e.target.value)}
+                  placeholder="Rechercher un groupe…"
+                  autoFocus
+                  style={selectStyle}
+                />
+                <div style={{ maxHeight: 200, overflowY: 'auto', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {filteredGroups.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 4px' }}>Aucun groupe trouvé.</div>
+                  ) : filteredGroups.map(g => (
+                    <button key={g.id} onClick={() => { setGroupId(g.id); setSessionId('') }} style={{
+                      textAlign: 'left', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)',
+                      background: 'var(--bg2)', color: 'var(--text)', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                    }}>
+                      {g.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {mode === 'athlete' && athleteId && (
           <ProgramSessionPicker key={athleteId} athleteId={athleteId} sessionId={sessionId} onSelectSession={setSessionId} />
+        )}
+        {mode === 'group' && groupId && (
+          <GroupSessionPicker key={groupId} groupId={groupId} sessionId={sessionId} onSelectSession={setSessionId} />
         )}
 
         <button onClick={confirm} disabled={!sessionId || saving} style={{
@@ -1083,5 +1165,46 @@ function ProgramSessionPicker({ athleteId, sessionId, onSelectSession }) {
         </div>
       )}
     </>
+  )
+}
+
+// Un groupe a des séances via deux chemins possibles (cf. app/groups/[groupId]/page.js et
+// leader-groups/route.js) : un programme direct (programs.group_id, is_microcycle=false) et/ou
+// des modèles réutilisables liés via group_program_templates. On les réunit dans une seule liste.
+function GroupSessionPicker({ groupId, sessionId, onSelectSession }) {
+  const [sessions, setSessions] = useState(null)
+
+  useEffect(() => {
+    async function load() {
+      const [{ data: directProgs }, { data: templates }] = await Promise.all([
+        supabase.from('programs')
+          .select('id, program_sessions(id, title, order_index)')
+          .eq('group_id', groupId).eq('is_microcycle', false).is('athlete_id', null)
+          .order('created_at', { ascending: false }).limit(1),
+        supabase.from('group_program_templates')
+          .select('programs(program_sessions(id, title, order_index))')
+          .eq('group_id', groupId),
+      ])
+      const direct = directProgs?.[0]?.program_sessions || []
+      const linked = (templates || []).flatMap(t => t.programs?.program_sessions || [])
+      setSessions([...direct, ...linked].sort((a, b) => a.order_index - b.order_index))
+    }
+    load()
+  }, [groupId])
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Séance à coacher</div>
+      {sessions === null ? (
+        <div style={{ fontSize: 13, color: 'var(--text3)' }}>Chargement…</div>
+      ) : sessions.length === 0 ? (
+        <div style={{ fontSize: 13, color: 'var(--text3)' }}>Ce groupe n&apos;a aucune séance.</div>
+      ) : (
+        <select value={sessionId} onChange={e => onSelectSession(e.target.value)} style={selectStyle}>
+          <option value="">Choisir une séance…</option>
+          {sessions.map(s => <option key={s.id} value={s.id}>{s.title || 'Séance sans titre'}</option>)}
+        </select>
+      )}
+    </div>
   )
 }
