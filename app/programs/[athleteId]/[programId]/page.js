@@ -18,7 +18,7 @@ import ActivityTypeSelect from '@/app/components/ActivityTypeSelect'
 import { notifyAssigned } from '@/lib/notify'
 import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerConfigEditor'
 import {
-  ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat,
+  ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat, Warning,
   VideoCamera, Lightbulb, Target, ChartLineUp, Backpack, FloppyDisk, Lightning,
 } from '@phosphor-icons/react'
 
@@ -373,6 +373,18 @@ function ProgramEditorPage({ params }) {
     if (!isTemplate) return
     supabase.from('programs').select('id, title').eq('is_template', true).neq('id', programId).order('title')
       .then(({ data }) => setOtherTemplates(data || []))
+  }, [isTemplate, programId])
+
+  // Sportifs ayant une copie de ce template (source_program_id) — sert au bandeau "suivi par N
+  // sportifs" et à la liste de destinataires quand le coach lance la synchro.
+  const [followers, setFollowers] = useState([])
+  const [syncing, setSyncing] = useState(false)
+  const [notifyOnSync, setNotifyOnSync] = useState(false)
+
+  useEffect(() => {
+    if (!isTemplate) return
+    supabase.from('programs').select('id, athlete_id, athletes(name)').eq('source_program_id', programId)
+      .then(({ data }) => setFollowers(data || []))
   }, [isTemplate, programId])
 
   useEffect(() => {
@@ -906,11 +918,50 @@ function ProgramEditorPage({ params }) {
       await supabase.from('movements').upsert(toInsert.map(e => ({ name: e.name })), { onConflict: 'name', ignoreDuplicates: true })
     }
 
-    await propagateSessionToClients(sessId, s.order_index ?? 0, sessFields, toInsert)
+    // Ne pousse plus automatiquement chez les sportifs qui suivent ce template : la modification
+    // reste "en attente" (needs_sync) jusqu'à ce que le coach clique "Lancer la synchro" — voir
+    // runSync ci-dessous. Avant, propagateSessionToClients partait tout seul à chaque sauvegarde,
+    // sans que le coach s'en rende compte ni puisse prévenir les sportifs concernés.
+    if (isTemplate && followers.length > 0) {
+      await supabase.from('program_sessions').update({ needs_sync: true }).eq('id', sessId)
+      setSessions(prev => prev.map(sess => sess.id === sessId ? { ...sess, needs_sync: true } : sess))
+    }
 
     setDirtySessionIds(prev => { const next = new Set(prev); next.delete(sessId); return next })
     setSavedIds(prev => new Set(prev).add(sessId))
     setTimeout(() => setSavedIds(prev => { const next = new Set(prev); next.delete(sessId); return next }), 2000)
+  }
+
+  const runSync = async () => {
+    setSyncing(true)
+    const pending = sessions.filter(s => s.needs_sync)
+    for (const s of pending) {
+      const sessFields = {
+        title: s.title || '', activation: s.activation || null,
+        coach_notes: s.coach_notes || null, activation_videos: s.activation_videos || [],
+        circuits: s.circuits || [], session_type: s.session_type || null,
+        materiel: s.materiel || null, day_of_week: s.day_of_week ?? null, hidden_until_run: !!s.hidden_until_run,
+      }
+      const exos = s.exercises.filter(e => e.name.trim()).map((e, j) => ({
+        order_index: j, name: e.name.trim(),
+        sets: e.sets !== '' ? parseInt(e.sets) : null, reps: e.reps || null,
+        kg: e.kg !== '' && !isNaN(parseFloat(e.kg)) ? parseFloat(e.kg) : null,
+        rest: e.rest || null, note: e.note || null, video_url: e.video_url || null,
+        superset_group: e.superset_group || null, focus_muscles: e.focus_muscles || null,
+        pace_base: e.pace_base || null,
+        pct_low: e.pct_low !== '' && e.pct_low != null ? parseFloat(e.pct_low) : null,
+        pct_high: e.pct_high !== '' && e.pct_high != null ? parseFloat(e.pct_high) : null,
+        timer_config: e.timer_config || null,
+      }))
+      await propagateSessionToClients(s.id, s.order_index ?? 0, sessFields, exos)
+      await supabase.from('program_sessions').update({ needs_sync: false }).eq('id', s.id)
+    }
+    setSessions(prev => prev.map(s => s.needs_sync ? { ...s, needs_sync: false } : s))
+
+    if (notifyOnSync && followers.length > 0) {
+      await notifyAssigned({ athleteIds: followers.map(f => f.athlete_id), kind: 'program_updated', title: program?.title || 'Programme' })
+    }
+    setSyncing(false)
   }
 
   // Sauvegarde la séance cliquée et, avec elle, toutes les autres séances qui ont des
@@ -1413,6 +1464,39 @@ function ProgramEditorPage({ params }) {
                 )}
               </div>
             ))}
+          </div>
+        )}
+
+        {isTemplate && followers.length > 0 && (
+          <div style={{ margin: '12px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', fontSize: 13 }}>
+              <Warning size={16} style={{ flexShrink: 0 }} />
+              Ce programme est actuellement suivi par {followers.length} sportif{followers.length > 1 ? 's' : ''}.
+            </div>
+
+            {sessions.some(s => s.needs_sync) && (
+              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 13, color: 'var(--text2)' }}>
+                  Une séance a été modifiée après que des sportifs ont programmé ce programme :
+                  <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                    {sessions.filter(s => s.needs_sync).map(s => (
+                      <li key={s.id} style={{ fontWeight: 600 }}>{s.title || 'Séance sans titre'}</li>
+                    ))}
+                  </ul>
+                </div>
+                <button onClick={runSync} disabled={syncing} style={{
+                  alignSelf: 'flex-start', background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 'var(--r)',
+                  padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  {syncing ? 'Synchronisation…' : '⟳ Lancer la synchro'}
+                </button>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text3)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={notifyOnSync} onChange={e => setNotifyOnSync(e.target.checked)}
+                    style={{ accentColor: 'var(--green)', width: 15, height: 15 }} />
+                  Envoyer une notification aux sportifs concernés
+                </label>
+              </div>
+            )}
           </div>
         )}
 
