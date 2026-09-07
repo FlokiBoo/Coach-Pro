@@ -6,6 +6,7 @@ Tâches identifiées mais pas encore traitées, à reprendre en session.
 - [ ] **Améliorer le goniomètre** (mesure d'angle par photo, `app/movements` ou équivalent) — priorité annoncée le 2026-09-03.
 
 ## Backlog
+- [ ] Renommer "Force par muscle" (`app/components/ForceRadarBlock.js`) — l'utilisateur veut changer ce nom, nouveau nom à préciser.
 - [ ] Réduire la liste des PR dans l'onglet Records (`app/components/TrackedMovementsBlock.js`) — quoi exactement à préciser avec l'utilisateur (moins de mouvements par défaut ? suppression de mouvements précis ? moins de catégories ?).
 - [ ] Champ "sexe" : proposer plus d'options que H/F ; si l'athlète ne se reconnaît pas dans ces deux, lui demander explicitement quel jeu de standards (badges force/cardio, actuellement indexés H/F dans `lib/badges.js`/`lib/cardioBadges.js`) utiliser pour ses résultats. Décision de modèle de données à prendre avant de commencer.
 - [ ] Avant de connecter l'assistant IA (`app/api/ai/chat`) ou le générateur de repas (`lib/mealPlanner.js`) à un vrai backend IA : ajouter un rate limiting (remonté en revue sécurité pré-lancement, endpoint à coût si non protégé).
