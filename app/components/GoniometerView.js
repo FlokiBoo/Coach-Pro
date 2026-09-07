@@ -60,6 +60,8 @@ export default function GoniometerView({ athleteId, onClose }) {
   const [started, setStarted] = useState(false)
   const [startCountdown, setStartCountdown] = useState(null)
   const [lockCountdown, setLockCountdown] = useState(null)
+  const [debugMode, setDebugMode] = useState(false)
+  const [rawValues, setRawValues] = useState({ alpha: null, beta: null, gamma: null })
   const liveRawRef = useRef(0)
   const pausedRef = useRef(false)
   const photoRef = useRef(null)
@@ -170,6 +172,9 @@ export default function GoniometerView({ athleteId, onClose }) {
     if (permissionState !== 'granted' || mode !== 'sensor') return
     const STABLE_RANGE = 5 // °
     const handler = (e) => {
+      // Toujours mis à jour, même en pause/verrouillé — le mode debug sert justement à observer
+      // les 3 axes bruts en continu pour identifier lequel correspond au mouvement réel.
+      setRawValues({ alpha: e.alpha, beta: e.beta, gamma: e.gamma })
       if (pausedRef.current) return
       const raw = axis === 'beta' ? e.beta : axis === 'gamma' ? e.gamma : e.alpha
       if (raw == null) return
@@ -403,7 +408,41 @@ export default function GoniometerView({ athleteId, onClose }) {
                 <m.Icon size={13} /> {m.label}
               </button>
             ))}
+            {mode === 'sensor' && (
+              <button onClick={() => setDebugMode(v => !v)} title="Affiche les 3 valeurs brutes du capteur, pour calibrer un nouveau test" style={{
+                padding: '9px 10px', borderRadius: 8, border: `1px solid ${debugMode ? '#F2A93B' : '#2A3140'}`,
+                background: debugMode ? 'rgba(242,169,59,0.08)' : '#161B22', color: debugMode ? '#F2A93B' : '#7C8493',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0,
+              }}>
+                🐛
+              </button>
+            )}
           </div>
+
+          {mode === 'sensor' && debugMode && (
+            <div style={{ margin: '0 20px 10px', padding: '10px 12px', borderRadius: 8, border: '1px solid #F2A93B', background: '#161B22' }}>
+              <div style={{ fontSize: 10, color: '#F2A93B', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+                Mode debug — valeurs brutes du capteur
+              </div>
+              <div style={{ display: 'flex', gap: 10, fontFamily: "'IBM Plex Mono', monospace", fontSize: 15, fontWeight: 700 }}>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ color: '#7C8493', fontSize: 10, fontWeight: 500 }}>Sagittal (beta)</div>
+                  {rawValues.beta != null ? rawValues.beta.toFixed(1) : '—'}
+                </div>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ color: '#7C8493', fontSize: 10, fontWeight: 500 }}>Frontal (gamma)</div>
+                  {rawValues.gamma != null ? rawValues.gamma.toFixed(1) : '—'}
+                </div>
+                <div style={{ flex: 1, textAlign: 'center' }}>
+                  <div style={{ color: '#7C8493', fontSize: 10, fontWeight: 500 }}>Rotation (alpha)</div>
+                  {rawValues.alpha != null ? rawValues.alpha.toFixed(1) : '—'}
+                </div>
+              </div>
+              <div style={{ fontSize: 10.5, color: '#7C8493', marginTop: 8, lineHeight: 1.4 }}>
+                Bouge le membre en position neutre puis en fin d&apos;amplitude, note les 3 valeurs à chaque fois — celle qui varie le plus proprement est le bon axe à calibrer.
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 8, padding: '0 20px 10px' }}>
             {['D', 'G'].map(sd => (
