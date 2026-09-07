@@ -270,13 +270,24 @@ export default function ProgramsPage() {
               const href = p.athlete_id ? `/programs/${p.athlete_id}/${p.id}` : `/programs/templates/${p.id}`
               return (
                 <div key={p.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-                  <Link href={href} style={{ display: 'block', padding: '14px 16px', textDecoration: 'none', color: 'inherit' }}>
-                    <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{p.title}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10, alignItems: 'center' }}>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{p.athlete_id ? <><User size={11} /> {p.athletes?.name || '—'}</> : <><ClipboardText size={11} /> Template</>}</span>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={11} /> {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}</span>
-                      {p.activity_type && <span style={{ color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Tag size={11} /> {p.activity_type}</span>}
-                      {p.available_to_clients && <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓ Disponible sportifs</span>}
+                  <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', textDecoration: 'none', color: 'inherit' }}>
+                    <div style={{
+                      width: 44, height: 44, flexShrink: 0, borderRadius: 'var(--r)',
+                      background: p.available_to_clients ? 'var(--green-light)' : 'var(--bg2)',
+                      border: `1px solid ${p.available_to_clients ? '#B8EAD8' : 'var(--border2)'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      color: p.available_to_clients ? 'var(--green)' : 'var(--text3)',
+                    }}>
+                      <ClipboardText size={20} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{p.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{p.athlete_id ? <><User size={11} /> {p.athletes?.name || '—'}</> : <><ClipboardText size={11} /> Template</>}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={11} /> {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}</span>
+                        {p.activity_type && <span style={{ color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Tag size={11} /> {p.activity_type}</span>}
+                        {p.available_to_clients && <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓ Disponible sportifs</span>}
+                      </div>
                     </div>
                   </Link>
                   <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
