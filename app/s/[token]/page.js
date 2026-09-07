@@ -319,6 +319,15 @@ function AthleteView({ params }) {
   }, [])
 
   useEffect(() => {
+    if (searchParams.get('programStarted') !== '1') return
+    const url = new URL(window.location.href)
+    url.searchParams.delete('programStarted')
+    setToast('Programme démarré !')
+    router.replace(url.pathname + url.search)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
     async function load() {
       ensureDeviceCookie()
       const res = await fetch(`/api/athlete-view/${token}`, { cache: 'no-store' })

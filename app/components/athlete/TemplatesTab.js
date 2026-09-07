@@ -25,7 +25,14 @@ export default function TemplatesTab({ token, programs = [], setActiveTab }) {
     const json = await res.json().catch(() => ({}))
     setChoosingId(null)
     if (json.error) { alert('Erreur : ' + json.error); return }
-    window.location.reload()
+    // Rechargement complet (pas juste un changement d'onglet) : le nouveau programme change les
+    // séances du jour, les séries à faire, etc. dans tout l'onglet Séance, pas seulement la liste
+    // de programmes locale à cet écran. Retour terrain : le sportif choisissait un programme et ne
+    // voyait rien se passer de concret — direction Séance + toast de confirmation après rechargement.
+    const url = new URL(window.location.href)
+    url.searchParams.set('tab', 'wod')
+    url.searchParams.set('programStarted', '1')
+    window.location.assign(url.toString())
   }
 
   // Retour terrain (coach) : cumuler deux programmes du même type (ex: deux plans de running)
