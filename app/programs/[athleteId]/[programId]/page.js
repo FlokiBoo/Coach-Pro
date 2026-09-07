@@ -953,6 +953,18 @@ function ProgramEditorPage({ params }) {
     await supabase.from('programs').update({ [field]: value }).eq('id', programId)
   }
 
+  // "Template" est un statut explicite (is_template) que le coach coche lui-même — un programme
+  // sans sportif assigné n'apparaît pas automatiquement dans la galerie de /programs/new tant qu'il
+  // n'a pas été marqué comme tel (voir demande du coach : pas tous les programmes = des templates).
+  const saveIsTemplate = async (value) => {
+    setProgram(p => ({ ...p, is_template: value }))
+    const { error } = await supabase.from('programs').update({ is_template: value }).eq('id', programId)
+    if (error) {
+      setProgram(p => ({ ...p, is_template: !value }))
+      alert('Erreur : ' + error.message)
+    }
+  }
+
   const deleteSession = async (id) => {
     if (!confirm('Supprimer cette séance ? Elle sera aussi supprimée chez les clients à qui ce programme est lié (sauf s\'ils l\'ont déjà validée).')) return
 
@@ -1164,7 +1176,7 @@ function ProgramEditorPage({ params }) {
               />
               {titleSaving && <div style={{ fontSize: 10, color: 'var(--text3)' }}>Enregistrement…</div>}
               <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                {isTemplate ? <><ClipboardText size={11} /> Template</> : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
+                {isTemplate ? <><ClipboardText size={11} /> {program?.is_template ? 'Template' : 'Brouillon'}</> : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
               </div>
               <ActivityTypeSelect
                 value={program?.activity_type || 'Musculation 🏋️'}
@@ -1184,6 +1196,18 @@ function ProgramEditorPage({ params }) {
                 <span>h d&apos;écart</span>
               </div>
             </div>
+            {isTemplate && (
+              <button onClick={() => saveIsTemplate(!program?.is_template)}
+                title={program?.is_template ? 'Retirer de la galerie de templates' : 'Proposer ce programme comme template réutilisable'}
+                style={{
+                  background: program?.is_template ? 'var(--green-light)' : 'none',
+                  border: `1px solid ${program?.is_template ? 'var(--green)' : 'var(--border2)'}`,
+                  color: program?.is_template ? 'var(--green)' : 'var(--text3)',
+                  borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                <ClipboardText size={12} weight={program?.is_template ? 'fill' : 'regular'} /> {program?.is_template ? 'Template' : 'En faire un template'}
+              </button>
+            )}
             <button onClick={deleteWholeProgram} title="Supprimer le programme"
               style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: '#DC2626', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
               <Trash size={12} /> Supprimer

@@ -22,10 +22,13 @@ export default function NewProgramPage() {
 
   useEffect(() => {
     async function load() {
+      // is_template : statut explicite coché par le coach depuis l'éditeur d'un programme —
+      // tous les programmes sans sportif assigné ne sont pas des templates réutilisables pour
+      // autant (brouillons en cours, essais...), donc pas de filtre implicite sur athlete_id ici.
       const { data } = await supabase
         .from('programs')
         .select('*, program_sessions(id)')
-        .is('athlete_id', null)
+        .eq('is_template', true)
         .order('created_at', { ascending: false })
       setTemplates(data || [])
       setLoading(false)

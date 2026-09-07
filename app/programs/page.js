@@ -167,8 +167,8 @@ export default function ProgramsPage() {
           {programs.filter(p => !p.athlete_id).length === 0 ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><ClipboardText size={36} /></div>
-              <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun template</div>
-              <div style={{ fontSize: 13 }}>Clique sur "+ Programme" pour créer ton premier template</div>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun programme</div>
+              <div style={{ fontSize: 13 }}>Clique sur "+ Programme" pour créer ton premier programme</div>
             </div>
           ) : (() => {
             const allTemplates = programs.filter(p => !p.athlete_id)
@@ -191,7 +191,7 @@ export default function ProgramsPage() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{p.title}</div>
                       <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{p.athlete_id ? <><User size={11} /> {p.athletes?.name || '—'}</> : <><ClipboardText size={11} /> Template</>}</span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{p.athlete_id ? <><User size={11} /> {p.athletes?.name || '—'}</> : <><ClipboardText size={11} /> {p.is_template ? 'Template' : 'Brouillon'}</>}</span>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={11} /> {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}</span>
                         {p.activity_type && <span style={{ color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Tag size={11} /> {p.activity_type}</span>}
                         {p.available_to_clients && <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓ Disponible sportifs</span>}
@@ -237,7 +237,7 @@ export default function ProgramsPage() {
             return (
               <>
                 {allTemplates.length > 0 && (
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 2px', display: 'flex', alignItems: 'center', gap: 5 }}><ClipboardText size={13} /> Templates</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 2px', display: 'flex', alignItems: 'center', gap: 5 }}><ClipboardText size={13} /> Programmes</div>
                 )}
                 {allCategories.length > 0 && (
                   <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
