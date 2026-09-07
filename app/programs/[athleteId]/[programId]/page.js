@@ -232,6 +232,70 @@ function SessionSummaryBlock({ exercises }) {
   )
 }
 
+// Vue calendrier Semaine/Jour, en plus (pas à la place) de la liste de séances existante en
+// dessous : sert à naviguer/créer vite, la vraie édition (activation, exercices, supersets…) reste
+// dans la carte de séance classique — cliquer une case pleine y scrolle et l'ouvre.
+function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession }) {
+  const byCell = {}
+  sessions.forEach(s => {
+    if (s.week_number == null || s.day_of_week == null) return
+    const key = `${s.week_number}-${s.day_of_week}`
+    ;(byCell[key] = byCell[key] || []).push(s)
+  })
+  const unscheduled = sessions.filter(s => s.week_number == null || s.day_of_week == null)
+
+  return (
+    <div style={{ margin: '12px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {Array.from({ length: durationWeeks }, (_, wi) => wi + 1).map(week => (
+        <div key={week} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Semaine {week}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 6, padding: 8, overflowX: 'auto' }}>
+            {WEEK_DAYS.map(d => {
+              const cellSessions = byCell[`${week}-${d.key}`] || []
+              return (
+                <div key={d.key} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 70 }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text3)', textAlign: 'center', textTransform: 'uppercase' }}>{d.short}</div>
+                  {cellSessions.map(s => (
+                    <button key={s.id} onClick={() => onOpenSession(s.id)} style={{
+                      background: 'var(--green-light)', border: '1px solid var(--green)', color: 'var(--green)',
+                      borderRadius: 'var(--r)', padding: '6px 4px', fontSize: 10, fontWeight: 700, cursor: 'pointer', textAlign: 'center',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {s.title || 'Séance'}
+                    </button>
+                  ))}
+                  <button onClick={() => onAddAt(week, d.key)} style={{
+                    background: 'var(--bg2)', border: '1px dashed var(--border2)', color: 'var(--text3)',
+                    borderRadius: 'var(--r)', padding: '6px 4px', fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                  }}>
+                    + Add
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+
+      {unscheduled.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '4px 2px' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>Non planifiées :</span>
+          {unscheduled.map(s => (
+            <button key={s.id} onClick={() => onOpenSession(s.id)} style={{
+              background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '4px 10px',
+              fontSize: 11, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer',
+            }}>
+              {s.title || 'Séance'}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function ProgramEditorPageWrapper({ params }) {
   return <Suspense><ProgramEditorPage params={params} /></Suspense>
 }
@@ -871,6 +935,24 @@ function ProgramEditorPage({ params }) {
     }
   }
 
+  // Créée depuis une case de la grille Semaine/Jour (WeekGrid) : place directement la séance au
+  // bon endroit plutôt que de la laisser "non planifiée" en bas de la liste par défaut.
+  const addSessionAt = async (weekNumber, dayOfWeek) => {
+    const { data: s } = await supabase.from('program_sessions')
+      .insert({ program_id: programId, order_index: sessions.length, title: '', week_number: weekNumber, day_of_week: dayOfWeek })
+      .select().single()
+    if (s) {
+      const newS = { ...s, exercises: [emptyExo(0)] }
+      setSessions(prev => [...prev, newS])
+      scrollToSession(s.id)
+    }
+  }
+
+  const scrollToSession = (id) => {
+    setOpenId(id)
+    setTimeout(() => document.getElementById(`session-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
+  }
+
   const duplicateSession = async (id, forcedIdx = null, opts = {}) => {
     const s = sessions.find(sess => sess.id === id)
     if (!s) return
@@ -1334,6 +1416,13 @@ function ProgramEditorPage({ params }) {
           </div>
         )}
 
+        <WeekGrid
+          sessions={sessions}
+          durationWeeks={program?.duration_weeks || 1}
+          onAddAt={addSessionAt}
+          onOpenSession={scrollToSession}
+        />
+
         {selectedSessions.size > 0 && (
           <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--green-light)' }}>
             <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
@@ -1478,7 +1567,7 @@ function ProgramEditorPage({ params }) {
             )
             return (
               <SortableItem key={s.id} id={s.id}>{(dragProps) => (
-              <div style={{
+              <div id={`session-${s.id}`} style={{
                 background: 'var(--bg)', border: isPinned ? '1px solid var(--green)' : '1px solid var(--border)', borderRadius: 'var(--rl)',
                 // 'hidden' sur un seul axe force l'autre à se calculer en 'auto' (règle CSS), ce qui
                 // bloque quand même le position:sticky du résumé de séance épinglé (toute valeur
@@ -1534,6 +1623,18 @@ function ProgramEditorPage({ params }) {
                   >
                     <Repeat size={11} style={{ verticalAlign: -1, marginRight: 3 }} />Récurrent
                   </button>
+                  <input
+                    type="number" min="1" placeholder="Sem." value={s.week_number ?? ''}
+                    onChange={e => { updateSession(s.id, 'week_number', e.target.value === '' ? null : parseInt(e.target.value)) }}
+                    onClick={e => e.stopPropagation()}
+                    title="Semaine (place cette séance dans la grille Jour 1→N ci-dessus)"
+                    style={{
+                      width: 46, boxSizing: 'border-box', flexShrink: 0, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 6px', cursor: 'pointer', textAlign: 'center',
+                      border: s.week_number != null ? '1px solid var(--green)' : '1px solid var(--border2)',
+                      background: s.week_number != null ? 'var(--green-light)' : 'none',
+                      color: s.week_number != null ? 'var(--green)' : 'var(--text3)',
+                    }}
+                  />
                   <select
                     value={s.day_of_week ?? ''}
                     onChange={e => { updateSession(s.id, 'day_of_week', e.target.value === '' ? null : parseInt(e.target.value)) }}
