@@ -7,9 +7,7 @@ import {
 } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
-import { getCoachId } from '@/lib/coach'
 import { notifyAssigned, notifyProgramAvailable } from '@/lib/notify'
 import { cloneTemplateToAthlete } from '@/lib/programTemplates'
 
@@ -24,14 +22,9 @@ function today() {
 const FULLY_FREE_SESSIONS = 999
 
 export default function ProgramsPage() {
-  const router = useRouter()
   const [programs, setPrograms] = useState([])
   const [athletes, setAthletes] = useState([])
   const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
-  const [newAthleteIds, setNewAthleteIds] = useState([])
-  const [creating, setCreating] = useState(false)
   const [assignModal, setAssignModal] = useState(null)
   const [selectedIds, setSelectedIds] = useState([])
   const [assignGroupId, setAssignGroupId] = useState(null)
@@ -60,46 +53,6 @@ export default function ProgramsPage() {
     }
     load()
   }, [])
-
-  const toggleNewAthlete = (id) => {
-    setNewAthleteIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-  }
-
-  const createProgram = async () => {
-    if (!newTitle.trim()) return
-    setCreating(true)
-    const coachId = await getCoachId()
-
-    if (newAthleteIds.length === 0) {
-      // Template sans client
-      const { data, error } = await supabase.from('programs')
-        .insert({ title: newTitle.trim(), coach_id: coachId })
-        .select().single()
-      if (data) {
-        await supabase.from('program_sessions').insert({ program_id: data.id, order_index: 0, title: 'Séance 1' })
-        router.push(`/programs/templates/${data.id}`)
-      } else {
-        alert('Erreur : ' + (error?.message || ''))
-        setCreating(false)
-      }
-      return
-    }
-
-    let firstId = null, firstProgId = null
-    for (const aid of newAthleteIds) {
-      const { data, error } = await supabase.from('programs')
-        .insert({ athlete_id: aid, title: newTitle.trim(), coach_id: coachId })
-        .select().single()
-      if (data) {
-        await supabase.from('program_sessions').insert({ program_id: data.id, order_index: 0, title: 'Séance 1' })
-        if (!firstId) { firstId = aid; firstProgId = data.id }
-      } else {
-        alert('Erreur : ' + (error?.message || ''))
-      }
-    }
-    if (firstId) router.push(`/programs/${firstId}/${firstProgId}`)
-    else setCreating(false)
-  }
 
   const toggleAvailable = async (p) => {
     const next = !p.available_to_clients
@@ -203,60 +156,15 @@ export default function ProgramsPage() {
               <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>Programmes</div>
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>{programs.length} programme{programs.length !== 1 ? 's' : ''}</div>
             </div>
-            <button onClick={() => setShowForm(v => !v)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <Link href="/programs/new" style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>
               + Programme
-            </button>
+            </Link>
           </div>
         </div>
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
 
-          {showForm && (
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <input
-                autoFocus
-                placeholder="Nom du programme (ex: Force 8 semaines)"
-                value={newTitle}
-                onChange={e => setNewTitle(e.target.value)}
-                style={{ padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}
-              />
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Assigner à</div>
-                  <button
-                    type="button"
-                    onClick={() => setNewAthleteIds(newAthleteIds.length === athletes.length ? [] : athletes.map(a => a.id))}
-                    style={{ background: 'none', border: 'none', fontSize: 12, fontWeight: 600, color: 'var(--green)', cursor: 'pointer', padding: 0 }}
-                  >
-                    {newAthleteIds.length === athletes.length ? 'Tout décocher' : 'Tout cocher'}
-                  </button>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  {athletes.map(a => (
-                    <label key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 'var(--r)', border: newAthleteIds.includes(a.id) ? '1.5px solid var(--green)' : '1px solid var(--border)', background: newAthleteIds.includes(a.id) ? 'var(--green-light)' : 'var(--bg2)', cursor: 'pointer' }}>
-                      <input
-                        type="checkbox"
-                        checked={newAthleteIds.includes(a.id)}
-                        onChange={() => toggleNewAthlete(a.id)}
-                        style={{ accentColor: 'var(--green)', width: 15, height: 15 }}
-                      />
-                      <span style={{ fontSize: 13, fontWeight: 600, color: newAthleteIds.includes(a.id) ? 'var(--green)' : 'var(--text)' }}>{a.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={createProgram} disabled={creating || !newTitle.trim()} style={{ flex: 1, background: newTitle.trim() ? 'var(--green)' : 'var(--border)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                  {creating ? '…' : newAthleteIds.length === 0 ? 'Créer comme template' : newAthleteIds.length > 1 ? `Créer pour ${newAthleteIds.length} clients` : 'Créer'}
-                </button>
-                <button onClick={() => { setShowForm(false); setNewAthleteIds([]) }} style={{ background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 14, cursor: 'pointer' }}>
-                  Annuler
-                </button>
-              </div>
-            </div>
-          )}
-
-          {programs.filter(p => !p.athlete_id).length === 0 && !showForm ? (
+          {programs.filter(p => !p.athlete_id).length === 0 ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><ClipboardText size={36} /></div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun template</div>
