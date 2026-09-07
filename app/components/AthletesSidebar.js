@@ -61,6 +61,7 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
   const [open, setOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [search, setSearch] = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [sectionsCollapsed, setSectionsCollapsed] = useState({})
   const [showTimer, setShowTimer] = useState(false)
@@ -157,6 +158,10 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
     setGonioAthleteId(data.id)
   }
 
+  const filteredAthletes = search.trim()
+    ? athletes.filter(a => a.name.toLowerCase().includes(search.trim().toLowerCase()))
+    : []
+
   return (
     <>
       {/* Bouton hamburger — mobile uniquement */}
@@ -210,12 +215,90 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
             placeholder="Rechercher un sportif…"
             style={{
               width: '100%', boxSizing: 'border-box', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
               padding: '6px 8px 6px 26px', fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
             }}
           />
+
+          {/* Dropdown de résultats, ancré sous le champ (avant : rendu tout en bas de la
+              sidebar, ce qui obligeait à scroller pour le voir). */}
+          {search.trim() && searchFocused && (
+            <div style={{
+              position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4,
+              background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.18)', zIndex: 50, maxHeight: '50vh', overflowY: 'auto', padding: 4,
+            }}>
+              {filteredAthletes.length === 0 ? (
+                <div style={{ padding: '10px 8px', fontSize: 12, color: 'var(--text3)' }}>Aucun résultat.</div>
+              ) : filteredAthletes.map(a => {
+                const active = a.id === athleteId
+                const w = wellness[a.id]
+                const seanceFaite = done.has(a.id)
+
+                return (
+                  <Link
+                    key={a.id}
+                    href={`/semaine/${a.id}/${date}`}
+                    onClick={e => { if (guardNavigation(e)) { setOpen(false); setSearch('') } }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '8px 8px', borderRadius: 'var(--r)',
+                      background: active ? 'var(--green-light)' : 'transparent',
+                      border: active ? '1px solid #B8EAD8' : '1px solid transparent',
+                      textDecoration: 'none', color: 'inherit',
+                    }}
+                  >
+                    {/* Avatar */}
+                    <div style={{
+                      width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                      background: active ? 'var(--green)' : 'var(--bg2)',
+                      color: active ? '#fff' : 'var(--text2)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 11, fontWeight: 800,
+                      border: seanceFaite ? '2px solid #22c55e' : '1px solid var(--border2)',
+                    }}>
+                      {initials(a.name)}
+                    </div>
+
+                    {/* Infos */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: active ? '#0D6B4F' : 'var(--text)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {a.name}
+                        {a.is_coach && (
+                          <span style={{ fontSize: 9, fontWeight: 800, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>COACH</span>
+                        )}
+                      </div>
+                      {/* Dots bien-être sportif */}
+                      {w ? (
+                        <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
+                          {METRICS.map(m => {
+                            const v = w[m.key]
+                            if (!v) return null
+                            return (
+                              <span key={m.key} style={{ fontSize: 10, fontWeight: 700, color: scoreColor(v, m.inverse) }}>
+                                {m.emoji}{v}
+                              </span>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1 }}>{a.is_coach ? 'Coach' : 'Pas de données'}</div>
+                      )}
+                    </div>
+
+                    {/* Badge séance faite */}
+                    {seanceFaite && (
+                      <span style={{ fontSize: 11, color: '#22c55e', flexShrink: 0 }}>✓</span>
+                    )}
+                  </Link>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         <Link href="/athletes" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
@@ -358,76 +441,6 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
             }}><EnvelopeSimple size={16} /> Demandes</Link>
           </>
         )}
-      </div>
-
-      {/* Liste sportifs */}
-      <div style={{ padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-        {/* Retour terrain : la liste complète (trop de sportifs) encombrait la barre latérale —
-            on ne l'affiche plus que pendant une recherche active. */}
-        {search.trim() && athletes.filter(a => a.name.toLowerCase().includes(search.trim().toLowerCase())).map(a => {
-          const active = a.id === athleteId
-          const w = wellness[a.id]
-          const seanceFaite = done.has(a.id)
-
-          return (
-            <Link
-              key={a.id}
-              href={`/semaine/${a.id}/${date}`}
-              onClick={guardNavigation}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                padding: '8px 8px', borderRadius: 'var(--r)',
-                background: active ? 'var(--green-light)' : 'transparent',
-                border: active ? '1px solid #B8EAD8' : '1px solid transparent',
-                textDecoration: 'none', color: 'inherit',
-                transition: 'background .15s',
-              }}
-            >
-              {/* Avatar */}
-              <div style={{
-                width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
-                background: active ? 'var(--green)' : 'var(--bg2)',
-                color: active ? '#fff' : 'var(--text2)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 800,
-                border: seanceFaite ? '2px solid #22c55e' : '1px solid var(--border2)',
-              }}>
-                {initials(a.name)}
-              </div>
-
-              {/* Infos */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: active ? '#0D6B4F' : 'var(--text)', display: 'flex', alignItems: 'center', gap: 5 }}>
-                  {a.name}
-                  {a.is_coach && (
-                    <span style={{ fontSize: 9, fontWeight: 800, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>COACH</span>
-                  )}
-                </div>
-                {/* Dots bien-être sportif */}
-                {w ? (
-                  <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
-                    {METRICS.map(m => {
-                      const v = w[m.key]
-                      if (!v) return null
-                      return (
-                        <span key={m.key} style={{ fontSize: 10, fontWeight: 700, color: scoreColor(v, m.inverse) }}>
-                          {m.emoji}{v}
-                        </span>
-                      )
-                    })}
-                  </div>
-                ) : (
-                  <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 1 }}>{a.is_coach ? 'Coach' : 'Pas de données'}</div>
-                )}
-              </div>
-
-              {/* Badge séance faite */}
-              {seanceFaite && (
-                <span style={{ fontSize: 11, color: '#22c55e', flexShrink: 0 }}>✓</span>
-              )}
-            </Link>
-          )
-        })}
       </div>
 
       {/* Bas de sidebar : déconnexion + accueil */}
