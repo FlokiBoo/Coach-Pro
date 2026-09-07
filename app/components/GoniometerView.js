@@ -91,7 +91,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     if (lockTimerRef.current) return
     let remaining = LOCK_COUNTDOWN_SECONDS
     setLockCountdown(remaining)
-    beep(880, 0.1); vibrate('light')
+    beep(880, 0.1); vibrate('light'); speak(String(remaining), 'fr-FR')
     lockTimerRef.current = setInterval(() => {
       if (pausedRef.current) { clearLockTimer(); return }
       remaining -= 1
@@ -102,7 +102,7 @@ export default function GoniometerView({ athleteId, onClose }) {
         setAutoPaused(true)
       } else {
         setLockCountdown(remaining)
-        beep(880, 0.1); vibrate('light')
+        beep(880, 0.1); vibrate('light'); speak(String(remaining), 'fr-FR')
       }
     }, 1000)
   }
@@ -117,7 +117,7 @@ export default function GoniometerView({ athleteId, onClose }) {
     hasMovedRef.current = false
     let remaining = START_COUNTDOWN_SECONDS
     setStartCountdown(remaining)
-    beep(660, 0.1); vibrate('light')
+    beep(660, 0.1); vibrate('light'); speak(String(remaining), 'fr-FR')
     startTimerRef.current = setInterval(() => {
       remaining -= 1
       if (remaining <= 0) {
@@ -130,7 +130,7 @@ export default function GoniometerView({ athleteId, onClose }) {
         beep(1000, 0.25); vibrateTriple(); speak('Go')
       } else {
         setStartCountdown(remaining)
-        beep(660, 0.1); vibrate('light')
+        beep(660, 0.1); vibrate('light'); speak(String(remaining), 'fr-FR')
       }
     }, 1000)
   }

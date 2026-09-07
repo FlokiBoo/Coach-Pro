@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { UsersThree, Lightning, FlagCheckered, FloppyDisk } from '@phosphor-icons/react'
 import { notifyGroupSessionReminder } from '@/lib/notify'
 import { unlockAudio } from '@/lib/audioBeep'
+import { unlockSpeech } from '@/lib/speak'
 import SplitTimerSession from '@/app/components/SplitTimerSession'
 import TimerModal from '@/app/components/TimerModal'
 
@@ -157,7 +158,7 @@ function LeaderGroupSessionPage({ params }) {
           <div key={exo.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <span style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>{exo.name}</span>
-              <button onClick={() => { unlockAudio(); exo.timer_config ? setRunningTimer({ config: exo.timer_config, label: `Timer ${exo.name || ''}` }) : setShowTimer({}) }}
+              <button onClick={() => { unlockAudio(); unlockSpeech(); exo.timer_config ? setRunningTimer({ config: exo.timer_config, label: `Timer ${exo.name || ''}` }) : setShowTimer({}) }}
                 style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
                 {exo.timer_config ? '▶⏱' : '⏱'}
               </button>
@@ -180,7 +181,7 @@ function LeaderGroupSessionPage({ params }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
               <span style={{ fontWeight: 700, fontSize: 14, flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}><Lightning size={13} /> {c.name || 'Circuit'}</span>
               {c.timer && (
-                <button onClick={() => { unlockAudio(); setRunningTimer({ config: c.timer, label: c.name || 'Circuit' }) }}
+                <button onClick={() => { unlockAudio(); unlockSpeech(); setRunningTimer({ config: c.timer, label: c.name || 'Circuit' }) }}
                   style={{ background: '#4338CA', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 12, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
                   ▶⏱ Timer
                 </button>

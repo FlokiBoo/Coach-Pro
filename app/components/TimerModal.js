@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { FloppyDisk } from '@phosphor-icons/react'
 import { HMSField, NumberField } from './TimerFields'
 import { beep, unlockAudio } from '@/lib/audioBeep'
+import { vibrate, vibrateTriple } from '@/lib/vibrate'
+import { speak, unlockSpeech } from '@/lib/speak'
 
 const TYPES = [
   { key: 'EMOM', label: 'EMOM' },
@@ -108,6 +110,7 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
   const start = () => {
     if (type === 'CUSTOM' && !customSteps.length) return
     unlockAudio()
+    unlockSpeech()
     runStartRef.current = Date.now()
     setRunning(true)
     setScreen('run')
@@ -189,12 +192,15 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
 
   const state = compute()
 
-  // Bips : décompte 3-2-1 en fin de phase, bip long au changement de phase, bip final.
+  // Bips : décompte 5-4-3-2-1 (parlé + vibré) en fin de phase, "Go"/"Stop" (parlé + triple
+  // vibration) au changement de phase, bip final.
   useEffect(() => {
     if (!running) return
     if (state.finished) {
       if (lastBeepKeyRef.current !== 'finished') {
         beep(1200, 0.35)
+        vibrateTriple()
+        speak('Stop')
         lastBeepKeyRef.current = 'finished'
         setRunning(false)
       }
@@ -205,6 +211,8 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
     if (lastBeepKeyRef.current === key) return
     if (remInt <= 5 && remInt >= 1) {
       beep(660, 0.08)
+      vibrate('light')
+      speak(String(remInt), 'fr-FR')
       lastBeepKeyRef.current = key
     }
   }, [state.remaining, state.finished, running])
@@ -215,9 +223,11 @@ export default function TimerModal({ onClose, presetSeconds, presetLabel }) {
     if (!running || !state.phaseKey) return
     if (prevPhaseKeyRef.current !== null && prevPhaseKeyRef.current !== state.phaseKey) {
       beep(1000, 0.18)
+      vibrateTriple()
+      speak(state.isWork === false ? 'Stop' : 'Go')
     }
     prevPhaseKeyRef.current = state.phaseKey
-  }, [state.phaseKey, running])
+  }, [state.phaseKey, state.isWork, running])
 
   const accent = (type === 'TABATA' || type === 'CUSTOM') && state.isWork === false ? '#1D4ED8' : 'var(--green)'
 

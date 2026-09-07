@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { beep, unlockAudio } from '@/lib/audioBeep'
+import { vibrate, vibrateTriple } from '@/lib/vibrate'
+import { speak, unlockSpeech } from '@/lib/speak'
 
 function fmt(sec) {
   const s = Math.max(0, Math.ceil(sec))
@@ -34,6 +36,7 @@ export default function EmbeddedTimer({ config, label }) {
   useEffect(() => {
     runStartRef.current = Date.now()
     unlockAudio()
+    unlockSpeech()
   }, [])
 
   useEffect(() => {
@@ -108,21 +111,23 @@ export default function EmbeddedTimer({ config, label }) {
   useEffect(() => {
     if (!running) return
     if (state.finished) {
-      if (lastBeepKeyRef.current !== 'finished') { beep(1200, 0.35); lastBeepKeyRef.current = 'finished'; setRunning(false) }
+      if (lastBeepKeyRef.current !== 'finished') { beep(1200, 0.35); vibrateTriple(); speak('Stop'); lastBeepKeyRef.current = 'finished'; setRunning(false) }
       return
     }
     const remInt = Math.ceil(state.remaining)
     const key = `${state.phaseKey}-${remInt}`
     if (lastBeepKeyRef.current === key) return
-    if (remInt <= 5 && remInt >= 1) { beep(660, 0.08); lastBeepKeyRef.current = key }
+    if (remInt <= 5 && remInt >= 1) { beep(660, 0.08); vibrate('light'); speak(String(remInt), 'fr-FR'); lastBeepKeyRef.current = key }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.remaining, state.finished, running])
 
   useEffect(() => {
     if (!running || !state.phaseKey) return
-    if (prevPhaseKeyRef.current !== null && prevPhaseKeyRef.current !== state.phaseKey) beep(1000, 0.18)
+    if (prevPhaseKeyRef.current !== null && prevPhaseKeyRef.current !== state.phaseKey) {
+      beep(1000, 0.18); vibrateTriple(); speak(state.isWork === false ? 'Stop' : 'Go')
+    }
     prevPhaseKeyRef.current = state.phaseKey
-  }, [state.phaseKey, running])
+  }, [state.phaseKey, state.isWork, running])
 
   const accent = (config.type === 'TABATA' || config.type === 'CUSTOM') && state.isWork === false ? '#1D4ED8' : 'var(--green)'
 
