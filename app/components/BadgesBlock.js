@@ -13,12 +13,28 @@ function calcAge(birthDate) {
   return (Date.now() - new Date(birthDate).getTime()) / (365.25 * 86400000)
 }
 
-function BadgeCard({ name, subtitle, footerValue, current, next, progress, nextHint, noData }) {
+function BadgeCard({ name, subtitle, footerValue, current, next, progress, nextHint, noData, noStandard }) {
   if (noData) {
     return (
       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
         <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{name}</div>
         <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Pas encore de test enregistré pour ce mouvement</div>
+      </div>
+    )
+  }
+  if (noStandard) {
+    return (
+      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 15 }}>{name}</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)' }}>{subtitle}</div>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', flexShrink: 0 }}>{footerValue}</div>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', marginTop: 8 }}>
+          Choisis une base de comparaison (Homme/Femme) dans ton profil pour voir ce badge.
+        </div>
       </div>
     )
   }
@@ -69,14 +85,14 @@ function BinaryBadgeCard({ name, acquired }) {
   )
 }
 
-export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
+export default function BadgesBlock({ athleteId, weight, badgeStandard, birthDate }) {
   const [cards, setCards] = useState(null)
   const [cardioCards, setCardioCards] = useState(null)
   const [binaryCards, setBinaryCards] = useState(null)
   const [showDetail, setShowDetail] = useState(false)
   const age = calcAge(birthDate)
 
-  useEffect(() => { load() }, [athleteId, weight, sex, birthDate])
+  useEffect(() => { load() }, [athleteId, weight, badgeStandard, birthDate])
 
   async function load() {
     if (weight) {
@@ -98,8 +114,11 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
         if (!best) return { name: bm.name, noData: true }
         const mode = bm.mode || 'pct'
         const compareValue = mode === 'reps' ? best.value : (best.value / weight) * 100
-        const badge = computeBadge(compareValue, bm.thresholds, sex)
-        return { name: bm.name, mode, value: best.value, ...badge }
+        // Pas de badge sans base de comparaison explicite : mieux vaut ne rien afficher plutôt
+        // que de retomber silencieusement sur "Homme" par défaut pour qui a choisi de ne pas
+        // se comparer (ou qui ne se reconnaît pas dans H/F).
+        const badge = badgeStandard ? computeBadge(compareValue, bm.thresholds, badgeStandard) : null
+        return { name: bm.name, mode, value: best.value, noStandard: !badgeStandard, ...badge }
       })
       setCards(result)
     } else {
@@ -123,8 +142,8 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
         const movEntries = (cardioEntries || []).filter(e => e.tracked_movement_id === mov.id)
         const best = bestPerformance(mov, movEntries)
         if (!best) return { name: cm.name, noData: true }
-        const badge = computeCardioBadge(best.value, age, cm.table, sex)
-        return { name: cm.name, value: best.value, ...badge }
+        const badge = badgeStandard ? computeCardioBadge(best.value, age, cm.table, badgeStandard) : null
+        return { name: cm.name, value: best.value, noStandard: !badgeStandard, ...badge }
       })
       setCardioCards(cardioResult)
     } else {
@@ -184,7 +203,7 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
               const isReps = card.mode === 'reps'
               const pct = !card.noData && !isReps ? (card.value / weight) * 100 : null
               return (
-                <BadgeCard key={card.name} name={card.name} noData={card.noData}
+                <BadgeCard key={card.name} name={card.name} noData={card.noData} noStandard={card.noStandard}
                   subtitle={!card.noData ? (isReps ? `${card.value} reps` : `${card.value}kg · ${Math.round(pct)}% PDC (${weight}kg)`) : null}
                   footerValue={!card.noData ? (isReps ? `${card.value} reps` : `${card.value}kg`) : null}
                   current={card.current} next={card.next} progress={card.progress}
@@ -206,7 +225,7 @@ export default function BadgesBlock({ athleteId, weight, sex, birthDate }) {
             {age != null && cardioCards.map(card => {
               if (card.missing) return null
               return (
-                <BadgeCard key={card.name} name={card.name} noData={card.noData}
+                <BadgeCard key={card.name} name={card.name} noData={card.noData} noStandard={card.noStandard}
                   subtitle={!card.noData ? formatTime(card.value) : null}
                   footerValue={!card.noData ? formatTime(card.value) : null}
                   current={card.current} next={card.next} progress={card.progress}

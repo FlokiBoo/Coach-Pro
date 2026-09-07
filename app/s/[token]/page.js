@@ -1126,6 +1126,7 @@ function AthleteView({ params }) {
             athlete={athlete} token={token} setActiveTab={setActiveTab}
             onWeightUpdate={w => setAthlete(a => ({ ...a, weight: w }))}
             onSexUpdate={s => setAthlete(a => ({ ...a, sex: s }))}
+            onBadgeStandardUpdate={v => setAthlete(a => ({ ...a, badge_standard: v }))}
             onHeightUpdate={h => setAthlete(a => ({ ...a, height: h }))}
             onBirthDateUpdate={d => setAthlete(a => ({ ...a, birth_date: d }))}
           />

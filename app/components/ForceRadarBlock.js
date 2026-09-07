@@ -20,7 +20,11 @@ export default function ForceRadarBlock({ strengthCards, cardioCards, onOpen }) 
   const axes = RADAR_GROUPS
   const values = axes.map(a => scores[a])
   const hasAnyData = values.some(v => v != null)
-  if (!hasAnyData) return null
+  // Un sportif qui n'a pas encore choisi de base de comparaison (badge_standard) a des mouvements
+  // trackés mais aucun score calculable (cards en noStandard) — sans ce garde-fou, le bloc entier
+  // disparaît et il n'a plus aucun moyen d'ouvrir la page listant ses mouvements.
+  const hasAnyTracked = cards.some(c => !c.missing)
+  if (!hasAnyData && !hasAnyTracked) return null
 
   const size = 240
   const cx = size / 2, cy = size / 2, maxR = 88
@@ -90,6 +94,12 @@ export default function ForceRadarBlock({ strengthCards, cardioCards, onOpen }) 
           </div>
         ))}
       </div>
+
+      {!hasAnyData && hasAnyTracked && (
+        <div style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic', marginTop: 2 }}>
+          Choisis une base de comparaison dans ton profil pour activer ce radar.
+        </div>
+      )}
     </button>
   )
 }

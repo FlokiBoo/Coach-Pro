@@ -16,7 +16,28 @@ function calcAge(birthDate) {
 const statLabelStyle = { fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }
 const editIconStyle = { fontSize: 12, color: 'var(--green)' }
 
-export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate, onSexUpdate, onHeightUpdate, onBirthDateUpdate }) {
+// Champ d'identité, distinct de la base de comparaison utilisée pour les badges (cf. BADGE_STANDARD_OPTIONS) —
+// quelqu'un qui ne se reconnaît pas dans Homme/Femme choisit quand même explicitement sa base de badges.
+const SEX_OPTIONS = [
+  { v: 'H', l: 'Homme' },
+  { v: 'F', l: 'Femme' },
+  { v: 'NB', l: 'Non-binaire' },
+  { v: 'autre', l: 'Autre' },
+  { v: 'ND', l: 'Préfère ne pas dire' },
+]
+
+const BADGE_STANDARD_OPTIONS = [
+  { v: '', l: 'Aucune — pas de badge' },
+  { v: 'H', l: 'Standards Homme' },
+  { v: 'F', l: 'Standards Femme' },
+]
+
+const selectFieldStyle = {
+  width: '100%', boxSizing: 'border-box', padding: '7px 8px', border: '1px solid var(--border2)',
+  borderRadius: 6, fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
+}
+
+export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate, onSexUpdate, onBadgeStandardUpdate, onHeightUpdate, onBirthDateUpdate }) {
   const [editingField, setEditingField] = useState(null) // 'weight' | 'height' | 'birth_date' | null
   const [fieldVal, setFieldVal] = useState('')
   const [saving, setSaving] = useState(false)
@@ -63,6 +84,14 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
     if (!athlete) return
     await supabase.from('athletes').update({ sex: val }).eq('id', athlete.id)
     onSexUpdate?.(val)
+  }
+
+  const saveBadgeStandard = async (val) => {
+    if (!athlete) return
+    const value = val || null
+    const { error } = await supabase.from('athletes').update({ badge_standard: value }).eq('id', athlete.id)
+    if (error) { alert("Cette version n'est pas encore déployée, réessaie dans quelques minutes."); return }
+    onBadgeStandardUpdate?.(value)
   }
 
   if (!athlete) return null
@@ -128,23 +157,27 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
           </div>
           <div style={{ flex: 1 }}>
             <div style={statLabelStyle}>Sexe</div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              {[{ v: 'H', l: 'H' }, { v: 'F', l: 'F' }].map(o => (
-                <button key={o.v} onClick={() => saveSex(o.v)} style={{
-                  flex: 1, padding: '5px 0', border: '1px solid ' + (athlete.sex === o.v ? 'var(--green)' : 'var(--border2)'),
-                  borderRadius: 6, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  background: athlete.sex === o.v ? 'var(--green-light)' : 'var(--bg2)',
-                  color: athlete.sex === o.v ? 'var(--green)' : 'var(--text2)',
-                }}>{o.l}</button>
-              ))}
-            </div>
+            <select value={athlete.sex || ''} onChange={e => saveSex(e.target.value)} style={selectFieldStyle}>
+              <option value="" disabled>Choisir…</option>
+              {SEX_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <div style={statLabelStyle}>Base de comparaison pour les badges</div>
+          <select value={athlete.badge_standard || ''} onChange={e => saveBadgeStandard(e.target.value)} style={selectFieldStyle}>
+            {BADGE_STANDARD_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+          </select>
+          <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4, lineHeight: 1.4 }}>
+            Indépendant du sexe déclaré — choisis &quot;Aucune&quot; si tu ne veux pas de comparaison H/F sur tes badges de force et cardio.
           </div>
         </div>
       </div>
 
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 5 }}><Medal size={13} /> Badges de force</div>
-        <BadgesBlock athleteId={athlete.id} weight={athlete.weight} sex={athlete.sex} birthDate={athlete.birth_date} />
+        <BadgesBlock athleteId={athlete.id} weight={athlete.weight} badgeStandard={athlete.badge_standard} birthDate={athlete.birth_date} />
       </div>
 
       <div>
