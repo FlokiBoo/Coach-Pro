@@ -954,6 +954,7 @@ const selectStyle = {
 
 function AddCoachingModal({ athletes, onClose, onAdd }) {
   const [athleteId, setAthleteId] = useState('')
+  const [athleteSearch, setAthleteSearch] = useState('')
   const [sessionId, setSessionId] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -963,6 +964,11 @@ function AddCoachingModal({ athletes, onClose, onAdd }) {
     await onAdd(athleteId, sessionId)
     setSaving(false)
   }
+
+  const selectedAthlete = athletes.find(a => a.id === athleteId)
+  const filteredAthletes = athleteSearch.trim()
+    ? athletes.filter(a => a.name.toLowerCase().includes(athleteSearch.trim().toLowerCase()))
+    : athletes
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -974,10 +980,38 @@ function AddCoachingModal({ athletes, onClose, onAdd }) {
 
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Sportif</div>
-          <select value={athleteId} onChange={e => { setAthleteId(e.target.value); setSessionId('') }} style={selectStyle}>
-            <option value="">Choisir un sportif…</option>
-            {athletes.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
+          {selectedAthlete ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 'var(--r)', border: '1px solid var(--border2)', background: 'var(--bg2)' }}>
+              <span style={{ flex: 1, fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{selectedAthlete.name}</span>
+              <button onClick={() => { setAthleteId(''); setSessionId(''); setAthleteSearch('') }} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                Changer
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* Retour terrain : avec beaucoup de sportifs, faire défiler une longue liste
+                  déroulante est pénible — taper pour filtrer est plus rapide. */}
+              <input
+                value={athleteSearch}
+                onChange={e => setAthleteSearch(e.target.value)}
+                placeholder="Rechercher un sportif…"
+                autoFocus
+                style={selectStyle}
+              />
+              <div style={{ maxHeight: 200, overflowY: 'auto', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {filteredAthletes.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text3)', padding: '8px 4px' }}>Aucun sportif trouvé.</div>
+                ) : filteredAthletes.map(a => (
+                  <button key={a.id} onClick={() => { setAthleteId(a.id); setSessionId('') }} style={{
+                    textAlign: 'left', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)',
+                    background: 'var(--bg2)', color: 'var(--text)', cursor: 'pointer', fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                  }}>
+                    {a.name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         {athleteId && (
