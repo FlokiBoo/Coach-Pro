@@ -99,6 +99,11 @@ export default function TemplatesTab({ token, programs = [], setActiveTab }) {
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={12} /> {p.sessionCount} séance{p.sessionCount !== 1 ? 's' : ''}</span>
             </div>
             {p.description && <div style={{ fontSize: 13, color: 'var(--text2)' }}>{p.description}</div>}
+            {p.previousPhaseTitle && (
+              <div style={{ fontSize: 12, color: '#92400E', background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 'var(--r)', padding: '7px 10px' }}>
+                Conseillé après avoir fait « {p.previousPhaseTitle} »
+              </div>
+            )}
             <button onClick={() => chooseProgram(p)} disabled={choosingId === p.id}
               style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer', marginTop: 4 }}>
               {choosingId === p.id ? '…' : '✓ Choisir ce programme'}

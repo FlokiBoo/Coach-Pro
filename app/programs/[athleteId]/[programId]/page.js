@@ -303,6 +303,13 @@ function ProgramEditorPage({ params }) {
   const [removingParticipantId, setRemovingParticipantId] = useState(null)
 
   const isTemplate = athleteId === 'templates'
+  const [otherTemplates, setOtherTemplates] = useState([])
+
+  useEffect(() => {
+    if (!isTemplate) return
+    supabase.from('programs').select('id, title').eq('is_template', true).neq('id', programId).order('title')
+      .then(({ data }) => setOtherTemplates(data || []))
+  }, [isTemplate, programId])
 
   useEffect(() => {
     // Masquage propre au coach : stocké côté serveur (comme les mouvements/tips masqués) plutôt
@@ -1203,6 +1210,17 @@ function ProgramEditorPage({ params }) {
                   style={{ width: 70, boxSizing: 'border-box', padding: '3px 8px', border: '1px solid var(--border2)', borderRadius: 20, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
                 <span style={{ fontSize: 11, color: 'var(--text3)' }}>semaines</span>
               </div>
+              {isTemplate && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: 'var(--text3)' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardText size={11} /> Phase précédente conseillée :</span>
+                  <select value={program?.previous_phase_program_id || ''}
+                    onChange={e => saveScheduleHint('previous_phase_program_id', e.target.value || null)}
+                    style={{ maxWidth: 200, padding: '2px 6px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}>
+                    <option value="">Aucune</option>
+                    {otherTemplates.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+                  </select>
+                </div>
+              )}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: 'var(--text3)' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={11} /> Rythme conseillé (si l&apos;athlète choisit ses jours) :</span>
                 <input type="number" min="1" max="7" placeholder="X" value={program?.recommended_sessions_per_week ?? ''}

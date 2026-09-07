@@ -31,7 +31,7 @@ export async function GET(request, { params }) {
 
   const { data: progs } = await supabaseAdmin
     .from('programs')
-    .select('id, title, description, activity_type, coach_id, program_sessions(id)')
+    .select('id, title, description, activity_type, coach_id, previous_phase_program_id, previous_phase:previous_phase_program_id(title), program_sessions(id)')
     .is('athlete_id', null)
     .eq('available_to_clients', true)
     .order('title')
@@ -50,6 +50,7 @@ export async function GET(request, { params }) {
     .map(p => ({
       id: p.id, title: p.title, description: p.description, activity_type: p.activity_type,
       sessionCount: (p.program_sessions || []).length,
+      previousPhaseTitle: p.previous_phase?.title || null,
     }))
 
   return NextResponse.json({ programs: list }, { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' } })
