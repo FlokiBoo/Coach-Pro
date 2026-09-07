@@ -954,7 +954,10 @@ function AthleteView({ params }) {
     const isDone = focusSession ? completions.has(focusSession.id) && !skippedSessions.has(focusSession.id) : false
     const isFocusSkipped = focusSession ? skippedSessions.has(focusSession.id) : false
     const isFocusFree = focusIsFreeSession
-    const backHref = `/s/${token}${isCoachView ? '?coach=1' : ''}`
+    // En coaching en direct, "retour" doit ramener le coach à son tableau de bord — pas dans
+    // l'espace du sportif (onglets Séance/Stats/Records/Profil), où il se retrouvait coincé sans
+    // autre sortie que le petit bouton "Switch to coach" (retour terrain).
+    const backHref = isCoachView ? '/' : `/s/${token}`
 
     const handleFocusSkip = () => {
       const currentIdx = focusProgSessions.findIndex(s => s.id === focusSession.id)
