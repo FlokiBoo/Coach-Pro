@@ -609,6 +609,7 @@ function ProgramEditorPage({ params }) {
   // Un exercice porte le timer du bloc dont il est le premier — solo (label "A") ou tête de
   // superset (label "A1") — jamais un exercice A2/A3 qui appartient déjà au bloc A.
   const isGroupStart = (exos, ei) => !exos[ei].superset_group || ei === 0 || exos[ei - 1].superset_group !== exos[ei].superset_group
+  const isGroupEnd = (exos, ei) => !exos[ei].superset_group || ei === exos.length - 1 || exos[ei + 1].superset_group !== exos[ei].superset_group
 
   const openExerciseTimer = (sessId, exo) => {
     setTimerEditor({ sessId, kind: 'exercise', targetKey: exo._key, config: exo.timer_config || defaultTimerConfig() })
@@ -1739,10 +1740,25 @@ function ProgramEditorPage({ params }) {
                     <SortableGroup ids={s.exercises.map(e => e._key)} onReorder={(id, dir) => moveExo(s.id, id, dir)}>
                     {s.exercises.map((exo, ei) => {
                       const label = labels[exo._key] || String.fromCharCode(65 + ei)
+                      const inGroup = !!exo.superset_group
+                      const groupStart = isGroupStart(s.exercises, ei)
+                      const groupEnd = isGroupEnd(s.exercises, ei)
                       return (
                         <SortableItem key={exo._key} id={exo._key}>{(dragProps) => (
-                        <div>
-                        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 7 }}>
+                        <div style={inGroup && !groupStart ? { marginTop: -8 } : undefined}>
+                        <div style={{
+                          background: 'var(--bg)', border: '1px solid var(--border)', padding: 7,
+                          borderTopLeftRadius: (!inGroup || groupStart) ? 'var(--r)' : 0,
+                          borderTopRightRadius: (!inGroup || groupStart) ? 'var(--r)' : 0,
+                          borderBottomLeftRadius: (!inGroup || groupEnd) ? 'var(--r)' : 0,
+                          borderBottomRightRadius: (!inGroup || groupEnd) ? 'var(--r)' : 0,
+                          borderTopWidth: (inGroup && !groupStart) ? 0 : 1,
+                        }}>
+                          {inGroup && groupStart && (
+                            <div style={{ margin: '-7px -7px 6px', padding: '4px 8px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', borderTopLeftRadius: 'var(--r)', borderTopRightRadius: 'var(--r)' }}>
+                              <span style={{ fontSize: 9, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Supersérie</span>
+                            </div>
+                          )}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: videoInputKey === exo._key ? 3 : 5 }}>
                             {/* Flèches de déplacement */}
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, flexShrink: 0 }}>
@@ -2029,24 +2045,34 @@ function ProgramEditorPage({ params }) {
                             style={{ ...inp, fontSize: 12, color: 'var(--text2)', resize: 'none', overflow: 'hidden', lineHeight: 1.5 }} />
                         </div>
 
-                        {/* Bouton supersérie */}
+                        {/* Bouton supersérie — quand les deux exercices sont déjà liés, la carte est
+                            fusionnée visuellement (voir borderTopWidth/marginTop ci-dessus) : on ne garde
+                            qu'un petit "✕" discret dans la couture plutôt que la ligne+pastille pleine
+                            largeur, sinon ça casse l'effet "boîte unique" façon Azeoo. */}
                         {ei < s.exercises.length - 1 && (() => {
                           const next = s.exercises[ei + 1]
                           const isSS = exo.superset_group && exo.superset_group === next?.superset_group
-                          return (
+                          return isSS ? (
+                            <div style={{ display: 'flex', justifyContent: 'center', marginTop: -8, position: 'relative', zIndex: 1 }}>
+                              <button onClick={() => toggleSuperset(s.id, ei)} title="Retirer de la supersérie" style={{
+                                background: 'var(--bg)', border: '1px solid var(--border2)', color: 'var(--text3)',
+                                borderRadius: 10, padding: '0 6px', fontSize: 9, fontWeight: 700, lineHeight: '14px', cursor: 'pointer',
+                              }}>
+                                ✕
+                              </button>
+                            </div>
+                          ) : (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
-                              <div style={{ flex: 1, height: 1, background: isSS ? 'var(--green)' : 'var(--border)' }} />
+                              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
                               <button onClick={() => toggleSuperset(s.id, ei)} style={{
-                                background: isSS ? 'var(--green)' : 'var(--bg2)',
-                                color: isSS ? '#fff' : 'var(--text3)',
-                                border: `1px solid ${isSS ? 'var(--green)' : 'var(--border2)'}`,
+                                background: 'var(--bg2)', color: 'var(--text3)', border: '1px solid var(--border2)',
                                 borderRadius: 20, padding: '2px 10px',
                                 fontSize: 10, fontWeight: 700, cursor: 'pointer',
                                 letterSpacing: '0.3px', whiteSpace: 'nowrap',
                               }}>
-                                {isSS ? '✕ Supersérie' : '+ Supersérie'}
+                                + Supersérie
                               </button>
-                              <div style={{ flex: 1, height: 1, background: isSS ? 'var(--green)' : 'var(--border)' }} />
+                              <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
                             </div>
                           )
                         })()}
