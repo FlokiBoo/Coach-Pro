@@ -202,6 +202,20 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
           color: 'var(--text2)', background: 'transparent',
         }}><House size={16} /> Tableau de bord</Link>
+
+        <div style={{ position: 'relative', margin: '2px 2px 4px' }}>
+          <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', color: 'var(--text3)' }}><MagnifyingGlass size={13} /></span>
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher un sportif…"
+            style={{
+              width: '100%', boxSizing: 'border-box', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+              padding: '6px 8px 6px 26px', fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
+            }}
+          />
+        </div>
+
         <Link href="/athletes" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
           display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
           borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
@@ -348,19 +362,6 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
       <div style={{ padding: '10px 8px', display: 'flex', flexDirection: 'column', gap: 4 }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '0 4px', marginBottom: 4 }}>
           Mes sportifs
-        </div>
-
-        <div style={{ position: 'relative', marginBottom: 4 }}>
-          <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', display: 'flex', color: 'var(--text3)' }}><MagnifyingGlass size={13} /></span>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher un sportif…"
-            style={{
-              width: '100%', boxSizing: 'border-box', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
-              padding: '6px 8px 6px 26px', fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
-            }}
-          />
         </div>
 
         {/* Retour terrain : la liste complète (trop de sportifs) encombrait la barre latérale —
