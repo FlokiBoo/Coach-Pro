@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Warning, Lightbulb, ClipboardText, Barbell, PersonSimpleRun, Bell } from '@phosphor-icons/react'
+import { User, Warning, Lightbulb, ClipboardText, Barbell, PersonSimpleRun, Bell, CalendarBlank, Backpack, Plus, X } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -12,6 +12,12 @@ import { getCoachId } from '@/lib/coach'
 
 function today() {
   const n = new Date()
+  return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
+}
+
+function tomorrow() {
+  const n = new Date()
+  n.setDate(n.getDate() + 1)
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
@@ -45,6 +51,8 @@ export default function Home() {
   const [showMovementSuggestionsModal, setShowMovementSuggestionsModal] = useState(false)
   const [suggestionEdits, setSuggestionEdits] = useState({}) // { [suggestionId]: editedName }
   const [suggestionBusy, setSuggestionBusy] = useState(null) // id being accepted/rejected
+  const [tomorrowPlan, setTomorrowPlan] = useState(null)
+  const [showAddCoaching, setShowAddCoaching] = useState(false)
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -65,7 +73,7 @@ export default function Home() {
       }
       setCoachId(me.id)
 
-      const [{ data: aths }, { data: sessions }, { data: progComps }, { data: actValidated }] = await Promise.all([
+      const [{ data: aths }, { data: sessions }, { data: progComps }, { data: actValidated }, { data: coachingPlan }] = await Promise.all([
         supabase.from('athletes').select('*').neq('archived', true).order('created_at'),
         supabase
           .from('sessions')
@@ -82,9 +90,16 @@ export default function Home() {
           .select('id, athlete_id, athletes(id, name), label, km, duration_minutes, difficulty, validated_at')
           .not('validated_at', 'is', null)
           .order('validated_at', { ascending: false })
-          .limit(40)
+          .limit(40),
+        supabase
+          .from('coaching_schedule')
+          .select('id, athlete_id, athletes(id, name), program_sessions(id, title, materiel, programs(title))')
+          .eq('coach_id', me.id)
+          .eq('date', tomorrow())
+          .order('created_at'),
       ])
       const athList = aths || []
+      setTomorrowPlan(coachingPlan || [])
       setAthletes(athList)
 
       const progSessionIds = (progComps || []).flatMap(c => (c.program_sessions?.program_exercises || []).map(e => e.id))
@@ -207,6 +222,22 @@ export default function Home() {
     setNewName('')
     setShowForm(false)
     setSaving(false)
+  }
+
+  const addCoachingEntry = async (athleteId, programSessionId) => {
+    const { data, error } = await supabase
+      .from('coaching_schedule')
+      .insert({ coach_id: coachId, athlete_id: athleteId, program_session_id: programSessionId, date: tomorrow() })
+      .select('id, athlete_id, athletes(id, name), program_sessions(id, title, materiel, programs(title))')
+      .single()
+    if (error) { alert('Erreur : ' + error.message); return }
+    setTomorrowPlan(prev => [...(prev || []), data])
+    setShowAddCoaching(false)
+  }
+
+  const removeCoachingEntry = async (id) => {
+    await supabase.from('coaching_schedule').delete().eq('id', id)
+    setTomorrowPlan(prev => prev.filter(e => e.id !== id))
   }
 
   if (loading) return (
@@ -392,6 +423,65 @@ export default function Home() {
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Coaching de demain */}
+          {athletes.length > 0 && (
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ display: 'flex', color: 'var(--green)' }}><CalendarBlank size={16} /></span>
+                <div style={{ flex: 1, fontSize: 13, fontWeight: 700, textTransform: 'capitalize' }}>
+                  Coaching de demain · {formatDateLong(tomorrow())}
+                </div>
+                <button onClick={() => setShowAddCoaching(true)} style={{
+                  background: 'var(--green-light)', color: 'var(--green)', border: 'none',
+                  borderRadius: 20, padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                  <Plus size={13} /> Ajouter
+                </button>
+              </div>
+
+              {tomorrowPlan === null ? (
+                <div style={{ color: 'var(--text3)', fontSize: 13 }}>Chargement…</div>
+              ) : tomorrowPlan.length === 0 ? (
+                <div style={{ fontSize: 13, color: 'var(--text3)' }}>Aucun coaching planifié pour demain.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {tomorrowPlan.map(entry => (
+                    <div key={entry.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13 }}>{entry.athletes?.name || '—'}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+                            {entry.program_sessions?.title || 'Séance'}
+                            {entry.program_sessions?.programs?.title ? ` · ${entry.program_sessions.programs.title}` : ''}
+                          </div>
+                        </div>
+                        <button onClick={() => removeCoachingEntry(entry.id)} title="Retirer"
+                          style={{ background: 'none', border: 'none', color: 'var(--text3)', cursor: 'pointer', padding: 4, display: 'flex' }}>
+                          <X size={15} />
+                        </button>
+                      </div>
+                      {entry.program_sessions?.materiel && (
+                        <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--border)', display: 'flex', gap: 6 }}>
+                          <span style={{ flexShrink: 0, color: 'var(--text3)' }}><Backpack size={14} /></span>
+                          <div style={{ fontSize: 12, color: 'var(--text2)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{entry.program_sessions.materiel}</div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {showAddCoaching && (
+            <AddCoachingModal
+              athletes={athletes.filter(a => !a.is_coach)}
+              onClose={() => setShowAddCoaching(false)}
+              onAdd={addCoachingEntry}
+            />
           )}
 
           {/* Titre feed */}
@@ -854,5 +944,110 @@ function SessionMiniCard({ session, onClose, onDuplicate, athleteId }) {
         </button>
       )}
     </div>
+  )
+}
+
+const selectStyle = {
+  width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)',
+  borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
+}
+
+function AddCoachingModal({ athletes, onClose, onAdd }) {
+  const [athleteId, setAthleteId] = useState('')
+  const [sessionId, setSessionId] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const confirm = async () => {
+    if (!athleteId || !sessionId) return
+    setSaving(true)
+    await onAdd(athleteId, sessionId)
+    setSaving(false)
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.4)', display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>Planifier un coaching</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Sportif</div>
+          <select value={athleteId} onChange={e => { setAthleteId(e.target.value); setSessionId('') }} style={selectStyle}>
+            <option value="">Choisir un sportif…</option>
+            {athletes.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </div>
+
+        {athleteId && (
+          <ProgramSessionPicker key={athleteId} athleteId={athleteId} sessionId={sessionId} onSelectSession={setSessionId} />
+        )}
+
+        <button onClick={confirm} disabled={!sessionId || saving} style={{
+          background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)',
+          padding: '11px', fontSize: 14, fontWeight: 700, cursor: (!sessionId || saving) ? 'default' : 'pointer',
+          opacity: (!sessionId || saving) ? 0.6 : 1,
+        }}>
+          {saving ? '…' : 'Planifier'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ProgramSessionPicker({ athleteId, sessionId, onSelectSession }) {
+  const [programs, setPrograms] = useState(null)
+  const [programId, setProgramId] = useState('')
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase
+        .from('programs')
+        .select('id, title, program_sessions(id, title, order_index)')
+        .eq('athlete_id', athleteId)
+        .neq('archived', true)
+        .is('group_id', null)
+        .order('created_at', { ascending: false })
+      setPrograms(data || [])
+    }
+    load()
+  }, [athleteId])
+
+  const selectedProgram = programs?.find(p => p.id === programId)
+  const sessions = selectedProgram
+    ? [...(selectedProgram.program_sessions || [])].sort((a, b) => a.order_index - b.order_index)
+    : []
+
+  return (
+    <>
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Programme</div>
+        {programs === null ? (
+          <div style={{ fontSize: 13, color: 'var(--text3)' }}>Chargement…</div>
+        ) : programs.length === 0 ? (
+          <div style={{ fontSize: 13, color: 'var(--text3)' }}>Ce sportif n&apos;a aucun programme actif.</div>
+        ) : (
+          <select value={programId} onChange={e => { setProgramId(e.target.value); onSelectSession('') }} style={selectStyle}>
+            <option value="">Choisir un programme…</option>
+            {programs.map(p => <option key={p.id} value={p.id}>{p.title || 'Programme sans titre'}</option>)}
+          </select>
+        )}
+      </div>
+
+      {programId && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Séance à coacher</div>
+          {sessions.length === 0 ? (
+            <div style={{ fontSize: 13, color: 'var(--text3)' }}>Ce programme n&apos;a aucune séance.</div>
+          ) : (
+            <select value={sessionId} onChange={e => onSelectSession(e.target.value)} style={selectStyle}>
+              <option value="">Choisir une séance…</option>
+              {sessions.map(s => <option key={s.id} value={s.id}>{s.title || 'Séance sans titre'}</option>)}
+            </select>
+          )}
+        </div>
+      )}
+    </>
   )
 }
