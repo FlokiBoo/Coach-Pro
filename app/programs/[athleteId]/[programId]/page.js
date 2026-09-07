@@ -1133,6 +1133,7 @@ function ProgramEditorPage({ params }) {
   }
 
   const inp = { border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 10px', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', width: '100%' }
+  const stepBtn = { width: 24, height: 24, borderRadius: '50%', border: '1px solid var(--border2)', background: 'var(--bg2)', color: 'var(--text2)', fontSize: 14, fontWeight: 700, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flexShrink: 0 }
 
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100svh', color: 'var(--text3)' }}>Chargement…</div>
@@ -1971,18 +1972,56 @@ function ProgramEditorPage({ params }) {
                               </div>
                               </>
                             )
-                          })() : (
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 5, marginBottom: 4 }}>
-                              {[{ f: 'sets', l: 'Séries', t: 'number', ph: '—' }, { f: 'reps', l: 'Reps', t: 'text', ph: '8-12' }, { f: 'kg', l: 'Kg', t: 'number', ph: '—' }, { f: 'rest', l: 'Récup', t: 'text', ph: '90s' }].map(({ f, l, t, ph }) => (
-                                <div key={f}>
-                                  <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>{l.toUpperCase()}</div>
-                                  <input type={t} placeholder={ph} value={exo[f]}
-                                    onChange={e => updateExo(s.id, exo._key, f, e.target.value)}
-                                    style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 12 }} min="0" step={f === 'kg' ? '0.5' : '1'} />
+                          })() : (() => {
+                            const setsCount = parseInt(exo.sets) || 0
+                            const visibleSets = Math.min(setsCount, 12)
+                            return (
+                              <div style={{ marginBottom: 4 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                    <button type="button" onClick={() => updateExo(s.id, exo._key, 'sets', String(Math.max(0, setsCount - 1)))} style={stepBtn}>−</button>
+                                    <div style={{ width: 20, textAlign: 'center', fontSize: 14, fontWeight: 800, color: 'var(--text)' }}>{exo.sets || 0}</div>
+                                    <button type="button" onClick={() => updateExo(s.id, exo._key, 'sets', String(setsCount + 1))} style={stepBtn}>+</button>
+                                  </div>
+                                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                    {setsCount > 1 ? 'Séries' : 'Série'}
+                                  </div>
                                 </div>
-                              ))}
-                            </div>
-                          )}
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5, marginBottom: setsCount > 0 ? 10 : 0 }}>
+                                  {[{ f: 'reps', l: 'Reps', t: 'text', ph: '8-12' }, { f: 'kg', l: 'Kg', t: 'number', ph: '—' }, { f: 'rest', l: 'Récup', t: 'text', ph: '90s' }].map(({ f, l, t, ph }) => (
+                                    <div key={f}>
+                                      <div style={{ fontSize: 8, fontWeight: 600, color: 'var(--text3)', marginBottom: 1, textAlign: 'center' }}>{l.toUpperCase()}</div>
+                                      <input type={t} placeholder={ph} value={exo[f]}
+                                        onChange={e => updateExo(s.id, exo._key, f, e.target.value)}
+                                        style={{ ...inp, textAlign: 'center', padding: '5px 3px', fontSize: 12 }} min="0" step={f === 'kg' ? '0.5' : '1'} />
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {setsCount > 0 && (
+                                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                    {Array.from({ length: visibleSets }).map((_, i) => (
+                                      <div key={i} style={{ display: 'flex', alignItems: 'stretch', gap: 8 }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 14, flexShrink: 0 }}>
+                                          <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--green)', flexShrink: 0, marginTop: 5 }} />
+                                          {i < visibleSets - 1 && <div style={{ width: 1, flex: 1, background: 'var(--border2)', minHeight: 12 }} />}
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6, paddingBottom: 8, fontSize: 11 }}>
+                                          <span style={{ fontWeight: 700, color: 'var(--text3)' }}>SÉRIE {i + 1}</span>
+                                          {exo.reps && <span style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 10, padding: '1px 7px', fontWeight: 600, color: 'var(--text2)' }}>{exo.reps} reps</span>}
+                                          {exo.kg && <span style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 10, padding: '1px 7px', fontWeight: 600, color: 'var(--text2)' }}>{exo.kg} kg</span>}
+                                        </div>
+                                      </div>
+                                    ))}
+                                    {setsCount > 12 && (
+                                      <div style={{ fontSize: 10, color: 'var(--text3)', paddingLeft: 22 }}>+ {setsCount - 12} série{setsCount - 12 > 1 ? 's' : ''}…</div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })()}
                           <textarea placeholder="Consignes (tempo, récup…)" value={exo.note}
                             onChange={e => updateExo(s.id, exo._key, 'note', e.target.value)}
                             ref={el => autoGrow(el)}
