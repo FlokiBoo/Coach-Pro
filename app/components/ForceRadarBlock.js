@@ -48,7 +48,7 @@ export default function ForceRadarBlock({ strengthCards, cardioCards, onOpen }) 
       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', width: '100%',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', width: '100%', marginBottom: 6 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', flex: 1, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6 }}><Barbell size={15} /> Force par muscle</div>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', flex: 1, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6 }}><Barbell size={15} /> Mes Performances</div>
         <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 3 }}>
           Voir tous les mouvements ›
         </div>

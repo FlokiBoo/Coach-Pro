@@ -7,6 +7,5 @@ Tâches identifiées mais pas encore traitées, à reprendre en session.
 
 ## Backlog
 - [ ] Finaliser l'app Android.
-- [ ] Renommer "Force par muscle" (`app/components/ForceRadarBlock.js`) — l'utilisateur veut changer ce nom, nouveau nom à préciser.
 - [ ] Réduire la liste des PR dans l'onglet Records (`app/components/TrackedMovementsBlock.js`) — quoi exactement à préciser avec l'utilisateur (moins de mouvements par défaut ? suppression de mouvements précis ? moins de catégories ?).
 - [ ] Avant de connecter l'assistant IA (`app/api/ai/chat`) ou le générateur de repas (`lib/mealPlanner.js`) à un vrai backend IA : ajouter un rate limiting (remonté en revue sécurité pré-lancement, endpoint à coût si non protégé).
