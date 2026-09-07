@@ -27,6 +27,8 @@ function today() {
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
+const PROGRAM_LEVELS = ['Débutant', 'Intermédiaire', 'Avancé']
+
 function formatDuration(min) {
   if (!min) return ''
   const h = Math.floor(min / 60)
@@ -1184,6 +1186,23 @@ function ProgramEditorPage({ params }) {
                 style={{ marginTop: 4 }}
                 inputStyle={{ fontSize: 12, fontWeight: 600, borderRadius: 20, color: 'var(--text2)', padding: '4px 10px' }}
               />
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                <input placeholder="Objectif" defaultValue={program?.goal || ''}
+                  onBlur={e => saveScheduleHint('goal', e.target.value.trim() || null)}
+                  style={{ width: 110, boxSizing: 'border-box', padding: '3px 8px', border: '1px solid var(--border2)', borderRadius: 20, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+                <select value={program?.level || ''} onChange={e => saveScheduleHint('level', e.target.value || null)}
+                  style={{ padding: '3px 6px', border: '1px solid var(--border2)', borderRadius: 20, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}>
+                  <option value="">Niveau —</option>
+                  {PROGRAM_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+                </select>
+                <input placeholder="Matériel" defaultValue={program?.equipment || ''}
+                  onBlur={e => saveScheduleHint('equipment', e.target.value.trim() || null)}
+                  style={{ width: 110, boxSizing: 'border-box', padding: '3px 8px', border: '1px solid var(--border2)', borderRadius: 20, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+                <input type="number" min="0" placeholder="Durée" defaultValue={program?.duration_weeks ?? ''}
+                  onBlur={e => saveScheduleHint('duration_weeks', e.target.value ? parseInt(e.target.value) : null)}
+                  style={{ width: 70, boxSizing: 'border-box', padding: '3px 8px', border: '1px solid var(--border2)', borderRadius: 20, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+                <span style={{ fontSize: 11, color: 'var(--text3)' }}>semaines</span>
+              </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: 'var(--text3)' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={11} /> Rythme conseillé (si l&apos;athlète choisit ses jours) :</span>
                 <input type="number" min="1" max="7" placeholder="X" value={program?.recommended_sessions_per_week ?? ''}
