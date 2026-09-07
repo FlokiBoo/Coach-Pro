@@ -98,18 +98,24 @@ function parseRestSeconds(raw) {
   return null
 }
 
+// Nom du groupement selon le nombre d'exercices enchaînés — la terminologie change au-delà de 2
+// (superset), 3 (triset) : au-delà, tout se range sous "giantset" plutôt que d'inventer un nom
+// par palier.
+function supersetGroupName(size) {
+  if (size <= 2) return 'SUPERSET'
+  if (size === 3) return 'TRISET'
+  return 'GIANTSET'
+}
+
 function getSupersetFlow(exos, ei, labels) {
   const exo = exos[ei]
   if (!exo.superset_group) return null
   if (ei > 0 && exos[ei - 1].superset_group === exo.superset_group) return null
   const group = []
   for (let j = ei; j < exos.length && exos[j].superset_group === exo.superset_group; j++) group.push(exos[j])
-  const parts = []
-  group.forEach(e => {
-    parts.push(labels[e.id] || '?')
-    if (e.rest) parts.push(e.rest)
-  })
-  return parts.join(' → ')
+  if (group.length < 2) return null
+  const exoLabels = group.map(e => labels[e.id] || '?')
+  return `${supersetGroupName(group.length)}, tu fais ${exoLabels.join(' puis ')} et ensuite tu prends la récup.`
 }
 
 function today() {
@@ -1749,7 +1755,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
               {(() => {
                 const flow = getSupersetFlow(exos, ei, labels)
                 return flow ? (
-                  <div style={{ fontSize: 11, color: '#6366f1', background: '#EEF2FF', borderRadius: 6, padding: '4px 10px', marginBottom: 6, fontWeight: 700, letterSpacing: '0.2px' }}>
+                  <div style={{ fontSize: 14, lineHeight: 1.4, color: '#6366f1', background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 10, padding: '10px 14px', marginBottom: 10, fontWeight: 700, letterSpacing: '0.2px' }}>
                     {flow}
                   </div>
                 ) : null
