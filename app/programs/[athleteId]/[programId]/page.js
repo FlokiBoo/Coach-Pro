@@ -333,12 +333,33 @@ function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession, onMoveSessi
     const [weekStr, dayStr] = String(over.id).split('-')
     const week = parseInt(weekStr, 10)
     const day = parseInt(dayStr, 10)
+
+    const dragged = sessions.find(x => x.id === active.id)
     // Si la séance glissée fait partie d'une sélection multiple, on déplace tout le lot d'un coup
     // plutôt que la seule séance sous le pointeur.
     const idsToMove = selectedIds.has(active.id) && selectedIds.size > 1 ? [...selectedIds] : [active.id]
+
+    // Décalage (en jours) entre la position d'origine de la séance saisie et la case cible, appliqué
+    // aux autres séances du lot pour garder leur organisation relative (ex. Jour 1/Jour 2 -> Jour 4/
+    // Jour 5 si on lâche Jour 2 sur Jour 5), plutôt que de toutes les empiler sur la même case.
+    const hasOrigin = dragged && dragged.week_number != null && dragged.day_of_week != null
+    const delta = hasOrigin ? ((week - 1) * 7 + day) - ((dragged.week_number - 1) * 7 + dragged.day_of_week) : 0
+    const maxAbsDay = durationWeeks * 7 - 1
+
     idsToMove.forEach(id => {
       const s = sessions.find(x => x.id === id)
-      if (s && (s.week_number !== week || s.day_of_week !== day)) onMoveSession(id, week, day)
+      if (!s) return
+      let targetWeek, targetDay
+      if (!hasOrigin || s.week_number == null || s.day_of_week == null) {
+        // Pas de position d'origine à décaler (séance non planifiée, ou séance saisie elle-même non
+        // planifiée) : atterrit exactement sur la case visée.
+        targetWeek = week; targetDay = day
+      } else {
+        const abs = Math.min(maxAbsDay, Math.max(0, (s.week_number - 1) * 7 + s.day_of_week + delta))
+        targetWeek = Math.floor(abs / 7) + 1
+        targetDay = abs % 7
+      }
+      if (s.week_number !== targetWeek || s.day_of_week !== targetDay) onMoveSession(id, targetWeek, targetDay)
     })
   }
 
