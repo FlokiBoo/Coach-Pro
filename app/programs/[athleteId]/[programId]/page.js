@@ -21,6 +21,7 @@ import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerCon
 import {
   ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat,
   VideoCamera, Lightbulb, Target, ChartLineUp, Backpack, FloppyDisk, Lightning,
+  CopySimple, ArrowsOutCardinal,
 } from '@phosphor-icons/react'
 
 function today() {
@@ -238,7 +239,7 @@ function SessionSummaryBlock({ exercises }) {
 // dans la carte de séance classique — cliquer une case pleine y scrolle et l'ouvre.
 // Case cible du glisser-déposer (une par jour de programme) — le fond se surligne quand une
 // séance est glissée au-dessus, pour indiquer où elle atterrira.
-function DayCell({ cellId, week, dayKey, children, isOver, setNodeRef, borderLeft }) {
+function DayCell({ children, isOver, setNodeRef, borderLeft }) {
   return (
     <div ref={setNodeRef} style={{
       display: 'flex', flexDirection: 'column', gap: 6, minHeight: 180, padding: 10,
@@ -249,45 +250,50 @@ function DayCell({ cellId, week, dayKey, children, isOver, setNodeRef, borderLef
   )
 }
 
-// Séance glissable + sélectionnable, utilisée à la fois dans les cases du calendrier et dans la
-// liste "Non planifiées" — maintenir le clic ~250ms puis glisser pour déplacer vers un autre jour
-// (cf. le même principe déjà en place pour les séances/exercices ailleurs, SortableItem/DragHandle,
-// mais ici toute la puce est prenable : pas de bouton/champ à l'intérieur qui aurait besoin de rester
-// cliquable séparément). La case à cocher sert à sélectionner plusieurs séances pour les dupliquer.
-function SessionChip({ s, selected, onToggleSelect, onOpen, dragSuppressRef, compact }) {
+// Séance sélectionnable/dupliquable/déplaçable, utilisée à la fois dans les cases du calendrier et
+// dans la liste "Non planifiées". Trois contrôles distincts côte à côte (checkbox, dupliquer,
+// poignée ⊕) plutôt qu'une puce entièrement "draggable" — même principe que SortableItem/DragHandle
+// ailleurs dans l'app : seule la poignée porte les listeners de glisser, le reste (case à cocher,
+// titre cliquable) reste utilisable normalement sans ambiguïté clic/glisser.
+function SessionChip({ s, selected, onToggleSelect, onOpen, onDuplicate, compact }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: s.id })
   const style = {
     transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
-    opacity: isDragging ? 0.4 : 1,
+    opacity: isDragging ? 0.5 : 1,
     zIndex: isDragging ? 50 : undefined,
-    position: 'relative', touchAction: 'none',
   }
-  const handleClick = () => {
-    // Un glisser-déposer abouti peut déclencher un clic de synthèse juste après le relâchement —
-    // on l'ignore une fois (drapeau posé au début du drag, consommé ici) pour ne pas ouvrir la
-    // séance en plein écran juste après l'avoir déplacée.
-    if (dragSuppressRef.current) { dragSuppressRef.current = false; return }
-    onOpen(s.id)
-  }
+  const color = selected ? '#fff' : 'var(--green)'
   return (
-    <div ref={setNodeRef} {...listeners} {...attributes} onClick={handleClick} style={{
-      display: 'flex', alignItems: 'flex-start', gap: 6, cursor: 'pointer',
+    <div ref={setNodeRef} style={{
+      display: 'flex', alignItems: 'center', gap: 4, position: 'relative',
       background: selected ? 'var(--green)' : 'var(--green-light)',
-      border: '1px solid var(--green)', color: selected ? '#fff' : 'var(--green)',
-      borderRadius: compact ? 20 : 'var(--r)', padding: compact ? '4px 10px' : '10px 8px',
+      border: '1px solid var(--green)', color,
+      borderRadius: compact ? 20 : 'var(--r)', padding: compact ? '3px 6px 3px 10px' : '5px 6px 5px 8px',
       fontSize: compact ? 11 : 14, fontWeight: 700, lineHeight: 1.25,
-      whiteSpace: compact ? 'nowrap' : 'normal', wordBreak: compact ? undefined : 'break-word',
       ...style,
     }}>
       <input type="checkbox" checked={selected} onChange={() => onToggleSelect(s.id)}
-        onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}
-        style={{ accentColor: selected ? '#fff' : 'var(--green)', width: 13, height: 13, marginTop: 2, flexShrink: 0, cursor: 'pointer' }} />
-      <span style={{ flex: 1 }}>{s.title || 'Séance'}</span>
+        style={{ accentColor: color, width: 13, height: 13, flexShrink: 0, cursor: 'pointer' }} />
+      <button onClick={() => onOpen(s.id)} title={s.title || 'Séance'} style={{
+        flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: compact ? '2px 0' : '5px 2px',
+        font: 'inherit', fontWeight: 'inherit', color: 'inherit', cursor: 'pointer',
+        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: compact ? 'nowrap' : 'normal', wordBreak: compact ? undefined : 'break-word',
+      }}>
+        {s.title || 'Séance'}
+      </button>
+      <button onClick={() => onDuplicate(s.id)} title="Dupliquer cette séance"
+        style={{ background: 'none', border: 'none', padding: 3, display: 'flex', color: 'inherit', cursor: 'pointer', flexShrink: 0, opacity: 0.85 }}>
+        <CopySimple size={compact ? 12 : 14} />
+      </button>
+      <span {...listeners} {...attributes} title="Maintenir puis glisser pour déplacer vers un autre jour"
+        style={{ cursor: 'grab', touchAction: 'none', display: 'flex', flexShrink: 0, opacity: 0.85, padding: 3 }}>
+        <ArrowsOutCardinal size={compact ? 12 : 14} />
+      </span>
     </div>
   )
 }
 
-function WeekDayCell({ week, d, dayNumber, cellSessions, isFirstCol, selectedIds, onToggleSelect, onOpenSession, onAddAt, dragSuppressRef }) {
+function WeekDayCell({ week, d, dayNumber, cellSessions, isFirstCol, selectedIds, onToggleSelect, onOpenSession, onAddAt, onDuplicateSession }) {
   const { isOver, setNodeRef } = useDroppable({ id: `${week}-${d.key}` })
   return (
     <DayCell isOver={isOver} setNodeRef={setNodeRef} borderLeft={isFirstCol ? 'none' : '1px solid var(--border)'}>
@@ -296,7 +302,7 @@ function WeekDayCell({ week, d, dayNumber, cellSessions, isFirstCol, selectedIds
         <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>{d.short}</span>
       </div>
       {cellSessions.map(s => (
-        <SessionChip key={s.id} s={s} selected={selectedIds.has(s.id)} onToggleSelect={onToggleSelect} onOpen={onOpenSession} dragSuppressRef={dragSuppressRef} />
+        <SessionChip key={s.id} s={s} selected={selectedIds.has(s.id)} onToggleSelect={onToggleSelect} onOpen={onOpenSession} onDuplicate={onDuplicateSession} />
       ))}
       <button onClick={() => onAddAt(week, d.key)} style={{
         background: 'transparent', border: '1px solid var(--border2)', color: 'var(--text3)',
@@ -308,7 +314,7 @@ function WeekDayCell({ week, d, dayNumber, cellSessions, isFirstCol, selectedIds
   )
 }
 
-function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession, onMoveSession, selectedIds, onToggleSelect }) {
+function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession, onMoveSession, onDuplicateSession, selectedIds, onToggleSelect }) {
   const byCell = {}
   sessions.forEach(s => {
     if (s.week_number == null || s.day_of_week == null) return
@@ -319,13 +325,11 @@ function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession, onMoveSessi
 
   const weeks = Array.from({ length: durationWeeks }, (_, wi) => wi + 1)
 
-  const dragSuppressRef = useRef(false)
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { delay: 250, tolerance: 6 } }))
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { delay: 200, tolerance: 6 } }))
 
   const handleDragEnd = (event) => {
     const { active, over } = event
     if (!over) return
-    dragSuppressRef.current = true
     const [weekStr, dayStr] = String(over.id).split('-')
     const week = parseInt(weekStr, 10)
     const day = parseInt(dayStr, 10)
@@ -348,7 +352,7 @@ function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession, onMoveSessi
                   <WeekDayCell key={d.key} week={week} d={d} dayNumber={dayNumber}
                     cellSessions={byCell[`${week}-${d.key}`] || []} isFirstCol={di === 0}
                     selectedIds={selectedIds} onToggleSelect={onToggleSelect}
-                    onOpenSession={onOpenSession} onAddAt={onAddAt} dragSuppressRef={dragSuppressRef} />
+                    onOpenSession={onOpenSession} onAddAt={onAddAt} onDuplicateSession={onDuplicateSession} />
                 )
               })}
             </div>
@@ -359,7 +363,7 @@ function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession, onMoveSessi
           <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '4px 2px' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>Non planifiées :</span>
             {unscheduled.map(s => (
-              <SessionChip key={s.id} s={s} compact selected={selectedIds.has(s.id)} onToggleSelect={onToggleSelect} onOpen={onOpenSession} dragSuppressRef={dragSuppressRef} />
+              <SessionChip key={s.id} s={s} compact selected={selectedIds.has(s.id)} onToggleSelect={onToggleSelect} onOpen={onOpenSession} onDuplicate={onDuplicateSession} />
             ))}
           </div>
         )}
@@ -1218,19 +1222,32 @@ function ProgramEditorPage({ params }) {
     }
   }
 
-  const deleteSession = async (id) => {
-    if (!confirm('Supprimer cette séance ? Elle sera aussi supprimée chez les clients à qui ce programme est lié (sauf s\'ils l\'ont déjà validée).')) return
-
+  // Cascade partagée par deleteSession (une séance) et deleteSelectedSessions (plusieurs) — pas de
+  // confirm() ici, chaque appelant gère sa propre confirmation (une seule pour tout le lot en bulk).
+  const deleteSessionCascade = async (id) => {
     const { data: linked } = await supabase.from('program_sessions').select('id').eq('source_session_id', id)
     for (const l of (linked || [])) {
       const { data: completion } = await supabase.from('program_completions')
         .select('program_session_id').eq('program_session_id', l.id).maybeSingle()
       if (!completion) await supabase.from('program_sessions').delete().eq('id', l.id)
     }
-
     await supabase.from('program_sessions').delete().eq('id', id)
+  }
+
+  const deleteSession = async (id) => {
+    if (!confirm('Supprimer cette séance ? Elle sera aussi supprimée chez les clients à qui ce programme est lié (sauf s\'ils l\'ont déjà validée).')) return
+    await deleteSessionCascade(id)
     setSessions(prev => prev.filter(s => s.id !== id))
     if (openId === id) setOpenId(null)
+  }
+
+  const deleteSelectedSessions = async () => {
+    const n = selectedSessionIds.size
+    if (!confirm(`Supprimer ${n} séance${n > 1 ? 's' : ''} ? Elles seront aussi supprimées chez les clients à qui ce programme est lié (sauf s'ils les ont déjà validées).`)) return
+    for (const id of selectedSessionIds) await deleteSessionCascade(id)
+    setSessions(prev => prev.filter(s => !selectedSessionIds.has(s.id)))
+    if (selectedSessionIds.has(openId)) setOpenId(null)
+    setSelectedSessionIds(new Set())
   }
 
   const deleteWholeProgram = async () => {
@@ -1658,27 +1675,36 @@ function ProgramEditorPage({ params }) {
           onAddAt={addSessionAt}
           onOpenSession={scrollToSession}
           onMoveSession={moveSessionToDay}
+          onDuplicateSession={(id) => duplicateSession(id, null, { skipOpen: true })}
           selectedIds={selectedSessionIds}
           onToggleSelect={toggleSessionSelected}
         />
 
         {selectedSessionIds.size > 0 && (
-          <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--green-light)' }}>
-            <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
-              {selectedSessionIds.size} sélectionnée{selectedSessionIds.size > 1 ? 's' : ''}
+          <div style={{
+            position: 'sticky', bottom: 12, zIndex: 50, margin: '12px 16px 0',
+            background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.12)', padding: '10px 14px',
+            display: 'flex', alignItems: 'center', gap: 14,
+          }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+              <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--green)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, flexShrink: 0 }}>
+                {selectedSessionIds.size}
+              </span>
+              séance{selectedSessionIds.size > 1 ? 's' : ''} sélectionnée{selectedSessionIds.size > 1 ? 's' : ''}
             </span>
-            <button
-              onClick={duplicateSelectedSessions}
-              disabled={duplicatingSelected}
-              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-            >
-              {duplicatingSelected ? '…' : '⧉ Dupliquer'}
+            <button onClick={() => setSelectedSessionIds(new Set())} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>
+              Effacer la sélection
             </button>
-            <button
-              onClick={() => setSelectedSessionIds(new Set())}
-              style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}
+            <div style={{ flex: 1 }} />
+            <button onClick={duplicateSelectedSessions} disabled={duplicatingSelected} title="Dupliquer la sélection"
+              style={{ background: 'var(--green-light)', border: '1px solid var(--green)', color: 'var(--green)', borderRadius: 'var(--r)', padding: 8, display: 'flex', cursor: 'pointer' }}>
+              <CopySimple size={16} />
+            </button>
+            <button onClick={deleteSelectedSessions} title="Supprimer la sélection"
+              style={{ background: 'none', border: '1px solid #F1B8B8', color: '#DC2626', borderRadius: 'var(--r)', padding: 8, display: 'flex', cursor: 'pointer' }}
             >
-              Annuler
+              <Trash size={16} />
             </button>
           </div>
         )}
