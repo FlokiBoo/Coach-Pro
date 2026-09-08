@@ -15,10 +15,10 @@ import { setUnsavedChanges, guardNavigation } from '@/lib/unsavedChanges'
 import { SortableGroup, SortableItem, DragHandle } from '@/app/components/SortableItem'
 import { getCoachId } from '@/lib/coach'
 import ActivityTypeSelect from '@/app/components/ActivityTypeSelect'
-import { notifyAssigned } from '@/lib/notify'
+import { notifyAssigned, notifyProgramAvailable } from '@/lib/notify'
 import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerConfigEditor'
 import {
-  ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat, Warning,
+  ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat,
   VideoCamera, Lightbulb, Target, ChartLineUp, Backpack, FloppyDisk, Lightning,
 } from '@phosphor-icons/react'
 
@@ -244,40 +244,49 @@ function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession }) {
   })
   const unscheduled = sessions.filter(s => s.week_number == null || s.day_of_week == null)
 
+  const weeks = Array.from({ length: durationWeeks }, (_, wi) => wi + 1)
+
   return (
-    <div style={{ margin: '12px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {Array.from({ length: durationWeeks }, (_, wi) => wi + 1).map(week => (
-        <div key={week} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-          <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 11, fontWeight: 800, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            Semaine {week}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 6, padding: 8, overflowX: 'auto' }}>
-            {WEEK_DAYS.map(d => {
+    <div style={{ margin: '12px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+        {weeks.map((week, wi) => (
+          <div key={week} style={{
+            display: 'grid', gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))', overflowX: 'auto',
+            borderTop: wi === 0 ? 'none' : '1px solid var(--border)',
+          }}>
+            {WEEK_DAYS.map((d, di) => {
               const cellSessions = byCell[`${week}-${d.key}`] || []
+              const dayNumber = (week - 1) * 7 + di + 1
               return (
-                <div key={d.key} style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 70 }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text3)', textAlign: 'center', textTransform: 'uppercase' }}>{d.short}</div>
+                <div key={d.key} style={{
+                  display: 'flex', flexDirection: 'column', gap: 6, minHeight: 180, padding: 10,
+                  borderLeft: di === 0 ? 'none' : '1px solid var(--border)',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, paddingBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap' }}>Jour {dayNumber}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>{d.short}</span>
+                  </div>
                   {cellSessions.map(s => (
                     <button key={s.id} onClick={() => onOpenSession(s.id)} style={{
                       background: 'var(--green-light)', border: '1px solid var(--green)', color: 'var(--green)',
-                      borderRadius: 'var(--r)', padding: '6px 4px', fontSize: 10, fontWeight: 700, cursor: 'pointer', textAlign: 'center',
-                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      borderRadius: 'var(--r)', padding: '10px 8px', fontSize: 14, fontWeight: 700, lineHeight: 1.25, cursor: 'pointer', textAlign: 'left',
+                      whiteSpace: 'normal', wordBreak: 'break-word',
                     }}>
                       {s.title || 'Séance'}
                     </button>
                   ))}
                   <button onClick={() => onAddAt(week, d.key)} style={{
-                    background: 'var(--bg2)', border: '1px dashed var(--border2)', color: 'var(--text3)',
-                    borderRadius: 'var(--r)', padding: '6px 4px', fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                    background: 'transparent', border: '1px solid var(--border2)', color: 'var(--text3)',
+                    borderRadius: 'var(--r)', padding: '6px 4px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                   }}>
-                    + Add
+                    + Ajouter
                   </button>
                 </div>
               )
             })}
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
 
       {unscheduled.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '4px 2px' }}>
@@ -322,12 +331,9 @@ function ProgramEditorPage({ params }) {
   const [saved, setSaved] = useState(false)
   const [savedIds, setSavedIds] = useState(new Set())
   const [loading, setLoading] = useState(true)
-  const [layoutCols, setLayoutCols] = useState(1)
   const [historyExo, setHistoryExo] = useState(null)
-  const [selectedSessions, setSelectedSessions] = useState(new Set())
   const [hiddenSessions, setHiddenSessions] = useState(new Set())
   const [pinnedSessions, setPinnedSessions] = useState(new Set())
-  const [duplicatingSelected, setDuplicatingSelected] = useState(false)
   const [titleSaving, setTitleSaving] = useState(false)
   const [actPresetSearch, setActPresetSearch] = useState({})
   const [actPresetSuggs, setActPresetSuggs] = useState({})
@@ -380,6 +386,8 @@ function ProgramEditorPage({ params }) {
   const [followers, setFollowers] = useState([])
   const [syncing, setSyncing] = useState(false)
   const [notifyOnSync, setNotifyOnSync] = useState(false)
+  const [removingFollowerId, setRemovingFollowerId] = useState(null)
+  const [togglingAvailable, setTogglingAvailable] = useState(false)
 
   useEffect(() => {
     if (!isTemplate) return
@@ -964,6 +972,44 @@ function ProgramEditorPage({ params }) {
     setSyncing(false)
   }
 
+  const toggleProgramAvailable = async () => {
+    if (!program) return
+    const next = !program.available_to_clients
+    setTogglingAvailable(true)
+    setProgram(p => ({ ...p, available_to_clients: next }))
+    const { error } = await supabase.from('programs').update({ available_to_clients: next }).eq('id', programId)
+    setTogglingAvailable(false)
+    if (error) {
+      setProgram(p => ({ ...p, available_to_clients: !next }))
+      alert('Erreur : ' + error.message)
+      return
+    }
+    if (next) notifyProgramAvailable(programId)
+  }
+
+  // Retire la copie d'un sportif suiveur de ce template (même nettoyage en cascade que
+  // removeParticipant/deleteWholeProgram, appliqué ici à une copie liée par source_program_id).
+  const removeFollower = async (follower) => {
+    if (!confirm(`Retirer ce programme de "${follower.athletes?.name || 'ce sportif'}" ? Sa copie et ses résultats seront supprimés.`)) return
+    setRemovingFollowerId(follower.id)
+    const { data: sess } = await supabase.from('program_sessions').select('id').eq('program_id', follower.id)
+    const sessionIds = (sess || []).map(s => s.id)
+    if (sessionIds.length) {
+      const { data: exos } = await supabase.from('program_exercises').select('id').in('program_session_id', sessionIds)
+      const exoIds = (exos || []).map(e => e.id)
+      if (exoIds.length) {
+        await supabase.from('exercise_performance_history').delete().in('program_exercise_id', exoIds)
+        await supabase.from('program_exercise_logs').delete().in('program_exercise_id', exoIds)
+        await supabase.from('program_exercises').delete().in('id', exoIds)
+      }
+      await supabase.from('program_completions').delete().in('program_session_id', sessionIds)
+      await supabase.from('program_sessions').delete().in('id', sessionIds)
+    }
+    await supabase.from('programs').delete().eq('id', follower.id)
+    setFollowers(prev => prev.filter(f => f.id !== follower.id))
+    setRemovingFollowerId(null)
+  }
+
   // Sauvegarde la séance cliquée et, avec elle, toutes les autres séances qui ont des
   // modifications en attente — un seul clic sur "Sauvegarder" suffit pour tout enregistrer.
   const saveAllDirtySessions = async (primarySessId) => {
@@ -973,17 +1019,6 @@ function ProgramEditorPage({ params }) {
       await saveSession(id)
     }
     setSaving(false)
-  }
-
-  const addSession = async () => {
-    const { data: s } = await supabase.from('program_sessions')
-      .insert({ program_id: programId, order_index: sessions.length, title: '' })
-      .select().single()
-    if (s) {
-      const newS = { ...s, exercises: [emptyExo(0)] }
-      setSessions(prev => [...prev, newS])
-      setOpenId(s.id)
-    }
   }
 
   // Créée depuis une case de la grille Semaine/Jour (WeekGrid) : place directement la séance au
@@ -999,10 +1034,7 @@ function ProgramEditorPage({ params }) {
     }
   }
 
-  const scrollToSession = (id) => {
-    setOpenId(id)
-    setTimeout(() => document.getElementById(`session-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100)
-  }
+  const scrollToSession = (id) => setOpenId(id)
 
   const duplicateSession = async (id, forcedIdx = null, opts = {}) => {
     const s = sessions.find(sess => sess.id === id)
@@ -1050,28 +1082,6 @@ function ProgramEditorPage({ params }) {
     }
     setSessions(prev => [...prev, newS])
     if (!opts.skipOpen) setOpenId(newSession.id)
-  }
-
-  const toggleSessionSelected = (id) => {
-    setSelectedSessions(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const duplicateSelectedSessions = async () => {
-    const toDuplicate = sessions.filter(s => selectedSessions.has(s.id))
-    if (!toDuplicate.length) return
-    setDuplicatingSelected(true)
-    let nextIdx = sessions.length
-    for (const s of toDuplicate) {
-      await duplicateSession(s.id, nextIdx, { skipOpen: true })
-      nextIdx++
-    }
-    setSelectedSessions(new Set())
-    setDuplicatingSelected(false)
   }
 
   const saveTitle = async () => {
@@ -1313,58 +1323,19 @@ function ProgramEditorPage({ params }) {
                 onChange={e => setProgram(p => ({ ...p, title: e.target.value }))}
                 onBlur={saveTitle}
                 onKeyDown={e => e.key === 'Enter' && e.target.blur()}
-                style={{ fontFamily: 'var(--font-title)', fontWeight: 700, fontSize: 17, border: 'none', outline: 'none', background: 'transparent', width: '100%', color: 'var(--title)' }}
+                style={{ fontFamily: 'var(--font-title)', fontWeight: 700, fontSize: 19, border: 'none', outline: 'none', background: 'transparent', width: '100%', color: 'var(--title)' }}
                 placeholder="Nom du programme"
               />
               {titleSaving && <div style={{ fontSize: 10, color: 'var(--text3)' }}>Enregistrement…</div>}
-              <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
                 {isTemplate ? <><ClipboardText size={11} /> {program?.is_template ? 'Template' : 'Brouillon'}</> : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
               </div>
               <ActivityTypeSelect
                 value={program?.activity_type || 'Musculation 🏋️'}
                 onChange={saveActivityType}
-                style={{ marginTop: 4 }}
+                style={{ marginTop: 6 }}
                 inputStyle={{ fontSize: 12, fontWeight: 600, borderRadius: 20, color: 'var(--text2)', padding: '4px 10px' }}
               />
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                <input placeholder="Objectif" defaultValue={program?.goal || ''}
-                  onBlur={e => saveScheduleHint('goal', e.target.value.trim() || null)}
-                  style={{ width: 110, boxSizing: 'border-box', padding: '3px 8px', border: '1px solid var(--border2)', borderRadius: 20, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
-                <select value={program?.level || ''} onChange={e => saveScheduleHint('level', e.target.value || null)}
-                  style={{ padding: '3px 6px', border: '1px solid var(--border2)', borderRadius: 20, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}>
-                  <option value="">Niveau —</option>
-                  {PROGRAM_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
-                </select>
-                <input placeholder="Matériel" defaultValue={program?.equipment || ''}
-                  onBlur={e => saveScheduleHint('equipment', e.target.value.trim() || null)}
-                  style={{ width: 110, boxSizing: 'border-box', padding: '3px 8px', border: '1px solid var(--border2)', borderRadius: 20, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
-                <input type="number" min="0" placeholder="Durée" defaultValue={program?.duration_weeks ?? ''}
-                  onBlur={e => saveScheduleHint('duration_weeks', e.target.value ? parseInt(e.target.value) : null)}
-                  style={{ width: 70, boxSizing: 'border-box', padding: '3px 8px', border: '1px solid var(--border2)', borderRadius: 20, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
-                <span style={{ fontSize: 11, color: 'var(--text3)' }}>semaines</span>
-              </div>
-              {isTemplate && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: 'var(--text3)' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardText size={11} /> Phase précédente conseillée :</span>
-                  <select value={program?.previous_phase_program_id || ''}
-                    onChange={e => saveScheduleHint('previous_phase_program_id', e.target.value || null)}
-                    style={{ maxWidth: 200, padding: '2px 6px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}>
-                    <option value="">Aucune</option>
-                    {otherTemplates.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-                  </select>
-                </div>
-              )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 11, color: 'var(--text3)' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={11} /> Rythme conseillé (si l&apos;athlète choisit ses jours) :</span>
-                <input type="number" min="1" max="7" placeholder="X" value={program?.recommended_sessions_per_week ?? ''}
-                  onChange={e => saveScheduleHint('recommended_sessions_per_week', e.target.value ? parseInt(e.target.value) : null)}
-                  style={{ width: 44, boxSizing: 'border-box', padding: '2px 4px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', textAlign: 'center' }} />
-                <span>séances/sem., mini</span>
-                <input type="number" min="0" placeholder="48" value={program?.min_hours_between_sessions ?? ''}
-                  onChange={e => saveScheduleHint('min_hours_between_sessions', e.target.value ? parseInt(e.target.value) : null)}
-                  style={{ width: 44, boxSizing: 'border-box', padding: '2px 4px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', textAlign: 'center' }} />
-                <span>h d&apos;écart</span>
-              </div>
             </div>
             {isTemplate && (
               <button onClick={() => saveIsTemplate(!program?.is_template)}
@@ -1382,23 +1353,65 @@ function ProgramEditorPage({ params }) {
               style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: '#DC2626', cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
               <Trash size={12} /> Supprimer
             </button>
-            {sessions.length > 1 && (
-              <div style={{ display: 'flex', gap: 2, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 2, flexShrink: 0 }}>
-                {[1, 2, 3, 4].map(n => (
-                  <button key={n} onClick={() => setLayoutCols(n)}
-                    style={{
-                      background: layoutCols === n ? 'var(--green)' : 'transparent',
-                      color: layoutCols === n ? '#fff' : 'var(--text3)',
-                      border: 'none', borderRadius: 4, padding: '5px 9px',
-                      fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                    }}
-                    title={n === 1 ? '1 séance' : `${n} séances côte à côte`}
-                  >
-                    {n}
-                  </button>
-                ))}
+          </div>
+        </div>
+
+        {/* Stats — Azeoo affiche ces champs en lecture seule avec un bouton "Edit" séparé ; ici ils
+            restent éditables en place, cohérent avec le reste de l'app (pas de flux d'édition à part). */}
+        <div style={{ margin: '12px 16px 0', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Durée</div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                <input type="number" min="0" placeholder="—" defaultValue={program?.duration_weeks ?? ''}
+                  onBlur={e => saveScheduleHint('duration_weeks', e.target.value ? parseInt(e.target.value) : null)}
+                  style={{ width: 40, border: 'none', borderBottom: '1px dashed var(--border2)', background: 'transparent', fontSize: 14, fontWeight: 700, color: 'var(--text)', outline: 'none', padding: '2px 0' }} />
+                <span style={{ fontSize: 12, color: 'var(--text3)' }}>semaines</span>
               </div>
-            )}
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Niveau</div>
+              <select value={program?.level || ''} onChange={e => saveScheduleHint('level', e.target.value || null)}
+                style={{ border: 'none', borderBottom: '1px dashed var(--border2)', background: 'transparent', fontSize: 14, fontWeight: 700, color: 'var(--text)', outline: 'none', padding: '2px 0' }}>
+                <option value="">—</option>
+                {PROGRAM_LEVELS.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Objectif</div>
+              <input placeholder="—" defaultValue={program?.goal || ''}
+                onBlur={e => saveScheduleHint('goal', e.target.value.trim() || null)}
+                style={{ width: 140, border: 'none', borderBottom: '1px dashed var(--border2)', background: 'transparent', fontSize: 14, fontWeight: 700, color: 'var(--text)', outline: 'none', padding: '2px 0' }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Matériel</div>
+              <input placeholder="—" defaultValue={program?.equipment || ''}
+                onBlur={e => saveScheduleHint('equipment', e.target.value.trim() || null)}
+                style={{ width: 140, border: 'none', borderBottom: '1px dashed var(--border2)', background: 'transparent', fontSize: 14, fontWeight: 700, color: 'var(--text)', outline: 'none', padding: '2px 0' }} />
+            </div>
+          </div>
+
+          {isTemplate && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--text3)', flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardText size={11} /> Phase précédente conseillée :</span>
+              <select value={program?.previous_phase_program_id || ''}
+                onChange={e => saveScheduleHint('previous_phase_program_id', e.target.value || null)}
+                style={{ maxWidth: 200, padding: '2px 6px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }}>
+                <option value="">Aucune</option>
+                {otherTemplates.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+              </select>
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: isTemplate ? 8 : 14, paddingTop: isTemplate ? 0 : 12, borderTop: isTemplate ? 'none' : '1px solid var(--border)', fontSize: 11, color: 'var(--text3)', flexWrap: 'wrap' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={11} /> Rythme conseillé (si l&apos;athlète choisit ses jours) :</span>
+            <input type="number" min="1" max="7" placeholder="X" value={program?.recommended_sessions_per_week ?? ''}
+              onChange={e => saveScheduleHint('recommended_sessions_per_week', e.target.value ? parseInt(e.target.value) : null)}
+              style={{ width: 44, boxSizing: 'border-box', padding: '2px 4px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', textAlign: 'center' }} />
+            <span>séances/sem., mini</span>
+            <input type="number" min="0" placeholder="48" value={program?.min_hours_between_sessions ?? ''}
+              onChange={e => saveScheduleHint('min_hours_between_sessions', e.target.value ? parseInt(e.target.value) : null)}
+              style={{ width: 44, boxSizing: 'border-box', padding: '2px 4px', border: '1px solid var(--border2)', borderRadius: 4, fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', textAlign: 'center' }} />
+            <span>h d&apos;écart</span>
           </div>
         </div>
 
@@ -1467,36 +1480,74 @@ function ProgramEditorPage({ params }) {
           </div>
         )}
 
-        {isTemplate && followers.length > 0 && (
-          <div style={{ margin: '12px 16px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: '#FFFBEB', border: '1px solid #FDE68A', color: '#92400E', fontSize: 13 }}>
-              <Warning size={16} style={{ flexShrink: 0 }} />
-              Ce programme est actuellement suivi par {followers.length} sportif{followers.length > 1 ? 's' : ''}.
+        {/* Partage + Client(s) — pendant Ostryk du panneau "Enable sharing" / "Client(s)" d'Azeoo,
+            adapté au modèle de copie (pas de lien live) : le coach active la disponibilité et voit/gère
+            les sportifs qui ont une copie de ce template. */}
+        {isTemplate && (
+          <div style={{ margin: '12px 16px 0', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Disponible aux sportifs</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)' }}>Visible dans la liste des programmes que les sportifs peuvent démarrer eux-mêmes.</div>
+              </div>
+              <button onClick={toggleProgramAvailable} disabled={togglingAvailable} role="switch" aria-checked={!!program?.available_to_clients}
+                style={{
+                  width: 40, height: 22, borderRadius: 20, border: 'none', flexShrink: 0, cursor: 'pointer', position: 'relative',
+                  background: program?.available_to_clients ? 'var(--green)' : 'var(--border2)', transition: 'background 0.15s',
+                }}>
+                <span style={{
+                  position: 'absolute', top: 2, left: program?.available_to_clients ? 20 : 2, width: 18, height: 18, borderRadius: '50%',
+                  background: '#fff', transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                }} />
+              </button>
             </div>
 
-            {sessions.some(s => s.needs_sync) && (
-              <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ fontSize: 13, color: 'var(--text2)' }}>
-                  Une séance a été modifiée après que des sportifs ont programmé ce programme :
-                  <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-                    {sessions.filter(s => s.needs_sync).map(s => (
-                      <li key={s.id} style={{ fontWeight: 600 }}>{s.title || 'Séance sans titre'}</li>
-                    ))}
-                  </ul>
-                </div>
-                <button onClick={runSync} disabled={syncing} style={{
-                  alignSelf: 'flex-start', background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 'var(--r)',
-                  padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                }}>
-                  {syncing ? 'Synchronisation…' : '⟳ Lancer la synchro'}
-                </button>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text3)', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={notifyOnSync} onChange={e => setNotifyOnSync(e.target.checked)}
-                    style={{ accentColor: 'var(--green)', width: 15, height: 15 }} />
-                  Envoyer une notification aux sportifs concernés
-                </label>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <UsersThree size={12} /> Client(s) {followers.length > 0 && `(${followers.length})`}
               </div>
-            )}
+
+              {followers.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun sportif n&apos;a encore ce programme.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {followers.map(f => (
+                    <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 10px' }}>
+                      <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{f.athletes?.name || '—'}</span>
+                      <Link href={`/programs/${f.athlete_id}/${f.id}`} style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)', textDecoration: 'none' }}>Voir</Link>
+                      <button onClick={() => removeFollower(f)} disabled={removingFollowerId === f.id}
+                        style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: 0 }}>
+                        {removingFollowerId === f.id ? '…' : 'Retirer'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {sessions.some(s => s.needs_sync) && (
+                <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ fontSize: 13, color: 'var(--text2)' }}>
+                    Une séance a été modifiée après que des sportifs ont programmé ce programme :
+                    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                      {sessions.filter(s => s.needs_sync).map(s => (
+                        <li key={s.id} style={{ fontWeight: 600 }}>{s.title || 'Séance sans titre'}</li>
+                      ))}
+                    </ul>
+                  </div>
+                  <button onClick={runSync} disabled={syncing} style={{
+                    alignSelf: 'flex-start', background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 'var(--r)',
+                    padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  }}>
+                    {syncing ? 'Synchronisation…' : '⟳ Lancer la synchro'}
+                  </button>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text3)', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={notifyOnSync} onChange={e => setNotifyOnSync(e.target.checked)}
+                      style={{ accentColor: 'var(--green)', width: 15, height: 15 }} />
+                    Envoyer une notification aux sportifs concernés
+                  </label>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -1506,27 +1557,6 @@ function ProgramEditorPage({ params }) {
           onAddAt={addSessionAt}
           onOpenSession={scrollToSession}
         />
-
-        {selectedSessions.size > 0 && (
-          <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--green-light)' }}>
-            <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
-              {selectedSessions.size} sélectionnée(s)
-            </span>
-            <button
-              onClick={duplicateSelectedSessions}
-              disabled={duplicatingSelected}
-              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-            >
-              {duplicatingSelected ? '…' : '⧉ Dupliquer'}
-            </button>
-            <button
-              onClick={() => setSelectedSessions(new Set())}
-              style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}
-            >
-              Annuler
-            </button>
-          </div>
-        )}
 
         {hiddenSessions.size > 0 && (
           <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--bg2)', border: '1px solid var(--border)', flexWrap: 'wrap' }}>
@@ -1541,12 +1571,22 @@ function ProgramEditorPage({ params }) {
           </div>
         )}
 
-        <div style={{ padding: 16, display: layoutCols > 1 ? 'grid' : 'flex', flexDirection: layoutCols > 1 ? undefined : 'column', gridTemplateColumns: layoutCols > 1 ? `repeat(${layoutCols}, minmax(280px, 1fr))` : undefined, overflowX: layoutCols > 1 ? 'auto' : undefined, gap: 8, alignItems: 'start' }}>
+        {/* La séance ouverte s'affiche en plein écran plutôt que dans une liste toujours visible —
+            la grille Jour 1→N ci-dessus (WeekGrid) est désormais l'unique point d'entrée pour
+            parcourir/ouvrir les séances du programme. */}
+        {openId && (
+        <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 200, overflowY: 'auto' }}>
+          <button onClick={() => setOpenId(null)} style={{ width: '100%', background: 'var(--bg)', borderBottom: '1px solid var(--border)', border: 'none', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: 'var(--border)', padding: '12px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left' }}>
+            <span style={{ fontSize: 22, color: 'var(--text2)', display: 'flex', lineHeight: 1 }}>←</span>
+            <span style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 15 }}>Retour au calendrier</span>
+          </button>
+          <div style={{ padding: 16 }}>
 
           <SortableGroup ids={sessions.map(s => s.id)} onReorder={(id, dir) => moveSession(id, dir)}>
-          {sessions.map((s, idx) => {
+          {sessions.filter(s => s.id === openId).map((s) => {
+            const idx = sessions.indexOf(s)
             if (hiddenSessions.has(s.id)) return null
-            const isOpen = layoutCols > 1 ? true : openId === s.id
+            const isOpen = true
             const labels = computeLabels(s.exercises)
             const completion = completionsMap[s.id]
             const isPinned = pinnedSessions.has(s.id)
@@ -1666,13 +1706,6 @@ function ProgramEditorPage({ params }) {
                 {/* En-tête séance */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: isOpen ? '1px solid var(--border)' : 'none', cursor: 'pointer' }}
                   onClick={() => setOpenId(isOpen ? null : s.id)}>
-                  <input
-                    type="checkbox"
-                    checked={selectedSessions.has(s.id)}
-                    onChange={() => toggleSessionSelected(s.id)}
-                    onClick={e => e.stopPropagation()}
-                    style={{ accentColor: 'var(--green)', width: 15, height: 15, flexShrink: 0, cursor: 'pointer' }}
-                  />
                   <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800, flexShrink: 0 }}>
                     {idx + 1}
                   </div>
@@ -2384,11 +2417,9 @@ function ProgramEditorPage({ params }) {
             )
           })}
           </SortableGroup>
-
-          <button onClick={addSession} style={{ background: 'var(--bg)', border: '2px dashed var(--border2)', borderRadius: 'var(--rl)', padding: 14, fontSize: 14, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer', width: '100%' }}>
-            + Ajouter une séance
-          </button>
+          </div>
         </div>
+        )}
       </div>
       {historyExo && (
         <ExerciseHistoryModal athleteId={athleteId} exerciseName={historyExo.name} onClose={() => setHistoryExo(null)} />
