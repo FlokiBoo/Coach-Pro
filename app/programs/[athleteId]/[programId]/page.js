@@ -21,7 +21,7 @@ import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerCon
 import {
   ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat,
   VideoCamera, Lightbulb, Target, ChartLineUp, Backpack, FloppyDisk, Lightning,
-  CopySimple, ArrowsOutCardinal, Barbell, CaretDown,
+  CopySimple, ArrowsOutCardinal, Barbell, CaretDown, MagnifyingGlass, Plus,
 } from '@phosphor-icons/react'
 
 function today() {
@@ -429,6 +429,7 @@ function ProgramEditorPage({ params }) {
   const [pinnedSessions, setPinnedSessions] = useState(new Set())
   const [selectedSessionIds, setSelectedSessionIds] = useState(new Set())
   const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [exercisePickerFor, setExercisePickerFor] = useState(null) // sessId en cours d'ajout, ou null
   const [duplicatingSelected, setDuplicatingSelected] = useState(false)
   const [titleSaving, setTitleSaving] = useState(false)
   const [actPresetSearch, setActPresetSearch] = useState({})
@@ -625,10 +626,13 @@ function ProgramEditorPage({ params }) {
     }))
   }
 
-  const addExo = (sessId) => {
+  // Depuis la bibliothèque d'exercices (ExercisePickerModal) : même insertion que addExo, mais la
+  // ligne arrive déjà nommée (et avec sa vidéo si connue), comme le fait pickSuggestion pour
+  // l'autocomplétion existante.
+  const addExoWithMovement = (sessId, movement) => {
     markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
-      ...s, exercises: [...s.exercises, emptyExo(s.exercises.length)]
+      ...s, exercises: [...s.exercises, { ...emptyExo(s.exercises.length), name: movement.name, video_url: movement.youtube_url || '' }]
     }))
   }
 
@@ -2556,7 +2560,7 @@ function ProgramEditorPage({ params }) {
                             border: '1px solid var(--border)', borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
                             zIndex: 100, padding: 6, display: 'flex', flexDirection: 'column', gap: 2,
                           }}>
-                            <button onClick={() => { addExo(s.id); setAddMenuOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                            <button onClick={() => { setExercisePickerFor(s.id); setAddMenuOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
                               <Barbell size={15} /> Ajouter un exercice
                             </button>
                             <button onClick={() => { addCircuit(s.id); setAddMenuOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
@@ -2620,6 +2624,12 @@ function ProgramEditorPage({ params }) {
       {historyExo && (
         <ExerciseHistoryModal athleteId={athleteId} exerciseName={historyExo.name} onClose={() => setHistoryExo(null)} />
       )}
+      {exercisePickerFor && (
+        <ExercisePickerModal
+          onPick={(movement) => { addExoWithMovement(exercisePickerFor, movement); setExercisePickerFor(null) }}
+          onClose={() => setExercisePickerFor(null)}
+        />
+      )}
       {timerEditor && (
         <div onClick={() => setTimerEditor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 400, maxHeight: '85svh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -2641,6 +2651,92 @@ function ProgramEditorPage({ params }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// Bibliothèque d'exercices en modal (façon Azeoo) : remplace la saisie à l'aveugle par une recherche
+// + filtre par muscle, avec des vignettes génériques (pas de vraies photos par mouvement pour
+// l'instant). Choisir un mouvement pré-remplit le nom (et la vidéo si connue) de la nouvelle ligne
+// d'exercice, exactement comme le faisait déjà l'autocomplétion — seule la façon de le trouver change.
+function ExercisePickerModal({ onPick, onClose }) {
+  const [search, setSearch] = useState('')
+  const [muscleFilter, setMuscleFilter] = useState('')
+  const [results, setResults] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Pas de setLoading(true) synchrone ici : l'indicateur ne réapparaît qu'au tout premier
+    // chargement (useState(true) initial) pour éviter un set-state-in-effect au montage.
+    let query = supabase.from('movements').select('id, name, muscles, torque, youtube_url').order('name').limit(60)
+    if (search.trim()) query = query.ilike('name', `%${search.trim()}%`)
+    if (muscleFilter) query = query.ilike('muscles', `%${muscleFilter}%`)
+    let cancelled = false
+    query.then(({ data }) => { if (!cancelled) { setResults(data || []); setLoading(false) } })
+    return () => { cancelled = true }
+  }, [search, muscleFilter])
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: 'var(--bg)', borderRadius: 'var(--rl)', width: '100%', maxWidth: 520, maxHeight: '85svh',
+        display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', overflow: 'hidden',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '16px 16px 12px' }}>
+          <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>Exercices</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ padding: '0 16px 12px', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ position: 'relative' }}>
+            <MagnifyingGlass size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)' }} />
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un exercice"
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 10px 9px 32px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, background: 'var(--bg2)', color: 'var(--text)', outline: 'none' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+            <button onClick={() => setMuscleFilter('')} style={{
+              flexShrink: 0, padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
+              background: muscleFilter === '' ? 'var(--green)' : 'var(--bg2)', color: muscleFilter === '' ? '#fff' : 'var(--text2)',
+              fontSize: 12, fontWeight: 700,
+            }}>
+              Tous
+            </button>
+            {MUSCLE_GROUPS.map(g => (
+              <button key={g.key} onClick={() => setMuscleFilter(muscleFilter === g.label ? '' : g.label)} style={{
+                flexShrink: 0, padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                background: muscleFilter === g.label ? 'var(--green)' : 'var(--bg2)', color: muscleFilter === g.label ? '#fff' : 'var(--text2)',
+                fontSize: 12, fontWeight: 700,
+              }}>
+                {g.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ flex: 1, overflowY: 'auto', padding: 8 }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', color: 'var(--text3)', padding: 30, fontSize: 13 }}>Chargement…</div>
+          ) : results.length === 0 ? (
+            <div style={{ textAlign: 'center', color: 'var(--text3)', padding: 30, fontSize: 13 }}>Aucun exercice trouvé.</div>
+          ) : results.map(m => (
+            <button key={m.id} onClick={() => onPick(m)} style={{
+              display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: 8, borderRadius: 'var(--r)',
+              background: 'none', border: 'none', cursor: 'pointer',
+            }}>
+              <div style={{ width: 36, height: 36, flexShrink: 0, borderRadius: 'var(--r)', background: 'var(--bg2)', border: '1px solid var(--border2)', color: 'var(--text3)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Barbell size={17} />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{m.name}</div>
+                {m.muscles && <div style={{ fontSize: 11, color: 'var(--text3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.muscles}</div>}
+              </div>
+              <span style={{ width: 26, height: 26, borderRadius: '50%', background: 'var(--green-light)', color: 'var(--green)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Plus size={14} weight="bold" />
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
