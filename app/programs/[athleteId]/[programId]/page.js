@@ -430,6 +430,8 @@ function ProgramEditorPage({ params }) {
   const [selectedSessionIds, setSelectedSessionIds] = useState(new Set())
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [exercisePickerFor, setExercisePickerFor] = useState(null) // sessId en cours d'ajout, ou null
+  const [pendingExercise, setPendingExercise] = useState(null) // { sessId, movement, sets } en cours d'assistant
+  const [wizardStep, setWizardStep] = useState(null) // 'sets' | 'rest' | null
   const [duplicatingSelected, setDuplicatingSelected] = useState(false)
   const [titleSaving, setTitleSaving] = useState(false)
   const [actPresetSearch, setActPresetSearch] = useState({})
@@ -629,10 +631,13 @@ function ProgramEditorPage({ params }) {
   // Depuis la bibliothèque d'exercices (ExercisePickerModal) : même insertion que addExo, mais la
   // ligne arrive déjà nommée (et avec sa vidéo si connue), comme le fait pickSuggestion pour
   // l'autocomplétion existante.
-  const addExoWithMovement = (sessId, movement) => {
+  const addExoWithMovement = (sessId, movement, sets, rest) => {
     markDirty(sessId)
     setSessions(prev => prev.map(s => s.id !== sessId ? s : {
-      ...s, exercises: [...s.exercises, { ...emptyExo(s.exercises.length), name: movement.name, video_url: movement.youtube_url || '' }]
+      ...s, exercises: [...s.exercises, {
+        ...emptyExo(s.exercises.length), name: movement.name, video_url: movement.youtube_url || '',
+        sets: sets != null ? String(sets) : '', rest: rest || '',
+      }]
     }))
   }
 
@@ -2626,8 +2631,27 @@ function ProgramEditorPage({ params }) {
       )}
       {exercisePickerFor && (
         <ExercisePickerModal
-          onPick={(movement) => { addExoWithMovement(exercisePickerFor, movement); setExercisePickerFor(null) }}
+          onPick={(movement) => {
+            setPendingExercise({ sessId: exercisePickerFor, movement })
+            setWizardStep('sets')
+            setExercisePickerFor(null)
+          }}
           onClose={() => setExercisePickerFor(null)}
+        />
+      )}
+      {wizardStep === 'sets' && pendingExercise && (
+        <SetsCountModal
+          onNext={(n) => { setPendingExercise(p => ({ ...p, sets: n })); setWizardStep('rest') }}
+          onClose={() => { setWizardStep(null); setPendingExercise(null) }}
+        />
+      )}
+      {wizardStep === 'rest' && pendingExercise && (
+        <RestTimeModal
+          onOk={(rest) => {
+            addExoWithMovement(pendingExercise.sessId, pendingExercise.movement, pendingExercise.sets, rest)
+            setWizardStep(null); setPendingExercise(null)
+          }}
+          onClose={() => { setWizardStep(null); setPendingExercise(null) }}
         />
       )}
       {timerEditor && (
@@ -2659,6 +2683,85 @@ function ProgramEditorPage({ params }) {
 // + filtre par muscle, avec des vignettes génériques (pas de vraies photos par mouvement pour
 // l'instant). Choisir un mouvement pré-remplit le nom (et la vidéo si connue) de la nouvelle ligne
 // d'exercice, exactement comme le faisait déjà l'autocomplétion — seule la façon de le trouver change.
+const wizardOverlay = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 650, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }
+const wizardCard = { background: 'var(--bg)', borderRadius: 'var(--rl)', width: '100%', maxWidth: 380, boxShadow: '0 20px 60px rgba(0,0,0,0.4)', overflow: 'hidden' }
+const wizardTitle = { padding: '16px 16px 4px', fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 16 }
+const wizardFooter = { display: 'flex', gap: 8, padding: '12px 16px', borderTop: '1px solid var(--border)' }
+const wizardSecondaryBtn = { flex: 1, background: 'var(--bg2)', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }
+const wizardPrimaryBtn = { flex: 1, background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '10px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }
+
+// Étape 1 de l'assistant post-sélection (façon Azeoo) : combien de séries pour ce nouvel exercice —
+// pré-remplit exo.sets, qui pilote déjà le stepper −/+ et la timeline "SÉRIE N" existants plus bas.
+function SetsCountModal({ onNext, onClose }) {
+  const [n, setN] = useState(4)
+  return (
+    <div onClick={onClose} style={wizardOverlay}>
+      <div onClick={e => e.stopPropagation()} style={wizardCard}>
+        <div style={wizardTitle}>Nombre de séries</div>
+        <div style={{ padding: '12px 16px 20px', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <button onClick={() => setN(v => Math.max(0, v - 1))} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid var(--border2)', background: 'var(--bg2)', color: 'var(--text2)', fontSize: 18, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+            <div style={{ width: 50, textAlign: 'center', fontSize: 24, fontWeight: 800, color: 'var(--text)' }}>{n}</div>
+            <button onClick={() => setN(v => v + 1)} style={{ width: 34, height: 34, borderRadius: '50%', border: '1px solid var(--border2)', background: 'var(--bg2)', color: 'var(--text2)', fontSize: 18, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+          </div>
+        </div>
+        <div style={wizardFooter}>
+          <button onClick={onClose} style={wizardSecondaryBtn}>Fermer</button>
+          <button onClick={() => onNext(n)} style={wizardPrimaryBtn}>Suivant</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const REST_PRESETS = [
+  { label: '30s', min: 0, sec: 30 }, { label: '45s', min: 0, sec: 45 },
+  { label: '1min', min: 1, sec: 0 }, { label: '1min30', min: 1, sec: 30 },
+  { label: '2min', min: 2, sec: 0 }, { label: '3min', min: 3, sec: 0 },
+  { label: '4min', min: 4, sec: 0 }, { label: '5min', min: 5, sec: 0 },
+]
+
+// Étape 2 : temps de repos entre séries — préremplit exo.rest (même champ texte libre que la saisie
+// manuelle existante, ex. "90s"/"1min30"), donc aucune donnée nouvelle, juste une autre façon de le fixer.
+function RestTimeModal({ onOk, onClose }) {
+  const [min, setMin] = useState(1)
+  const [sec, setSec] = useState(0)
+  const formatRest = () => (min === 0 ? `${sec}s` : sec === 0 ? `${min}min` : `${min}min${sec}`)
+  return (
+    <div onClick={onClose} style={wizardOverlay}>
+      <div onClick={e => e.stopPropagation()} style={{ ...wizardCard, maxWidth: 420 }}>
+        <div style={wizardTitle}>Temps de repos</div>
+        <div style={{ padding: '12px 16px 4px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+          {REST_PRESETS.map(p => {
+            const active = min === p.min && sec === p.sec
+            return (
+              <button key={p.label} onClick={() => { setMin(p.min); setSec(p.sec) }} style={{
+                padding: '8px 4px', borderRadius: 'var(--r)', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                border: active ? '1.5px solid var(--green)' : '1px solid var(--border2)',
+                background: active ? 'var(--green-light)' : 'var(--bg2)', color: active ? 'var(--green)' : 'var(--text2)',
+              }}>
+                {p.label}
+              </button>
+            )
+          })}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '16px' }}>
+          <input type="number" min="0" value={min} onChange={e => setMin(Math.max(0, parseInt(e.target.value) || 0))}
+            style={{ width: 56, textAlign: 'center', padding: '8px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, background: 'var(--bg2)', color: 'var(--text)', outline: 'none' }} />
+          <span style={{ fontSize: 13, color: 'var(--text3)' }}>min</span>
+          <input type="number" min="0" max="59" value={sec} onChange={e => setSec(Math.max(0, Math.min(59, parseInt(e.target.value) || 0)))}
+            style={{ width: 56, textAlign: 'center', padding: '8px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, background: 'var(--bg2)', color: 'var(--text)', outline: 'none' }} />
+          <span style={{ fontSize: 13, color: 'var(--text3)' }}>s</span>
+        </div>
+        <div style={wizardFooter}>
+          <button onClick={onClose} style={wizardSecondaryBtn}>Fermer</button>
+          <button onClick={() => onOk(formatRest())} style={wizardPrimaryBtn}>Ok</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ExercisePickerModal({ onPick, onClose }) {
   const [search, setSearch] = useState('')
   const [muscleFilter, setMuscleFilter] = useState('')
