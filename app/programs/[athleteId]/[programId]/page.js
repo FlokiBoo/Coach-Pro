@@ -13,6 +13,7 @@ import { CIRCUIT_MODES } from '@/lib/circuitModes'
 import { WEEK_DAYS } from '@/lib/weekDays'
 import { setUnsavedChanges, guardNavigation } from '@/lib/unsavedChanges'
 import { SortableGroup, SortableItem, DragHandle } from '@/app/components/SortableItem'
+import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { getCoachId } from '@/lib/coach'
 import ActivityTypeSelect from '@/app/components/ActivityTypeSelect'
 import { notifyAssigned, notifyProgramAvailable } from '@/lib/notify'
@@ -235,7 +236,79 @@ function SessionSummaryBlock({ exercises }) {
 // Vue calendrier Semaine/Jour, en plus (pas à la place) de la liste de séances existante en
 // dessous : sert à naviguer/créer vite, la vraie édition (activation, exercices, supersets…) reste
 // dans la carte de séance classique — cliquer une case pleine y scrolle et l'ouvre.
-function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession }) {
+// Case cible du glisser-déposer (une par jour de programme) — le fond se surligne quand une
+// séance est glissée au-dessus, pour indiquer où elle atterrira.
+function DayCell({ cellId, week, dayKey, children, isOver, setNodeRef, borderLeft }) {
+  return (
+    <div ref={setNodeRef} style={{
+      display: 'flex', flexDirection: 'column', gap: 6, minHeight: 180, padding: 10,
+      borderLeft, background: isOver ? 'var(--green-light)' : undefined, transition: 'background 0.1s',
+    }}>
+      {children}
+    </div>
+  )
+}
+
+// Séance glissable + sélectionnable, utilisée à la fois dans les cases du calendrier et dans la
+// liste "Non planifiées" — maintenir le clic ~250ms puis glisser pour déplacer vers un autre jour
+// (cf. le même principe déjà en place pour les séances/exercices ailleurs, SortableItem/DragHandle,
+// mais ici toute la puce est prenable : pas de bouton/champ à l'intérieur qui aurait besoin de rester
+// cliquable séparément). La case à cocher sert à sélectionner plusieurs séances pour les dupliquer.
+function SessionChip({ s, selected, onToggleSelect, onOpen, dragSuppressRef, compact }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: s.id })
+  const style = {
+    transform: transform ? `translate3d(${transform.x}px, ${transform.y}px, 0)` : undefined,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 50 : undefined,
+    position: 'relative', touchAction: 'none',
+  }
+  const handleClick = () => {
+    // Un glisser-déposer abouti peut déclencher un clic de synthèse juste après le relâchement —
+    // on l'ignore une fois (drapeau posé au début du drag, consommé ici) pour ne pas ouvrir la
+    // séance en plein écran juste après l'avoir déplacée.
+    if (dragSuppressRef.current) { dragSuppressRef.current = false; return }
+    onOpen(s.id)
+  }
+  return (
+    <div ref={setNodeRef} {...listeners} {...attributes} onClick={handleClick} style={{
+      display: 'flex', alignItems: 'flex-start', gap: 6, cursor: 'pointer',
+      background: selected ? 'var(--green)' : 'var(--green-light)',
+      border: '1px solid var(--green)', color: selected ? '#fff' : 'var(--green)',
+      borderRadius: compact ? 20 : 'var(--r)', padding: compact ? '4px 10px' : '10px 8px',
+      fontSize: compact ? 11 : 14, fontWeight: 700, lineHeight: 1.25,
+      whiteSpace: compact ? 'nowrap' : 'normal', wordBreak: compact ? undefined : 'break-word',
+      ...style,
+    }}>
+      <input type="checkbox" checked={selected} onChange={() => onToggleSelect(s.id)}
+        onClick={e => e.stopPropagation()} onPointerDown={e => e.stopPropagation()}
+        style={{ accentColor: selected ? '#fff' : 'var(--green)', width: 13, height: 13, marginTop: 2, flexShrink: 0, cursor: 'pointer' }} />
+      <span style={{ flex: 1 }}>{s.title || 'Séance'}</span>
+    </div>
+  )
+}
+
+function WeekDayCell({ week, d, dayNumber, cellSessions, isFirstCol, selectedIds, onToggleSelect, onOpenSession, onAddAt, dragSuppressRef }) {
+  const { isOver, setNodeRef } = useDroppable({ id: `${week}-${d.key}` })
+  return (
+    <DayCell isOver={isOver} setNodeRef={setNodeRef} borderLeft={isFirstCol ? 'none' : '1px solid var(--border)'}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, paddingBottom: 4 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap' }}>Jour {dayNumber}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>{d.short}</span>
+      </div>
+      {cellSessions.map(s => (
+        <SessionChip key={s.id} s={s} selected={selectedIds.has(s.id)} onToggleSelect={onToggleSelect} onOpen={onOpenSession} dragSuppressRef={dragSuppressRef} />
+      ))}
+      <button onClick={() => onAddAt(week, d.key)} style={{
+        background: 'transparent', border: '1px solid var(--border2)', color: 'var(--text3)',
+        borderRadius: 'var(--r)', padding: '6px 4px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+      }}>
+        + Ajouter
+      </button>
+    </DayCell>
+  )
+}
+
+function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession, onMoveSession, selectedIds, onToggleSelect }) {
   const byCell = {}
   sessions.forEach(s => {
     if (s.week_number == null || s.day_of_week == null) return
@@ -246,61 +319,51 @@ function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession }) {
 
   const weeks = Array.from({ length: durationWeeks }, (_, wi) => wi + 1)
 
+  const dragSuppressRef = useRef(false)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { delay: 250, tolerance: 6 } }))
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event
+    if (!over) return
+    dragSuppressRef.current = true
+    const [weekStr, dayStr] = String(over.id).split('-')
+    const week = parseInt(weekStr, 10)
+    const day = parseInt(dayStr, 10)
+    const s = sessions.find(x => x.id === active.id)
+    if (s && (s.week_number !== week || s.day_of_week !== day)) onMoveSession(active.id, week, day)
+  }
+
   return (
     <div style={{ margin: '12px 16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-        {weeks.map((week, wi) => (
-          <div key={week} style={{
-            display: 'grid', gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))', overflowX: 'auto',
-            borderTop: wi === 0 ? 'none' : '1px solid var(--border)',
-          }}>
-            {WEEK_DAYS.map((d, di) => {
-              const cellSessions = byCell[`${week}-${d.key}`] || []
-              const dayNumber = (week - 1) * 7 + di + 1
-              return (
-                <div key={d.key} style={{
-                  display: 'flex', flexDirection: 'column', gap: 6, minHeight: 180, padding: 10,
-                  borderLeft: di === 0 ? 'none' : '1px solid var(--border)',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, paddingBottom: 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', whiteSpace: 'nowrap' }}>Jour {dayNumber}</span>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', whiteSpace: 'nowrap' }}>{d.short}</span>
-                  </div>
-                  {cellSessions.map(s => (
-                    <button key={s.id} onClick={() => onOpenSession(s.id)} style={{
-                      background: 'var(--green-light)', border: '1px solid var(--green)', color: 'var(--green)',
-                      borderRadius: 'var(--r)', padding: '10px 8px', fontSize: 14, fontWeight: 700, lineHeight: 1.25, cursor: 'pointer', textAlign: 'left',
-                      whiteSpace: 'normal', wordBreak: 'break-word',
-                    }}>
-                      {s.title || 'Séance'}
-                    </button>
-                  ))}
-                  <button onClick={() => onAddAt(week, d.key)} style={{
-                    background: 'transparent', border: '1px solid var(--border2)', color: 'var(--text3)',
-                    borderRadius: 'var(--r)', padding: '6px 4px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                  }}>
-                    + Ajouter
-                  </button>
-                </div>
-              )
-            })}
-          </div>
-        ))}
-      </div>
-
-      {unscheduled.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '4px 2px' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>Non planifiées :</span>
-          {unscheduled.map(s => (
-            <button key={s.id} onClick={() => onOpenSession(s.id)} style={{
-              background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '4px 10px',
-              fontSize: 11, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer',
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+          {weeks.map((week, wi) => (
+            <div key={week} style={{
+              display: 'grid', gridTemplateColumns: 'repeat(7, minmax(130px, 1fr))', overflowX: 'auto',
+              borderTop: wi === 0 ? 'none' : '1px solid var(--border)',
             }}>
-              {s.title || 'Séance'}
-            </button>
+              {WEEK_DAYS.map((d, di) => {
+                const dayNumber = (week - 1) * 7 + di + 1
+                return (
+                  <WeekDayCell key={d.key} week={week} d={d} dayNumber={dayNumber}
+                    cellSessions={byCell[`${week}-${d.key}`] || []} isFirstCol={di === 0}
+                    selectedIds={selectedIds} onToggleSelect={onToggleSelect}
+                    onOpenSession={onOpenSession} onAddAt={onAddAt} dragSuppressRef={dragSuppressRef} />
+                )
+              })}
+            </div>
           ))}
         </div>
-      )}
+
+        {unscheduled.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, padding: '4px 2px' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)' }}>Non planifiées :</span>
+            {unscheduled.map(s => (
+              <SessionChip key={s.id} s={s} compact selected={selectedIds.has(s.id)} onToggleSelect={onToggleSelect} onOpen={onOpenSession} dragSuppressRef={dragSuppressRef} />
+            ))}
+          </div>
+        )}
+      </DndContext>
     </div>
   )
 }
@@ -334,6 +397,8 @@ function ProgramEditorPage({ params }) {
   const [historyExo, setHistoryExo] = useState(null)
   const [hiddenSessions, setHiddenSessions] = useState(new Set())
   const [pinnedSessions, setPinnedSessions] = useState(new Set())
+  const [selectedSessionIds, setSelectedSessionIds] = useState(new Set())
+  const [duplicatingSelected, setDuplicatingSelected] = useState(false)
   const [titleSaving, setTitleSaving] = useState(false)
   const [actPresetSearch, setActPresetSearch] = useState({})
   const [actPresetSuggs, setActPresetSuggs] = useState({})
@@ -484,7 +549,6 @@ function ProgramEditorPage({ params }) {
         circuits: s.circuits || [],
       }))
       setSessions(loaded)
-      if (loaded.length === 1) setOpenId(loaded[0].id)
 
       if (!isTemplate && a) {
         const sessionIds = (sess || []).map(s => s.id)
@@ -940,6 +1004,39 @@ function ProgramEditorPage({ params }) {
     setTimeout(() => setSavedIds(prev => { const next = new Set(prev); next.delete(sessId); return next }), 2000)
   }
 
+  // Déplacement par glisser-déposer dans la grille Jour 1→N : contrairement à updateSession (qui
+  // ne fait que marquer "modifié" en attendant le clic sur Sauvegarder), ici on écrit tout de suite
+  // en base — l'utilisateur s'attend à ce qu'un glisser-déposer soit persisté immédiatement.
+  const moveSessionToDay = async (id, weekNumber, dayOfWeek) => {
+    const needsSync = isTemplate && followers.length > 0
+    setSessions(prev => prev.map(s => s.id === id
+      ? { ...s, week_number: weekNumber, day_of_week: dayOfWeek, ...(needsSync ? { needs_sync: true } : {}) }
+      : s))
+    await supabase.from('program_sessions')
+      .update({ week_number: weekNumber, day_of_week: dayOfWeek, ...(needsSync ? { needs_sync: true } : {}) })
+      .eq('id', id)
+  }
+
+  const toggleSessionSelected = (id) => {
+    setSelectedSessionIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const duplicateSelectedSessions = async () => {
+    setDuplicatingSelected(true)
+    let nextIdx = sessions.length
+    for (const id of selectedSessionIds) {
+      await duplicateSession(id, nextIdx, { skipOpen: true })
+      nextIdx++
+    }
+    setSelectedSessionIds(new Set())
+    setDuplicatingSelected(false)
+  }
+
   const runSync = async () => {
     setSyncing(true)
     const pending = sessions.filter(s => s.needs_sync)
@@ -1047,6 +1144,10 @@ function ProgramEditorPage({ params }) {
         activation: s.activation || null, coach_notes: s.coach_notes || null,
         activation_videos: s.activation_videos || [], session_type: s.session_type || null,
         materiel: s.materiel || null,
+        // Garde le même jour que l'originale (au lieu de retomber "non planifiée") : dans la
+        // grille Jour 1→N, dupliquer une séance sert surtout à en poser une copie juste à côté,
+        // que le coach glisse ensuite ailleurs si besoin.
+        week_number: s.week_number, day_of_week: s.day_of_week,
       })
       .select().single()
     if (sessErr || !newSession) { alert('Erreur duplication : ' + sessErr?.message); return }
@@ -1556,7 +1657,31 @@ function ProgramEditorPage({ params }) {
           durationWeeks={program?.duration_weeks || 1}
           onAddAt={addSessionAt}
           onOpenSession={scrollToSession}
+          onMoveSession={moveSessionToDay}
+          selectedIds={selectedSessionIds}
+          onToggleSelect={toggleSessionSelected}
         />
+
+        {selectedSessionIds.size > 0 && (
+          <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--green-light)' }}>
+            <span style={{ flex: 1, fontSize: 12, fontWeight: 700, color: 'var(--green)' }}>
+              {selectedSessionIds.size} sélectionnée{selectedSessionIds.size > 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={duplicateSelectedSessions}
+              disabled={duplicatingSelected}
+              style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+            >
+              {duplicatingSelected ? '…' : '⧉ Dupliquer'}
+            </button>
+            <button
+              onClick={() => setSelectedSessionIds(new Set())}
+              style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}
+            >
+              Annuler
+            </button>
+          </div>
+        )}
 
         {hiddenSessions.size > 0 && (
           <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--bg2)', border: '1px solid var(--border)', flexWrap: 'wrap' }}>
