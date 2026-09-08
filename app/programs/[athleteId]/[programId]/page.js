@@ -333,8 +333,13 @@ function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession, onMoveSessi
     const [weekStr, dayStr] = String(over.id).split('-')
     const week = parseInt(weekStr, 10)
     const day = parseInt(dayStr, 10)
-    const s = sessions.find(x => x.id === active.id)
-    if (s && (s.week_number !== week || s.day_of_week !== day)) onMoveSession(active.id, week, day)
+    // Si la séance glissée fait partie d'une sélection multiple, on déplace tout le lot d'un coup
+    // plutôt que la seule séance sous le pointeur.
+    const idsToMove = selectedIds.has(active.id) && selectedIds.size > 1 ? [...selectedIds] : [active.id]
+    idsToMove.forEach(id => {
+      const s = sessions.find(x => x.id === id)
+      if (s && (s.week_number !== week || s.day_of_week !== day)) onMoveSession(id, week, day)
+    })
   }
 
   return (
