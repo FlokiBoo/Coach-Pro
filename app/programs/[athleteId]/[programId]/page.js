@@ -21,7 +21,7 @@ import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerCon
 import {
   ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat,
   VideoCamera, Lightbulb, Target, ChartLineUp, Backpack, FloppyDisk, Lightning,
-  CopySimple, ArrowsOutCardinal,
+  CopySimple, ArrowsOutCardinal, Barbell, CaretDown,
 } from '@phosphor-icons/react'
 
 function today() {
@@ -428,6 +428,7 @@ function ProgramEditorPage({ params }) {
   const [hiddenSessions, setHiddenSessions] = useState(new Set())
   const [pinnedSessions, setPinnedSessions] = useState(new Set())
   const [selectedSessionIds, setSelectedSessionIds] = useState(new Set())
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [duplicatingSelected, setDuplicatingSelected] = useState(false)
   const [titleSaving, setTitleSaving] = useState(false)
   const [actPresetSearch, setActPresetSearch] = useState({})
@@ -2539,13 +2540,31 @@ function ProgramEditorPage({ params }) {
                     })}
                     </SortableGroup>
 
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button onClick={() => addExo(s.id)} style={{ flex: 1, background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '8px', fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
-                        + Exercice
+                    <div style={{ position: 'relative' }}>
+                      <button onClick={() => setAddMenuOpen(v => !v)} style={{
+                        width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--r)',
+                        padding: '9px', fontSize: 13, fontWeight: 700, color: 'var(--green)', cursor: 'pointer',
+                      }}>
+                        + Ajouter <CaretDown size={12} weight="bold" />
                       </button>
-                      <button onClick={() => addCircuit(s.id)} style={{ flex: 1, background: 'var(--bg2)', border: '1px dashed var(--border2)', borderRadius: 'var(--r)', padding: '8px', fontSize: 13, fontWeight: 600, color: 'var(--text3)', cursor: 'pointer' }}>
-                        + Circuit
-                      </button>
+                      {addMenuOpen && (
+                        <>
+                          <div onClick={() => setAddMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+                          <div style={{
+                            position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 4, background: 'var(--bg)',
+                            border: '1px solid var(--border)', borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                            zIndex: 100, padding: 6, display: 'flex', flexDirection: 'column', gap: 2,
+                          }}>
+                            <button onClick={() => { addExo(s.id); setAddMenuOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                              <Barbell size={15} /> Ajouter un exercice
+                            </button>
+                            <button onClick={() => { addCircuit(s.id); setAddMenuOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                              <Repeat size={15} /> Ajouter un circuit <span style={{ color: 'var(--text3)', fontWeight: 400 }}>(superset / triset)</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
 
                     {/* Matériel */}
