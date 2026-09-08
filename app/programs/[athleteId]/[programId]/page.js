@@ -432,6 +432,20 @@ function ProgramEditorPage({ params }) {
   const [exercisePickerFor, setExercisePickerFor] = useState(null) // sessId en cours d'ajout, ou null
   const [pendingExercise, setPendingExercise] = useState(null) // { sessId, movement, sets } en cours d'assistant
   const [wizardStep, setWizardStep] = useState(null) // 'sets' | 'rest' | null
+  // Bloc actuellement affiché dans le carrousel d'exercices (un bloc = un exercice seul, une
+  // supersérie/triset, ou un circuit). Infinity est utilisé comme raccourci "va sur le tout dernier
+  // bloc" après un ajout — le clamp au moment du rendu le résout vers l'index réel une fois calculé.
+  // Réinitialisé quand la séance ouverte change, pendant le rendu plutôt que dans un effect (pattern
+  // React officiel pour "reset state when a prop changes" — évite un aller-retour de rendu inutile).
+  const [blockIndexState, setBlockIndexState] = useState({ forSessionId: null, index: 0 })
+  if (blockIndexState.forSessionId !== openId) {
+    setBlockIndexState({ forSessionId: openId, index: 0 })
+  }
+  const blockIndex = blockIndexState.forSessionId === openId ? blockIndexState.index : 0
+  const setBlockIndex = (updater) => setBlockIndexState(prev => ({
+    forSessionId: openId,
+    index: typeof updater === 'function' ? updater(prev.index) : updater,
+  }))
   const [duplicatingSelected, setDuplicatingSelected] = useState(false)
   const [titleSaving, setTitleSaving] = useState(false)
   const [actPresetSearch, setActPresetSearch] = useState({})
@@ -1781,6 +1795,32 @@ function ProgramEditorPage({ params }) {
             // Un exercice supprimé après qu'un circuit ait été placé après lui referme la fourchette :
             // on ramène la position au dernier emplacement valide plutôt que de faire disparaître le circuit.
             const circuitSlot = (c) => Math.max(0, Math.min(c.afterExerciseIndex ?? 0, maxCircuitSlot))
+
+            // Carrousel : reconstitue la séquence de blocs (un exercice seul, une supersérie/triset
+            // entière, ou un circuit) dans le même ordre que le rendu linéaire ci-dessous, sans rien
+            // changer à ce rendu — seule la visibilité de chaque morceau est filtrée par bloc courant,
+            // toute la logique d'index (ei, moveExo, isGroupStart/End, glisser-déposer...) reste intacte.
+            const blocks = (() => {
+              const list = []
+              ;(s.circuits || []).filter(c => circuitSlot(c) === 0).forEach(c => list.push({ type: 'circuit', id: c.id }))
+              let i = 0
+              while (i < s.exercises.length) {
+                const g = s.exercises[i].superset_group
+                let j = i + 1
+                if (g) { while (j < s.exercises.length && s.exercises[j].superset_group === g) j++ }
+                list.push({ type: 'exo', start: i, end: j - 1 })
+                for (let k = i; k < j; k++) {
+                  (s.circuits || []).filter(c => circuitSlot(c) === k + 1).forEach(c => list.push({ type: 'circuit', id: c.id }))
+                }
+                i = j
+              }
+              return list
+            })()
+            const clampedBlockIndex = Math.max(0, Math.min(blockIndex, blocks.length - 1))
+            const currentBlock = blocks[clampedBlockIndex]
+            const isExoVisible = (ei) => !currentBlock || (currentBlock.type === 'exo' && ei >= currentBlock.start && ei <= currentBlock.end)
+            const isCircuitVisible = (c) => !!currentBlock && currentBlock.type === 'circuit' && currentBlock.id === c.id
+
             const renderCircuit = (c, ci) => (
               <div key={c.id} style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'visible' }}>
                 <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -2189,7 +2229,7 @@ function ProgramEditorPage({ params }) {
 
                     {/* Circuits placés avant le premier exercice (afterExerciseIndex 0, valeur par défaut
                         des circuits déjà existants avant l'ajout du positionnement interleavé) */}
-                    {(s.circuits || []).filter(c => circuitSlot(c) === 0).map(c => renderCircuit(c, (s.circuits || []).indexOf(c)))}
+                    {(s.circuits || []).filter(c => circuitSlot(c) === 0 && isCircuitVisible(c)).map(c => renderCircuit(c, (s.circuits || []).indexOf(c)))}
 
                     {/* Note */}
                     <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
@@ -2202,9 +2242,34 @@ function ProgramEditorPage({ params }) {
                         rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'none', overflow: 'hidden', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)' }} />
                     </div>
 
+                    {/* Carrousel : un bloc à la fois (exercice seul / supersérie / circuit), navigation
+                        par pastilles numérotées + flèches — remplace la liste qui défilait en continu. */}
+                    {blocks.length > 1 && (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '4px 0 2px', flexWrap: 'wrap' }}>
+                        <button onClick={() => setBlockIndex(i => Math.max(0, i - 1))} disabled={clampedBlockIndex === 0}
+                          style={{ background: 'none', border: 'none', fontSize: 18, padding: '2px 6px', cursor: clampedBlockIndex === 0 ? 'default' : 'pointer', color: clampedBlockIndex === 0 ? 'var(--border2)' : 'var(--text2)', lineHeight: 1 }}>
+                          ‹
+                        </button>
+                        {blocks.map((b, i) => (
+                          <button key={i} onClick={() => setBlockIndex(i)} title={b.type === 'circuit' ? 'Circuit' : `Exercice ${i + 1}`} style={{
+                            width: 24, height: 24, borderRadius: '50%', border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 800, flexShrink: 0,
+                            background: i === clampedBlockIndex ? 'var(--green)' : 'var(--bg2)',
+                            color: i === clampedBlockIndex ? '#fff' : 'var(--text3)',
+                          }}>
+                            {i + 1}
+                          </button>
+                        ))}
+                        <button onClick={() => setBlockIndex(i => Math.min(blocks.length - 1, i + 1))} disabled={clampedBlockIndex === blocks.length - 1}
+                          style={{ background: 'none', border: 'none', fontSize: 18, padding: '2px 6px', cursor: clampedBlockIndex === blocks.length - 1 ? 'default' : 'pointer', color: clampedBlockIndex === blocks.length - 1 ? 'var(--border2)' : 'var(--text2)', lineHeight: 1 }}>
+                          ›
+                        </button>
+                      </div>
+                    )}
+
                     {/* Exercices */}
                     <SortableGroup ids={s.exercises.map(e => e._key)} onReorder={(id, dir) => moveExo(s.id, id, dir)}>
                     {s.exercises.map((exo, ei) => {
+                      if (!isExoVisible(ei)) return null
                       const label = labels[exo._key] || String.fromCharCode(65 + ei)
                       const inGroup = !!exo.superset_group
                       const groupStart = isGroupStart(s.exercises, ei)
@@ -2542,7 +2607,7 @@ function ProgramEditorPage({ params }) {
                             </div>
                           )
                         })()}
-                        {(s.circuits || []).filter(c => circuitSlot(c) === ei + 1).map(c => renderCircuit(c, (s.circuits || []).indexOf(c)))}
+                        {(s.circuits || []).filter(c => circuitSlot(c) === ei + 1 && isCircuitVisible(c)).map(c => renderCircuit(c, (s.circuits || []).indexOf(c)))}
                         </div>
                         )}</SortableItem>
                       )
@@ -2568,7 +2633,7 @@ function ProgramEditorPage({ params }) {
                             <button onClick={() => { setExercisePickerFor(s.id); setAddMenuOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
                               <Barbell size={15} /> Ajouter un exercice
                             </button>
-                            <button onClick={() => { addCircuit(s.id); setAddMenuOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                            <button onClick={() => { addCircuit(s.id); setBlockIndex(Infinity); setAddMenuOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 10px', borderRadius: 6, fontSize: 13, fontWeight: 600, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
                               <Repeat size={15} /> Ajouter un circuit <span style={{ color: 'var(--text3)', fontWeight: 400 }}>(superset / triset)</span>
                             </button>
                           </div>
@@ -2649,6 +2714,7 @@ function ProgramEditorPage({ params }) {
         <RestTimeModal
           onOk={(rest) => {
             addExoWithMovement(pendingExercise.sessId, pendingExercise.movement, pendingExercise.sets, rest)
+            setBlockIndex(Infinity) // saute sur le bloc tout juste créé, apparu en dernier
             setWizardStep(null); setPendingExercise(null)
           }}
           onClose={() => { setWizardStep(null); setPendingExercise(null) }}
