@@ -2,24 +2,32 @@
 
 import { useState, useEffect } from 'react'
 import {
-  ClipboardText, User, CalendarBlank, Tag, PencilSimple, UsersThree, Prohibit, Megaphone, Gift,
-  Trash, LinkSimple, CheckCircle,
+  ClipboardText, User, CalendarBlank, PencilSimple, UsersThree, Prohibit, Megaphone, Gift,
+  Trash, LinkSimple, CheckCircle, MagnifyingGlass, DotsThreeVertical, CopySimple,
 } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { notifyAssigned, notifyProgramAvailable } from '@/lib/notify'
 import { cloneTemplateToAthlete } from '@/lib/programTemplates'
+import { getCoachId } from '@/lib/coach'
 
 function today() {
   const n = new Date()
   return [n.getFullYear(), String(n.getMonth()+1).padStart(2,'0'), String(n.getDate()).padStart(2,'0')].join('-')
 }
 
+function formatDateFr(iso) {
+  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 // Aucun programme réel n'atteint ce nombre de séances : sert de valeur sentinelle pour
 // "programme entièrement gratuit" sans ajouter de colonne dédiée (réutilise free_sessions_count,
 // déjà géré par la logique de déblocage dans /api/athlete-view/[token]/route.js).
 const FULLY_FREE_SESSIONS = 999
+
+const selectStyle = { padding: '7px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, background: 'var(--bg)', color: 'var(--text)', outline: 'none' }
+const selectLabelStyle = { fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }
 
 export default function ProgramsPage() {
   const [programs, setPrograms] = useState([])
@@ -31,6 +39,11 @@ export default function ProgramsPage() {
   const [assigning, setAssigning] = useState(false)
   const [assignDone, setAssignDone] = useState(false)
   const [categoryFilter, setCategoryFilter] = useState('') // '' = Tous
+  const [statusFilter, setStatusFilter] = useState('') // '' | 'available' | 'template' | 'draft'
+  const [sortBy, setSortBy] = useState('created_desc') // 'created_desc' | 'title_asc'
+  const [search, setSearch] = useState('')
+  const [openActionsId, setOpenActionsId] = useState(null)
+  const [duplicatingId, setDuplicatingId] = useState(null)
   const [groups, setGroups] = useState([])
   const [groupTemplateLinks, setGroupTemplateLinks] = useState([])
   const [keepSynced, setKeepSynced] = useState(false)
@@ -72,10 +85,29 @@ export default function ProgramsPage() {
     await supabase.from('programs').update({ free_sessions_count: count }).eq('id', p.id)
   }
 
+  const duplicateProgram = async (p) => {
+    setDuplicatingId(p.id)
+    const coachId = await getCoachId()
+    const copy = await cloneTemplateToAthlete({
+      templateProgramId: p.id, templateTitle: `${p.title} (copie)`, templateActivityType: p.activity_type,
+      athleteId: null, coachId,
+    })
+    setDuplicatingId(null)
+    setOpenActionsId(null)
+    if (!copy) {
+      alert('Erreur lors de la duplication.')
+      return
+    }
+    const { data: full } = await supabase.from('programs')
+      .select('*, athletes(name), program_sessions(id)').eq('id', copy.id).single()
+    if (full) setPrograms(prev => [full, ...prev])
+  }
+
   const deleteProgram = async (p) => {
     if (!confirm(`Supprimer "${p.title}" ?`)) return
     await supabase.from('programs').delete().eq('id', p.id)
     setPrograms(prev => prev.filter(x => x.id !== p.id))
+    setOpenActionsId(null)
   }
 
   const openAssign = (p) => {
@@ -84,6 +116,7 @@ export default function ProgramsPage() {
     setAssignGroupId(null)
     setAssignDone(false)
     setKeepSynced(false)
+    setOpenActionsId(null)
   }
 
   const toggleAthlete = (id) => {
@@ -143,6 +176,27 @@ export default function ProgramsPage() {
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100svh', color: 'var(--text3)' }}>Chargement…</div>
   )
 
+  const allTemplates = programs.filter(p => !p.athlete_id)
+  const allCategories = [...new Set(allTemplates.map(p => p.activity_type).filter(Boolean))].sort()
+
+  let visible = allTemplates
+  if (categoryFilter) visible = visible.filter(p => p.activity_type === categoryFilter)
+  if (statusFilter === 'available') visible = visible.filter(p => p.available_to_clients)
+  else if (statusFilter === 'template') visible = visible.filter(p => p.is_template)
+  else if (statusFilter === 'draft') visible = visible.filter(p => !p.is_template)
+  if (search.trim()) {
+    const q = search.trim().toLowerCase()
+    visible = visible.filter(p => {
+      if (p.title?.toLowerCase().includes(q)) return true
+      return programs.some(c => c.source_program_id === p.id && c.athletes?.name?.toLowerCase().includes(q))
+    })
+  }
+  visible = [...visible].sort((a, b) => sortBy === 'title_asc'
+    ? (a.title || '').localeCompare(b.title || '')
+    : new Date(b.created_at) - new Date(a.created_at))
+
+  const filtersActive = categoryFilter || statusFilter || search.trim()
+
   return (
     <div className="coach-layout" style={{ background: 'var(--bg2)' }}>
       <AthletesSidebar athleteId={null} date={today()} />
@@ -154,7 +208,7 @@ export default function ProgramsPage() {
             <Link href="/" style={{ fontSize: 22, color: 'var(--text2)', textDecoration: 'none' }}>←</Link>
             <div style={{ flex: 1 }}>
               <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>Programmes</div>
-              <div style={{ fontSize: 11, color: 'var(--text3)' }}>{programs.length} programme{programs.length !== 1 ? 's' : ''}</div>
+              <div style={{ fontSize: 11, color: 'var(--text3)' }}>{allTemplates.length} programme{allTemplates.length !== 1 ? 's' : ''}</div>
             </div>
             <Link href="/programs/new" style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>
               + Programme
@@ -162,114 +216,200 @@ export default function ProgramsPage() {
           </div>
         </div>
 
-        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-          {programs.filter(p => !p.athlete_id).length === 0 ? (
+          {allTemplates.length === 0 ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><ClipboardText size={36} /></div>
               <div style={{ fontWeight: 600, marginBottom: 6 }}>Aucun programme</div>
               <div style={{ fontSize: 13 }}>Clique sur "+ Programme" pour créer ton premier programme</div>
             </div>
-          ) : (() => {
-            const allTemplates = programs.filter(p => !p.athlete_id)
-            const allCategories = [...new Set(allTemplates.map(p => p.activity_type).filter(Boolean))].sort()
-            const templates = categoryFilter === '' ? allTemplates : allTemplates.filter(p => p.activity_type === categoryFilter)
-            const renderProgram = (p) => {
-              const href = p.athlete_id ? `/programs/${p.athlete_id}/${p.id}` : `/programs/templates/${p.id}`
-              return (
-                <div key={p.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-                  <Link href={href} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', textDecoration: 'none', color: 'inherit' }}>
-                    <div style={{
-                      width: 44, height: 44, flexShrink: 0, borderRadius: 'var(--r)',
-                      background: p.available_to_clients ? 'var(--green-light)' : 'var(--bg2)',
-                      border: `1px solid ${p.available_to_clients ? '#B8EAD8' : 'var(--border2)'}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: p.available_to_clients ? 'var(--green)' : 'var(--text3)',
-                    }}>
-                      <ClipboardText size={20} />
+          ) : (
+            <>
+              {/* Barre de recherche */}
+              <div style={{ position: 'relative' }}>
+                <MagnifyingGlass size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text3)' }} />
+                <input
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Rechercher un programme ou un sportif"
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px 11px 36px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, background: 'var(--bg)', color: 'var(--text)', outline: 'none' }}
+                />
+              </div>
+
+              {/* Filtres */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 14 }}>
+                <div>
+                  <div style={selectLabelStyle}>Statut</div>
+                  <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={selectStyle}>
+                    <option value="">Tous</option>
+                    <option value="available">Disponible aux sportifs</option>
+                    <option value="template">Templates</option>
+                    <option value="draft">Brouillons</option>
+                  </select>
+                </div>
+                {allCategories.length > 0 && (
+                  <div>
+                    <div style={selectLabelStyle}>Catégorie</div>
+                    <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)} style={selectStyle}>
+                      <option value="">Toutes</option>
+                      {allCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                  </div>
+                )}
+                <div style={{ flex: 1 }} />
+                <div style={{ fontSize: 12, color: 'var(--text3)', paddingBottom: 8 }}>
+                  {visible.length} programme{visible.length !== 1 ? 's' : ''}
+                </div>
+                <div>
+                  <div style={selectLabelStyle}>Trier par</div>
+                  <select value={sortBy} onChange={e => setSortBy(e.target.value)} style={selectStyle}>
+                    <option value="created_desc">Date de création</option>
+                    <option value="title_asc">Nom (A → Z)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Tableau */}
+              {visible.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '30px 20px', fontSize: 13, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)' }}>
+                  {filtersActive ? 'Aucun programme ne correspond à ces filtres.' : 'Aucun programme.'}
+                </div>
+              ) : (
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflowX: 'auto' }}>
+                  <div style={{ minWidth: 780 }}>
+                    {/* En-tête */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)' }}>
+                      <div style={{ flex: '2 1 260px', minWidth: 200, fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Programme</div>
+                      <div style={{ flex: '1 1 200px', minWidth: 160, fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Assigné à</div>
+                      <div style={{ flex: '0 0 130px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Objectif</div>
+                      <div style={{ flex: '0 0 110px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Créé le</div>
+                      <div style={{ flex: '0 0 32px' }} />
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 3 }}>{p.title}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text3)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{p.athlete_id ? <><User size={11} /> {p.athletes?.name || '—'}</> : <><ClipboardText size={11} /> {p.is_template ? 'Template' : 'Brouillon'}</>}</span>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><CalendarBlank size={11} /> {(p.program_sessions || []).length} séance{(p.program_sessions || []).length !== 1 ? 's' : ''}</span>
-                        {p.activity_type && <span style={{ color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Tag size={11} /> {p.activity_type}</span>}
-                        {p.available_to_clients && <span style={{ color: 'var(--green)', fontWeight: 700 }}>✓ Disponible sportifs</span>}
-                      </div>
-                    </div>
-                  </Link>
-                  <div style={{ borderTop: '1px solid var(--border)', padding: '8px 16px', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                    <Link href={href} style={{ fontSize: 12, fontWeight: 600, color: 'var(--green)', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}><PencilSimple size={12} /> Modifier</Link>
-                    {athletes.length > 0 && (
-                      <button onClick={() => openAssign(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text2)', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><UsersThree size={12} /> Assigner</button>
-                    )}
-                    {!p.athlete_id && (
-                      <button onClick={() => toggleAvailable(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: p.available_to_clients ? '#B91C1C' : 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        {p.available_to_clients ? <><Prohibit size={12} /> Retirer de la sélection</> : <><Megaphone size={12} /> Rendre disponible aux sportifs</>}
-                      </button>
-                    )}
-                    {!p.athlete_id && p.available_to_clients && (
-                      p.free_sessions_count >= FULLY_FREE_SESSIONS ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Gift size={12} /> Programme entièrement gratuit</span>
-                          <button onClick={() => saveFreeSessionsCount(p, '')} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--text3)', cursor: 'pointer', padding: 0, fontWeight: 600, textDecoration: 'underline' }}>
-                            Limiter
-                          </button>
+
+                    {visible.map((p, idx) => {
+                      const href = p.athlete_id ? `/programs/${p.athlete_id}/${p.id}` : `/programs/templates/${p.id}`
+                      const nSessions = (p.program_sessions || []).length
+                      const assignedCopies = programs.filter(x => x.source_program_id === p.id)
+                      const isFullyFree = p.free_sessions_count >= FULLY_FREE_SESSIONS
+                      const actionsOpen = openActionsId === p.id
+                      return (
+                        <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: idx === visible.length - 1 ? 'none' : '1px solid var(--border)' }}>
+
+                          {/* Programme */}
+                          <div style={{ flex: '2 1 260px', minWidth: 200, display: 'flex', alignItems: 'center', gap: 12 }}>
+                            <div style={{
+                              width: 40, height: 40, flexShrink: 0, borderRadius: 'var(--r)',
+                              background: p.available_to_clients ? 'var(--green-light)' : 'var(--bg2)',
+                              border: `1px solid ${p.available_to_clients ? '#B8EAD8' : 'var(--border2)'}`,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              color: p.available_to_clients ? 'var(--green)' : 'var(--text3)',
+                            }}>
+                              <ClipboardText size={18} />
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <Link href={href} style={{ fontWeight: 700, fontSize: 14, color: 'var(--green)', textDecoration: 'none' }}>{p.title}</Link>
+                              <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
+                                <CalendarBlank size={11} /> {nSessions} séance{nSessions !== 1 ? 's' : ''}{p.activity_type ? ` · ${p.activity_type}` : ''}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Assigné à */}
+                          <div style={{ flex: '1 1 200px', minWidth: 160, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                            {p.available_to_clients && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: 'var(--green)' }}>
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', flexShrink: 0 }} /> Disponible sportifs
+                              </span>
+                            )}
+                            {assignedCopies.length > 0 ? (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                                {assignedCopies.slice(0, 3).map(c => (
+                                  <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px' }}>
+                                    <User size={10} /> {c.athletes?.name || '—'}
+                                  </span>
+                                ))}
+                                {assignedCopies.length > 3 && (
+                                  <span style={{ fontSize: 11, color: 'var(--text3)', padding: '2px 4px' }}>+{assignedCopies.length - 3}</span>
+                                )}
+                              </div>
+                            ) : (!p.available_to_clients && <span style={{ fontSize: 12, color: 'var(--text3)' }}>—</span>)}
+                          </div>
+
+                          {/* Objectif */}
+                          <div style={{ flex: '0 0 130px', fontSize: 12, color: 'var(--text2)' }}>{p.goal || '—'}</div>
+
+                          {/* Créé le */}
+                          <div style={{ flex: '0 0 110px', fontSize: 12, color: 'var(--text3)' }}>{formatDateFr(p.created_at)}</div>
+
+                          {/* Actions */}
+                          <div style={{ flex: '0 0 32px', position: 'relative' }}>
+                            <button
+                              onClick={() => setOpenActionsId(actionsOpen ? null : p.id)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: 4, display: 'flex' }}
+                            >
+                              <DotsThreeVertical size={18} weight="bold" />
+                            </button>
+                            {actionsOpen && (
+                              <>
+                                <div onClick={() => setOpenActionsId(null)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+                                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 100, minWidth: 220, padding: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                  <Link href={href} onClick={() => setOpenActionsId(null)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: 'var(--text)', textDecoration: 'none' }}>
+                                    <PencilSimple size={14} /> Modifier
+                                  </Link>
+                                  {athletes.length > 0 && (
+                                    <button onClick={() => openAssign(p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                                      <UsersThree size={14} /> Assigner
+                                    </button>
+                                  )}
+                                  {!p.athlete_id && (
+                                    <button onClick={() => duplicateProgram(p)} disabled={duplicatingId === p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                                      <CopySimple size={14} /> {duplicatingId === p.id ? 'Duplication…' : 'Dupliquer'}
+                                    </button>
+                                  )}
+                                  {!p.athlete_id && (
+                                    <button onClick={() => toggleAvailable(p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: p.available_to_clients ? '#B91C1C' : 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                                      {p.available_to_clients ? <><Prohibit size={14} /> Retirer de la sélection</> : <><Megaphone size={14} /> Rendre disponible aux sportifs</>}
+                                    </button>
+                                  )}
+                                  {!p.athlete_id && p.available_to_clients && (
+                                    <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border)', marginTop: 2 }}>
+                                      {isFullyFree ? (
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--green)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Gift size={12} /> Gratuit</span>
+                                          <button onClick={() => saveFreeSessionsCount(p, '')} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--text3)', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>
+                                            Limiter
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                          <span style={{ fontSize: 11, color: 'var(--text3)' }}>Séances gratuites :</span>
+                                          <input type="number" min="0" placeholder="3"
+                                            defaultValue={p.free_sessions_count ?? ''}
+                                            onBlur={e => saveFreeSessionsCount(p, e.target.value)}
+                                            style={{ width: 44, boxSizing: 'border-box', padding: '3px 6px', border: '1px solid var(--border2)', borderRadius: 6, fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+                                          <button onClick={() => saveFreeSessionsCount(p, String(FULLY_FREE_SESSIONS))} style={{ background: 'none', border: 'none', fontSize: 11, color: 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
+                                            Tout gratuit
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                  <button onClick={() => deleteProgram(p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', borderTop: '1px solid var(--border)', marginTop: 2 }}>
+                                    <Trash size={14} /> Supprimer
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
-                      ) : (
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text3)', fontWeight: 600 }}>
-                          Séances gratuites :
-                          <input type="number" min="0" placeholder="3 par défaut"
-                            defaultValue={p.free_sessions_count ?? ''}
-                            onBlur={e => saveFreeSessionsCount(p, e.target.value)}
-                            style={{ width: 50, boxSizing: 'border-box', padding: '3px 6px', border: '1px solid var(--border2)', borderRadius: 6, fontSize: 12, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
-                          <button onClick={() => saveFreeSessionsCount(p, String(FULLY_FREE_SESSIONS))} style={{ background: 'none', border: 'none', fontSize: 12, color: 'var(--green)', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                            <Gift size={12} /> Rendre tout gratuit
-                          </button>
-                        </label>
                       )
-                    )}
-                    <button onClick={() => deleteProgram(p)} style={{ background: 'none', border: 'none', fontSize: 12, color: '#DC2626', cursor: 'pointer', padding: 0, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Trash size={12} /> Supprimer</button>
+                    })}
                   </div>
                 </div>
-              )
-            }
-            return (
-              <>
-                {allTemplates.length > 0 && (
-                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', padding: '4px 2px', display: 'flex', alignItems: 'center', gap: 5 }}><ClipboardText size={13} /> Programmes</div>
-                )}
-                {allCategories.length > 0 && (
-                  <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-                    <button onClick={() => setCategoryFilter('')} style={{
-                      flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
-                      background: categoryFilter === '' ? 'var(--green)' : 'var(--bg2)',
-                      color: categoryFilter === '' ? '#fff' : 'var(--text2)',
-                      fontSize: 13, fontWeight: 700,
-                    }}>
-                      Tous
-                    </button>
-                    {allCategories.map(cat => (
-                      <button key={cat} onClick={() => setCategoryFilter(cat)} style={{
-                        flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
-                        background: categoryFilter === cat ? 'var(--green)' : 'var(--bg2)',
-                        color: categoryFilter === cat ? '#fff' : 'var(--text2)',
-                        fontSize: 13, fontWeight: 700,
-                      }}>
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {templates.length === 0 && categoryFilter !== '' && (
-                  <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '20px', fontSize: 13 }}>
-                    Aucun template dans cette catégorie
-                  </div>
-                )}
-                {templates.map(renderProgram)}
-              </>
-            )
-          })()}
+              )}
+            </>
+          )}
         </div>
       </div>
 
