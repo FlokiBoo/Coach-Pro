@@ -2911,6 +2911,18 @@ function ExercisePickerModal({ onPick, onClose }) {
   const [muscleFilter, setMuscleFilter] = useState('')
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
+
+  const createMovement = async () => {
+    const name = search.trim()
+    if (!name) return
+    setCreating(true)
+    const coachId = await getCoachId()
+    const { data, error } = await supabase.from('movements').insert({ name, coach_id: coachId }).select().single()
+    setCreating(false)
+    if (error || !data) { alert('Erreur : ' + (error?.message || '')); return }
+    onPick(data)
+  }
 
   useEffect(() => {
     // Pas de setLoading(true) synchrone ici : l'indicateur ne réapparaît qu'au tout premier
@@ -2964,7 +2976,17 @@ function ExercisePickerModal({ onPick, onClose }) {
           {loading ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: 30, fontSize: 13 }}>Chargement…</div>
           ) : results.length === 0 ? (
-            <div style={{ textAlign: 'center', color: 'var(--text3)', padding: 30, fontSize: 13 }}>Aucun exercice trouvé.</div>
+            <div style={{ textAlign: 'center', color: 'var(--text3)', padding: 30, fontSize: 13, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+              <span>Aucun exercice trouvé.</span>
+              {search.trim() && (
+                <button onClick={createMovement} disabled={creating} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--green)', color: '#fff',
+                  border: 'none', borderRadius: 20, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                }}>
+                  <Plus size={14} weight="bold" /> {creating ? 'Création…' : `Créer « ${search.trim()} »`}
+                </button>
+              )}
+            </div>
           ) : results.map(m => (
             <button key={m.id} onClick={() => onPick(m)} style={{
               display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: 8, borderRadius: 'var(--r)',
