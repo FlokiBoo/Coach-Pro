@@ -21,7 +21,7 @@ import { notifyAssigned, notifyProgramAvailable } from '@/lib/notify'
 import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerConfigEditor'
 import {
   ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat,
-  VideoCamera, Lightbulb, Target, ChartLineUp, Backpack, FloppyDisk, Lightning,
+  VideoCamera, Lightbulb, Target, ChartLineUp, Backpack, FloppyDisk,
   CopySimple, ArrowsOutCardinal, Barbell, CaretDown, MagnifyingGlass, Plus,
 } from '@phosphor-icons/react'
 
@@ -419,8 +419,6 @@ function ProgramEditorPage({ params }) {
   const [videoInputVal, setVideoInputVal] = useState('')
   const [videoPreviewKey, setVideoPreviewKey] = useState(null)
   const [focusPickerKey, setFocusPickerKey] = useState(null)
-  const [actVideoSearch, setActVideoSearch] = useState({})
-  const [actVideoSuggs, setActVideoSuggs] = useState({})
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [savedIds, setSavedIds] = useState(new Set())
@@ -449,8 +447,6 @@ function ProgramEditorPage({ params }) {
   }))
   const [duplicatingSelected, setDuplicatingSelected] = useState(false)
   const [titleSaving, setTitleSaving] = useState(false)
-  const [actPresetSearch, setActPresetSearch] = useState({})
-  const [actPresetSuggs, setActPresetSuggs] = useState({})
   const [dirtySessionIds, setDirtySessionIds] = useState(new Set())
   const [timerEditor, setTimerEditor] = useState(null) // { sessId, kind: 'exercise'|'circuit', targetKey, config }
   const markDirty = (sessId) => setDirtySessionIds(prev => new Set(prev).add(sessId))
@@ -693,63 +689,6 @@ function ProgramEditorPage({ params }) {
     setSuggestions(prev => ({ ...prev, [key]: [] }))
     const { data: mov } = await supabase.from('movements').select('youtube_url').eq('name', name).single()
     if (mov?.youtube_url) updateExo(sessId, key, 'video_url', mov.youtube_url)
-  }
-
-  const searchActPreset = async (sessId, val) => {
-    setActPresetSearch(prev => ({ ...prev, [sessId]: val }))
-    if (val.trim().length < 1) { setActPresetSuggs(prev => ({ ...prev, [sessId]: [] })); return }
-    const { data } = await supabase.from('activation_presets').select('*').ilike('name', `%${val.trim()}%`).limit(8)
-    setActPresetSuggs(prev => ({ ...prev, [sessId]: data || [] }))
-  }
-
-  const applyActPreset = (sessId, preset) => {
-    markDirty(sessId)
-    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
-      ...s, activation: preset.text || '', activation_videos: preset.videos || [],
-    }))
-    setActPresetSearch(prev => ({ ...prev, [sessId]: '' }))
-    setActPresetSuggs(prev => ({ ...prev, [sessId]: [] }))
-  }
-
-  const searchActVideo = async (sessId, val) => {
-    setActVideoSearch(prev => ({ ...prev, [sessId]: val }))
-    if (val.trim().length < 2) { setActVideoSuggs(prev => ({ ...prev, [sessId]: [] })); return }
-    const { data } = await supabase.from('movements').select('name, youtube_url').ilike('name', `%${val.trim()}%`).limit(8)
-    setActVideoSuggs(prev => ({ ...prev, [sessId]: data || [] }))
-  }
-
-  const addActVideo = (sessId, mov) => {
-    markDirty(sessId)
-    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
-      ...s, activation_videos: [...(s.activation_videos || []), { name: mov.name, video_url: mov.youtube_url || '' }]
-    }))
-    setActVideoSearch(prev => ({ ...prev, [sessId]: '' }))
-    setActVideoSuggs(prev => ({ ...prev, [sessId]: [] }))
-  }
-
-  const createActVideo = async (sessId, name) => {
-    const trimmed = name.trim()
-    if (!trimmed) return
-    await supabase.from('movements').upsert({ name: trimmed }, { onConflict: 'name', ignoreDuplicates: true })
-    addActVideo(sessId, { name: trimmed, youtube_url: '' })
-  }
-
-  const removeActVideo = (sessId, idx) => {
-    markDirty(sessId)
-    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
-      ...s, activation_videos: (s.activation_videos || []).filter((_, i) => i !== idx)
-    }))
-  }
-
-  const updateActVideoUrl = async (sessId, idx, url) => {
-    markDirty(sessId)
-    setSessions(prev => prev.map(s => s.id !== sessId ? s : {
-      ...s, activation_videos: (s.activation_videos || []).map((v, i) => i === idx ? { ...v, video_url: url } : v)
-    }))
-    if (!url) return
-    const sess = sessions.find(s => s.id === sessId)
-    const name = sess?.activation_videos?.[idx]?.name
-    if (name) await supabase.from('movements').update({ youtube_url: url }).eq('name', name)
   }
 
   // Séances "Explication" : une seule vidéo simple (pas de recherche de mouvement), stockée dans
@@ -2024,54 +1963,6 @@ function ProgramEditorPage({ params }) {
                   >
                     <Lightbulb size={11} style={{ verticalAlign: -1, marginRight: 3 }} />Explication
                   </button>
-                  <button
-                    onClick={e => { e.stopPropagation(); updateSession(s.id, 'session_type', s.session_type === 'recurrent' ? null : 'recurrent') }}
-                    title="Séance récurrente"
-                    style={{
-                      flexShrink: 0, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 9px', cursor: 'pointer',
-                      border: s.session_type === 'recurrent' ? '1px solid #FDBA74' : '1px solid var(--border2)',
-                      background: s.session_type === 'recurrent' ? '#FFF7ED' : 'none',
-                      color: s.session_type === 'recurrent' ? '#C2410C' : 'var(--text3)',
-                    }}
-                  >
-                    <Repeat size={11} style={{ verticalAlign: -1, marginRight: 3 }} />Récurrent
-                  </button>
-                  {s.session_type === 'recurrent' && (
-                    <label onClick={e => e.stopPropagation()} title="Nombre de fois par jour à faire pour valider la séance — remis à zéro chaque jour"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#C2410C', border: '1px solid #FDBA74', background: '#FFF7ED', borderRadius: 20, padding: '3px 9px' }}>
-                      <input type="number" min="1" value={s.recurring_daily_target ?? 1}
-                        onChange={e => updateSession(s.id, 'recurring_daily_target', Math.max(1, parseInt(e.target.value) || 1))}
-                        style={{ width: 26, border: 'none', background: 'transparent', color: 'inherit', fontWeight: 700, fontSize: 11, textAlign: 'center', outline: 'none' }} />
-                      fois/jour
-                    </label>
-                  )}
-                  <input
-                    type="number" min="1" placeholder="Sem." value={s.week_number ?? ''}
-                    onChange={e => { updateSession(s.id, 'week_number', e.target.value === '' ? null : parseInt(e.target.value)) }}
-                    onClick={e => e.stopPropagation()}
-                    title="Semaine (place cette séance dans la grille Jour 1→N ci-dessus)"
-                    style={{
-                      width: 46, boxSizing: 'border-box', flexShrink: 0, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 6px', cursor: 'pointer', textAlign: 'center',
-                      border: s.week_number != null ? '1px solid var(--green)' : '1px solid var(--border2)',
-                      background: s.week_number != null ? 'var(--green-light)' : 'none',
-                      color: s.week_number != null ? 'var(--green)' : 'var(--text3)',
-                    }}
-                  />
-                  <select
-                    value={s.day_of_week ?? ''}
-                    onChange={e => { updateSession(s.id, 'day_of_week', e.target.value === '' ? null : parseInt(e.target.value)) }}
-                    onClick={e => e.stopPropagation()}
-                    title="Jour de la semaine (pour la vue chronologique de l'athlète, si plusieurs programmes sont actifs)"
-                    style={{
-                      flexShrink: 0, fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '3px 6px', cursor: 'pointer',
-                      border: s.day_of_week != null ? '1px solid var(--green)' : '1px solid var(--border2)',
-                      background: s.day_of_week != null ? 'var(--green-light)' : 'none',
-                      color: s.day_of_week != null ? 'var(--green)' : 'var(--text3)',
-                    }}
-                  >
-                    <option value="">Jour</option>
-                    {WEEK_DAYS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
-                  </select>
                   {program?.group_id && (
                     <button
                       onClick={e => { e.stopPropagation(); updateSession(s.id, 'hidden_until_run', !s.hidden_until_run) }}
@@ -2207,99 +2098,49 @@ function ProgramEditorPage({ params }) {
                       </>
                     ) : (
                     <>
-                    {/* Activation */}
-                    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'visible' }}>
-                      <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lightning size={11} /> Activation</span>
-                      </div>
-                      <div style={{ position: 'relative', padding: '8px 10px 0' }}>
-                        <input
-                          placeholder="Insérer une activation pré-créée…"
-                          value={actPresetSearch[s.id] || ''}
-                          onChange={e => searchActPreset(s.id, e.target.value)}
-                          onFocus={e => searchActPreset(s.id, e.target.value)}
-                          onBlur={() => setTimeout(() => setActPresetSuggs(p => ({ ...p, [s.id]: [] })), 150)}
-                          style={{ ...inp, fontSize: 12 }}
-                        />
-                        {(actPresetSuggs[s.id] || []).length > 0 && (
-                          <div style={{ position: 'absolute', top: '100%', left: 10, right: 10, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
-                            {actPresetSuggs[s.id].map((preset, pi) => (
-                              <button key={preset.id} onMouseDown={() => applyActPreset(s.id, preset)}
-                                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: pi < actPresetSuggs[s.id].length - 1 ? '1px solid var(--border)' : 'none', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
-                                <span style={{ flex: 1 }}>{preset.name}</span>
-                                {preset.videos?.length > 0 && <span style={{ fontSize: 11, color: 'var(--text3)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>{preset.videos.length} <VideoCamera size={11} /></span>}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                      <textarea placeholder="Échauffement, mobilité…" value={s.activation || ''}
-                        onChange={e => updateSession(s.id, 'activation', e.target.value)}
-                        ref={el => autoGrow(el)}
-                        rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'none', overflow: 'hidden', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)', boxSizing: 'border-box' }} />
-                    </div>
+                    {/* Description */}
+                    <textarea placeholder="Description" value={s.coach_notes || ''}
+                      onChange={e => updateSession(s.id, 'coach_notes', e.target.value)}
+                      ref={el => autoGrow(el)}
+                      rows={3} style={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, outline: 'none', resize: 'none', overflow: 'hidden', background: 'var(--bg)', fontFamily: 'inherit', color: 'var(--text)' }} />
 
-                    {/* Vidéos d'activation */}
-                    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'visible' }}>
-                      <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--green)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><VideoCamera size={11} /> Vidéos d&apos;activation</span>
+                    {/* Semaine / Jour / Récurrence */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Semaine</div>
+                        <input type="number" min="1" placeholder="—" value={s.week_number ?? ''}
+                          onChange={e => updateSession(s.id, 'week_number', e.target.value === '' ? null : parseInt(e.target.value))}
+                          title="Place cette séance dans la grille Jour 1→N du calendrier"
+                          style={{ width: 64, boxSizing: 'border-box', padding: '7px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
                       </div>
-                      <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-
-                        {/* Chips des vidéos ajoutées */}
-                        {(s.activation_videos || []).length > 0 && (
-                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                            {(s.activation_videos || []).map((v, vi) => (
-                              v.video_url ? (
-                                <div key={vi} style={{ display: 'flex', alignItems: 'center', gap: 5, background: '#EEF2FF', border: '1px solid #C7D2FE', borderRadius: 20, padding: '4px 6px 4px 10px' }}>
-                                  <a href={v.video_url} target="_blank" rel="noreferrer" style={{ display: 'flex', textDecoration: 'none', flexShrink: 0 }} title="Voir la vidéo"><VideoCamera size={12} /></a>
-                                  <span style={{ fontSize: 12, fontWeight: 700, color: '#4338CA' }}>{v.name}</span>
-                                  <button onClick={() => removeActVideo(s.id, vi)}
-                                    style={{ background: 'none', border: 'none', color: '#4338CA', fontSize: 14, cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1, opacity: 0.6 }}>×</button>
-                                </div>
-                              ) : (
-                                <div key={vi} style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '4px 6px 4px 10px' }}>
-                                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{v.name}</span>
-                                  <input
-                                    placeholder="Coller URL…"
-                                    defaultValue=""
-                                    onBlur={e => updateActVideoUrl(s.id, vi, e.target.value.trim())}
-                                    style={{ border: '1px solid var(--border2)', borderRadius: 12, padding: '2px 8px', fontSize: 11, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', width: 110 }}
-                                  />
-                                  <button onClick={() => removeActVideo(s.id, vi)}
-                                    style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 14, cursor: 'pointer', padding: '0 2px', flexShrink: 0, lineHeight: 1 }}>×</button>
-                                </div>
-                              )
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Recherche */}
-                        <div style={{ position: 'relative' }}>
-                          <input
-                            placeholder="Rechercher un mouvement…"
-                            value={actVideoSearch[s.id] || ''}
-                            onChange={e => searchActVideo(s.id, e.target.value)}
-                            onBlur={() => setTimeout(() => setActVideoSuggs(p => ({ ...p, [s.id]: [] })), 150)}
-                            style={{ ...inp, fontSize: 12 }}
-                          />
-                          {(actVideoSearch[s.id] || '').trim().length >= 2 && (
-                            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
-                              {(actVideoSuggs[s.id] || []).map((mov, mi) => (
-                                <button key={mi} onMouseDown={() => addActVideo(s.id, mov)}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
-                                  <span style={{ flex: 1 }}>{mov.name}</span>
-                                  <span style={{ fontSize: 12, display: 'flex' }}>{mov.youtube_url ? <VideoCamera size={13} /> : <span style={{ color: 'var(--text3)', fontSize: 11 }}>pas de vidéo</span>}</span>
-                                </button>
-                              ))}
-                              {!(actVideoSuggs[s.id] || []).some(m => m.name.toLowerCase() === (actVideoSearch[s.id] || '').trim().toLowerCase()) && (
-                                <button onMouseDown={() => createActVideo(s.id, actVideoSearch[s.id])}
-                                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 10px', textAlign: 'left', background: 'var(--bg2)', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--green)', cursor: 'pointer' }}>
-                                  <span style={{ display: 'flex' }}><VideoCamera size={13} /></span>
-                                  <span>Créer « {actVideoSearch[s.id]} » et lier une vidéo</span>
-                                </button>
-                              )}
-                            </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Jour</div>
+                        <select value={s.day_of_week ?? ''} onChange={e => updateSession(s.id, 'day_of_week', e.target.value === '' ? null : parseInt(e.target.value))}
+                          title="Jour de la semaine (pour la vue chronologique de l'athlète, si plusieurs programmes sont actifs)"
+                          style={{ padding: '7px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}>
+                          <option value="">—</option>
+                          {WEEK_DAYS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Récurrence</div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <button onClick={() => updateSession(s.id, 'session_type', s.session_type === 'recurrent' ? null : 'recurrent')} style={{
+                            padding: '7px 12px', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                            border: s.session_type === 'recurrent' ? '1px solid var(--green)' : '1px solid var(--border2)',
+                            background: s.session_type === 'recurrent' ? 'var(--green-light)' : 'var(--bg)',
+                            color: s.session_type === 'recurrent' ? 'var(--green)' : 'var(--text2)',
+                          }}>
+                            {s.session_type === 'recurrent' ? 'Récurrente' : 'Ne se répète pas'}
+                          </button>
+                          {s.session_type === 'recurrent' && (
+                            <label title="Nombre de fois par jour à faire pour valider la séance — remis à zéro chaque jour"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--text2)' }}>
+                              <input type="number" min="1" value={s.recurring_daily_target ?? 1}
+                                onChange={e => updateSession(s.id, 'recurring_daily_target', Math.max(1, parseInt(e.target.value) || 1))}
+                                style={{ width: 44, boxSizing: 'border-box', padding: '6px 8px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, textAlign: 'center', outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+                              fois/jour
+                            </label>
                           )}
                         </div>
                       </div>
@@ -2308,17 +2149,6 @@ function ProgramEditorPage({ params }) {
                     {/* Circuits placés avant le premier exercice (afterExerciseIndex 0, valeur par défaut
                         des circuits déjà existants avant l'ajout du positionnement interleavé) */}
                     {(s.circuits || []).filter(c => circuitSlot(c) === 0 && isCircuitVisible(c)).map(c => renderCircuit(c, (s.circuits || []).indexOf(c)))}
-
-                    {/* Note */}
-                    <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
-                      <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)' }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'inline-flex', alignItems: 'center', gap: 4 }}><ClipboardText size={11} /> Note</span>
-                      </div>
-                      <textarea placeholder="Consignes pour le sportif…" value={s.coach_notes || ''}
-                        onChange={e => updateSession(s.id, 'coach_notes', e.target.value)}
-                        ref={el => autoGrow(el)}
-                        rows={2} style={{ width: '100%', border: 'none', padding: '8px 10px', fontSize: 12, outline: 'none', resize: 'none', overflow: 'hidden', background: 'transparent', fontFamily: 'inherit', color: 'var(--text)' }} />
-                    </div>
 
                     {/* Carrousel : un bloc à la fois (exercice seul / supersérie / circuit), navigation
                         par pastilles numérotées + flèches — remplace la liste qui défilait en continu. */}
