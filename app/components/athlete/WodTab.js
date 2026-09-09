@@ -137,7 +137,9 @@ export default function WodTab({
   const renderRecurringRow = ({ session: s, program }, isToday) => {
     const target = s.recurring_daily_target || 1
     const count = recurringTodayCounts[s.id] || 0
-    const met = count >= target
+    // La coche ne concerne que la case "aujourd'hui" — le compteur n'a de sens que pour le jour en
+    // cours, l'afficher aussi sur les autres jours suggérerait à tort qu'ils sont "faits".
+    const met = isToday && count >= target
     return (
       <div key={s.id} style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px',
