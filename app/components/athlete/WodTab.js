@@ -62,10 +62,19 @@ export default function WodTab({
 
   const dayGroups = WEEK_DAYS.map(d => ({ ...d, entries: [] }))
   coachDatedPrograms.forEach(prog => {
-    const nextUncompleted = prog.sessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
+    // Séance récurrente (session_type === 'recurrent') : disponible tous les jours, pas seulement
+    // celui où le coach l'a posée sur son calendrier — et jamais "consommée" par la progression
+    // classique (elle reste proposable indéfiniment, même après avoir été validée une fois).
+    const recurringSessions = prog.sessions.filter(s => s.session_type === 'recurrent')
+    recurringSessions.forEach(s => {
+      WEEK_DAYS.forEach(d => dayGroups[d.key].entries.push({ session: s, program: prog }))
+    })
+
+    const progressionSessions = prog.sessions.filter(s => s.session_type !== 'recurrent')
+    const nextUncompleted = progressionSessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
     if (!nextUncompleted) return
     const weekSessions = nextUncompleted.week_number != null
-      ? prog.sessions.filter(s => s.week_number === nextUncompleted.week_number)
+      ? progressionSessions.filter(s => s.week_number === nextUncompleted.week_number)
       : [nextUncompleted]
     weekSessions.forEach(s => {
       if (s.day_of_week != null) dayGroups[s.day_of_week].entries.push({ session: s, program: prog })
