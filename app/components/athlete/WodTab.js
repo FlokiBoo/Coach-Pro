@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { EyeSlash, Backpack, ClipboardText, CalendarBlank, ClockCounterClockwise, CaretDown, CaretUp, UsersThree, Play } from '@phosphor-icons/react'
+import { EyeSlash, Backpack, ClipboardText, CalendarBlank, ClockCounterClockwise, CaretDown, CaretUp, UsersThree, Play, Repeat } from '@phosphor-icons/react'
 import { WEEK_DAYS, jsDayToWeekDay } from '@/lib/weekDays'
 
 // Page d'accueil : la prochaine séance doit être visible immédiatement, sans scroll (retour
@@ -13,6 +13,7 @@ export default function WodTab({
   isCoachView, noteBlocks,
   programs, completions, skippedSessions, selectedType, setSelectedType,
   router, token, setActiveTab, onUpdateProgramDays,
+  recurringTodayCounts = {}, onLogRecurring,
 }) {
   const [selectedProgramId, setSelectedProgramId] = useState(null)
   const [materielSession, setMaterielSession] = useState(null)
@@ -130,6 +131,48 @@ export default function WodTab({
     )
   }
 
+  // Séance récurrente : pas de "Valider" avec formulaire de ressenti — un compteur "+1" rapide,
+  // actionnable seulement sur la case du jour (les autres jours sont juste informatifs, on ne peut
+  // pas logger un passage pour un jour qui n'est pas aujourd'hui).
+  const renderRecurringRow = ({ session: s, program }, isToday) => {
+    const target = s.recurring_daily_target || 1
+    const count = recurringTodayCounts[s.id] || 0
+    const met = count >= target
+    return (
+      <div key={s.id} style={{
+        display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px',
+        borderBottom: '1px solid var(--border)', opacity: isToday ? 1 : 0.55,
+      }}>
+        {met ? (
+          <span style={{ color: 'var(--green)', fontSize: 15, flexShrink: 0 }}>✓</span>
+        ) : (
+          <span style={{ width: 15, flexShrink: 0 }} />
+        )}
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 600, color: met ? 'var(--text3)' : 'var(--text)' }}>
+            <Repeat size={12} style={{ flexShrink: 0 }} />{s.title || 'Séance'}
+          </span>
+          {isToday ? (
+            <span style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
+              {count}/{target} aujourd&apos;hui{showProgramLabelSuffix(program)}
+            </span>
+          ) : (
+            <span style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{target}x/jour</span>
+          )}
+        </span>
+        {isToday && (
+          <button onClick={() => onLogRecurring?.(s.id)} style={{
+            background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20,
+            padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+          }}>
+            +1
+          </button>
+        )}
+      </div>
+    )
+  }
+  const showProgramLabelSuffix = (program) => datedProgramsCount > 1 ? ` · ${program.title}` : ''
+
   const allTypes = [...new Set(unscheduledPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
   const effectiveType = allTypes.length <= 1 ? null
     : ((selectedType && allTypes.includes(selectedType)) ? selectedType
@@ -224,9 +267,9 @@ export default function WodTab({
                   Repos
                 </div>
               ) : (
-                d.entries.map(({ session, program }) => renderSessionRow(session, {
-                  showProgramLabel: datedProgramsCount > 1 ? program.title : null,
-                }))
+                d.entries.map(({ session, program }) => session.session_type === 'recurrent'
+                  ? renderRecurringRow({ session, program }, d.key === todayWeekDay)
+                  : renderSessionRow(session, { showProgramLabel: datedProgramsCount > 1 ? program.title : null }))
               )}
             </div>
           ))}

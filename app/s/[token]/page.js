@@ -896,6 +896,27 @@ function AthleteView({ params }) {
     if (!res.ok) alert('Erreur lors de la mise à jour de la date.')
   }
 
+  const [recurringTodayCounts, setRecurringTodayCounts] = useState({})
+  useEffect(() => {
+    const n = new Date()
+    const localDate = [n.getFullYear(), String(n.getMonth() + 1).padStart(2, '0'), String(n.getDate()).padStart(2, '0')].join('-')
+    fetch(`/api/athlete-view/${token}/recurring-log?date=${localDate}`).then(r => r.json()).then(data => setRecurringTodayCounts(data.counts || {}))
+  }, [token])
+
+  // "+1" rapide sur une séance récurrente — pas de formulaire de ressenti, juste un compteur qui
+  // repart à zéro chaque jour (voir recurring-log/route.js, qui ne compte que les lignes du jour).
+  const logRecurringCompletion = async (sessionId) => {
+    if (!requireOnline()) return
+    setRecurringTodayCounts(prev => ({ ...prev, [sessionId]: (prev[sessionId] || 0) + 1 }))
+    const res = await fetch(`/api/athlete-view/${token}/recurring-log`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId }),
+    })
+    if (!res.ok) {
+      setRecurringTodayCounts(prev => ({ ...prev, [sessionId]: Math.max(0, (prev[sessionId] || 1) - 1) }))
+      alert('Erreur lors de l\'enregistrement.')
+    }
+  }
+
   const updateProgramDays = async (programId, daysOfWeek) => {
     if (!requireOnline()) return
     setPrograms(prev => prev.map(p => p.id === programId ? { ...p, athlete_days_of_week: daysOfWeek } : p))
@@ -1118,6 +1139,7 @@ function AthleteView({ params }) {
             selectedType={selectedType} setSelectedType={setSelectedType}
             router={router} token={token} setActiveTab={setActiveTab}
             onUpdateProgramDays={updateProgramDays} isGroupLeader={isGroupLeader}
+            recurringTodayCounts={recurringTodayCounts} onLogRecurring={logRecurringCompletion}
           />
         </div>
       )}

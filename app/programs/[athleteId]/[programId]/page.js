@@ -987,6 +987,7 @@ function ProgramEditorPage({ params }) {
       coach_notes: s.coach_notes || null, activation_videos: s.activation_videos || [],
       circuits: s.circuits || [], session_type: s.session_type || null,
       materiel: s.materiel || null, day_of_week: s.day_of_week ?? null, hidden_until_run: !!s.hidden_until_run,
+      recurring_daily_target: s.session_type === 'recurrent' ? (s.recurring_daily_target || 1) : null,
     }
     const { error: sessErr } = await supabase.from('program_sessions').update(sessFields).eq('id', s.id)
     if (sessErr) { alert('Erreur sauvegarde séance : ' + sessErr.message); setSaving(false); return }
@@ -1105,6 +1106,7 @@ function ProgramEditorPage({ params }) {
         coach_notes: s.coach_notes || null, activation_videos: s.activation_videos || [],
         circuits: s.circuits || [], session_type: s.session_type || null,
         materiel: s.materiel || null, day_of_week: s.day_of_week ?? null, hidden_until_run: !!s.hidden_until_run,
+      recurring_daily_target: s.session_type === 'recurrent' ? (s.recurring_daily_target || 1) : null,
       }
       const exos = s.exercises.filter(e => e.name.trim()).map((e, j) => ({
         order_index: j, name: e.name.trim(),
@@ -1225,6 +1227,7 @@ function ProgramEditorPage({ params }) {
         title: s.title ? `${s.title} (copie)` : '',
         activation: s.activation || null, coach_notes: s.coach_notes || null,
         activation_videos: s.activation_videos || [], session_type: s.session_type || null,
+        recurring_daily_target: s.recurring_daily_target ?? null,
         materiel: s.materiel || null,
         // Garde le même jour que l'originale (au lieu de retomber "non planifiée") : dans la
         // grille Jour 1→N, dupliquer une séance sert surtout à en poser une copie juste à côté,
@@ -1382,7 +1385,8 @@ function ProgramEditorPage({ params }) {
             program_id: newProg.id, order_index: sess.order_index, title: sess.title || '', source_session_id: sess.id,
             activation: sess.activation || null, coach_notes: sess.coach_notes || null,
             activation_videos: sess.activation_videos || [], circuits: sess.circuits || [],
-            session_type: sess.session_type || null, week_number: sess.week_number, day_of_week: sess.day_of_week ?? null, hidden_until_run: !!sess.hidden_until_run,
+            session_type: sess.session_type || null, recurring_daily_target: sess.recurring_daily_target ?? null,
+            week_number: sess.week_number, day_of_week: sess.day_of_week ?? null, hidden_until_run: !!sess.hidden_until_run,
           })
           .select().single()
         if (!newSess) continue
@@ -1467,6 +1471,7 @@ function ProgramEditorPage({ params }) {
       await supabase.from('program_sessions').update({
         order_index: i, title: s.title || '', activation: s.activation || null, coach_notes: s.coach_notes || null,
         activation_videos: s.activation_videos || [], session_type: s.session_type || null,
+        recurring_daily_target: s.recurring_daily_target ?? null,
         materiel: s.materiel || null,
       }).eq('id', s.id)
       await supabase.from('program_exercises').delete().eq('program_session_id', s.id)
@@ -2031,6 +2036,15 @@ function ProgramEditorPage({ params }) {
                   >
                     <Repeat size={11} style={{ verticalAlign: -1, marginRight: 3 }} />Récurrent
                   </button>
+                  {s.session_type === 'recurrent' && (
+                    <label onClick={e => e.stopPropagation()} title="Nombre de fois par jour à faire pour valider la séance — remis à zéro chaque jour"
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0, fontSize: 11, fontWeight: 700, color: '#C2410C', border: '1px solid #FDBA74', background: '#FFF7ED', borderRadius: 20, padding: '3px 9px' }}>
+                      <input type="number" min="1" value={s.recurring_daily_target ?? 1}
+                        onChange={e => updateSession(s.id, 'recurring_daily_target', Math.max(1, parseInt(e.target.value) || 1))}
+                        style={{ width: 26, border: 'none', background: 'transparent', color: 'inherit', fontWeight: 700, fontSize: 11, textAlign: 'center', outline: 'none' }} />
+                      fois/jour
+                    </label>
+                  )}
                   <input
                     type="number" min="1" placeholder="Sem." value={s.week_number ?? ''}
                     onChange={e => { updateSession(s.id, 'week_number', e.target.value === '' ? null : parseInt(e.target.value)) }}
