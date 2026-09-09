@@ -43,6 +43,7 @@ export default function ProgramsPage() {
   const [sortBy, setSortBy] = useState('created_desc') // 'created_desc' | 'title_asc'
   const [search, setSearch] = useState('')
   const [openActionsId, setOpenActionsId] = useState(null)
+  const [actionsMenuPos, setActionsMenuPos] = useState(null) // { top, right } en coordonnées viewport
   const [duplicatingId, setDuplicatingId] = useState(null)
   const [groups, setGroups] = useState([])
   const [groupTemplateLinks, setGroupTemplateLinks] = useState([])
@@ -345,15 +346,24 @@ export default function ProgramsPage() {
                           {/* Actions */}
                           <div style={{ flex: '0 0 32px', position: 'relative' }}>
                             <button
-                              onClick={() => setOpenActionsId(actionsOpen ? null : p.id)}
+                              onClick={(e) => {
+                                if (actionsOpen) { setOpenActionsId(null); return }
+                                // position: fixed calculée depuis le bouton — la case "Assigné à" scrolle
+                                // horizontalement (overflowX: auto), ce qui coupait le menu en position:
+                                // absolute (overflow-y devient implicitement "auto" dès que overflow-x
+                                // n'est pas "visible", donc le menu était rogné par ce même conteneur).
+                                const rect = e.currentTarget.getBoundingClientRect()
+                                setActionsMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                                setOpenActionsId(p.id)
+                              }}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: 4, display: 'flex' }}
                             >
                               <DotsThreeVertical size={18} weight="bold" />
                             </button>
-                            {actionsOpen && (
+                            {actionsOpen && actionsMenuPos && (
                               <>
                                 <div onClick={() => setOpenActionsId(null)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
-                                <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 100, minWidth: 220, padding: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <div style={{ position: 'fixed', top: actionsMenuPos.top, right: actionsMenuPos.right, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 100, minWidth: 220, padding: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   <Link href={href} onClick={() => setOpenActionsId(null)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: 'var(--text)', textDecoration: 'none' }}>
                                     <PencilSimple size={14} /> Modifier
                                   </Link>
