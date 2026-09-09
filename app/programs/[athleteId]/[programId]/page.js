@@ -503,6 +503,7 @@ function ProgramEditorPage({ params }) {
   const [removingFollowerId, setRemovingFollowerId] = useState(null)
   const [showAddFollower, setShowAddFollower] = useState(false)
   const [otherAthletesForFollower, setOtherAthletesForFollower] = useState([])
+  const [addFollowerSearch, setAddFollowerSearch] = useState('')
   const [addingFollowerId, setAddingFollowerId] = useState(null)
   const [togglingAvailable, setTogglingAvailable] = useState(false)
 
@@ -1167,6 +1168,7 @@ function ProgramEditorPage({ params }) {
 
   const openAddFollower = async () => {
     setShowAddFollower(true)
+    setAddFollowerSearch('')
     const { data } = await supabase.from('athletes').select('id, name').neq('archived', true).order('name')
     const followerIds = new Set(followers.map(f => f.athlete_id))
     setOtherAthletesForFollower((data || []).filter(a => !followerIds.has(a.id)))
@@ -1706,22 +1708,36 @@ function ProgramEditorPage({ params }) {
                 </button>
               </div>
 
-              {showAddFollower && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto', paddingBottom: 4, borderBottom: '1px dashed var(--border)' }}>
-                  {otherAthletesForFollower.length === 0 ? (
-                    <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Tous les clients ont déjà ce programme</div>
-                  ) : otherAthletesForFollower.map(a => (
-                    <button key={a.id} onClick={() => addFollower(a.id)} disabled={addingFollowerId === a.id}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}>
-                      {a.name}
-                      <span style={{ color: 'var(--green)', fontSize: 12 }}>{addingFollowerId === a.id ? '…' : '+ Ajouter'}</span>
+              {showAddFollower && (() => {
+                const filtered = addFollowerSearch.trim()
+                  ? otherAthletesForFollower.filter(a => a.name.toLowerCase().includes(addFollowerSearch.trim().toLowerCase()))
+                  : otherAthletesForFollower
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 4, borderBottom: '1px dashed var(--border)' }}>
+                    {otherAthletesForFollower.length > 5 && (
+                      <input autoFocus value={addFollowerSearch} onChange={e => setAddFollowerSearch(e.target.value)}
+                        placeholder="Rechercher un sportif…"
+                        style={{ width: '100%', boxSizing: 'border-box', padding: '7px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                      {otherAthletesForFollower.length === 0 ? (
+                        <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Tous les clients ont déjà ce programme</div>
+                      ) : filtered.length === 0 ? (
+                        <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun sportif ne correspond à cette recherche</div>
+                      ) : filtered.map(a => (
+                        <button key={a.id} onClick={() => addFollower(a.id)} disabled={addingFollowerId === a.id}
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}>
+                          {a.name}
+                          <span style={{ color: 'var(--green)', fontSize: 12 }}>{addingFollowerId === a.id ? '…' : '+ Ajouter'}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => setShowAddFollower(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 0', textAlign: 'left' }}>
+                      Fermer
                     </button>
-                  ))}
-                  <button onClick={() => setShowAddFollower(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 0', textAlign: 'left' }}>
-                    Fermer
-                  </button>
-                </div>
-              )}
+                  </div>
+                )
+              })()}
 
               {followers.length === 0 ? (
                 <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun sportif n&apos;a encore ce programme.</div>
