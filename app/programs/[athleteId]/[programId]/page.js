@@ -15,6 +15,7 @@ import { setUnsavedChanges, guardNavigation } from '@/lib/unsavedChanges'
 import { SortableGroup, SortableItem, DragHandle } from '@/app/components/SortableItem'
 import { DndContext, useDraggable, useDroppable, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { getCoachId } from '@/lib/coach'
+import { cloneTemplateToAthlete } from '@/lib/programTemplates'
 import ActivityTypeSelect from '@/app/components/ActivityTypeSelect'
 import { notifyAssigned, notifyProgramAvailable } from '@/lib/notify'
 import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerConfigEditor'
@@ -500,6 +501,9 @@ function ProgramEditorPage({ params }) {
   const [syncing, setSyncing] = useState(false)
   const [notifyOnSync, setNotifyOnSync] = useState(false)
   const [removingFollowerId, setRemovingFollowerId] = useState(null)
+  const [showAddFollower, setShowAddFollower] = useState(false)
+  const [otherAthletesForFollower, setOtherAthletesForFollower] = useState([])
+  const [addingFollowerId, setAddingFollowerId] = useState(null)
   const [togglingAvailable, setTogglingAvailable] = useState(false)
 
   useEffect(() => {
@@ -1161,6 +1165,28 @@ function ProgramEditorPage({ params }) {
     setRemovingFollowerId(null)
   }
 
+  const openAddFollower = async () => {
+    setShowAddFollower(true)
+    const { data } = await supabase.from('athletes').select('id, name').neq('archived', true).order('name')
+    const followerIds = new Set(followers.map(f => f.athlete_id))
+    setOtherAthletesForFollower((data || []).filter(a => !followerIds.has(a.id)))
+  }
+
+  const addFollower = async (targetId) => {
+    setAddingFollowerId(targetId)
+    const coachId = await getCoachId()
+    const copy = await cloneTemplateToAthlete({
+      templateProgramId: programId, templateTitle: program.title, templateActivityType: program.activity_type,
+      athleteId: targetId, coachId,
+    })
+    if (copy) {
+      setFollowers(prev => [...prev, { id: copy.id, athlete_id: targetId, athletes: { name: otherAthletesForFollower.find(a => a.id === targetId)?.name } }])
+      setOtherAthletesForFollower(prev => prev.filter(a => a.id !== targetId))
+      notifyAssigned({ athleteIds: [targetId], kind: 'program', title: program.title })
+    }
+    setAddingFollowerId(null)
+  }
+
   // Sauvegarde la séance cliquée et, avec elle, toutes les autres séances qui ont des
   // modifications en attente — un seul clic sur "Sauvegarder" suffit pour tout enregistrer.
   const saveAllDirtySessions = async (primarySessId) => {
@@ -1671,9 +1697,31 @@ function ProgramEditorPage({ params }) {
             </div>
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <UsersThree size={12} /> Client(s) {followers.length > 0 && `(${followers.length})`}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ flex: 1, fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <UsersThree size={12} /> Client(s) {followers.length > 0 && `(${followers.length})`}
+                </div>
+                <button onClick={openAddFollower} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                  + Ajouter un client
+                </button>
               </div>
+
+              {showAddFollower && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto', paddingBottom: 4, borderBottom: '1px dashed var(--border)' }}>
+                  {otherAthletesForFollower.length === 0 ? (
+                    <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Tous les clients ont déjà ce programme</div>
+                  ) : otherAthletesForFollower.map(a => (
+                    <button key={a.id} onClick={() => addFollower(a.id)} disabled={addingFollowerId === a.id}
+                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 12px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', textAlign: 'left' }}>
+                      {a.name}
+                      <span style={{ color: 'var(--green)', fontSize: 12 }}>{addingFollowerId === a.id ? '…' : '+ Ajouter'}</span>
+                    </button>
+                  ))}
+                  <button onClick={() => setShowAddFollower(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 12, fontWeight: 600, cursor: 'pointer', padding: '2px 0', textAlign: 'left' }}>
+                    Fermer
+                  </button>
+                </div>
+              )}
 
               {followers.length === 0 ? (
                 <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun sportif n&apos;a encore ce programme.</div>
