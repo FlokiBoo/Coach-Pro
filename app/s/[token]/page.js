@@ -26,7 +26,7 @@ import {
   Lightning, PencilSimple, Calculator, CalendarBlank, Prohibit, Lightbulb, ChartBar, ChartLineUp,
   LinkSimple, Circle, Clock,
 } from '@phosphor-icons/react'
-import { annotatePaceReferences, formatPace, isRunMovement, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, formatDistance, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
+import { annotatePaceReferences, formatPace, isRunMovement, isCardioMovementName, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, formatDistance, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
 import { CIRCUIT_MODES } from '@/lib/circuitModes'
 import { registerPushNotifications } from '@/lib/pushRegistration'
 import { unlockAudio } from '@/lib/audioBeep'
@@ -850,14 +850,15 @@ function AthleteView({ params }) {
   }
 
   // Crée une séance libre vide et ouvre directement la vue plein écran (comme "▶ Lancer"),
-  // où les exercices sont ajoutés un par un via FreeExerciseAdder.
-  const startFreeSession = async (sourceExercises = []) => {
+  // où les exercices sont ajoutés un par un via FreeExerciseAdder. mode 'standard' | 'cardio' —
+  // choisi dans AddActionSheet, même distinction que côté coach (voir program_sessions.activity_mode).
+  const startFreeSession = async (sourceExercises = [], mode = 'standard') => {
     if (!athlete) return
     if (!requireOnline()) return
     const res = await fetch(`/api/athlete-view/${token}/free-session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exercises: sourceExercises }),
+      body: JSON.stringify({ exercises: sourceExercises, activityMode: mode }),
     })
     const json = await res.json()
     if (!res.ok) { alert('Erreur : ' + (json?.error || 'impossible de créer la séance')); return }
@@ -870,8 +871,11 @@ function AthleteView({ params }) {
   // Repart d'une séance libre existante (mêmes exercices, sans les charges/notes déjà loguées)
   // pour que le sportif puisse l'enchaîner facilement et suivre sa progression dans l'historique.
   const duplicateFreeSession = (session) => {
-    const sourceExercises = (session.exercises || []).map(e => ({ name: e.name, sets: e.sets, reps: e.reps, kg: e.kg }))
-    startFreeSession(sourceExercises)
+    const sourceExercises = (session.exercises || []).map(e => ({
+      name: e.name, sets: e.sets, reps: e.reps, kg: e.kg,
+      pace_base: e.pace_base, pct_low: e.pct_low, pct_high: e.pct_high,
+    }))
+    startFreeSession(sourceExercises, session.activity_mode || 'standard')
   }
 
   const updateFreeSessionDate = async (sessionId, date) => {
@@ -920,12 +924,12 @@ function AthleteView({ params }) {
     if (!res.ok) alert('Erreur lors de la mise à jour des jours.')
   }
 
-  const addFreeExercise = async (sessionId, { name, sets, reps, kg }) => {
+  const addFreeExercise = async (sessionId, { name, sets, reps, kg, pace_base, pct_low, pct_high }) => {
     if (!requireOnline()) return
     const res = await fetch(`/api/athlete-view/${token}/free-session/exercise`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, name, sets, reps, kg }),
+      body: JSON.stringify({ sessionId, name, sets, reps, kg, pace_base, pct_low, pct_high }),
     })
     const json = await res.json()
     if (!res.ok) { alert('Erreur : ' + (json?.error || 'impossible d\'ajouter l\'exercice')); return }
@@ -1165,7 +1169,7 @@ function AthleteView({ params }) {
         <AddActionSheet
           onClose={() => setShowAddSheet(false)}
           onAddActivity={() => { setShowAddSheet(false); setShowAddWizard(true) }}
-          onFreeSession={() => { setShowAddSheet(false); startFreeSession() }}
+          onFreeSession={mode => { setShowAddSheet(false); startFreeSession([], mode) }}
         />
       )}
       {showAddWizard && (
@@ -1931,7 +1935,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
           )}
 
           {isFreeSession && (
-            <FreeExerciseAdder sessionId={session.id} exos={exos} onAdd={onAddExercise} onToggleSuperset={onToggleSuperset} />
+            <FreeExerciseAdder sessionId={session.id} exos={exos} onAdd={onAddExercise} onToggleSuperset={onToggleSuperset} activityMode={session.activity_mode} />
           )}
 
           {isFreeSession && exos.length > 0 && onDuplicateFreeSession && (
@@ -2482,29 +2486,41 @@ function ExerciseHistoryButton({ athleteId, exerciseName }) {
 // sauvegardé dans la bibliothèque si inexistant), puis choix explicite entre un objectif à faire
 // plus tard (séries/reps/charge cibles) ou une saisie en direct (séries réelles juste en dessous,
 // via l'UI standard "+ Ajouter une série"). Supersérie possible avec l'exercice précédent.
-function FreeExerciseAdder({ sessionId, exos, onAdd, onToggleSuperset }) {
+function FreeExerciseAdder({ sessionId, exos, onAdd, onToggleSuperset, activityMode }) {
+  const isCardio = activityMode === 'cardio'
   const [open, setOpen] = useState(false)
   const [name, setName] = useState('')
   const [mode, setMode] = useState('live') // 'live' | 'later'
   const [sets, setSets] = useState('')
   const [reps, setReps] = useState('')
   const [kg, setKg] = useState('')
+  const [paceBase, setPaceBase] = useState('')
+  const [pctLow, setPctLow] = useState('')
+  const [pctHigh, setPctHigh] = useState('')
   const [suggestions, setSuggestions] = useState([])
   const [saving, setSaving] = useState(false)
   const [togglingSuperset, setTogglingSuperset] = useState(false)
 
   const searchMovements = async (val) => {
     if (val.trim().length < 2) { setSuggestions([]); return }
-    const { data } = await supabase.from('movements').select('name').ilike('name', `%${val.trim()}%`).limit(6)
-    setSuggestions((data || []).map(m => m.name))
+    // Mode cardio : ne propose que les mouvements Run/Row/Ski Erg/Bike (voir isCardioMovementName),
+    // en chargeant un lot large avant de filtrer côté client (même limite que l'éditeur coach).
+    let query = supabase.from('movements').select('name').ilike('name', `%${val.trim()}%`).order('name').limit(isCardio ? 500 : 6)
+    const { data } = await query
+    let names = (data || []).map(m => m.name)
+    if (isCardio) names = names.filter(isCardioMovementName).slice(0, 6)
+    setSuggestions(names)
   }
 
-  const reset = () => { setName(''); setMode('live'); setSets(''); setReps(''); setKg(''); setSuggestions([]); setOpen(false) }
+  const reset = () => { setName(''); setMode('live'); setSets(''); setReps(''); setKg(''); setPaceBase(''); setPctLow(''); setPctHigh(''); setSuggestions([]); setOpen(false) }
 
   const add = async () => {
     if (!name.trim()) return
     setSaving(true)
-    await onAdd(sessionId, mode === 'later' ? { name, sets, reps, kg } : { name })
+    const fields = mode === 'later'
+      ? (isCardio ? { name, pace_base: paceBase || null, pct_low: pctLow, pct_high: pctHigh } : { name, sets, reps, kg })
+      : { name }
+    await onAdd(sessionId, fields)
     setSaving(false)
     reset()
   }
@@ -2577,7 +2593,23 @@ function FreeExerciseAdder({ sessionId, exos, onAdd, onToggleSuperset }) {
 
           {mode === 'live' ? (
             <div style={{ fontSize: 11, color: 'var(--text3)' }}>
-              Les séries (reps + charge) s&apos;ajoutent juste en dessous une fois l&apos;exercice créé.
+              {isCardio
+                ? 'Le résultat (temps/allure) se note juste en dessous une fois le mouvement créé.'
+                : 'Les séries (reps + charge) s’ajoutent juste en dessous une fois l’exercice créé.'}
+            </div>
+          ) : isCardio ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <select value={paceBase} onChange={e => setPaceBase(e.target.value)}
+                style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: paceBase ? 'var(--text)' : 'var(--text3)' }}>
+                <option value="">Référence</option>
+                {PACE_BASES.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
+              </select>
+              <input placeholder="%1" value={pctLow} onChange={e => setPctLow(e.target.value)}
+                style={{ width: 52, flexShrink: 0, textAlign: 'center', padding: '7px 6px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+              <span style={{ color: 'var(--text3)', fontSize: 12 }}>–</span>
+              <input placeholder="%2" value={pctHigh} onChange={e => setPctHigh(e.target.value)}
+                style={{ width: 52, flexShrink: 0, textAlign: 'center', padding: '7px 6px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+              <span style={{ fontSize: 12, color: 'var(--text3)' }}>%</span>
             </div>
           ) : (
             <div style={{ display: 'flex', gap: 6 }}>

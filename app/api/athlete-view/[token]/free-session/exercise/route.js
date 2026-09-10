@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server'
 
 export async function POST(request, { params }) {
   const { token } = await params
-  const { sessionId, name, sets, reps, kg } = await request.json()
+  const { sessionId, name, sets, reps, kg, pace_base, pct_low, pct_high } = await request.json()
   if (!sessionId || !name?.trim()) return NextResponse.json({ error: 'sessionId et name requis' }, { status: 400 })
 
   const { data: athlete } = await supabaseAdmin.from('athletes').select('id, coach_id, auth_user_id').eq('token', token).single()
@@ -47,6 +47,9 @@ export async function POST(request, { params }) {
     sets: sets ? parseInt(sets) : null,
     reps: reps || null,
     kg: kg !== '' && kg != null && !isNaN(parseFloat(kg)) ? parseFloat(kg) : null,
+    pace_base: pace_base || null,
+    pct_low: pct_low !== '' && pct_low != null && !isNaN(parseFloat(pct_low)) ? parseFloat(pct_low) : null,
+    pct_high: pct_high !== '' && pct_high != null && !isNaN(parseFloat(pct_high)) ? parseFloat(pct_high) : null,
   }).select().single()
   if (!exo) return NextResponse.json({ error: error?.message || 'erreur création exercice' }, { status: 400 })
 
