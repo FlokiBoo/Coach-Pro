@@ -1142,17 +1142,18 @@ function ProgramEditorPage({ params }) {
   }
 
   // Créée depuis une case de la grille Semaine/Jour (WeekGrid) : place directement la séance au
-  // bon endroit plutôt que de la laisser "non planifiée" en bas de la liste par défaut.
+  // bon endroit plutôt que de la laisser "non planifiée" en bas de la liste par défaut. Ouvre
+  // ensuite la nouvelle page séance (blocks) plutôt que l'ancien éditeur plein écran (setOpenId).
   const addSessionAt = async (weekNumber, dayOfWeek) => {
     const { data: s } = await supabase.from('program_sessions')
       .insert({ program_id: programId, order_index: sessions.length, title: '', week_number: weekNumber, day_of_week: dayOfWeek })
       .select().single()
-    if (s) {
-      const newS = { ...s, exercises: [emptyExo(0)] }
-      setSessions(prev => [...prev, newS])
-      scrollToSession(s.id)
-    }
+    if (s) router.push(`/programs/${athleteId}/${programId}/session/${s.id}`)
   }
+
+  // Clic sur une séance déjà existante dans la grille : ouvre elle aussi la nouvelle page séance
+  // (blocks), pas l'ancien éditeur — cohérent avec la création via addSessionAt ci-dessus.
+  const goToSessionPage = (id) => router.push(`/programs/${athleteId}/${programId}/session/${id}`)
 
   const scrollToSession = (id) => setOpenId(id)
 
@@ -1731,7 +1732,7 @@ function ProgramEditorPage({ params }) {
           sessions={sessions}
           durationWeeks={program?.duration_weeks || 1}
           onAddAt={addSessionAt}
-          onOpenSession={scrollToSession}
+          onOpenSession={goToSessionPage}
           onMoveSession={moveSessionToDay}
           onDuplicateSession={(id) => duplicateSession(id, null, { skipOpen: true })}
           selectedIds={selectedSessionIds}
@@ -2104,28 +2105,41 @@ function ProgramEditorPage({ params }) {
                       ref={el => autoGrow(el)}
                       rows={3} style={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '10px 12px', fontSize: 13, outline: 'none', resize: 'none', overflow: 'hidden', background: 'var(--bg)', fontFamily: 'inherit', color: 'var(--text)' }} />
 
-                    {/* Semaine / Jour / Récurrence */}
+                    {/* Semaine / Jour / Récurrence — une séance récurrente vit hors du calendrier
+                        (pas de semaine/jour : elle est proposée au sportif tous les jours), donc
+                        on masque ces deux champs dès que la récurrence est activée. */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Semaine</div>
-                        <input type="number" min="1" placeholder="—" value={s.week_number ?? ''}
-                          onChange={e => updateSession(s.id, 'week_number', e.target.value === '' ? null : parseInt(e.target.value))}
-                          title="Place cette séance dans la grille Jour 1→N du calendrier"
-                          style={{ width: 64, boxSizing: 'border-box', padding: '7px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Jour</div>
-                        <select value={s.day_of_week ?? ''} onChange={e => updateSession(s.id, 'day_of_week', e.target.value === '' ? null : parseInt(e.target.value))}
-                          title="Jour de la semaine (pour la vue chronologique de l'athlète, si plusieurs programmes sont actifs)"
-                          style={{ padding: '7px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}>
-                          <option value="">—</option>
-                          {WEEK_DAYS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
-                        </select>
-                      </div>
+                      {s.session_type !== 'recurrent' && (
+                        <>
+                          <div>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Semaine</div>
+                            <input type="number" min="1" placeholder="—" value={s.week_number ?? ''}
+                              onChange={e => updateSession(s.id, 'week_number', e.target.value === '' ? null : parseInt(e.target.value))}
+                              title="Place cette séance dans la grille Jour 1→N du calendrier"
+                              style={{ width: 64, boxSizing: 'border-box', padding: '7px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Jour</div>
+                            <select value={s.day_of_week ?? ''} onChange={e => updateSession(s.id, 'day_of_week', e.target.value === '' ? null : parseInt(e.target.value))}
+                              title="Jour de la semaine (pour la vue chronologique de l'athlète, si plusieurs programmes sont actifs)"
+                              style={{ padding: '7px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}>
+                              <option value="">—</option>
+                              {WEEK_DAYS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+                            </select>
+                          </div>
+                        </>
+                      )}
                       <div>
                         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 4 }}>Récurrence</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <button onClick={() => updateSession(s.id, 'session_type', s.session_type === 'recurrent' ? null : 'recurrent')} style={{
+                          <button onClick={() => {
+                            const turningOn = s.session_type !== 'recurrent'
+                            updateSession(s.id, 'session_type', turningOn ? 'recurrent' : null)
+                            if (turningOn) {
+                              updateSession(s.id, 'week_number', null)
+                              updateSession(s.id, 'day_of_week', null)
+                            }
+                          }} style={{
                             padding: '7px 12px', borderRadius: 'var(--r)', fontSize: 13, fontWeight: 600, cursor: 'pointer',
                             border: s.session_type === 'recurrent' ? '1px solid var(--green)' : '1px solid var(--border2)',
                             background: s.session_type === 'recurrent' ? 'var(--green-light)' : 'var(--bg)',
@@ -2144,6 +2158,11 @@ function ProgramEditorPage({ params }) {
                           )}
                         </div>
                       </div>
+                      {s.session_type === 'recurrent' && (
+                        <div style={{ flexBasis: '100%', fontSize: 11, color: 'var(--text3)', fontStyle: 'italic' }}>
+                          Hors calendrier — proposée au sportif tous les jours, en premier sur sa page séance.
+                        </div>
+                      )}
                     </div>
 
                     {/* Circuits placés avant le premier exercice (afterExerciseIndex 0, valeur par défaut

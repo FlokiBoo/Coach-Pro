@@ -1,20 +1,25 @@
 'use client'
 
-// Clone visuel fidèle de la capture Kswiss/Azeoo — aucune charte Ostryk, aucune donnée réelle.
-// Sert uniquement de référence pixel pour la refonte prévue au TODO (voir backlog).
+// Version branchée sur les vraies données de l'éditeur de séance "blocks" prototypé dans
+// app/preview-session/page.js — même UI/logique d'édition, mais chargement/sauvegarde Supabase
+// réels au lieu du state 100% local. Voir le plan d'intégration pour le mapping DB <-> blocks
+// (program_exercises.block_type, superset_group pour les supersets, program_sessions.circuits
+// pour les circuits) et son périmètre volontairement réduit (pas de reps/kg par set, pas des
+// types de séance avancés — ceux-ci restent gérés par l'ancien éditeur plein écran).
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useMemo, use } from 'react'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import { setUnsavedChanges, hasUnsavedChanges } from '@/lib/unsavedChanges'
+import { MUSCLE_GROUPS as REAL_MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
 import {
   X, TextB, TextItalic, LinkSimple, ListBullets, TextTSlash,
-  CaretDown, CaretLeft, CaretRight, ArrowsDownUp, Plus, FileText, Flame, Snowflake, Barbell,
-  DotsThreeVertical, PencilSimple, Info, MagnifyingGlass, Star, Check, Timer, DotsSixVertical,
-  ArrowsClockwise, Heartbeat,
+  CaretLeft, CaretRight, ArrowsDownUp, Plus, FileText, Flame, Snowflake, Barbell,
+  DotsThreeVertical, PencilSimple, Info, MagnifyingGlass, Check, Timer, DotsSixVertical,
+  ArrowsClockwise,
 } from '@phosphor-icons/react'
 import { SortableGroup, SortableItem } from '@/app/components/SortableItem'
 
-// Métadonnées par type de bloc — l'ordre réel des blocs dans le tableau `blocks` obéit à une règle
-// fixe (voir addWarmupBlock/addCooldownBlock/addExerciseBlock) : le warm-up est toujours en tête,
-// le cool-down toujours en queue, quel que soit le nombre de blocs d'exercice ajoutés entre les deux.
 const BLOCK_META = {
   warmup: {
     title: 'WARMUP', badgeLabel: 'WARM UP', icon: Flame,
@@ -31,22 +36,13 @@ const BLOCK_META = {
     namePlaceholder: 'Enter a name (e.g. push day)',
     descriptionPlaceholder: 'Write the detailed description of this exercise block',
   },
-  // Pour le moment identique au bloc "exercise" (même fenêtre de sélection) — à différencier plus tard.
   circuit: {
     title: 'CIRCUIT', badgeLabel: 'CIRCUIT', icon: ArrowsClockwise,
     namePlaceholder: 'Enter a name (e.g. push day)',
     descriptionPlaceholder: 'Write the detailed description of this exercise block',
   },
-  // Pour le moment identique au bloc "exercise" — à différencier plus tard (temps/distance plutôt
-  // que sets/reps classiques).
-  cardio: {
-    title: 'CARDIO', badgeLabel: 'CARDIO', icon: Heartbeat,
-    namePlaceholder: 'Enter a name (e.g. push day)',
-    descriptionPlaceholder: 'Write the detailed description of this exercise block',
-  },
 }
 
-// Choix rapides du temps de récup, alignés sur la référence Kswiss/Azeoo (deux rangées de 4).
 const REST_PRESETS = [
   { label: '30s', seconds: 30 },
   { label: '45s', seconds: 45 },
@@ -67,8 +63,20 @@ const formatRestLabel = (seconds) => {
   return s === 0 ? `${m}min` : `${m}min${s}`
 }
 
-// Séparateur REST entre deux sets (ou après le dernier), affiché avec le temps de récup choisi
-// lors de la config de l'exercice — partagé par tous les exercices du superset le cas échéant.
+// Le champ `rest` existant en base est du texte libre saisi par le coach depuis des années
+// ("90s", "1min30", "2min"...) — parsing best-effort, avec 60s de repli si le format n'est pas
+// reconnu (jamais d'erreur bloquante pour autant, juste une valeur par défaut).
+function parseRestToSeconds(rest) {
+  if (!rest) return 60
+  const str = String(rest).trim().toLowerCase()
+  const minSec = str.match(/^(\d+)\s*min\s*(\d+)?/)
+  if (minSec) return parseInt(minSec[1], 10) * 60 + (parseInt(minSec[2], 10) || 0)
+  const secOnly = str.match(/^(\d+)\s*s(ec)?\b/)
+  if (secOnly) return parseInt(secOnly[1], 10)
+  const num = parseFloat(str)
+  return Number.isFinite(num) ? Math.round(num) : 60
+}
+
 function RestDivider({ seconds }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 2px', color: c.textMuted, fontSize: 13, fontWeight: 700 }}>
@@ -81,103 +89,126 @@ function RestDivider({ seconds }) {
   )
 }
 
-// Bibliothèque mock partagée entre la modale "Exercises" (Create from library) et l'autocomplétion
-// # dans la description — dans le vrai produit, les deux tirent du même catalogue de mouvements.
-// Les mouvements "cardio" (Run/Row/Ski Erg — Run reprend les noms de RUN_MOVEMENT_NAMES dans
-// lib/raceEstimates.js, Row/Ski Erg n'existent pas encore côté vrai produit) affichent base/%1/%2
-// à la place de rep/kg dans chaque set — voir isPaceBasedExercise plus bas.
-const MOCK_EXERCISES = [
-  { name: 'Squat', muscle: 'Quads', equipment: 'No equipment', category: 'strength' },
-  { name: 'Bench Press', muscle: 'Chest', equipment: 'Barbell', category: 'strength' },
-  { name: 'Deadlift', muscle: 'Lower Back', equipment: 'Barbell', category: 'strength' },
-  { name: 'Push-up', muscle: 'Chest', equipment: 'No equipment', category: 'strength' },
-  { name: 'Jumping Jacks', muscle: 'Abs', equipment: 'No equipment', category: 'strength' },
-  { name: 'Plank', muscle: 'Abs', equipment: 'No equipment', category: 'strength' },
-  { name: 'Lunges', muscle: 'Quads', equipment: 'No equipment', category: 'strength' },
-  { name: 'Burpees', muscle: 'Abs', equipment: 'No equipment', category: 'strength' },
-  { name: 'Mountain Climbers', muscle: 'Abs', equipment: 'No equipment', category: 'strength' },
-  { name: 'High Knees', muscle: 'Quads', equipment: 'No equipment', category: 'strength' },
-  { name: 'Bicep Curl', muscle: 'Biceps', equipment: 'Dumbbell', category: 'strength' },
-  { name: 'Tricep Dip', muscle: 'Triceps', equipment: 'No equipment', category: 'strength' },
-  { name: 'Shoulder Press', muscle: 'Shoulders', equipment: 'Dumbbell', category: 'strength' },
-  { name: 'Pull-up', muscle: 'Lats', equipment: 'Pull-up bar', category: 'strength' },
-  { name: 'Shrug', muscle: 'Traps', equipment: 'Dumbbell', category: 'strength' },
-  { name: 'Calf Raise', muscle: 'Calves', equipment: 'No equipment', category: 'strength' },
-  { name: 'Hip Thrust', muscle: 'Glutes', equipment: 'Barbell', category: 'strength' },
-  { name: 'Hamstring Curl', muscle: 'Hamstrings', equipment: 'Machine', category: 'strength' },
-  { name: 'Wrist Curl', muscle: 'Forearm', equipment: 'Dumbbell', category: 'strength' },
-  { name: 'Sit-up', muscle: 'Abs', equipment: 'No equipment', category: 'strength' },
-  { name: 'Run Interval', muscle: null, equipment: 'No equipment', category: 'cardio' },
-  { name: 'Run Threshold', muscle: null, equipment: 'No equipment', category: 'cardio' },
-  { name: 'Run EF', muscle: null, equipment: 'No equipment', category: 'cardio' },
-  { name: 'Run 30/30', muscle: null, equipment: 'No equipment', category: 'cardio' },
-  { name: 'Row Interval', muscle: null, equipment: 'Rowing machine', category: 'cardio' },
-  { name: 'Row Threshold', muscle: null, equipment: 'Rowing machine', category: 'cardio' },
-  { name: 'Row EF', muscle: null, equipment: 'Rowing machine', category: 'cardio' },
-  { name: 'Row 30/30', muscle: null, equipment: 'Rowing machine', category: 'cardio' },
-  { name: 'Ski Erg Interval', muscle: null, equipment: 'Ski erg', category: 'cardio' },
-  { name: 'Ski Erg Threshold', muscle: null, equipment: 'Ski erg', category: 'cardio' },
-  { name: 'Ski Erg EF', muscle: null, equipment: 'Ski erg', category: 'cardio' },
-  { name: 'Ski Erg 30/30', muscle: null, equipment: 'Ski erg', category: 'cardio' },
-  // Tests de performance (mêmes intitulés que RACE_TARGETS dans lib/raceEstimates.js) — servent à
-  // mesurer VMA/Seuil plutôt qu'à s'entraîner dessus, donc pas de base/%1/%2 (voir isPaceBasedExercise).
-  { name: '6 min (Demi Cooper)', muscle: null, equipment: 'No equipment', category: 'performance' },
-  { name: 'Test Seuil 20min', muscle: null, equipment: 'No equipment', category: 'performance' },
-  { name: '400 m', muscle: null, equipment: 'No equipment', category: 'performance' },
-  { name: '800 m', muscle: null, equipment: 'No equipment', category: 'performance' },
-  { name: '5 km', muscle: null, equipment: 'No equipment', category: 'performance' },
-  { name: '10 km', muscle: null, equipment: 'No equipment', category: 'performance' },
-  { name: 'Semi-Marathon (21,1 km)', muscle: null, equipment: 'No equipment', category: 'performance' },
-  { name: 'Marathon (42,195 km)', muscle: null, equipment: 'No equipment', category: 'performance' },
-]
+// --- Traduction DB -> blocks (lecture) --------------------------------------------------------
 
-const isPaceBasedExercise = (ex) => ex?.category === 'cardio'
-// Un bloc cardio propose les mouvements d'entraînement ET les tests de performance (l'un sert à
-// mesurer ce que l'autre prescrit en %) — voir isPaceBasedExercise pour ne montrer base/%1/%2
-// que sur les mouvements d'entraînement.
-const isCardioLibraryExercise = (ex) => ['cardio', 'performance'].includes(ex?.category)
+// Groupe les program_exercises consécutifs partageant le même superset_group (et block_type) en
+// un seul bloc multi-exercices ; chaque ligne sans superset_group devient son propre bloc à 1
+// exercice. Même logique de regroupement que la carte superset de l'ancien éditeur.
+function groupExercisesIntoBlocks(rows) {
+  const groups = []
+  rows.forEach(row => {
+    const last = groups[groups.length - 1]
+    if (last && last.block_type === row.block_type && row.superset_group && last.superset_group === row.superset_group) {
+      last.rows.push(row)
+    } else {
+      groups.push({ block_type: row.block_type, superset_group: row.superset_group, rows: [row] })
+    }
+  })
+  return groups.map(g => {
+    const firstId = g.rows[0].id
+    const setCount = Math.max(1, parseInt(g.rows[0].sets, 10) || 1)
+    const sets = Array.from({ length: setCount }, (_, i) => ({ id: `set-${firstId}-${i}` }))
+    const setNotes = {}
+    // La granularité par set est perdue côté ancien schéma (un seul `note` par exercice) : on la
+    // réattache au premier set de chaque exercice pour ne pas la perdre silencieusement.
+    g.rows.forEach(r => {
+      if (r.note) setNotes[`${sets[0].id}:ex-${r.id}`] = r.note
+    })
+    return {
+      id: `block-${firstId}`,
+      type: g.block_type,
+      name: '', description: '', note: '',
+      exercises: g.rows.map(r => ({ id: `ex-${r.id}`, name: r.name, muscles: '' })),
+      sets,
+      restSeconds: parseRestToSeconds(g.rows[0].rest),
+      setNotes,
+    }
+  })
+}
 
-// Mêmes bases que PACE_BASES dans lib/raceEstimates.js (VMA / Seuil 60 / Δ) — le client verra le
-// résultat sous forme d'Allure 1 / Allure 2, calculé à partir de ces % côté vraie intégration.
-const PACE_BASES = [
-  { key: 'VMA', label: 'VMA' },
-  { key: 'SEUIL60', label: 'Seuil 60' },
-  { key: 'DELTA', label: 'Δ (Seuil60→VMA)' },
-]
-
-const MUSCLE_GROUPS = [
-  { label: 'Chest / Abs', muscles: ['Chest', 'Abs'] },
-  { label: 'Shoulders / Arms', muscles: ['Shoulders', 'Biceps', 'Triceps', 'Forearm'] },
-  { label: 'Back', muscles: ['Traps', 'Lats', 'Lower Back'] },
-  { label: 'Legs', muscles: ['Quads', 'Hamstrings', 'Glutes', 'Calves'] },
-]
-
-const MOCK_MOVEMENTS = MOCK_EXERCISES.map(e => e.name)
-
-const MOVEMENT_MENTION_PATTERN = new RegExp(
-  `#(${MOCK_MOVEMENTS.map(m => m.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')})\\b`,
-  'g'
-)
-
-// Rendu en surimpression : les mouvements liés (#Squat…) apparaissent en bleu souligné, comme dans
-// la référence Kswiss/Azeoo — un <textarea> ne permet pas de styler une partie du texte, donc le
-// texte réel reste transparent et c'est ce calque qui donne le rendu visuel (voir la zone Description).
-function renderHighlightedDescription(text) {
-  const parts = []
-  let lastIndex = 0
-  let match
-  const regex = new RegExp(MOVEMENT_MENTION_PATTERN.source, 'g')
-  while ((match = regex.exec(text)) !== null) {
-    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
-    parts.push(
-      <span key={match.index} style={{ color: '#3E63DD', textDecoration: 'underline', fontWeight: 600 }}>
-        {match[0]}
-      </span>
-    )
-    lastIndex = match.index + match[0].length
+function toCircuitBlock(circuit) {
+  return {
+    id: `circuit-${circuit.id}`,
+    dbCircuitId: circuit.id,
+    type: 'circuit',
+    name: circuit.name || '', description: '', note: '',
+    exercises: [], sets: [], restSeconds: 60,
+    circuitNote: circuit.text || '',
   }
-  if (lastIndex < text.length) parts.push(text.slice(lastIndex))
-  return parts
+}
+
+// Réinsère les circuits (stockés à part dans program_sessions.circuits, positionnés par
+// afterExerciseIndex sur la liste APLATIE des program_exercises) dans le tableau `blocks` déjà
+// groupé — à la position du bloc juste après l'exercice visé.
+function insertCircuits(exerciseBlocks, circuits) {
+  if (!circuits?.length) return exerciseBlocks
+  const boundaries = []
+  let total = 0
+  exerciseBlocks.forEach(b => { total += b.exercises.length; boundaries.push(total) })
+
+  const byInsertIndex = new Map()
+  circuits.forEach(circuit => {
+    const after = circuit.afterExerciseIndex ?? 0
+    let insertIndex = boundaries.findIndex(b => after <= b)
+    insertIndex = insertIndex === -1 ? exerciseBlocks.length : insertIndex + 1
+    if (after <= 0) insertIndex = 0
+    byInsertIndex.set(insertIndex, [...(byInsertIndex.get(insertIndex) || []), toCircuitBlock(circuit)])
+  })
+
+  const result = [...(byInsertIndex.get(0) || [])]
+  exerciseBlocks.forEach((b, i) => {
+    result.push(b)
+    const at = i + 1
+    if (byInsertIndex.has(at)) result.push(...byInsertIndex.get(at))
+  })
+  return result
+}
+
+function buildBlocksFromDb(exerciseRows, circuits) {
+  return insertCircuits(groupExercisesIntoBlocks(exerciseRows), circuits || [])
+}
+
+// --- Traduction blocks -> DB (écriture) -------------------------------------------------------
+
+function flattenBlocksToExerciseRows(blocks) {
+  const rows = []
+  blocks.forEach(block => {
+    if (block.type === 'circuit' || !block.exercises?.length) return
+    const supersetToken = block.exercises.length > 1 ? Math.random().toString(36).slice(2, 8) : null
+    block.exercises.forEach(ex => {
+      const notes = (block.sets || [])
+        .map(s => block.setNotes?.[`${s.id}:${ex.id}`])
+        .filter(Boolean)
+      rows.push({
+        block_type: block.type,
+        name: ex.name,
+        sets: block.sets?.length || 1,
+        rest: formatRestLabel(block.restSeconds ?? 60),
+        note: notes.length ? notes.join(' / ') : null,
+        superset_group: supersetToken,
+      })
+    })
+  })
+  return rows
+}
+
+function flattenBlocksToCircuits(blocks) {
+  const circuits = []
+  let cursor = 0
+  blocks.forEach(block => {
+    if (block.type === 'circuit') {
+      circuits.push({
+        id: block.dbCircuitId || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name: block.name || '',
+        text: block.circuitNote || '',
+        videos: [],
+        afterExerciseIndex: cursor,
+      })
+    } else {
+      cursor += block.exercises?.length || 0
+    }
+  })
+  return circuits
 }
 
 const c = {
@@ -199,27 +230,35 @@ const input = {
   borderRadius: 6, fontSize: 14, color: c.text, outline: 'none', background: c.bg, fontFamily: 'inherit',
 }
 
-export default function PreviewSessionPage() {
+export default function SessionEditorPageWrapper({ params }) {
+  return <SessionEditorPage params={params} />
+}
+
+function SessionEditorPage({ params }) {
+  const { athleteId, programId, sessionId } = use(params)
+  const router = useRouter()
+
+  const [loading, setLoading] = useState(true)
+  const [notFound, setNotFound] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [savedFlash, setSavedFlash] = useState(false)
+
+  const [sessionTitle, setSessionTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [addMenuOpen, setAddMenuOpen] = useState(true)
+  const [sessionType, setSessionType] = useState(null)
+  const [recurringTarget, setRecurringTarget] = useState(1)
+  const [movementsList, setMovementsList] = useState([]) // [{ id, name, muscles }]
+
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [blocks, setBlocks] = useState([])
   const [exercisesModalOpen, setExercisesModalOpen] = useState(false)
   const [exerciseSearch, setExerciseSearch] = useState('')
   const [selectedMuscles, setSelectedMuscles] = useState([])
-  // Filtre de la liste déroulante "All Exercises" du picker — pour l'instant seule "Performance"
-  // (tests VMA/Seuil) existe comme sous-catégorie à part de la bibliothèque générale.
-  const [exerciseCategoryFilter, setExerciseCategoryFilter] = useState('all')
-  // Après avoir choisi un exercice dans la bibliothèque : deux petites étapes de config avant de
-  // l'insérer réellement dans le bloc — nombre de séries puis temps de récup (voir captures).
   const [configStep, setConfigStep] = useState(null) // null | 'sets' | 'rest'
   const [pendingExercise, setPendingExercise] = useState(null)
   const [pendingSets, setPendingSets] = useState(3)
   const [pendingRest, setPendingRest] = useState(60)
-  // "Follow with another exercise" ajoute directement au superset existant (les séries/récup sont
-  // déjà réglées) — sans repasser par les modales Number of sets / Rest time.
   const [addingSecondaryExercise, setAddingSecondaryExercise] = useState(false)
-  // Sélection en attente pour un bloc circuit : on peut cocher plusieurs exercices avant de valider
-  // d'un coup (bouton à côté de Search) — voir toggleCircuitPending/confirmCircuitSelection.
   const [pendingCircuitExercises, setPendingCircuitExercises] = useState([])
   const [activeBlockIndex, setActiveBlockIndex] = useState(0)
   const [descModalOpen, setDescModalOpen] = useState(false)
@@ -228,18 +267,130 @@ export default function PreviewSessionPage() {
   const [draftNote, setDraftNote] = useState('')
   const [mentionQuery, setMentionQuery] = useState(null)
   const [mentionRange, setMentionRange] = useState(null)
-  // Note par (set, exercice) dans un bloc exercice — voir openSetNotesModal/confirmSetNotesModal.
   const [notesModalOpen, setNotesModalOpen] = useState(false)
   const [draftSetNote, setDraftSetNote] = useState('')
   const [applyNoteToNextSets, setApplyNoteToNextSets] = useState(false)
-  const [activeNoteContext, setActiveNoteContext] = useState(null) // { setId, exerciseId }
+  const [activeNoteContext, setActiveNoteContext] = useState(null)
   const descriptionRef = useRef(null)
   const descriptionBackdropRef = useRef(null)
   const blockIdCounter = useRef(0)
 
   const nextBlockId = () => {
     blockIdCounter.current += 1
-    return `block-${blockIdCounter.current}`
+    return `new-${blockIdCounter.current}`
+  }
+
+  // Chargement initial : séance + exercices + circuits. Une seule fois au montage (l'édition
+  // ensuite reste locale jusqu'au clic sur Save, comme l'ancien éditeur). La bibliothèque de
+  // mouvements, elle, est cherchée à la demande (voir l'effet plus bas) — la table dépasse
+  // largement une page fixe (400+ lignes chez ce coach), donc une recherche serveur en direct,
+  // comme le fait déjà l'ancien éditeur, est nécessaire pour ne pas rendre certains mouvements
+  // introuvables selon leur ordre alphabétique.
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      const [{ data: sessionRow }, { data: exerciseRows }] = await Promise.all([
+        supabase.from('program_sessions').select('id, title, coach_notes, circuits, session_type, recurring_daily_target').eq('id', sessionId).single(),
+        supabase.from('program_exercises').select('id, order_index, name, sets, rest, note, superset_group, block_type').eq('program_session_id', sessionId).order('order_index'),
+      ])
+      if (cancelled) return
+      if (!sessionRow) {
+        setNotFound(true)
+        setLoading(false)
+        return
+      }
+      setSessionTitle(sessionRow.title || '')
+      setDescription(sessionRow.coach_notes || '')
+      setSessionType(sessionRow.session_type || null)
+      setRecurringTarget(sessionRow.recurring_daily_target || 1)
+      setBlocks(buildBlocksFromDb(exerciseRows || [], sessionRow.circuits || []))
+      setAddMenuOpen((exerciseRows || []).length === 0 && !(sessionRow.circuits || []).length)
+      setLoading(false)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [sessionId])
+
+  // Recherche de mouvements côté serveur (débounced), tant que la modale Exercises est ouverte —
+  // pas de fetch fixe : la bibliothèque de mouvements peut dépasser largement une seule page.
+  useEffect(() => {
+    if (!exercisesModalOpen) return
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      let query = supabase.from('movements').select('id, name, muscles').order('name').limit(100)
+      if (exerciseSearch.trim()) query = query.ilike('name', `%${exerciseSearch.trim()}%`)
+      if (selectedMuscles.length > 0) {
+        query = query.or(selectedMuscles.map(m => `muscles.ilike.%${m}%`).join(','))
+      }
+      const { data } = await query
+      if (cancelled) return
+      setMovementsList((data || []).map(m => ({ id: m.id, name: m.name, muscles: m.muscles || '' })))
+    }, 250)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [exercisesModalOpen, exerciseSearch, selectedMuscles])
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!hasUnsavedChanges()) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [])
+
+  useEffect(() => () => setUnsavedChanges(false), [])
+
+  const goBack = () => {
+    if (hasUnsavedChanges() && !window.confirm('Tu as des modifications non sauvegardées sur cette page. Les quitter sans enregistrer ?')) return
+    router.push(`/programs/${athleteId}/${programId}`)
+  }
+
+  const handleSave = async () => {
+    if (saving) return
+    setSaving(true)
+    try {
+      const rows = flattenBlocksToExerciseRows(blocks)
+      const { data: existingRows } = await supabase
+        .from('program_exercises')
+        .select('id')
+        .eq('program_session_id', sessionId)
+        .order('order_index')
+      const existingIds = (existingRows || []).map(r => r.id)
+      const maxLen = Math.max(existingIds.length, rows.length)
+      for (let i = 0; i < maxLen; i++) {
+        const row = rows[i]
+        const existingId = existingIds[i]
+        if (row && existingId) {
+          await supabase.from('program_exercises').update({ ...row, order_index: i }).eq('id', existingId)
+        } else if (row && !existingId) {
+          await supabase.from('program_exercises').insert({ ...row, order_index: i, program_session_id: sessionId })
+        } else if (!row && existingId) {
+          await supabase.from('program_exercises').delete().eq('id', existingId)
+        }
+      }
+
+      await supabase.from('program_sessions')
+        .update({
+          title: sessionTitle, coach_notes: description, circuits: flattenBlocksToCircuits(blocks),
+          session_type: sessionType, recurring_daily_target: sessionType === 'recurrent' ? recurringTarget : null,
+          // Récurrente = hors calendrier : jamais de semaine/jour, même si la séance en avait un
+          // avant (créée via une case du calendrier puis basculée en récurrente après coup).
+          ...(sessionType === 'recurrent' ? { week_number: null, day_of_week: null } : {}),
+        })
+        .eq('id', sessionId)
+
+      const names = [...new Set(rows.map(r => r.name).filter(Boolean))]
+      if (names.length) {
+        await supabase.from('movements').upsert(names.map(name => ({ name })), { onConflict: 'name', ignoreDuplicates: true })
+      }
+
+      setUnsavedChanges(false)
+      setSavedFlash(true)
+      setTimeout(() => setSavedFlash(false), 2000)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const addWarmupBlock = () => {
@@ -247,10 +398,10 @@ export default function PreviewSessionPage() {
     if (existingIndex !== -1) {
       setActiveBlockIndex(existingIndex)
     } else {
-      // Toujours en tête, quel que soit ce qui existe déjà.
       setBlocks([{ id: nextBlockId(), type: 'warmup', name: '', description: '', note: '' }, ...blocks])
       setActiveBlockIndex(0)
     }
+    setUnsavedChanges(true)
     setAddMenuOpen(false)
   }
 
@@ -259,51 +410,39 @@ export default function PreviewSessionPage() {
     if (existingIndex !== -1) {
       setActiveBlockIndex(existingIndex)
     } else {
-      // Toujours en queue, quel que soit ce qui existe déjà.
       const newBlocks = [...blocks, { id: nextBlockId(), type: 'cooldown', name: '', description: '', note: '' }]
       setBlocks(newBlocks)
       setActiveBlockIndex(newBlocks.length - 1)
     }
+    setUnsavedChanges(true)
     setAddMenuOpen(false)
   }
 
-  // Partagée par "Add exercise" et "Circuit" — pour le moment les deux créent le même type de bloc
-  // (contenu structuré exercises/sets) et ouvrent la même fenêtre de sélection. À différencier plus
-  // tard si le circuit a besoin d'un comportement propre.
   const addExerciseLikeBlock = (type) => {
-    // Inséré juste avant le cool-down s'il existe, sinon en fin de liste — jamais avant le warm-up.
     const cooldownIndex = blocks.findIndex(b => b.type === 'cooldown')
     const insertAt = cooldownIndex === -1 ? blocks.length : cooldownIndex
     const newBlock = { id: nextBlockId(), type, name: '', description: '', note: '' }
     setBlocks([...blocks.slice(0, insertAt), newBlock, ...blocks.slice(insertAt)])
     setActiveBlockIndex(insertAt)
+    setUnsavedChanges(true)
     setAddMenuOpen(false)
-    // Doit ouvrir directement le picker (écran 1), pas la carte du bloc avec ses crayons
-    // name/description/note (écran 2) — celle-ci reste accessible ensuite depuis la carte pour
-    // renommer/annoter le bloc après coup.
     setAddingSecondaryExercise(false)
     setPendingCircuitExercises([])
-    setExerciseCategoryFilter('all')
     setExercisesModalOpen(true)
   }
 
   const addExerciseBlock = () => addExerciseLikeBlock('exercise')
   const addCircuitBlock = () => addExerciseLikeBlock('circuit')
-  const addCardioBlock = () => addExerciseLikeBlock('cardio')
 
   const removeBlock = (index) => {
     const newBlocks = blocks.filter((_, i) => i !== index)
     setBlocks(newBlocks)
     setActiveBlockIndex(Math.min(index, newBlocks.length - 1))
+    setUnsavedChanges(true)
   }
 
   const activeBlock = blocks[activeBlockIndex] ?? null
-  // Un bloc circuit sélectionne plusieurs exercices d'un coup (voir pendingCircuitExercises) avant
-  // de les valider en une fois, contrairement à un bloc exercice qui passe par la config séries/récup
-  // pour chaque exercice choisi individuellement.
   const isCircuitBlock = activeBlock?.type === 'circuit'
-  // Un bloc cardio ne propose que les mouvements "cardio" (Run/Row/Ski Erg) — pas la bibliothèque complète.
-  const isCardioBlock = activeBlock?.type === 'cardio'
 
   const openDescModal = () => {
     if (!activeBlock) return
@@ -325,33 +464,23 @@ export default function PreviewSessionPage() {
     setBlocks(blocks.map((b, i) => (
       i === activeBlockIndex ? { ...b, name: draftName, description: draftDescription, note: draftNote } : b
     )))
+    setUnsavedChanges(true)
     closeDescModal()
   }
 
-  const toggleMuscle = (muscle) => {
-    setSelectedMuscles(prev => prev.includes(muscle) ? prev.filter(m => m !== muscle) : [...prev, muscle])
-  }
-
-  const toggleMuscleGroup = (muscles, select) => {
-    setSelectedMuscles(prev => select
-      ? Array.from(new Set([...prev, ...muscles]))
-      : prev.filter(m => !muscles.includes(m)))
+  const toggleMuscle = (muscleKey) => {
+    setSelectedMuscles(prev => prev.includes(muscleKey) ? prev.filter(m => m !== muscleKey) : [...prev, muscleKey])
   }
 
   const openExercisePickerForBlock = () => {
     setAddingSecondaryExercise(false)
     setPendingCircuitExercises([])
-    setExerciseCategoryFilter('all')
     setExercisesModalOpen(true)
   }
 
-  // "Follow with another exercise (Superset / Triset / Circuit)" : ajoute un exercice de plus au
-  // même groupe de sets, sans repasser par la config nombre de séries / récup (déjà réglée pour
-  // le groupe lors de l'ajout du premier exercice).
   const openFollowExercisePicker = () => {
     setAddingSecondaryExercise(true)
     setPendingCircuitExercises([])
-    setExerciseCategoryFilter('all')
     setExercisesModalOpen(true)
   }
 
@@ -363,8 +492,9 @@ export default function PreviewSessionPage() {
   const addExerciseToActiveBlock = (ex) => {
     if (!activeBlock) return
     setBlocks(blocks.map((b, i) => (
-      i === activeBlockIndex ? { ...b, exercises: [...(b.exercises || []), { id: nextBlockId(), name: ex.name, equipment: ex.equipment, category: ex.category }] } : b
+      i === activeBlockIndex ? { ...b, exercises: [...(b.exercises || []), { id: nextBlockId(), name: ex.name, muscles: ex.muscles }] } : b
     )))
+    setUnsavedChanges(true)
     setExercisesModalOpen(false)
     setAddingSecondaryExercise(false)
   }
@@ -375,28 +505,23 @@ export default function PreviewSessionPage() {
     ))
   }
 
-  // Valide d'un coup tous les exercices sélectionnés pour le circuit — pas de config séries/récup
-  // par exercice ici (contrairement au bloc exercice) : des valeurs par défaut sont utilisées pour
-  // le nombre de séries/la récup si le bloc n'en a pas encore.
   const confirmCircuitSelection = () => {
     if (!activeBlock || pendingCircuitExercises.length === 0) return
     setBlocks(blocks.map((b, i) => {
       if (i !== activeBlockIndex) return b
       const newExercises = [
         ...(b.exercises || []),
-        ...pendingCircuitExercises.map(ex => ({ id: nextBlockId(), name: ex.name, equipment: ex.equipment, category: ex.category })),
+        ...pendingCircuitExercises.map(ex => ({ id: nextBlockId(), name: ex.name, muscles: ex.muscles })),
       ]
       const sets = b.sets?.length > 0 ? b.sets : Array.from({ length: 3 }, () => ({ id: nextBlockId() }))
       const restSeconds = b.restSeconds ?? 60
       return { ...b, exercises: newExercises, sets, restSeconds }
     }))
+    setUnsavedChanges(true)
     setPendingCircuitExercises([])
     setExercisesModalOpen(false)
   }
 
-  // Choisir un exercice dans la bibliothèque (premier de son groupe) ouvre d'abord la config
-  // (séries puis récup) — voir confirmRestStep pour la création réelle du groupe exercices/sets
-  // dans le bloc actif, une fois les deux étapes validées.
   const startExerciseConfig = (ex) => {
     setPendingExercise(ex)
     setPendingSets(3)
@@ -419,12 +544,13 @@ export default function PreviewSessionPage() {
         i === activeBlockIndex
           ? {
               ...b,
-              exercises: [...(b.exercises || []), { id: nextBlockId(), name: pendingExercise.name, equipment: pendingExercise.equipment, category: pendingExercise.category }],
+              exercises: [...(b.exercises || []), { id: nextBlockId(), name: pendingExercise.name, muscles: pendingExercise.muscles }],
               sets: newSets,
               restSeconds: pendingRest,
             }
           : b
       )))
+      setUnsavedChanges(true)
     }
     closeExerciseConfig()
   }
@@ -434,6 +560,7 @@ export default function PreviewSessionPage() {
     setBlocks(blocks.map((b, i) => (
       i === activeBlockIndex ? { ...b, sets: [...(b.sets || []), { id: nextBlockId() }] } : b
     )))
+    setUnsavedChanges(true)
   }
 
   const removeSet = (setId) => {
@@ -441,11 +568,9 @@ export default function PreviewSessionPage() {
     setBlocks(blocks.map((b, i) => (
       i === activeBlockIndex ? { ...b, sets: (b.sets || []).filter(s => s.id !== setId) } : b
     )))
+    setUnsavedChanges(true)
   }
 
-  // Réordonne les exercices d'un bloc (glisser-déposer via les 6 points) — l'index déplacé est
-  // toujours résolu à l'intérieur de l'updater, à partir de l'id, jamais d'un index capturé par
-  // l'appelant : SortableGroup peut appeler ceci plusieurs fois de suite avant le prochain rendu.
   const moveExercise = (exerciseId, dir) => {
     setBlocks(prev => prev.map((b, i) => {
       if (i !== activeBlockIndex) return b
@@ -458,23 +583,10 @@ export default function PreviewSessionPage() {
       newList.splice(newIdx, 0, item)
       return { ...b, exercises: newList }
     }))
+    setUnsavedChanges(true)
   }
 
   const setNoteKey = (setId, exerciseId) => `${setId}:${exerciseId}`
-
-  // Base (VMA/Seuil 60/Δ) + %1/%2 par set, pour un exercice "Running" — mêmes champs que
-  // pace_base/pct_low/pct_high du vrai produit (lib/raceEstimates.js). Le client verra le résultat
-  // sous forme d'Allure 1 / Allure 2, calculé à partir de ces % (pas encore branché ici : cette
-  // page reste 100% visuelle, sans données d'allure réelles d'un athlète pour faire le calcul).
-  const updatePaceValue = (setId, exerciseId, field, value) => {
-    setBlocks(blocks.map((b, i) => {
-      if (i !== activeBlockIndex) return b
-      const key = setNoteKey(setId, exerciseId)
-      const paceValues = { ...(b.paceValues || {}) }
-      paceValues[key] = { ...(paceValues[key] || { base: '', pctLow: '', pctHigh: '' }), [field]: value }
-      return { ...b, paceValues }
-    }))
-  }
 
   const openSetNotesModal = (setId, exerciseId) => {
     if (!activeBlock) return
@@ -504,29 +616,52 @@ export default function PreviewSessionPage() {
         }
         return { ...b, setNotes }
       }))
+      setUnsavedChanges(true)
     }
     closeSetNotesModal()
   }
 
   const clearSetNotesModal = () => setDraftSetNote('')
 
-  const filteredExercises = MOCK_EXERCISES.filter(e => (
-    (isCardioBlock ? isCardioLibraryExercise(e) : (selectedMuscles.length === 0 || selectedMuscles.includes(e.muscle))) &&
-    (exerciseCategoryFilter === 'all' || e.category === exerciseCategoryFilter) &&
-    e.name.toLowerCase().includes(exerciseSearch.toLowerCase())
-  ))
+  // Le filtrage (nom + muscles) est déjà appliqué côté serveur par l'effet de recherche ci-dessus.
+  const filteredExercises = movementsList
+
+  const movementNames = useMemo(() => movementsList.map(m => m.name), [movementsList])
+  const mentionPattern = useMemo(() => (
+    movementNames.length
+      ? new RegExp(`#(${movementNames.map(m => m.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')).join('|')})\\b`, 'g')
+      : null
+  ), [movementNames])
+
+  function renderHighlightedDescription(text) {
+    if (!mentionPattern) return text
+    const parts = []
+    let lastIndex = 0
+    let match
+    const regex = new RegExp(mentionPattern.source, 'g')
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
+      parts.push(
+        <span key={match.index} style={{ color: '#3E63DD', textDecoration: 'underline', fontWeight: 600 }}>
+          {match[0]}
+        </span>
+      )
+      lastIndex = match.index + match[0].length
+    }
+    if (lastIndex < text.length) parts.push(text.slice(lastIndex))
+    return parts
+  }
 
   const handleDescriptionChange = (e) => {
     const value = e.target.value
     const cursor = e.target.selectionStart
     setDraftDescription(value)
+    setUnsavedChanges(true)
     const uptoCursor = value.slice(0, cursor)
     const hashIndex = uptoCursor.lastIndexOf('#')
-    // Les noms de mouvements peuvent contenir des espaces ("Mountain Climbers") : on ne coupe donc
-    // pas la recherche au premier espace, mais dès que ce qui suit le # ne préfixe plus aucun mouvement.
     const query = hashIndex === -1 ? null : uptoCursor.slice(hashIndex + 1)
     const stillMatching = query !== null && !query.includes('\n') &&
-      (query === '' || MOCK_MOVEMENTS.some(m => m.toLowerCase().startsWith(query.toLowerCase())))
+      (query === '' || movementNames.some(m => m.toLowerCase().startsWith(query.toLowerCase())))
     if (stillMatching) {
       setMentionQuery(query)
       setMentionRange({ start: hashIndex, end: cursor })
@@ -563,7 +698,26 @@ export default function PreviewSessionPage() {
 
   const mentionMatches = mentionQuery === null
     ? []
-    : MOCK_MOVEMENTS.filter(m => m.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 5)
+    : movementNames.filter(m => m.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 5)
+
+  if (loading) {
+    return (
+      <div style={{ background: c.bg, minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.textMuted, fontFamily: 'Arial, Helvetica, sans-serif' }}>
+        Chargement…
+      </div>
+    )
+  }
+
+  if (notFound) {
+    return (
+      <div style={{ background: c.bg, minHeight: '100svh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: c.textMuted, fontFamily: 'Arial, Helvetica, sans-serif' }}>
+        <div>Séance introuvable.</div>
+        <button onClick={() => router.push(`/programs/${athleteId}/${programId}`)} style={{ border: `1px solid ${c.border}`, borderRadius: 6, padding: '9px 20px', background: c.bg, cursor: 'pointer' }}>
+          Retour au calendrier
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ background: c.bg, minHeight: '100svh', fontFamily: 'Arial, Helvetica, sans-serif' }}>
@@ -571,18 +725,21 @@ export default function PreviewSessionPage() {
 
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 28 }}>
-          <button style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
+          <button onClick={goBack} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
             <X size={22} />
           </button>
           <input
+            value={sessionTitle}
+            onChange={e => { setSessionTitle(e.target.value); setUnsavedChanges(true) }}
             placeholder='Workout name &quot;Standard&quot;'
             style={{ ...input, flex: 1, fontSize: 15, padding: '10px 14px' }}
           />
-          <button style={{
+          {savedFlash && <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>✓ Sauvegardé</span>}
+          <button onClick={handleSave} disabled={saving} style={{
             flexShrink: 0, background: c.blue, color: '#fff', border: 'none', borderRadius: 6,
-            padding: '10px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            padding: '10px 28px', fontSize: 14, fontWeight: 600, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1,
           }}>
-            Save
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
 
@@ -598,10 +755,34 @@ export default function PreviewSessionPage() {
           <textarea
             placeholder="Description"
             value={description}
-            onChange={e => setDescription(e.target.value)}
+            onChange={e => { setDescription(e.target.value); setUnsavedChanges(true) }}
             rows={5}
             style={{ width: '100%', boxSizing: 'border-box', border: 'none', padding: '12px 14px', fontSize: 14, outline: 'none', resize: 'none', background: 'transparent', fontFamily: 'inherit', color: c.text }}
           />
+        </div>
+
+        {/* Récurrence : hors calendrier, proposée au sportif tous les jours plutôt qu'à une
+            date précise — voir la note en tête de fichier sur le périmètre réduit de cette page,
+            ce champ est l'exception portée ici car il n'a pas d'équivalent dans l'ancien éditeur
+            plein écran une fois la séance créée depuis la grille Jour 1→N. */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+          <button onClick={() => { setSessionType(t => t === 'recurrent' ? null : 'recurrent'); setUnsavedChanges(true) }} style={{
+            padding: '7px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+            border: `1px solid ${sessionType === 'recurrent' ? c.blue : c.border}`,
+            background: sessionType === 'recurrent' ? '#E8EEFC' : c.bg,
+            color: sessionType === 'recurrent' ? c.blue : c.textMuted,
+          }}>
+            {sessionType === 'recurrent' ? 'Recurring · every day' : 'Does not repeat'}
+          </button>
+          {sessionType === 'recurrent' && (
+            <label title="Number of times per day to validate the session — resets daily"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: c.textMuted }}>
+              <input type="number" min="1" value={recurringTarget}
+                onChange={e => { setRecurringTarget(Math.max(1, parseInt(e.target.value) || 1)); setUnsavedChanges(true) }}
+                style={{ width: 44, boxSizing: 'border-box', padding: '6px 8px', border: `1px solid ${c.border}`, borderRadius: 6, fontSize: 13, textAlign: 'center', outline: 'none', background: c.bg, color: c.text }} />
+              x/day
+            </label>
+          )}
         </div>
 
         {/* Add / Order */}
@@ -648,12 +829,6 @@ export default function PreviewSessionPage() {
                     </span>
                     Circuit
                   </button>
-                  <button onClick={addCardioBlock} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 6, fontSize: 14, color: c.text, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                    <span style={{ width: 32, height: 32, borderRadius: 6, border: `1.5px solid ${c.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Heartbeat size={14} />
-                    </span>
-                    Cardio
-                  </button>
                 </div>
               </>
             )}
@@ -666,7 +841,7 @@ export default function PreviewSessionPage() {
           </button>
         </div>
 
-        {/* Navigation entre blocs — warm-up toujours en tête, cool-down toujours en queue */}
+        {/* Navigation entre blocs */}
         {blocks.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 24 }}>
             <button
@@ -743,9 +918,11 @@ export default function PreviewSessionPage() {
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 15, fontWeight: 600, color: c.text, textDecoration: 'underline' }}>{ex.name}</div>
-                            <span style={{ display: 'inline-block', marginTop: 6, fontSize: 11, color: c.textMuted, background: c.disabledBg, borderRadius: 5, padding: '2px 8px' }}>
-                              {ex.equipment}
-                            </span>
+                            {ex.muscles && (
+                              <span style={{ display: 'inline-block', marginTop: 6, fontSize: 11, color: c.textMuted, background: c.disabledBg, borderRadius: 5, padding: '2px 8px' }}>
+                                {ex.muscles}
+                              </span>
+                            )}
                           </div>
                           <button style={{ display: 'flex', flexShrink: 0, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.textMuted }}>
                             <DotsThreeVertical size={18} weight="bold" />
@@ -767,14 +944,13 @@ export default function PreviewSessionPage() {
                 </button>
 
                 {isCircuitBlock ? (
-                  // Vue provisoire pour le circuit : pas encore de SET/rep/kg structurés, juste un
-                  // champ libre — à remplacer plus tard par une vue dédiée au circuit.
                   <textarea
                     key={activeBlock.id}
                     defaultValue={activeBlock.circuitNote || ''}
                     onChange={e => {
                       const value = e.target.value
                       setBlocks(blocks.map((b, i) => (i === activeBlockIndex ? { ...b, circuitNote: value } : b)))
+                      setUnsavedChanges(true)
                       e.target.style.height = 'auto'
                       e.target.style.height = `${e.target.scrollHeight}px`
                     }}
@@ -818,42 +994,12 @@ export default function PreviewSessionPage() {
                                 >
                                   <FileText size={14} /> Notes
                                 </button>
-                                {isPaceBasedExercise(ex) ? (() => {
-                                  const pace = activeBlock.paceValues?.[setNoteKey(s.id, ex.id)] || { base: '', pctLow: '', pctHigh: '' }
-                                  return (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                      <select
-                                        value={pace.base}
-                                        onChange={e => updatePaceValue(s.id, ex.id, 'base', e.target.value)}
-                                        style={{ width: 96, boxSizing: 'border-box', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 6px', fontSize: 12, outline: 'none', fontFamily: 'inherit', color: pace.base ? c.text : c.textFaint, background: c.bg }}
-                                      >
-                                        <option value="">Base</option>
-                                        {PACE_BASES.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
-                                      </select>
-                                      <input
-                                        type="number"
-                                        placeholder="%1"
-                                        value={pace.pctLow}
-                                        onChange={e => updatePaceValue(s.id, ex.id, 'pctLow', e.target.value)}
-                                        style={{ width: 52, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 4px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
-                                      />
-                                      <input
-                                        type="number"
-                                        placeholder="%2"
-                                        value={pace.pctHigh}
-                                        onChange={e => updatePaceValue(s.id, ex.id, 'pctHigh', e.target.value)}
-                                        style={{ width: 52, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 4px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
-                                      />
-                                    </div>
-                                  )
-                                })() : (
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                    <input placeholder="" style={{ width: 60, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 6px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
-                                    <span style={{ fontSize: 13, color: c.textMuted }}>rep</span>
-                                    <input placeholder="" style={{ width: 60, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 6px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
-                                    <span style={{ fontSize: 13, color: c.textMuted }}>kg</span>
-                                  </div>
-                                )}
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <input placeholder="" style={{ width: 60, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 6px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+                                  <span style={{ fontSize: 13, color: c.textMuted }}>rep</span>
+                                  <input placeholder="" style={{ width: 60, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 6px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+                                  <span style={{ fontSize: 13, color: c.textMuted }}>kg</span>
+                                </div>
                               </div>
                             )
                           })}
@@ -887,9 +1033,7 @@ export default function PreviewSessionPage() {
               </div>
             )}
 
-            {/* Name / description / note du bloc — uniquement pour warm-up et cool-down, pas pour
-                un bloc exercice (dont le contenu est structuré via exercises/sets ci-dessus). */}
-            {!['exercise', 'circuit', 'cardio'].includes(activeBlock.type) && (
+            {!['exercise', 'circuit'].includes(activeBlock.type) && (
               <>
                 <button onClick={openDescModal} style={{
                   display: 'flex', alignItems: 'center', gap: 10, padding: '2px 16px 16px', width: '100%',
@@ -957,7 +1101,6 @@ export default function PreviewSessionPage() {
                   <label style={{ ...label, fontSize: 15, fontWeight: 700, marginBottom: 8 }}>Description</label>
                   <div style={{ border: `1px solid ${c.border}`, borderRadius: 6 }}>
                     <div style={{ position: 'relative' }}>
-                      {/* Calque visuel : affiche le texte avec les mouvements liés en bleu souligné */}
                       <div ref={descriptionBackdropRef} aria-hidden style={{
                         position: 'absolute', inset: 0, padding: '12px 14px', fontSize: 14, lineHeight: 1.5,
                         fontFamily: 'inherit', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: c.text,
@@ -1073,15 +1216,12 @@ export default function PreviewSessionPage() {
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: '14px 24px', borderBottom: `1px solid ${c.border}`, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: 24 }}>
-                  {['Explore', 'Favorites', 'My exercises'].map((tab, i) => (
-                    <span key={tab} style={{
-                      fontSize: 13, fontWeight: 700, letterSpacing: '0.3px', textTransform: 'uppercase',
-                      color: i === 0 ? c.text : c.textFaint, paddingBottom: 10,
-                      borderBottom: i === 0 ? `2px solid ${c.text}` : '2px solid transparent', cursor: 'pointer',
-                    }}>
-                      {tab}
-                    </span>
-                  ))}
+                  <span style={{
+                    fontSize: 13, fontWeight: 700, letterSpacing: '0.3px', textTransform: 'uppercase',
+                    color: c.text, paddingBottom: 10, borderBottom: `2px solid ${c.text}`,
+                  }}>
+                    Explore
+                  </span>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <div style={{ position: 'relative' }}>
@@ -1093,12 +1233,6 @@ export default function PreviewSessionPage() {
                       style={{ ...input, width: 220, paddingLeft: 30 }}
                     />
                   </div>
-                  <button style={{
-                    background: '#3F4753', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 18px',
-                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  }}>
-                    Search
-                  </button>
                   {isCircuitBlock && (
                     <button
                       onClick={confirmCircuitSelection}
@@ -1117,7 +1251,6 @@ export default function PreviewSessionPage() {
               </div>
 
               <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-                {/* Filtres muscles — icônes simplifiées (initiales), pas de vrai schéma anatomique */}
                 <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${c.border}`, overflowY: 'auto', padding: 20 }}>
                   {isCircuitBlock && pendingCircuitExercises.length > 0 && (
                     <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1140,56 +1273,42 @@ export default function PreviewSessionPage() {
                     </div>
                   )}
                   <div style={{ fontSize: 13, color: c.text, marginBottom: 12 }}>{filteredExercises.length} exercise(s)</div>
-                  <select value={exerciseCategoryFilter} onChange={e => setExerciseCategoryFilter(e.target.value)} style={{ ...input, marginBottom: 20 }}>
-                    <option value="all">All Exercises</option>
-                    <option value="performance">Performance</option>
-                  </select>
-                  {!isCardioBlock && (
-                    <>
-                  <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.5px', color: c.textMuted, marginBottom: 14 }}>MUSCLES</div>
-                  {MUSCLE_GROUPS.map(group => (
-                    <div key={group.label} style={{ marginBottom: 20 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                        <span style={{ fontSize: 13, fontWeight: 700, color: c.text }}>{group.label}</span>
-                        <span style={{ fontSize: 11, color: c.blue }}>
-                          <button onClick={() => toggleMuscleGroup(group.muscles, true)} style={{ border: 'none', background: 'none', color: c.blue, cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 600 }}>ALL</button>
-                          {' / '}
-                          <button onClick={() => toggleMuscleGroup(group.muscles, false)} style={{ border: 'none', background: 'none', color: c.blue, cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 600 }}>NONE</button>
-                        </span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                        {group.muscles.map(muscle => {
-                          const active = selectedMuscles.includes(muscle)
-                          return (
-                            <button key={muscle} onClick={() => toggleMuscle(muscle)} style={{
-                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                            }}>
-                              <span style={{
-                                width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: 11, fontWeight: 700, background: active ? c.blue : c.disabledBg, color: active ? '#fff' : c.textMuted,
-                              }}>
-                                {muscle.slice(0, 2).toUpperCase()}
-                              </span>
-                              <span style={{ fontSize: 10, color: c.textMuted, textAlign: 'center' }}>{muscle}</span>
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                    </>
-                  )}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                    <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.5px', color: c.textMuted }}>MUSCLES</span>
+                    {selectedMuscles.length > 0 && (
+                      <button onClick={() => setSelectedMuscles([])} style={{ border: 'none', background: 'none', color: c.blue, cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 600 }}>
+                        NONE
+                      </button>
+                    )}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                    {REAL_MUSCLE_GROUPS.map(group => {
+                      const active = selectedMuscles.includes(group.key)
+                      return (
+                        <button key={group.key} onClick={() => toggleMuscle(group.key)} style={{
+                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                        }}>
+                          <span style={{
+                            width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 11, fontWeight: 700, background: active ? c.blue : c.disabledBg, color: active ? '#fff' : c.textMuted,
+                          }}>
+                            {group.label.slice(0, 2).toUpperCase()}
+                          </span>
+                          <span style={{ fontSize: 10, color: c.textMuted, textAlign: 'center' }}>{group.label}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
 
-                {/* Liste des exercices */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '8px 24px' }}>
                   {filteredExercises.map(ex => {
                     const alreadyInBlock = activeBlock?.exercises?.some(e => e.name === ex.name)
                     const isPending = pendingCircuitExercises.some(p => p.name === ex.name)
                     const added = alreadyInBlock || (isCircuitBlock && isPending)
                     return (
-                      <div key={ex.name} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 0', borderBottom: `1px solid ${c.border}` }}>
+                      <div key={ex.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 0', borderBottom: `1px solid ${c.border}` }}>
                         <div style={{
                           width: 64, height: 64, flexShrink: 0, borderRadius: 6, background: '#1A1B1F', color: '#fff',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
@@ -1199,13 +1318,12 @@ export default function PreviewSessionPage() {
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 15, fontWeight: 600, color: c.text, textDecoration: 'underline' }}>{ex.name}</div>
-                          <span style={{ display: 'inline-block', marginTop: 6, fontSize: 11, color: c.textMuted, background: c.disabledBg, borderRadius: 5, padding: '2px 8px' }}>
-                            {ex.equipment}
-                          </span>
+                          {ex.muscles && (
+                            <span style={{ display: 'inline-block', marginTop: 6, fontSize: 11, color: c.textMuted, background: c.disabledBg, borderRadius: 5, padding: '2px 8px' }}>
+                              {ex.muscles}
+                            </span>
+                          )}
                         </div>
-                        <button style={{ display: 'flex', background: 'none', border: 'none', padding: 4, cursor: 'pointer', color: c.textFaint, flexShrink: 0 }}>
-                          <Star size={20} />
-                        </button>
                         <button
                           onClick={() => {
                             if (isCircuitBlock) {
