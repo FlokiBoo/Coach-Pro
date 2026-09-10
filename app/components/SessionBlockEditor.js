@@ -284,11 +284,6 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const [exercisesModalOpen, setExercisesModalOpen] = useState(false)
   const [exerciseSearch, setExerciseSearch] = useState('')
   const [selectedMuscles, setSelectedMuscles] = useState([])
-  const [configStep, setConfigStep] = useState(null) // null | 'sets' | 'rest'
-  const [pendingExercise, setPendingExercise] = useState(null)
-  const [pendingSets, setPendingSets] = useState(3)
-  const [pendingRest, setPendingRest] = useState(60)
-  const [addingSecondaryExercise, setAddingSecondaryExercise] = useState(false)
   const [pendingCircuitExercises, setPendingCircuitExercises] = useState([])
   const [activeBlockIndex, setActiveBlockIndex] = useState(0)
   const [descModalOpen, setDescModalOpen] = useState(false)
@@ -474,7 +469,6 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     setActiveBlockIndex(insertAt)
     setUnsavedChanges(true)
     setAddMenuOpen(false)
-    setAddingSecondaryExercise(false)
     setPendingCircuitExercises([])
     setExercisesModalOpen(true)
   }
@@ -521,13 +515,11 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   }
 
   const openExercisePickerForBlock = () => {
-    setAddingSecondaryExercise(false)
     setPendingCircuitExercises([])
     setExercisesModalOpen(true)
   }
 
   const openFollowExercisePicker = () => {
-    setAddingSecondaryExercise(true)
     setPendingCircuitExercises([])
     setExercisesModalOpen(true)
   }
@@ -537,14 +529,19 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     setPendingCircuitExercises([])
   }
 
+  // Ajoute directement l'exercice au bloc actif, sans demander le nombre de séries au préalable —
+  // 1 série de base (voir "Add set" pour en ajouter), même geste que "Follow with another exercise"
+  // pour la toute première sélection : pas de détour par une config séries/récup à chaque fois.
   const addExerciseToActiveBlock = (ex) => {
     if (!activeBlock) return
-    setBlocks(blocks.map((b, i) => (
-      i === activeBlockIndex ? { ...b, exercises: [...(b.exercises || []), { id: nextBlockId(), name: ex.name, muscles: ex.muscles }] } : b
-    )))
+    setBlocks(blocks.map((b, i) => {
+      if (i !== activeBlockIndex) return b
+      const sets = b.sets?.length > 0 ? b.sets : [{ id: nextBlockId() }]
+      const restSeconds = b.restSeconds ?? 60
+      return { ...b, exercises: [...(b.exercises || []), { id: nextBlockId(), name: ex.name, muscles: ex.muscles }], sets, restSeconds }
+    }))
     setUnsavedChanges(true)
     setExercisesModalOpen(false)
-    setAddingSecondaryExercise(false)
   }
 
   const toggleCircuitPending = (ex) => {
@@ -568,39 +565,6 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     setUnsavedChanges(true)
     setPendingCircuitExercises([])
     setExercisesModalOpen(false)
-  }
-
-  const startExerciseConfig = (ex) => {
-    setPendingExercise(ex)
-    setPendingSets(3)
-    setPendingRest(60)
-    setConfigStep('sets')
-    setExercisesModalOpen(false)
-  }
-
-  const closeExerciseConfig = () => {
-    setConfigStep(null)
-    setPendingExercise(null)
-  }
-
-  const confirmSetsStep = () => setConfigStep('rest')
-
-  const confirmRestStep = () => {
-    if (activeBlock && pendingExercise) {
-      const newSets = Array.from({ length: pendingSets }, () => ({ id: nextBlockId() }))
-      setBlocks(blocks.map((b, i) => (
-        i === activeBlockIndex
-          ? {
-              ...b,
-              exercises: [...(b.exercises || []), { id: nextBlockId(), name: pendingExercise.name, muscles: pendingExercise.muscles }],
-              sets: newSets,
-              restSeconds: pendingRest,
-            }
-          : b
-      )))
-      setUnsavedChanges(true)
-    }
-    closeExerciseConfig()
   }
 
   const addSet = () => {
@@ -1456,14 +1420,14 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                         </div>
                         <button
                           onClick={() => {
+                            // Pas de config séries/récup à la sélection : 1 série de base (voir
+                            // addExerciseToActiveBlock), "Add set" ensuite pour en ajouter. En mode
+                            // cardio, l'allure se règle par exercice (base + %low/%high) plutôt
+                            // qu'en séries — voir la vue cardio ci-dessous.
                             if (isCircuitBlock) {
                               if (!alreadyInBlock) toggleCircuitPending(ex)
-                            } else if (addingSecondaryExercise || activityMode === 'cardio') {
-                              // Pas de config séries/récup en mode cardio — l'allure se règle par
-                              // exercice (base + %low/%high), voir la vue cardio ci-dessous.
-                              addExerciseToActiveBlock(ex)
                             } else {
-                              startExerciseConfig(ex)
+                              addExerciseToActiveBlock(ex)
                             }
                           }}
                           disabled={!activeBlock || alreadyInBlock}
@@ -1482,129 +1446,6 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                     <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 14, color: c.textMuted }}>No exercise matches your filters.</div>
                   )}
                 </div>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Modales de config après choix d'un exercice : nombre de séries puis temps de récup */}
-        {configStep === 'sets' && (
-          <>
-            <div onClick={closeExerciseConfig} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 210 }} />
-            <div style={{
-              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 211,
-              width: 520, maxWidth: 'calc(100vw - 32px)', background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
-                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Number of sets</span>
-                <button onClick={closeExerciseConfig} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
-                  <X size={20} />
-                </button>
-              </div>
-              <div style={{ padding: '40px 24px', display: 'flex', justifyContent: 'center' }}>
-                <input
-                  type="number"
-                  min={1}
-                  value={pendingSets}
-                  onChange={e => setPendingSets(Math.max(1, parseInt(e.target.value) || 1))}
-                  autoFocus
-                  style={{
-                    width: 120, boxSizing: 'border-box', textAlign: 'center', fontSize: 20, fontWeight: 600,
-                    padding: '10px 12px', border: `1.5px solid ${c.blueBorder}`, borderRadius: 8, outline: 'none',
-                    color: c.text, fontFamily: 'inherit',
-                  }}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 24px', borderTop: `1px solid ${c.border}` }}>
-                <button onClick={closeExerciseConfig} style={{
-                  border: `1px solid ${c.border}`, color: c.text, fontWeight: 600, fontSize: 14, borderRadius: 6,
-                  padding: '9px 20px', background: c.bg, cursor: 'pointer',
-                }}>
-                  Close
-                </button>
-                <button onClick={confirmSetsStep} style={{
-                  border: `1px solid ${c.blue}`, color: c.blue, fontWeight: 600, fontSize: 14, borderRadius: 6,
-                  padding: '9px 20px', background: c.bg, cursor: 'pointer',
-                }}>
-                  Next
-                </button>
-              </div>
-            </div>
-          </>
-        )}
-
-        {configStep === 'rest' && (
-          <>
-            <div onClick={closeExerciseConfig} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 210 }} />
-            <div style={{
-              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 211,
-              width: 520, maxWidth: 'calc(100vw - 32px)', background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
-                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Rest time</span>
-                <button onClick={closeExerciseConfig} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
-                  <X size={20} />
-                </button>
-              </div>
-              <div style={{ padding: '28px 24px 8px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
-                  {REST_PRESETS.map(preset => {
-                    const active = pendingRest === preset.seconds
-                    return (
-                      <button key={preset.seconds} onClick={() => setPendingRest(preset.seconds)} style={{
-                        padding: '9px 4px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                        border: `1.5px solid ${active ? c.blue : c.border}`, color: active ? c.blue : c.text,
-                        background: c.bg,
-                      }}>
-                        {preset.label}
-                      </button>
-                    )
-                  })}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                  <input
-                    type="number"
-                    min={0}
-                    value={Math.floor(pendingRest / 60)}
-                    onChange={e => setPendingRest(Math.max(0, parseInt(e.target.value) || 0) * 60 + (pendingRest % 60))}
-                    style={{
-                      width: 70, boxSizing: 'border-box', textAlign: 'center', fontSize: 18, fontWeight: 600,
-                      padding: '10px 12px', border: `1.5px solid ${c.blueBorder}`, borderRadius: 8, outline: 'none',
-                      color: c.text, fontFamily: 'inherit',
-                    }}
-                  />
-                  <span style={{ fontSize: 14, color: c.textMuted }}>min</span>
-                  <input
-                    type="number"
-                    min={0}
-                    max={59}
-                    value={pendingRest % 60}
-                    onChange={e => {
-                      const secs = Math.min(59, Math.max(0, parseInt(e.target.value) || 0))
-                      setPendingRest(Math.floor(pendingRest / 60) * 60 + secs)
-                    }}
-                    style={{
-                      width: 70, boxSizing: 'border-box', textAlign: 'center', fontSize: 18, fontWeight: 600,
-                      padding: '10px 12px', border: `1.5px solid ${c.blueBorder}`, borderRadius: 8, outline: 'none',
-                      color: c.text, fontFamily: 'inherit',
-                    }}
-                  />
-                  <span style={{ fontSize: 14, color: c.textMuted }}>s</span>
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 24px', borderTop: `1px solid ${c.border}` }}>
-                <button onClick={closeExerciseConfig} style={{
-                  border: `1px solid ${c.border}`, color: c.text, fontWeight: 600, fontSize: 14, borderRadius: 6,
-                  padding: '9px 20px', background: c.bg, cursor: 'pointer',
-                }}>
-                  Close
-                </button>
-                <button onClick={confirmRestStep} style={{
-                  border: `1px solid ${c.blue}`, color: c.blue, fontWeight: 600, fontSize: 14, borderRadius: 6,
-                  padding: '9px 20px', background: c.bg, cursor: 'pointer',
-                }}>
-                  Add
-                </button>
               </div>
             </div>
           </>
