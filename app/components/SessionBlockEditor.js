@@ -245,23 +245,28 @@ function flattenBlocksToCircuits(blocks) {
   return circuits
 }
 
+// Charte graphique OSTRYK (app/globals.css) — même palette que le prototype visuel
+// (app/preview-session/page.js, commit "Remet la page séance aux couleurs OSTRYK") : cette version
+// branchée sur les vraies données n'avait pas encore reçu cette passe. `blue` reste le nom du token
+// en interne (repris partout dans ce fichier pour l'accent primaire) mais résout vers --green.
 const c = {
-  bg: '#FFFFFF',
-  border: '#E3E4E8',
-  borderDashed: '#C9CBD3',
-  text: '#16181D',
-  textMuted: '#6B7280',
-  textFaint: '#9CA3AF',
-  blue: '#3E63DD',
-  blueBorder: '#B9C4F5',
-  disabled: '#9CA3AF',
-  disabledBg: '#F4F4F5',
+  bg: 'var(--bg)',
+  border: 'var(--border)',
+  borderDashed: 'var(--border2)',
+  text: 'var(--text)',
+  textMuted: 'var(--text2)',
+  textFaint: 'var(--text3)',
+  blue: 'var(--green)',
+  blueBorder: 'var(--green-light)',
+  disabled: 'var(--text3)',
+  disabledBg: 'var(--bg2)',
+  title: 'var(--title)',
 }
 
 const label = { fontSize: 13, color: c.text, marginBottom: 6, display: 'block' }
 const input = {
   boxSizing: 'border-box', width: '100%', padding: '9px 12px', border: `1px solid ${c.border}`,
-  borderRadius: 6, fontSize: 14, color: c.text, outline: 'none', background: c.bg, fontFamily: 'inherit',
+  borderRadius: 'var(--r)', fontSize: 14, color: c.text, outline: 'none', background: c.bg, fontFamily: 'inherit',
 }
 
 export default function SessionBlockEditor({ sessionId, backHref, canManageCatalog = true }) {
@@ -666,7 +671,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     while ((match = regex.exec(text)) !== null) {
       if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
       parts.push(
-        <span key={match.index} style={{ color: '#3E63DD', textDecoration: 'underline', fontWeight: 600 }}>
+        <span key={match.index} style={{ color: c.blue, textDecoration: 'underline', fontWeight: 600 }}>
           {match[0]}
         </span>
       )
@@ -726,7 +731,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
 
   if (loading) {
     return (
-      <div style={{ background: c.bg, minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.textMuted, fontFamily: 'Arial, Helvetica, sans-serif' }}>
+      <div style={{ background: c.bg, minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: c.textMuted, fontFamily: 'var(--font-ui)' }}>
         Chargement…
       </div>
     )
@@ -734,7 +739,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
 
   if (notFound) {
     return (
-      <div style={{ background: c.bg, minHeight: '100svh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: c.textMuted, fontFamily: 'Arial, Helvetica, sans-serif' }}>
+      <div style={{ background: c.bg, minHeight: '100svh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: c.textMuted, fontFamily: 'var(--font-ui)' }}>
         <div>Séance introuvable.</div>
         <button onClick={() => router.push(backHref)} style={{ border: `1px solid ${c.border}`, borderRadius: 6, padding: '9px 20px', background: c.bg, cursor: 'pointer' }}>
           Retour au calendrier
@@ -744,7 +749,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   }
 
   return (
-    <div style={{ background: c.bg, minHeight: '100svh', fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <div style={{ background: c.bg, minHeight: '100svh', fontFamily: 'var(--font-ui)' }}>
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '28px 32px 60px' }}>
 
         {/* Header */}
@@ -758,7 +763,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
             placeholder='Workout name &quot;Standard&quot;'
             style={{ ...input, flex: 1, fontSize: 15, padding: '10px 14px' }}
           />
-          {savedFlash && <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>✓ Sauvegardé</span>}
+          {savedFlash && <span style={{ fontSize: 13, color: c.blue, fontWeight: 600 }}>✓ Sauvegardé</span>}
           <button onClick={handleSave} disabled={saving} style={{
             flexShrink: 0, background: c.blue, color: '#fff', border: 'none', borderRadius: 6,
             padding: '10px 28px', fontSize: 14, fontWeight: 600, cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1,
@@ -796,7 +801,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
               border: `1px solid ${activityMode === 'cardio' ? c.blue : c.border}`,
-              background: activityMode === 'cardio' ? '#E8EEFC' : c.bg,
+              background: activityMode === 'cardio' ? c.blueBorder : c.bg,
               color: activityMode === 'cardio' ? c.blue : c.textMuted,
             }}
           >
@@ -806,7 +811,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
           <button onClick={() => { setSessionType(t => t === 'recurrent' ? null : 'recurrent'); setUnsavedChanges(true) }} style={{
             padding: '7px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
             border: `1px solid ${sessionType === 'recurrent' ? c.blue : c.border}`,
-            background: sessionType === 'recurrent' ? '#E8EEFC' : c.bg,
+            background: sessionType === 'recurrent' ? c.blueBorder : c.bg,
             color: sessionType === 'recurrent' ? c.blue : c.textMuted,
           }}>
             {sessionType === 'recurrent' ? 'Recurring · every day' : 'Does not repeat'}
@@ -840,14 +845,14 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                   zIndex: 100, padding: 8, display: 'flex', flexDirection: 'column', gap: 2,
                 }}>
                   <button onClick={addWarmupBlock} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 6, fontSize: 14, color: c.text, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: '#26272B', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: c.text, color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Flame size={12} weight="fill" />
                       <span style={{ fontSize: 5, fontWeight: 800, letterSpacing: '0.2px', lineHeight: 1 }}>WARM UP</span>
                     </span>
                     Add the warm-up part
                   </button>
                   <button onClick={addCooldownBlock} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 6, fontSize: 14, color: c.text, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: '#26272B', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: c.text, color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Snowflake size={12} weight="fill" />
                       <span style={{ fontSize: 5, fontWeight: 800, letterSpacing: '0.2px', lineHeight: 1 }}>COOL DOWN</span>
                     </span>
@@ -896,7 +901,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
               return (
                 <button key={b.id} onClick={() => setActiveBlockIndex(i)} style={{
                   position: 'relative', width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                  background: isActive ? '#26272B' : c.disabledBg, color: isActive ? '#fff' : c.textMuted,
+                  background: isActive ? c.text : c.disabledBg, color: isActive ? '#fff' : c.textMuted,
                   border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                   gap: 1, cursor: 'pointer',
                 }}>
@@ -947,7 +952,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                             <DotsSixVertical size={16} />
                           </span>
                           <div style={{
-                            width: 56, height: 56, flexShrink: 0, borderRadius: 6, background: '#1A1B1F', color: '#fff',
+                            width: 56, height: 56, flexShrink: 0, borderRadius: 6, background: c.text, color: '#fff',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
                             fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: 4, lineHeight: 1.2,
                           }}>
@@ -1039,7 +1044,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                             onClick={() => openSetNotesModal('note', ex.id)}
                             style={{
                               display: 'flex', alignItems: 'center', gap: 6, borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer',
-                              border: `1px solid ${hasNote ? c.blue : c.border}`, background: hasNote ? '#E8EEFC' : c.bg, color: hasNote ? c.blue : c.text,
+                              border: `1px solid ${hasNote ? c.blue : c.border}`, background: hasNote ? c.blueBorder : c.bg, color: hasNote ? c.blue : c.text,
                             }}
                           >
                             <FileText size={14} /> Notes
@@ -1054,7 +1059,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                       <div key={s.id}>
                         <div style={{ border: `1px solid ${c.border}`, borderRadius: 8, padding: '14px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.5px', background: '#111', color: '#fff', padding: '4px 10px', borderRadius: 4 }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.5px', background: c.text, color: '#fff', padding: '4px 10px', borderRadius: 4 }}>
                               SET {i + 1}
                             </span>
                             {i > 0 && (
@@ -1075,7 +1080,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                                   onClick={() => openSetNotesModal(s.id, ex.id)}
                                   style={{
                                     display: 'flex', alignItems: 'center', gap: 6, borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer', marginBottom: 10,
-                                    border: `1px solid ${hasNote ? c.blue : c.border}`, background: hasNote ? '#E8EEFC' : c.bg, color: hasNote ? c.blue : c.text,
+                                    border: `1px solid ${hasNote ? c.blue : c.border}`, background: hasNote ? c.blueBorder : c.bg, color: hasNote ? c.blue : c.text,
                                   }}
                                 >
                                   <FileText size={14} /> Notes
@@ -1222,7 +1227,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                               onClick={() => pickMovement(m)}
                               style={{
                                 display: 'block', width: '100%', padding: '12px 14px', borderRadius: 6, fontSize: 15,
-                                color: c.text, background: i === 0 ? '#E8EEFC' : 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+                                color: c.text, background: i === 0 ? c.blueBorder : 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
                               }}
                             >
                               {m}
@@ -1346,7 +1351,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                       {pendingCircuitExercises.map(ex => (
                         <div key={ex.name} style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                          background: '#E8EEFC', border: `1px solid ${c.blueBorder}`, borderRadius: 6, padding: '6px 10px',
+                          background: c.blueBorder, border: `1px solid ${c.blueBorder}`, borderRadius: 6, padding: '6px 10px',
                         }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: c.blue, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {ex.name}
@@ -1404,7 +1409,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                     return (
                       <div key={ex.id} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 0', borderBottom: `1px solid ${c.border}` }}>
                         <div style={{
-                          width: 64, height: 64, flexShrink: 0, borderRadius: 6, background: '#1A1B1F', color: '#fff',
+                          width: 64, height: 64, flexShrink: 0, borderRadius: 6, background: c.text, color: '#fff',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
                           fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: 4, lineHeight: 1.2,
                         }}>
