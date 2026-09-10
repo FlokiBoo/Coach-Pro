@@ -22,7 +22,7 @@ import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerCon
 import {
   ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat,
   VideoCamera, Lightbulb, Target, ChartLineUp, Backpack, FloppyDisk,
-  CopySimple, ArrowsOutCardinal, Barbell, CaretDown, MagnifyingGlass, Plus,
+  CopySimple, ArrowsOutCardinal, Barbell, CaretDown, MagnifyingGlass, Plus, Heartbeat,
 } from '@phosphor-icons/react'
 
 function today() {
@@ -296,6 +296,7 @@ function SessionChip({ s, selected, onToggleSelect, onOpen, onDuplicate, compact
 
 function WeekDayCell({ week, d, dayNumber, cellSessions, isFirstCol, selectedIds, onToggleSelect, onOpenSession, onAddAt, onDuplicateSession }) {
   const { isOver, setNodeRef } = useDroppable({ id: `${week}-${d.key}` })
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
   return (
     <DayCell isOver={isOver} setNodeRef={setNodeRef} borderLeft={isFirstCol ? 'none' : '1px solid var(--border)'}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 6, paddingBottom: 4 }}>
@@ -305,12 +306,37 @@ function WeekDayCell({ week, d, dayNumber, cellSessions, isFirstCol, selectedIds
       {cellSessions.map(s => (
         <SessionChip key={s.id} s={s} selected={selectedIds.has(s.id)} onToggleSelect={onToggleSelect} onOpen={onOpenSession} onDuplicate={onDuplicateSession} />
       ))}
-      <button onClick={() => onAddAt(week, d.key)} style={{
-        background: 'transparent', border: '1px solid var(--border2)', color: 'var(--text3)',
-        borderRadius: 'var(--r)', padding: '6px 4px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-      }}>
-        + Ajouter
-      </button>
+      <div style={{ position: 'relative' }}>
+        <button onClick={() => setAddMenuOpen(v => !v)} style={{
+          width: '100%', background: 'transparent', border: '1px solid var(--border2)', color: 'var(--text3)',
+          borderRadius: 'var(--r)', padding: '6px 4px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+        }}>
+          + Ajouter
+        </button>
+        {addMenuOpen && (
+          <>
+            <div onClick={() => setAddMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+            <div style={{
+              position: 'absolute', left: 0, top: '100%', marginTop: 4, width: 150, background: 'var(--bg)',
+              border: '1px solid var(--border)', borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+              zIndex: 100, padding: 4, display: 'flex', flexDirection: 'column', gap: 2,
+            }}>
+              <button onClick={() => { setAddMenuOpen(false); onAddAt(week, d.key, 'standard') }} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 12,
+                color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontWeight: 600,
+              }}>
+                <Barbell size={13} /> Standard
+              </button>
+              <button onClick={() => { setAddMenuOpen(false); onAddAt(week, d.key, 'cardio') }} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 12,
+                color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontWeight: 600,
+              }}>
+                <Heartbeat size={13} /> Cardio
+              </button>
+            </div>
+          </>
+        )}
+      </div>
     </DayCell>
   )
 }
@@ -1144,9 +1170,9 @@ function ProgramEditorPage({ params }) {
   // Créée depuis une case de la grille Semaine/Jour (WeekGrid) : place directement la séance au
   // bon endroit plutôt que de la laisser "non planifiée" en bas de la liste par défaut. Ouvre
   // ensuite la nouvelle page séance (blocks) plutôt que l'ancien éditeur plein écran (setOpenId).
-  const addSessionAt = async (weekNumber, dayOfWeek) => {
+  const addSessionAt = async (weekNumber, dayOfWeek, mode = 'standard') => {
     const { data: s } = await supabase.from('program_sessions')
-      .insert({ program_id: programId, order_index: sessions.length, title: '', week_number: weekNumber, day_of_week: dayOfWeek })
+      .insert({ program_id: programId, order_index: sessions.length, title: '', week_number: weekNumber, day_of_week: dayOfWeek, activity_mode: mode })
       .select().single()
     if (s) router.push(`/programs/${athleteId}/${programId}/session/${s.id}`)
   }

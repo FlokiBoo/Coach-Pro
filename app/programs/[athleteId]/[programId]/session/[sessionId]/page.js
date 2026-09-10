@@ -12,11 +12,12 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { setUnsavedChanges, hasUnsavedChanges } from '@/lib/unsavedChanges'
 import { MUSCLE_GROUPS as REAL_MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
+import { isCardioMovementName, PACE_BASES } from '@/lib/raceEstimates'
 import {
   X, TextB, TextItalic, LinkSimple, ListBullets, TextTSlash,
   CaretLeft, CaretRight, ArrowsDownUp, Plus, FileText, Flame, Snowflake, Barbell,
   DotsThreeVertical, PencilSimple, Info, MagnifyingGlass, Check, Timer, DotsSixVertical,
-  ArrowsClockwise,
+  ArrowsClockwise, Heartbeat,
 } from '@phosphor-icons/react'
 import { SortableGroup, SortableItem } from '@/app/components/SortableItem'
 
@@ -109,10 +110,19 @@ function groupExercisesIntoBlocks(rows) {
     const setCount = Math.max(1, parseInt(g.rows[0].sets, 10) || 1)
     const sets = Array.from({ length: setCount }, (_, i) => ({ id: `set-${firstId}-${i}` }))
     const setNotes = {}
+    const paceValues = {}
     // La granularité par set est perdue côté ancien schéma (un seul `note` par exercice) : on la
-    // réattache au premier set de chaque exercice pour ne pas la perdre silencieusement.
+    // réattache au premier set de chaque exercice (grille standard) ET sous une clé "note:<ex>"
+    // dédiée (vue cardio, pas de grille de sets) pour ne pas la perdre silencieusement.
     g.rows.forEach(r => {
-      if (r.note) setNotes[`${sets[0].id}:ex-${r.id}`] = r.note
+      const exId = `ex-${r.id}`
+      if (r.note) {
+        setNotes[`${sets[0].id}:${exId}`] = r.note
+        setNotes[`note:${exId}`] = r.note
+      }
+      if (r.pace_base || r.pct_low != null || r.pct_high != null) {
+        paceValues[exId] = { base: r.pace_base || '', pctLow: r.pct_low ?? '', pctHigh: r.pct_high ?? '' }
+      }
     })
     return {
       id: `block-${firstId}`,
@@ -122,6 +132,7 @@ function groupExercisesIntoBlocks(rows) {
       sets,
       restSeconds: parseRestToSeconds(g.rows[0].rest),
       setNotes,
+      paceValues,
     }
   })
 }
@@ -170,23 +181,44 @@ function buildBlocksFromDb(exerciseRows, circuits) {
 
 // --- Traduction blocks -> DB (écriture) -------------------------------------------------------
 
-function flattenBlocksToExerciseRows(blocks) {
+function flattenBlocksToExerciseRows(blocks, activityMode) {
   const rows = []
+  const isCardio = activityMode === 'cardio'
   blocks.forEach(block => {
     if (block.type === 'circuit' || !block.exercises?.length) return
     const supersetToken = block.exercises.length > 1 ? Math.random().toString(36).slice(2, 8) : null
     block.exercises.forEach(ex => {
-      const notes = (block.sets || [])
-        .map(s => block.setNotes?.[`${s.id}:${ex.id}`])
-        .filter(Boolean)
-      rows.push({
-        block_type: block.type,
-        name: ex.name,
-        sets: block.sets?.length || 1,
-        rest: formatRestLabel(block.restSeconds ?? 60),
-        note: notes.length ? notes.join(' / ') : null,
-        superset_group: supersetToken,
-      })
+      if (isCardio) {
+        // Pas de grille de sets en mode cardio (allure réglée en % VMA/Seuil/Δ, pas en séries) —
+        // une seule note et un seul couple base/%low-%high par exercice, voir updatePaceValue.
+        const pace = block.paceValues?.[ex.id] || {}
+        rows.push({
+          block_type: block.type,
+          name: ex.name,
+          sets: null,
+          rest: null,
+          note: block.setNotes?.[`note:${ex.id}`] || null,
+          superset_group: supersetToken,
+          pace_base: pace.base || null,
+          pct_low: pace.pctLow !== '' && pace.pctLow != null ? parseFloat(pace.pctLow) : null,
+          pct_high: pace.pctHigh !== '' && pace.pctHigh != null ? parseFloat(pace.pctHigh) : null,
+        })
+      } else {
+        const notes = (block.sets || [])
+          .map(s => block.setNotes?.[`${s.id}:${ex.id}`])
+          .filter(Boolean)
+        rows.push({
+          block_type: block.type,
+          name: ex.name,
+          sets: block.sets?.length || 1,
+          rest: formatRestLabel(block.restSeconds ?? 60),
+          note: notes.length ? notes.join(' / ') : null,
+          superset_group: supersetToken,
+          pace_base: null,
+          pct_low: null,
+          pct_high: null,
+        })
+      }
     })
   })
   return rows
@@ -246,6 +278,7 @@ function SessionEditorPage({ params }) {
   const [sessionTitle, setSessionTitle] = useState('')
   const [description, setDescription] = useState('')
   const [sessionType, setSessionType] = useState(null)
+  const [activityMode, setActivityMode] = useState('standard')
   const [recurringTarget, setRecurringTarget] = useState(1)
   const [movementsList, setMovementsList] = useState([]) // [{ id, name, muscles }]
 
@@ -290,8 +323,8 @@ function SessionEditorPage({ params }) {
     let cancelled = false
     async function load() {
       const [{ data: sessionRow }, { data: exerciseRows }] = await Promise.all([
-        supabase.from('program_sessions').select('id, title, coach_notes, circuits, session_type, recurring_daily_target').eq('id', sessionId).single(),
-        supabase.from('program_exercises').select('id, order_index, name, sets, rest, note, superset_group, block_type').eq('program_session_id', sessionId).order('order_index'),
+        supabase.from('program_sessions').select('id, title, coach_notes, circuits, session_type, recurring_daily_target, activity_mode').eq('id', sessionId).single(),
+        supabase.from('program_exercises').select('id, order_index, name, sets, rest, note, superset_group, block_type, pace_base, pct_low, pct_high').eq('program_session_id', sessionId).order('order_index'),
       ])
       if (cancelled) return
       if (!sessionRow) {
@@ -302,6 +335,7 @@ function SessionEditorPage({ params }) {
       setSessionTitle(sessionRow.title || '')
       setDescription(sessionRow.coach_notes || '')
       setSessionType(sessionRow.session_type || null)
+      setActivityMode(sessionRow.activity_mode || 'standard')
       setRecurringTarget(sessionRow.recurring_daily_target || 1)
       setBlocks(buildBlocksFromDb(exerciseRows || [], sessionRow.circuits || []))
       setAddMenuOpen((exerciseRows || []).length === 0 && !(sessionRow.circuits || []).length)
@@ -316,18 +350,25 @@ function SessionEditorPage({ params }) {
   useEffect(() => {
     if (!exercisesModalOpen) return
     let cancelled = false
+    const isCardio = activityMode === 'cardio'
     const timer = setTimeout(async () => {
-      let query = supabase.from('movements').select('id, name, muscles').order('name').limit(100)
+      // En mode cardio, le filtre Run/Row/Ski Erg/Bike (voir isCardioMovementName) s'applique
+      // après coup en JS : il faut donc charger toute la bibliothèque (400+ mouvements chez ce
+      // coach) plutôt que les 100 premiers par ordre alphabétique, sous peine de couper avant
+      // d'atteindre "Run EF" etc. si aucun texte de recherche ne réduit déjà la liste.
+      let query = supabase.from('movements').select('id, name, muscles').order('name').limit(isCardio ? 2000 : 100)
       if (exerciseSearch.trim()) query = query.ilike('name', `%${exerciseSearch.trim()}%`)
-      if (selectedMuscles.length > 0) {
+      if (selectedMuscles.length > 0 && !isCardio) {
         query = query.or(selectedMuscles.map(m => `muscles.ilike.%${m}%`).join(','))
       }
       const { data } = await query
       if (cancelled) return
-      setMovementsList((data || []).map(m => ({ id: m.id, name: m.name, muscles: m.muscles || '' })))
+      let list = (data || []).map(m => ({ id: m.id, name: m.name, muscles: m.muscles || '' }))
+      if (isCardio) list = list.filter(m => isCardioMovementName(m.name)).slice(0, 100)
+      setMovementsList(list)
     }, 250)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [exercisesModalOpen, exerciseSearch, selectedMuscles])
+  }, [exercisesModalOpen, exerciseSearch, selectedMuscles, activityMode])
 
   useEffect(() => {
     const handler = (e) => {
@@ -352,7 +393,7 @@ function SessionEditorPage({ params }) {
     if (saving) return
     setSaving(true)
     try {
-      const rows = flattenBlocksToExerciseRows(blocks)
+      const rows = flattenBlocksToExerciseRows(blocks, activityMode)
       const { data: existingRows } = await supabase
         .from('program_exercises')
         .select('id')
@@ -375,6 +416,7 @@ function SessionEditorPage({ params }) {
       await supabase.from('program_sessions')
         .update({
           title: sessionTitle, coach_notes: description, circuits: flattenBlocksToCircuits(blocks),
+          activity_mode: activityMode,
           session_type: sessionType, recurring_daily_target: sessionType === 'recurrent' ? recurringTarget : null,
           // Récurrente = hors calendrier : jamais de semaine/jour, même si la séance en avait un
           // avant (créée via une case du calendrier puis basculée en récurrente après coup).
@@ -590,6 +632,18 @@ function SessionEditorPage({ params }) {
 
   const setNoteKey = (setId, exerciseId) => `${setId}:${exerciseId}`
 
+  // Base (VMA/Seuil60/Δ) + %1/%2 par exercice — mode cardio uniquement, pas de grille de sets
+  // (voir flattenBlocksToExerciseRows / groupExercisesIntoBlocks pour le mapping DB).
+  const updatePaceValue = (exerciseId, field, value) => {
+    setBlocks(blocks.map((b, i) => {
+      if (i !== activeBlockIndex) return b
+      const paceValues = { ...(b.paceValues || {}) }
+      paceValues[exerciseId] = { ...(paceValues[exerciseId] || { base: '', pctLow: '', pctHigh: '' }), [field]: value }
+      return { ...b, paceValues }
+    }))
+    setUnsavedChanges(true)
+  }
+
   const openSetNotesModal = (setId, exerciseId) => {
     if (!activeBlock) return
     setActiveNoteContext({ setId, exerciseId })
@@ -768,6 +822,19 @@ function SessionEditorPage({ params }) {
             ce champ est l'exception portée ici car il n'a pas d'équivalent dans l'ancien éditeur
             plein écran une fois la séance créée depuis la grille Jour 1→N. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24 }}>
+          <button
+            onClick={() => { setActivityMode(m => m === 'cardio' ? 'standard' : 'cardio'); setUnsavedChanges(true) }}
+            title="Limite la bibliothèque d'exercices aux mouvements Run/Row/Ski Erg/Bike et affiche une allure (base + %) au lieu de séries/reps/kg"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              border: `1px solid ${activityMode === 'cardio' ? c.blue : c.border}`,
+              background: activityMode === 'cardio' ? '#E8EEFC' : c.bg,
+              color: activityMode === 'cardio' ? c.blue : c.textMuted,
+            }}
+          >
+            <Heartbeat size={14} weight={activityMode === 'cardio' ? 'fill' : 'regular'} />
+            {activityMode === 'cardio' ? 'Cardio' : 'Standard'}
+          </button>
           <button onClick={() => { setSessionType(t => t === 'recurrent' ? null : 'recurrent'); setUnsavedChanges(true) }} style={{
             padding: '7px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
             border: `1px solid ${sessionType === 'recurrent' ? c.blue : c.border}`,
@@ -964,6 +1031,55 @@ function SessionEditorPage({ params }) {
                       background: c.bg, fontFamily: 'inherit', color: c.text, overflow: 'hidden', minHeight: 220,
                     }}
                   />
+                ) : activityMode === 'cardio' ? (
+                  // Pas de grille SET en mode cardio : un seul réglage d'allure (base + %low/%high)
+                  // par exercice — l'allure ne varie pas set par set (voir updatePaceValue).
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {activeBlock.exercises.map(ex => {
+                      const pace = activeBlock.paceValues?.[ex.id] || { base: '', pctLow: '', pctHigh: '' }
+                      const hasNote = Boolean(activeBlock.setNotes?.[setNoteKey('note', ex.id)])
+                      return (
+                        <div key={ex.id} style={{ border: `1px solid ${c.border}`, borderRadius: 8, padding: '14px 16px' }}>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: c.text, textDecoration: 'underline', marginBottom: 10 }}>{ex.name}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                            <select
+                              value={pace.base}
+                              onChange={e => updatePaceValue(ex.id, 'base', e.target.value)}
+                              style={{ width: 140, boxSizing: 'border-box', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 8px', fontSize: 13, outline: 'none', fontFamily: 'inherit', color: pace.base ? c.text : c.textFaint, background: c.bg }}
+                            >
+                              <option value="">Référence</option>
+                              {PACE_BASES.map(b => <option key={b.key} value={b.key}>{b.label}</option>)}
+                            </select>
+                            <input
+                              type="number"
+                              placeholder="%1"
+                              value={pace.pctLow}
+                              onChange={e => updatePaceValue(ex.id, 'pctLow', e.target.value)}
+                              style={{ width: 60, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 6px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
+                            />
+                            <span style={{ color: c.textMuted, fontSize: 13 }}>–</span>
+                            <input
+                              type="number"
+                              placeholder="%2"
+                              value={pace.pctHigh}
+                              onChange={e => updatePaceValue(ex.id, 'pctHigh', e.target.value)}
+                              style={{ width: 60, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 6px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
+                            />
+                            <span style={{ fontSize: 13, color: c.textMuted }}>%</span>
+                          </div>
+                          <button
+                            onClick={() => openSetNotesModal('note', ex.id)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 6, borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer',
+                              border: `1px solid ${hasNote ? c.blue : c.border}`, background: hasNote ? '#E8EEFC' : c.bg, color: hasNote ? c.blue : c.text,
+                            }}
+                          >
+                            <FileText size={14} /> Notes
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
                 ) : (
                   <>
                     {activeBlock.sets.map((s, i) => (
@@ -1275,33 +1391,41 @@ function SessionEditorPage({ params }) {
                     </div>
                   )}
                   <div style={{ fontSize: 13, color: c.text, marginBottom: 12 }}>{filteredExercises.length} exercise(s)</div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                    <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.5px', color: c.textMuted }}>MUSCLES</span>
-                    {selectedMuscles.length > 0 && (
-                      <button onClick={() => setSelectedMuscles([])} style={{ border: 'none', background: 'none', color: c.blue, cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 600 }}>
-                        NONE
-                      </button>
-                    )}
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
-                    {REAL_MUSCLE_GROUPS.map(group => {
-                      const active = selectedMuscles.includes(group.key)
-                      return (
-                        <button key={group.key} onClick={() => toggleMuscle(group.key)} style={{
-                          display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
-                          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-                        }}>
-                          <span style={{
-                            width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 11, fontWeight: 700, background: active ? c.blue : c.disabledBg, color: active ? '#fff' : c.textMuted,
-                          }}>
-                            {group.label.slice(0, 2).toUpperCase()}
-                          </span>
-                          <span style={{ fontSize: 10, color: c.textMuted, textAlign: 'center' }}>{group.label}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
+                  {activityMode === 'cardio' ? (
+                    <div style={{ fontSize: 12, color: c.textMuted, lineHeight: 1.5 }}>
+                      Mode Cardio : seuls les mouvements Run / Row / Ski Erg / Bike sont proposés.
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.5px', color: c.textMuted }}>MUSCLES</span>
+                        {selectedMuscles.length > 0 && (
+                          <button onClick={() => setSelectedMuscles([])} style={{ border: 'none', background: 'none', color: c.blue, cursor: 'pointer', padding: 0, fontSize: 11, fontWeight: 600 }}>
+                            NONE
+                          </button>
+                        )}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+                        {REAL_MUSCLE_GROUPS.map(group => {
+                          const active = selectedMuscles.includes(group.key)
+                          return (
+                            <button key={group.key} onClick={() => toggleMuscle(group.key)} style={{
+                              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                            }}>
+                              <span style={{
+                                width: 36, height: 36, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 11, fontWeight: 700, background: active ? c.blue : c.disabledBg, color: active ? '#fff' : c.textMuted,
+                              }}>
+                                {group.label.slice(0, 2).toUpperCase()}
+                              </span>
+                              <span style={{ fontSize: 10, color: c.textMuted, textAlign: 'center' }}>{group.label}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div style={{ flex: 1, overflowY: 'auto', padding: '8px 24px' }}>
@@ -1330,7 +1454,9 @@ function SessionEditorPage({ params }) {
                           onClick={() => {
                             if (isCircuitBlock) {
                               if (!alreadyInBlock) toggleCircuitPending(ex)
-                            } else if (addingSecondaryExercise) {
+                            } else if (addingSecondaryExercise || activityMode === 'cardio') {
+                              // Pas de config séries/récup en mode cardio — l'allure se règle par
+                              // exercice (base + %low/%high), voir la vue cardio ci-dessous.
                               addExerciseToActiveBlock(ex)
                             } else {
                               startExerciseConfig(ex)
