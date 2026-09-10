@@ -849,10 +849,12 @@ function AthleteView({ params }) {
     await supabase.from('program_exercise_sets').delete().eq('id', setId)
   }
 
-  // Crée une séance libre vide et ouvre directement la vue plein écran (comme "▶ Lancer"),
-  // où les exercices sont ajoutés un par un via FreeExerciseAdder. mode 'standard' | 'cardio' —
-  // choisi dans AddActionSheet, même distinction que côté coach (voir program_sessions.activity_mode).
-  const startFreeSession = async (sourceExercises = [], mode = 'standard') => {
+  // Crée une séance libre. mode 'standard' | 'cardio' — choisi dans AddActionSheet, même
+  // distinction que côté coach (voir program_sessions.activity_mode). destination 'builder' ouvre
+  // le même éditeur "blocks" que le coach (SessionBlockEditor, pour construire la séance avant de
+  // la faire) ; 'focus' ouvre directement la vue plein écran (comme "▶ Lancer"), utilisé quand on
+  // repart d'une séance déjà construite (voir duplicateFreeSession) et qu'il n'y a rien à (re)bâtir.
+  const startFreeSession = async (sourceExercises = [], mode = 'standard', destination = 'builder') => {
     if (!athlete) return
     if (!requireOnline()) return
     const res = await fetch(`/api/athlete-view/${token}/free-session`, {
@@ -865,17 +867,22 @@ function AthleteView({ params }) {
 
     const newProg = { ...json.program, sessions: [json.session] }
     setPrograms(prev => [newProg, ...prev])
-    router.push(`/s/${token}?session=${json.session.id}&focus=1${isCoachView ? '&coach=1' : ''}`)
+    if (destination === 'focus') {
+      router.push(`/s/${token}?session=${json.session.id}&focus=1${isCoachView ? '&coach=1' : ''}`)
+    } else {
+      router.push(`/s/${token}/session/${json.session.id}`)
+    }
   }
 
   // Repart d'une séance libre existante (mêmes exercices, sans les charges/notes déjà loguées)
-  // pour que le sportif puisse l'enchaîner facilement et suivre sa progression dans l'historique.
+  // pour que le sportif puisse l'enchaîner facilement et suivre sa progression dans l'historique —
+  // contenu déjà connu, donc droit dans la vue plein écran plutôt que l'éditeur.
   const duplicateFreeSession = (session) => {
     const sourceExercises = (session.exercises || []).map(e => ({
       name: e.name, sets: e.sets, reps: e.reps, kg: e.kg,
       pace_base: e.pace_base, pct_low: e.pct_low, pct_high: e.pct_high,
     }))
-    startFreeSession(sourceExercises, session.activity_mode || 'standard')
+    startFreeSession(sourceExercises, session.activity_mode || 'standard', 'focus')
   }
 
   const updateFreeSessionDate = async (sessionId, date) => {
