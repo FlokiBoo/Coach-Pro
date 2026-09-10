@@ -269,7 +269,11 @@ const input = {
   borderRadius: 'var(--r)', fontSize: 14, color: c.text, outline: 'none', background: c.bg, fontFamily: 'inherit',
 }
 
-export default function SessionBlockEditor({ sessionId, backHref, canManageCatalog = true }) {
+// onClose (optionnel) : quand ce composant est monté comme un panneau parmi d'autres (vue côte à
+// côte, voir app/programs/.../page.js) plutôt que comme une page à part entière, fermer CE panneau
+// ne doit pas naviguer loin des autres — le parent décide alors quoi faire (retirer le panneau).
+// Sans onClose, comportement page normale : navigation vers backHref.
+export default function SessionBlockEditor({ sessionId, backHref, canManageCatalog = true, onClose }) {
   const router = useRouter()
 
   const [loading, setLoading] = useState(true)
@@ -385,6 +389,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
 
   const goBack = () => {
     if (hasUnsavedChanges() && !window.confirm('Tu as des modifications non sauvegardées sur cette page. Les quitter sans enregistrer ?')) return
+    if (onClose) { onClose(); return }
     // replace, pas push : sinon la page séance reste dans l'historique et un clic sur "retour"
     // juste après y renvoie (push empile une entrée en plus au lieu de vraiment revenir en arrière).
     router.replace(backHref)
@@ -741,7 +746,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     return (
       <div style={{ background: c.bg, minHeight: '100svh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, color: c.textMuted, fontFamily: 'var(--font-ui)' }}>
         <div>Séance introuvable.</div>
-        <button onClick={() => router.push(backHref)} style={{ border: `1px solid ${c.border}`, borderRadius: 6, padding: '9px 20px', background: c.bg, cursor: 'pointer' }}>
+        <button onClick={() => (onClose ? onClose() : router.push(backHref))} style={{ border: `1px solid ${c.border}`, borderRadius: 6, padding: '9px 20px', background: c.bg, cursor: 'pointer' }}>
           Retour au calendrier
         </button>
       </div>
@@ -749,7 +754,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   }
 
   return (
-    <div style={{ background: c.bg, minHeight: '100svh', fontFamily: 'var(--font-ui)' }}>
+    <div style={{ background: c.bg, minHeight: '100svh', fontFamily: 'var(--font-ui)', position: 'relative' }}>
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '28px 32px 60px' }}>
 
         {/* Header */}
@@ -838,7 +843,11 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
             </button>
             {addMenuOpen && (
               <>
-                <div onClick={() => setAddMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+                {/* absolute (relatif à la racine du composant, pas au viewport) plutôt que fixed :
+                    en vue côte à côte (plusieurs SessionBlockEditor montés à la fois, voir
+                    app/programs/.../page.js), un backdrop plein viewport intercepterait aussi les
+                    clics destinés aux AUTRES panneaux tant que ce menu reste ouvert. */}
+                <div onClick={() => setAddMenuOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 90 }} />
                 <div style={{
                   position: 'absolute', left: 0, top: '100%', marginTop: 6, width: 320, background: c.bg,
                   border: `1px solid ${c.border}`, borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',

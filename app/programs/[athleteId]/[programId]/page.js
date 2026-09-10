@@ -19,10 +19,11 @@ import { cloneTemplateToAthlete } from '@/lib/programTemplates'
 import ActivityTypeSelect from '@/app/components/ActivityTypeSelect'
 import { notifyAssigned, notifyProgramAvailable } from '@/lib/notify'
 import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerConfigEditor'
+import SessionBlockEditor from '@/app/components/SessionBlockEditor'
 import {
   ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat,
   VideoCamera, Lightbulb, Target, ChartLineUp, Backpack, FloppyDisk,
-  CopySimple, ArrowsOutCardinal, Barbell, CaretDown, MagnifyingGlass, Plus, Heartbeat,
+  CopySimple, ArrowsOutCardinal, Barbell, CaretDown, MagnifyingGlass, Plus, Heartbeat, Columns,
 } from '@phosphor-icons/react'
 
 function today() {
@@ -452,6 +453,9 @@ function ProgramEditorPage({ params }) {
   const [historyExo, setHistoryExo] = useState(null)
   const [pinnedSessions, setPinnedSessions] = useState(new Set())
   const [selectedSessionIds, setSelectedSessionIds] = useState(new Set())
+  // Vue côte à côte : liste d'ids affichés en panneaux (SessionBlockEditor) plutôt que la simple
+  // sélection ci-dessus, pour survivre à sa remise à zéro (ex: après une action sur la sélection).
+  const [sideBySideIds, setSideBySideIds] = useState(null)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [exercisePickerFor, setExercisePickerFor] = useState(null) // sessId en cours d'ajout, ou null
   const [pendingExercise, setPendingExercise] = useState(null) // { sessId, movement, sets } en cours d'assistant
@@ -1780,6 +1784,15 @@ function ProgramEditorPage({ params }) {
               Effacer la sélection
             </button>
             <div style={{ flex: 1 }} />
+            <button
+              onClick={() => {
+                setSideBySideIds(sessions.filter(s => selectedSessionIds.has(s.id)).map(s => s.id))
+                setSelectedSessionIds(new Set())
+              }}
+              title="Ouvrir les séances sélectionnées côte à côte"
+              style={{ background: 'var(--green-light)', border: '1px solid var(--green)', color: 'var(--green)', borderRadius: 'var(--r)', padding: 8, display: 'flex', cursor: 'pointer' }}>
+              <Columns size={16} />
+            </button>
             <button onClick={duplicateSelectedSessions} disabled={duplicatingSelected} title="Dupliquer la sélection"
               style={{ background: 'var(--green-light)', border: '1px solid var(--green)', color: 'var(--green)', borderRadius: 'var(--r)', padding: 8, display: 'flex', cursor: 'pointer' }}>
               <CopySimple size={16} />
@@ -1789,6 +1802,41 @@ function ProgramEditorPage({ params }) {
             >
               <Trash size={16} />
             </button>
+          </div>
+        )}
+
+        {/* Vue côte à côte : un SessionBlockEditor par séance sélectionnée, en panneaux de largeur
+            fixe défilant horizontalement — chaque panneau gère son propre scroll vertical (voir
+            son header "sticky") et se ferme indépendamment des autres via onClose (pas de
+            navigation qui fermerait toute la vue). Fermer le dernier panneau ferme la vue entière. */}
+        {sideBySideIds && sideBySideIds.length > 0 && (
+          <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 250, display: 'flex', flexDirection: 'column' }}>
+            <div style={{
+              background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '10px 16px',
+              display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
+            }}>
+              <button onClick={() => setSideBySideIds(null)} style={{ background: 'none', border: 'none', fontSize: 22, color: 'var(--text2)', cursor: 'pointer', padding: 0, lineHeight: 1, display: 'flex' }}>←</button>
+              <span style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 15 }}>
+                Retour au calendrier
+              </span>
+              <span style={{ fontSize: 12, color: 'var(--text3)' }}>
+                — {sideBySideIds.length} séance{sideBySideIds.length > 1 ? 's' : ''} côte à côte
+              </span>
+            </div>
+            <div style={{ flex: 1, display: 'flex', overflowX: 'auto' }}>
+              {sideBySideIds.map(id => (
+                <div key={id} style={{ width: 480, flexShrink: 0, height: '100%', overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
+                  <SessionBlockEditor
+                    sessionId={id}
+                    backHref={`/programs/${athleteId}/${programId}`}
+                    onClose={() => setSideBySideIds(prev => {
+                      const next = (prev || []).filter(x => x !== id)
+                      return next.length ? next : null
+                    })}
+                  />
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
