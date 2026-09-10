@@ -51,26 +51,27 @@ export default function WodTab({
   // les séances rejoignent la même vue "Ma semaine", fusionnées par jour. Les programmes sans
   // aucun jour restent dans l'ancien système de pastilles ci-dessous (coexistence volontaire,
   // pas de migration forcée).
+  // Séance récurrente (session_type === 'recurrent') : vit hors du calendrier — elle ne compte pas
+  // pour déterminer si un programme est "daté", elle est listée à part, une seule fois, tout en
+  // haut de la page (voir recurringEntries plus bas), et jamais "consommée" par la progression
+  // classique (elle reste proposable indéfiniment, même après avoir été validée une fois).
+  const recurringEntries = []
+  boardPrograms.forEach(prog => {
+    prog.sessions.filter(s => s.session_type === 'recurrent').forEach(s => recurringEntries.push({ session: s, program: prog }))
+  })
+
   const coachDatedPrograms = []
   const athleteDatedPrograms = []
   const unscheduledPrograms = []
   boardPrograms.forEach(prog => {
-    if (prog.sessions.some(s => s.day_of_week != null)) coachDatedPrograms.push(prog)
+    if (prog.sessions.some(s => s.session_type !== 'recurrent' && s.day_of_week != null)) coachDatedPrograms.push(prog)
     else if (prog.athlete_days_of_week?.length) athleteDatedPrograms.push(prog)
-    else unscheduledPrograms.push(prog)
+    else if (!prog.sessions.every(s => s.session_type === 'recurrent')) unscheduledPrograms.push(prog)
   })
   const datedProgramsCount = coachDatedPrograms.length + athleteDatedPrograms.length
 
   const dayGroups = WEEK_DAYS.map(d => ({ ...d, entries: [] }))
   coachDatedPrograms.forEach(prog => {
-    // Séance récurrente (session_type === 'recurrent') : disponible tous les jours, pas seulement
-    // celui où le coach l'a posée sur son calendrier — et jamais "consommée" par la progression
-    // classique (elle reste proposable indéfiniment, même après avoir été validée une fois).
-    const recurringSessions = prog.sessions.filter(s => s.session_type === 'recurrent')
-    recurringSessions.forEach(s => {
-      WEEK_DAYS.forEach(d => dayGroups[d.key].entries.push({ session: s, program: prog }))
-    })
-
     const progressionSessions = prog.sessions.filter(s => s.session_type !== 'recurrent')
     const nextUncompleted = progressionSessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
     if (!nextUncompleted) return
@@ -131,19 +132,18 @@ export default function WodTab({
     )
   }
 
-  // Séance récurrente : pas de "Valider" avec formulaire de ressenti — un compteur "+1" rapide,
-  // actionnable seulement sur la case du jour (les autres jours sont juste informatifs, on ne peut
-  // pas logger un passage pour un jour qui n'est pas aujourd'hui).
-  const renderRecurringRow = ({ session: s, program }, isToday) => {
+  // Séance récurrente : hors calendrier, proposée tous les jours — un compteur "+1" rapide plutôt
+  // qu'un "Valider" avec formulaire de ressenti. Contrairement aux autres séances, elle ne bascule
+  // jamais dans le style "terminé" (grisé) : atteindre l'objectif du jour n'éteint pas la séance,
+  // elle reste identique et actionnable demain.
+  const renderRecurringRow = ({ session: s, program }) => {
     const target = s.recurring_daily_target || 1
     const count = recurringTodayCounts[s.id] || 0
-    // La coche ne concerne que la case "aujourd'hui" — le compteur n'a de sens que pour le jour en
-    // cours, l'afficher aussi sur les autres jours suggérerait à tort qu'ils sont "faits".
-    const met = isToday && count >= target
+    const met = count >= target
     return (
       <div key={s.id} style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px',
-        borderBottom: '1px solid var(--border)', opacity: isToday ? 1 : 0.55,
+        borderBottom: '1px solid var(--border)',
       }}>
         {met ? (
           <span style={{ color: 'var(--green)', fontSize: 15, flexShrink: 0 }}>✓</span>
@@ -151,29 +151,22 @@ export default function WodTab({
           <span style={{ width: 15, flexShrink: 0 }} />
         )}
         <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 600, color: met ? 'var(--text3)' : 'var(--text)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
             <Repeat size={12} style={{ flexShrink: 0 }} />{s.title || 'Séance'}
           </span>
-          {isToday ? (
-            <span style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
-              {count}/{target} aujourd&apos;hui{showProgramLabelSuffix(program)}
-            </span>
-          ) : (
-            <span style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{target}x/jour</span>
-          )}
+          <span style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
+            {count}/{target} aujourd&apos;hui{recurringEntries.length > 1 ? ` · ${program.title}` : ''}
+          </span>
         </span>
-        {isToday && (
-          <button onClick={() => onLogRecurring?.(s.id)} style={{
-            background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20,
-            padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
-          }}>
-            +1
-          </button>
-        )}
+        <button onClick={() => onLogRecurring?.(s.id)} style={{
+          background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20,
+          padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
+        }}>
+          +1
+        </button>
       </div>
     )
   }
-  const showProgramLabelSuffix = (program) => datedProgramsCount > 1 ? ` · ${program.title}` : ''
 
   const allTypes = [...new Set(unscheduledPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
   const effectiveType = allTypes.length <= 1 ? null
@@ -189,6 +182,15 @@ export default function WodTab({
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {recurringEntries.length > 0 && (
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Repeat size={14} /> Tous les jours
+          </div>
+          {recurringEntries.map(entry => renderRecurringRow(entry))}
+        </div>
+      )}
+
       {noteBlocks.map(b => (
         <div key={b.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
           {b.title && (
@@ -269,9 +271,7 @@ export default function WodTab({
                   Repos
                 </div>
               ) : (
-                d.entries.map(({ session, program }) => session.session_type === 'recurrent'
-                  ? renderRecurringRow({ session, program }, d.key === todayWeekDay)
-                  : renderSessionRow(session, { showProgramLabel: datedProgramsCount > 1 ? program.title : null }))
+                d.entries.map(({ session, program }) => renderSessionRow(session, { showProgramLabel: datedProgramsCount > 1 ? program.title : null }))
               )}
             </div>
           ))}

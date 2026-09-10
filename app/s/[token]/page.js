@@ -4,8 +4,6 @@ import { useState, useEffect, useRef, use, Suspense, Fragment } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import WellnessBlock from '@/app/components/WellnessBlock'
-import { DurationHMSInput } from '@/app/components/ActivityBlock'
 import CelebrationModal, { parseMusclesFromText } from '@/app/components/CelebrationModal'
 import MuscleAnatomyDiagram, { MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
 import FocusBodyDiagram from '@/app/components/FocusBodyDiagram'
@@ -188,7 +186,6 @@ function AthleteView({ params }) {
   const [freeGateUpsell, setFreeGateUpsell] = useState(null)
   const [subscribingFromGate, setSubscribingFromGate] = useState(false)
   const [pendingGroupSessions, setPendingGroupSessions] = useState([])
-  const [completionFeedback, setCompletionFeedback] = useState({})
   // Ne se fie pas à navigator.onLine dès le premier rendu : ce signal est connu pour être
   // temporairement faux juste après une navigation (ex. "Switch to athlete" du coach), affichant
   // le bandeau hors-ligne alors que la connexion est bonne. On part de "en ligne" et on ne
@@ -364,9 +361,6 @@ function AthleteView({ params }) {
       const completionSet = new Set((comps || []).map(c => c.program_session_id))
       setCompletions(completionSet)
       setSkippedSessions(new Set((comps || []).filter(c => c.skipped).map(c => c.program_session_id)))
-      const feedbackMap = {}
-      ;(comps || []).forEach(c => { feedbackMap[c.program_session_id] = c })
-      setCompletionFeedback(feedbackMap)
 
       // Séance validée par le coach en direct pendant que l'athlète n'était pas connecté : on lui
       // montre le même bilan (citation, record, muscles) qu'une auto-validation, une seule fois.
@@ -654,7 +648,6 @@ function AthleteView({ params }) {
       const newSet = new Set([...completions, sessId])
       setCompletions(newSet)
       setSkippedSessions(prev => { const n = new Set(prev); n.delete(sessId); return n })
-      setCompletionFeedback(prev => ({ ...prev, [sessId]: { program_session_id: sessId, ...feedback } }))
       setPendingGroupSessions(prev => prev.filter(p => p.ownSessionId !== sessId))
       if (!isUpdate) {
         const next = progSessions.find(s => !newSet.has(s.id))
@@ -672,7 +665,6 @@ function AthleteView({ params }) {
     const newSet = new Set([...completions, sessId])
     setCompletions(newSet)
     setSkippedSessions(prev => { const n = new Set(prev); n.delete(sessId); return n })
-    setCompletionFeedback(prev => ({ ...prev, [sessId]: { program_session_id: sessId, ...feedback } }))
     setPendingGroupSessions(prev => prev.filter(p => p.ownSessionId !== sessId))
     if (!isUpdate) {
       const next = progSessions.find(s => !newSet.has(s.id))
@@ -983,10 +975,10 @@ function AthleteView({ params }) {
   )
 
   if (focusMode && targetSessionId) {
-    let focusSession = null, focusProgSessions = [], focusActivityType = null, focusIsFreeSession = false, focusIsGroupSession = false
+    let focusSession = null, focusProgSessions = [], focusIsFreeSession = false
     for (const p of programs) {
       const idx = p.sessions.findIndex(s => s.id === targetSessionId)
-      if (idx !== -1) { focusSession = p.sessions[idx]; focusProgSessions = p.sessions; focusActivityType = p.activity_type; focusIsFreeSession = !!p.title?.startsWith('Séance libre'); focusIsGroupSession = !!p.group_id; break }
+      if (idx !== -1) { focusSession = p.sessions[idx]; focusProgSessions = p.sessions; focusIsFreeSession = !!p.title?.startsWith('Séance libre'); break }
     }
     const isDone = focusSession ? completions.has(focusSession.id) && !skippedSessions.has(focusSession.id) : false
     const isFocusSkipped = focusSession ? skippedSessions.has(focusSession.id) : false
@@ -1014,10 +1006,6 @@ function AthleteView({ params }) {
         </div>
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Bien-être et bilan plaisir/difficulté réservés au coaching en direct (retour terrain) :
-              en usage autonome, le sportif ne renseigne que la durée et, pour le cardio, la distance. */}
-          {isCoachView && <WellnessBlock athleteId={athlete.id} date={viewDate} mode="athlete" />}
-
           {focusSession ? (
             <SessionCard
               session={focusSession}
@@ -1030,12 +1018,10 @@ function AthleteView({ params }) {
               onUnvalidate={(isDone || isFocusSkipped) ? () => unvalidate(focusSession.id, focusProgSessions) : null}
               onSkip={(!isCoachView && !isDone && !isFocusSkipped && !isFocusFree) ? handleFocusSkip : null}
               onPostpone={(!isCoachView && !isDone && !isFocusSkipped && !isFocusFree) ? (offset) => postponeSession(focusSession.id, offset) : null}
-              initialFeedback={completionFeedback[focusSession.id]}
               validating={validating}
               exerciseLogs={exerciseLogs}
               onSaveLog={saveExerciseLog}
               athleteId={athlete.id}
-              activityType={focusActivityType}
               trackedMovements={trackedMovements}
               onSaveMetricResult={saveMetricResult}
               exerciseSets={exerciseSets}
@@ -1058,7 +1044,6 @@ function AthleteView({ params }) {
               onSaveCircuitLog={saveCircuitLog}
               onSaveCoachNote={saveCoachNote}
               isGroupLeader={isGroupLeader}
-              isGroupSession={focusIsGroupSession}
               onLaunchTimer={(config, label) => setRunningTimer({ config, label })}
               onExerciseSaved={() => setExerciseToast('Enregistré')}
               token={token}
@@ -1458,9 +1443,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
   )
 }
 
-const ENDURANCE_TYPES = ['Natation 🏊', 'Running 🏃‍♀️', 'Cyclisme 🚴']
-
-function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, initialFeedback, validating, exerciseLogs = {}, onSaveLog, athleteId, activityType, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, onUpdateFreeSessionDate, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, isGroupSession = false, onLaunchTimer, onSaveCoachNote, onExerciseSaved, token }) {
+function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, validating, exerciseLogs = {}, onSaveLog, athleteId, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, onUpdateFreeSessionDate, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, onLaunchTimer, onSaveCoachNote, onExerciseSaved, token }) {
   const [showGroupPaces, setShowGroupPaces] = useState(false)
   const [showPostpone, setShowPostpone] = useState(false)
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
@@ -1974,7 +1957,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
             </>
           ) : (
             <>
-              {onValidate && session.session_type === 'explication' && (
+              {onValidate && (
                 <button
                   onClick={() => onValidate({})}
                   disabled={validating}
@@ -1985,9 +1968,6 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 >
                   {validating ? (isCompleted ? 'Mise à jour…' : 'Validation…') : (isCompleted ? '✓ Mettre à jour' : '✓ Valider la séance')}
                 </button>
-              )}
-              {onValidate && session.session_type !== 'explication' && (
-                <SessionFeedback onValidate={onValidate} validating={validating} isUpdate={isCompleted} initial={initialFeedback} isEndurance={ENDURANCE_TYPES.includes(activityType)} isGroupSession={isGroupSession} isCoachView={isCoachView} />
               )}
               {isCompleted && onUnvalidate && (
                 <button onClick={onUnvalidate} disabled={validating}
@@ -2227,117 +2207,6 @@ function PaceDistanceCalc({ pace1, pace2, onClose }) {
           Fermer
         </button>
       </div>
-    </div>
-  )
-}
-
-// inverse=true (défaut) : haute valeur = "mauvais" (ex. Difficulté, 10 = très dur → rouge).
-// inverse=false : haute valeur = "bon" (ex. Plaisir, 10 = énormément → vert) — retour terrain :
-// avec la seule échelle "inverse", Plaisir affichait 10/10 en rouge, contre-intuitif.
-function RatingRow({ label, hint, value, onChange, inverse = true }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: hint ? 2 : 6 }}>{label}</div>
-      {hint && <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 6 }}>{hint}</div>}
-      <div style={{ display: 'flex', gap: 4 }}>
-        {[1,2,3,4,5,6,7,8,9,10].map(n => {
-          const s = inverse ? n : 11 - n
-          return (
-            <button key={n} type="button" onClick={() => onChange(value === n ? null : n)}
-              style={{
-                flex: 1, padding: '9px 0', border: '1px solid',
-                borderRadius: 'var(--r)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                borderColor: value === n ? 'transparent' : 'var(--border2)',
-                background: value === n ? (s >= 8 ? '#ef4444' : s >= 5 ? '#f59e0b' : '#22c55e') : 'var(--bg2)',
-                color: value === n ? '#fff' : 'var(--text2)',
-              }}
-            >{n}</button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function SessionFeedback({ onValidate, validating, isUpdate = false, initial = null, isEndurance = false, isGroupSession = false, isCoachView = false }) {
-  const [pleasure, setPleasure] = useState(initial?.pleasure ?? null)
-  const [difficulty, setDifficulty] = useState(initial?.difficulty ?? null)
-  const [duration, setDuration] = useState(initial?.duration_minutes ?? null)
-  const [distanceKm, setDistanceKm] = useState(initial?.distance_km != null ? String(initial.distance_km) : '')
-  const [comment, setComment] = useState(initial?.comment || '')
-
-  // Plaisir/difficulté/commentaire réservés au coaching en direct (retour terrain) : en usage
-  // autonome, seuls durée et distance (cardio) restent — donc rien n'est obligatoire pour valider.
-  const canSubmit = isCoachView ? (pleasure !== null && difficulty !== null) : true
-
-  return (
-    <div style={{ marginTop: 8, background: 'var(--bg2)', borderRadius: 'var(--rl)', border: '1px solid var(--border)', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>Bilan de séance</div>
-
-      {isEndurance && (
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Distance (km)</div>
-          <input
-            type="number" min="0" step="0.1" placeholder="ex: 10"
-            value={distanceKm}
-            onChange={e => setDistanceKm(e.target.value)}
-            style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
-          />
-        </div>
-      )}
-
-      {isCoachView && (
-        <>
-          <RatingRow
-            label="Plaisir"
-            hint="1 = pas du tout · 10 = énormément"
-            value={pleasure} onChange={setPleasure} inverse={false}
-          />
-          <RatingRow
-            label="Difficulté de la séance"
-            hint="1 = facile · 10 = très difficile"
-            value={difficulty} onChange={setDifficulty}
-          />
-
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Commentaire (optionnel)</div>
-            <textarea
-              value={comment} onChange={e => setComment(e.target.value)} rows={2}
-              placeholder="Comment s'est passée la séance ?"
-              style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
-            />
-          </div>
-        </>
-      )}
-
-      {!isGroupSession && (
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>Durée</div>
-          <DurationHMSInput
-            initialMinutes={duration}
-            onSave={setDuration}
-            inputStyle={{ width: '100%', boxSizing: 'border-box', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 15, fontWeight: 700, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
-          />
-        </div>
-      )}
-
-      <button
-        onClick={() => onValidate({
-          pleasure, difficulty,
-          duration_minutes: duration || null,
-          comment: comment.trim() || null,
-          ...(isEndurance ? { distance_km: distanceKm ? parseFloat(distanceKm) : null } : {}),
-        })}
-        disabled={validating || !canSubmit}
-        style={{
-          background: canSubmit ? 'var(--green)' : 'var(--border2)',
-          color: '#fff', border: 'none', borderRadius: 'var(--rl)',
-          padding: '15px', fontSize: 15, fontWeight: 700,
-          cursor: canSubmit ? 'pointer' : 'default', width: '100%',
-        }}
-      >
-        {validating ? (isUpdate ? 'Mise à jour…' : 'Validation…') : canSubmit ? (isUpdate ? '✓ Mettre à jour' : '✓ Valider la séance') : 'Note le plaisir et la difficulté'}
-      </button>
     </div>
   )
 }
