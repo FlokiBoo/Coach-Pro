@@ -991,8 +991,16 @@ function AthleteView({ params }) {
       const idx = p.sessions.findIndex(s => s.id === targetSessionId)
       if (idx !== -1) { focusSession = p.sessions[idx]; focusProgSessions = p.sessions; focusIsFreeSession = !!p.title?.startsWith('Séance libre'); break }
     }
-    const isDone = focusSession ? completions.has(focusSession.id) && !skippedSessions.has(focusSession.id) : false
-    const isFocusSkipped = focusSession ? skippedSessions.has(focusSession.id) : false
+    // Séance récurrente : ni "skippable" ni "reportable" (dispo tous les jours, hors calendrier),
+    // et "faite" se mesure via recurring_session_logs (repasse à zéro chaque jour) plutôt que
+    // program_completions (un seul enregistrement pour toujours) — voir logRecurringCompletion.
+    const isFocusRecurring = focusSession?.session_type === 'recurrent'
+    const recurringTarget = focusSession?.recurring_daily_target || 1
+    const recurringCount = focusSession ? (recurringTodayCounts[focusSession.id] || 0) : 0
+    const isDone = isFocusRecurring
+      ? recurringCount >= recurringTarget
+      : (focusSession ? completions.has(focusSession.id) && !skippedSessions.has(focusSession.id) : false)
+    const isFocusSkipped = isFocusRecurring ? false : (focusSession ? skippedSessions.has(focusSession.id) : false)
     const isFocusFree = focusIsFreeSession
     // En coaching en direct, "retour" doit ramener le coach à son tableau de bord — pas dans
     // l'espace du sportif (onglets Séance/Stats/Records/Profil), où il se retrouvait coincé sans
@@ -1025,10 +1033,11 @@ function AthleteView({ params }) {
               isCompleted={isDone}
               isSkipped={isFocusSkipped}
               onToggle={() => {}}
-              onValidate={(fb) => validate(focusSession.id, focusProgSessions, fb, { isUpdate: isDone })}
-              onUnvalidate={(isDone || isFocusSkipped) ? () => unvalidate(focusSession.id, focusProgSessions) : null}
-              onSkip={(!isCoachView && !isDone && !isFocusSkipped && !isFocusFree) ? handleFocusSkip : null}
-              onPostpone={(!isCoachView && !isDone && !isFocusSkipped && !isFocusFree) ? (offset) => postponeSession(focusSession.id, offset) : null}
+              onValidate={isFocusRecurring ? () => logRecurringCompletion(focusSession.id) : (fb) => validate(focusSession.id, focusProgSessions, fb, { isUpdate: isDone })}
+              onUnvalidate={(!isFocusRecurring && (isDone || isFocusSkipped)) ? () => unvalidate(focusSession.id, focusProgSessions) : null}
+              onSkip={(!isCoachView && !isDone && !isFocusSkipped && !isFocusFree && !isFocusRecurring) ? handleFocusSkip : null}
+              onPostpone={(!isCoachView && !isDone && !isFocusSkipped && !isFocusFree && !isFocusRecurring) ? (offset) => postponeSession(focusSession.id, offset) : null}
+              isRecurring={isFocusRecurring}
               validating={validating}
               exerciseLogs={exerciseLogs}
               onSaveLog={saveExerciseLog}
@@ -1135,7 +1144,7 @@ function AthleteView({ params }) {
             selectedType={selectedType} setSelectedType={setSelectedType}
             router={router} token={token} setActiveTab={setActiveTab}
             onUpdateProgramDays={updateProgramDays} isGroupLeader={isGroupLeader}
-            recurringTodayCounts={recurringTodayCounts} onLogRecurring={logRecurringCompletion}
+            recurringTodayCounts={recurringTodayCounts}
           />
         </div>
       )}
@@ -1454,7 +1463,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
   )
 }
 
-function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, validating, exerciseLogs = {}, onSaveLog, athleteId, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, onUpdateFreeSessionDate, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, onLaunchTimer, onSaveCoachNote, onExerciseSaved, token }) {
+function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, validating, exerciseLogs = {}, onSaveLog, athleteId, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, onUpdateFreeSessionDate, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, onLaunchTimer, onSaveCoachNote, onExerciseSaved, isRecurring = false, token }) {
   const [showGroupPaces, setShowGroupPaces] = useState(false)
   const [showPostpone, setShowPostpone] = useState(false)
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
@@ -1977,7 +1986,9 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                     padding: '15px', fontSize: 15, fontWeight: 700, cursor: validating ? 'default' : 'pointer', width: '100%',
                   }}
                 >
-                  {validating ? (isCompleted ? 'Mise à jour…' : 'Validation…') : (isCompleted ? '✓ Mettre à jour' : '✓ Valider la séance')}
+                  {isRecurring
+                    ? (validating ? 'Enregistrement…' : '✓ Valider la séance')
+                    : (validating ? (isCompleted ? 'Mise à jour…' : 'Validation…') : (isCompleted ? '✓ Mettre à jour' : '✓ Valider la séance'))}
                 </button>
               )}
               {isCompleted && onUnvalidate && (

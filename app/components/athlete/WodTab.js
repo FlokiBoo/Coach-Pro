@@ -13,7 +13,7 @@ export default function WodTab({
   isCoachView, noteBlocks,
   programs, completions, skippedSessions, selectedType, setSelectedType,
   router, token, setActiveTab, onUpdateProgramDays,
-  recurringTodayCounts = {}, onLogRecurring,
+  recurringTodayCounts = {},
 }) {
   const [selectedProgramId, setSelectedProgramId] = useState(null)
   const [materielSession, setMaterielSession] = useState(null)
@@ -132,18 +132,19 @@ export default function WodTab({
     )
   }
 
-  // Séance récurrente : hors calendrier, proposée tous les jours — un compteur "+1" rapide plutôt
-  // qu'un "Valider" avec formulaire de ressenti. Contrairement aux autres séances, elle ne bascule
-  // jamais dans le style "terminé" (grisé) : atteindre l'objectif du jour n'éteint pas la séance,
-  // elle reste identique et actionnable demain.
+  // Séance récurrente : hors calendrier, proposée tous les jours, uniquement listée ici (jamais
+  // dans "Ma semaine"). S'ouvre comme n'importe quelle séance (voir openSession) — le formulaire de
+  // ressenti reste simple ("Valider la séance"), et valider n'éteint jamais la ligne : le compteur
+  // du jour (recurring_session_logs) repart à zéro le lendemain sans la faire disparaître.
   const renderRecurringRow = ({ session: s, program }) => {
     const target = s.recurring_daily_target || 1
     const count = recurringTodayCounts[s.id] || 0
     const met = count >= target
     return (
-      <div key={s.id} style={{
-        display: 'flex', alignItems: 'center', gap: 10, padding: '13px 14px',
-        borderBottom: '1px solid var(--border)',
+      <div key={s.id} role="button" tabIndex={0} onClick={() => openSession(s.id)}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openSession(s.id) }} style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none',
+        borderBottom: '1px solid var(--border)', padding: '13px 14px', cursor: 'pointer', textAlign: 'left',
       }}>
         {met ? (
           <span style={{ color: 'var(--green)', fontSize: 15, flexShrink: 0 }}>✓</span>
@@ -158,12 +159,7 @@ export default function WodTab({
             {count}/{target} aujourd&apos;hui{recurringEntries.length > 1 ? ` · ${program.title}` : ''}
           </span>
         </span>
-        <button onClick={() => onLogRecurring?.(s.id)} style={{
-          background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20,
-          padding: '6px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0,
-        }}>
-          +1
-        </button>
+        <span style={{ color: 'var(--text3)', fontSize: 16 }}>›</span>
       </div>
     )
   }
