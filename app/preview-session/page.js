@@ -170,7 +170,7 @@ function renderHighlightedDescription(text) {
   while ((match = regex.exec(text)) !== null) {
     if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index))
     parts.push(
-      <span key={match.index} style={{ color: '#3E63DD', textDecoration: 'underline', fontWeight: 600 }}>
+      <span key={match.index} style={{ color: c.blue, textDecoration: 'underline', fontWeight: 600 }}>
         {match[0]}
       </span>
     )
@@ -180,23 +180,28 @@ function renderHighlightedDescription(text) {
   return parts
 }
 
+// Charte graphique OSTRYK (app/globals.css) — plus la palette empruntée à la référence Kswiss/Azeoo.
+// `blue` reste le nom du token en interne (repris partout dans ce fichier pour l'accent
+// primaire/état sélectionné) mais résout vers --green, le vrai accent de la charte.
 const c = {
-  bg: '#FFFFFF',
-  border: '#E3E4E8',
-  borderDashed: '#C9CBD3',
-  text: '#16181D',
-  textMuted: '#6B7280',
-  textFaint: '#9CA3AF',
-  blue: '#3E63DD',
-  blueBorder: '#B9C4F5',
-  disabled: '#9CA3AF',
-  disabledBg: '#F4F4F5',
+  bg: 'var(--bg)',
+  border: 'var(--border)',
+  borderDashed: 'var(--border2)',
+  text: 'var(--text)',
+  textMuted: 'var(--text2)',
+  textFaint: 'var(--text3)',
+  blue: 'var(--green)',
+  blueBorder: 'var(--green-light)',
+  disabled: 'var(--text3)',
+  disabledBg: 'var(--bg2)',
+  title: 'var(--title)',
 }
 
+const heading = { fontFamily: 'var(--font-title)', color: c.title, fontWeight: 700 }
 const label = { fontSize: 13, color: c.text, marginBottom: 6, display: 'block' }
 const input = {
-  boxSizing: 'border-box', width: '100%', padding: '9px 12px', border: `1px solid ${c.border}`,
-  borderRadius: 6, fontSize: 14, color: c.text, outline: 'none', background: c.bg, fontFamily: 'inherit',
+  boxSizing: 'border-box', width: '100%', padding: '9px 12px', border: `1px solid var(--border2)`,
+  borderRadius: 'var(--r)', fontSize: 14, color: c.text, outline: 'none', background: c.bg, fontFamily: 'inherit',
 }
 
 export default function PreviewSessionPage() {
@@ -209,6 +214,9 @@ export default function PreviewSessionPage() {
   // Filtre de la liste déroulante "All Exercises" du picker — pour l'instant seule "Performance"
   // (tests VMA/Seuil) existe comme sous-catégorie à part de la bibliothèque générale.
   const [exerciseCategoryFilter, setExerciseCategoryFilter] = useState('all')
+  // Mouvements créés à la volée depuis la recherche quand rien ne correspond — s'ajoutent à la
+  // bibliothèque le temps de la session (mock local, pas de vraie table "movements" ici).
+  const [customExercises, setCustomExercises] = useState([])
   // Après avoir choisi un exercice dans la bibliothèque : deux petites étapes de config avant de
   // l'insérer réellement dans le bloc — nombre de séries puis temps de récup (voir captures).
   const [configStep, setConfigStep] = useState(null) // null | 'sets' | 'rest'
@@ -510,11 +518,34 @@ export default function PreviewSessionPage() {
 
   const clearSetNotesModal = () => setDraftSetNote('')
 
-  const filteredExercises = MOCK_EXERCISES.filter(e => (
+  const filteredExercises = [...MOCK_EXERCISES, ...customExercises].filter(e => (
     (isCardioBlock ? isCardioLibraryExercise(e) : (selectedMuscles.length === 0 || selectedMuscles.includes(e.muscle))) &&
     (exerciseCategoryFilter === 'all' || e.category === exerciseCategoryFilter) &&
     e.name.toLowerCase().includes(exerciseSearch.toLowerCase())
   ))
+
+  // Même logique que le bouton "+" d'une ligne existante — partagée avec "Create <name>" ci-dessous
+  // pour qu'un mouvement tout juste créé suive exactement le même chemin qu'un mouvement existant.
+  const handlePickExercise = (ex, alreadyInBlock) => {
+    if (isCircuitBlock) {
+      if (!alreadyInBlock) toggleCircuitPending(ex)
+    } else if (addingSecondaryExercise) {
+      addExerciseToActiveBlock(ex)
+    } else {
+      startExerciseConfig(ex)
+    }
+  }
+
+  // "Create <name>" quand la recherche ne trouve rien : ajoute le mouvement à la bibliothèque
+  // locale (catégorie cardio si on est dans un bloc Cardio, sinon strength) puis l'enchaîne
+  // directement dans le même flux que s'il avait été choisi dans la liste.
+  const createCustomExercise = () => {
+    const name = exerciseSearch.trim()
+    if (!name || !activeBlock) return
+    const newEx = { name, muscle: null, equipment: 'No equipment', category: isCardioBlock ? 'cardio' : 'strength' }
+    setCustomExercises(prev => [...prev, newEx])
+    handlePickExercise(newEx, false)
+  }
 
   const handleDescriptionChange = (e) => {
     const value = e.target.value
@@ -566,7 +597,7 @@ export default function PreviewSessionPage() {
     : MOCK_MOVEMENTS.filter(m => m.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 5)
 
   return (
-    <div style={{ background: c.bg, minHeight: '100svh', fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <div style={{ background: c.bg, minHeight: '100svh', fontFamily: 'var(--font-ui)' }}>
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '28px 32px 60px' }}>
 
         {/* Header */}
@@ -579,8 +610,8 @@ export default function PreviewSessionPage() {
             style={{ ...input, flex: 1, fontSize: 15, padding: '10px 14px' }}
           />
           <button style={{
-            flexShrink: 0, background: c.blue, color: '#fff', border: 'none', borderRadius: 6,
-            padding: '10px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            flexShrink: 0, background: c.blue, color: '#fff', border: 'none', borderRadius: 'var(--r)',
+            padding: '10px 28px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
           }}>
             Save
           </button>
@@ -622,14 +653,14 @@ export default function PreviewSessionPage() {
                   zIndex: 100, padding: 8, display: 'flex', flexDirection: 'column', gap: 2,
                 }}>
                   <button onClick={addWarmupBlock} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 6, fontSize: 14, color: c.text, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: '#26272B', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: c.text, color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Flame size={12} weight="fill" />
                       <span style={{ fontSize: 5, fontWeight: 800, letterSpacing: '0.2px', lineHeight: 1 }}>WARM UP</span>
                     </span>
                     Add the warm-up part
                   </button>
                   <button onClick={addCooldownBlock} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 6, fontSize: 14, color: c.text, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: '#26272B', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <span style={{ width: 32, height: 32, borderRadius: '50%', background: c.text, color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Snowflake size={12} weight="fill" />
                       <span style={{ fontSize: 5, fontWeight: 800, letterSpacing: '0.2px', lineHeight: 1 }}>COOL DOWN</span>
                     </span>
@@ -684,7 +715,7 @@ export default function PreviewSessionPage() {
               return (
                 <button key={b.id} onClick={() => setActiveBlockIndex(i)} style={{
                   position: 'relative', width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-                  background: isActive ? '#26272B' : c.disabledBg, color: isActive ? '#fff' : c.textMuted,
+                  background: isActive ? c.text : c.disabledBg, color: isActive ? '#fff' : c.textMuted,
                   border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                   gap: 1, cursor: 'pointer',
                 }}>
@@ -713,7 +744,7 @@ export default function PreviewSessionPage() {
 
         {/* Carte du bloc actif */}
         {activeBlock && (
-          <div style={{ marginTop: 16, border: `1px solid ${c.border}`, borderRadius: 8, overflow: 'hidden' }}>
+          <div style={{ marginTop: 16, border: `1px solid ${c.border}`, borderRadius: 'var(--rl)', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', padding: '14px 16px', borderBottom: `1px solid ${c.border}` }}>
               <span style={{ width: 20, flexShrink: 0 }} />
               <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 700, letterSpacing: '0.6px', color: c.textMuted }}>
@@ -735,7 +766,7 @@ export default function PreviewSessionPage() {
                             <DotsSixVertical size={16} />
                           </span>
                           <div style={{
-                            width: 56, height: 56, flexShrink: 0, borderRadius: 6, background: '#1A1B1F', color: '#fff',
+                            width: 56, height: 56, flexShrink: 0, borderRadius: 6, background: c.text, color: '#fff',
                             display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
                             fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: 4, lineHeight: 1.2,
                           }}>
@@ -792,7 +823,7 @@ export default function PreviewSessionPage() {
                       <div key={s.id}>
                         <div style={{ border: `1px solid ${c.border}`, borderRadius: 8, padding: '14px 16px' }}>
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.5px', background: '#111', color: '#fff', padding: '4px 10px', borderRadius: 4 }}>
+                            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.5px', background: c.text, color: '#fff', padding: '4px 10px', borderRadius: 4 }}>
                               SET {i + 1}
                             </span>
                             {i > 0 && (
@@ -813,7 +844,7 @@ export default function PreviewSessionPage() {
                                   onClick={() => openSetNotesModal(s.id, ex.id)}
                                   style={{
                                     display: 'flex', alignItems: 'center', gap: 6, borderRadius: 6, padding: '6px 10px', fontSize: 12, cursor: 'pointer', marginBottom: 10,
-                                    border: `1px solid ${hasNote ? c.blue : c.border}`, background: hasNote ? '#E8EEFC' : c.bg, color: hasNote ? c.blue : c.text,
+                                    border: `1px solid ${hasNote ? c.blue : c.border}`, background: hasNote ? c.blueBorder : c.bg, color: hasNote ? c.blue : c.text,
                                   }}
                                 >
                                   <FileText size={14} /> Notes
@@ -930,14 +961,14 @@ export default function PreviewSessionPage() {
         {/* Modal Description (nom + description + notes) */}
         {descModalOpen && (
           <>
-            <div onClick={closeDescModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200 }} />
+            <div onClick={closeDescModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200 }} />
             <div style={{
               position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 201,
               width: 640, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto',
-              background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+              background: c.bg, borderRadius: 'var(--rl)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
-                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Description</span>
+                <span style={{ ...heading, fontSize: 19 }}>Description</span>
                 <button onClick={closeDescModal} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
                   <X size={20} />
                 </button>
@@ -993,7 +1024,7 @@ export default function PreviewSessionPage() {
                               onClick={() => pickMovement(m)}
                               style={{
                                 display: 'block', width: '100%', padding: '12px 14px', borderRadius: 6, fontSize: 15,
-                                color: c.text, background: i === 0 ? '#E8EEFC' : 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+                                color: c.text, background: i === 0 ? c.blueBorder : 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
                               }}
                             >
                               {m}
@@ -1058,14 +1089,14 @@ export default function PreviewSessionPage() {
         {/* Modale Exercises (Create from library) */}
         {exercisesModalOpen && (
           <>
-            <div onClick={closeExercisesModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200 }} />
+            <div onClick={closeExercisesModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200 }} />
             <div style={{
               position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 201,
               width: 1100, maxWidth: 'calc(100vw - 32px)', height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column',
-              background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)', overflow: 'hidden',
+              background: c.bg, borderRadius: 'var(--rl)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', overflow: 'hidden',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
-                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Exercises</span>
+                <span style={{ ...heading, fontSize: 19 }}>Exercises</span>
                 <button onClick={closeExercisesModal} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
                   <X size={20} />
                 </button>
@@ -1094,7 +1125,7 @@ export default function PreviewSessionPage() {
                     />
                   </div>
                   <button style={{
-                    background: '#3F4753', color: '#fff', border: 'none', borderRadius: 6, padding: '9px 18px',
+                    background: c.text, color: '#fff', border: 'none', borderRadius: 6, padding: '9px 18px',
                     fontSize: 13, fontWeight: 700, cursor: 'pointer',
                   }}>
                     Search
@@ -1127,7 +1158,7 @@ export default function PreviewSessionPage() {
                       {pendingCircuitExercises.map(ex => (
                         <div key={ex.name} style={{
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                          background: '#E8EEFC', border: `1px solid ${c.blueBorder}`, borderRadius: 6, padding: '6px 10px',
+                          background: c.blueBorder, border: `1px solid ${c.blueBorder}`, borderRadius: 6, padding: '6px 10px',
                         }}>
                           <span style={{ fontSize: 12, fontWeight: 600, color: c.blue, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {ex.name}
@@ -1191,7 +1222,7 @@ export default function PreviewSessionPage() {
                     return (
                       <div key={ex.name} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 0', borderBottom: `1px solid ${c.border}` }}>
                         <div style={{
-                          width: 64, height: 64, flexShrink: 0, borderRadius: 6, background: '#1A1B1F', color: '#fff',
+                          width: 64, height: 64, flexShrink: 0, borderRadius: 6, background: c.text, color: '#fff',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center',
                           fontSize: 9, fontWeight: 700, textTransform: 'uppercase', padding: 4, lineHeight: 1.2,
                         }}>
@@ -1207,15 +1238,7 @@ export default function PreviewSessionPage() {
                           <Star size={20} />
                         </button>
                         <button
-                          onClick={() => {
-                            if (isCircuitBlock) {
-                              if (!alreadyInBlock) toggleCircuitPending(ex)
-                            } else if (addingSecondaryExercise) {
-                              addExerciseToActiveBlock(ex)
-                            } else {
-                              startExerciseConfig(ex)
-                            }
-                          }}
+                          onClick={() => handlePickExercise(ex, alreadyInBlock)}
                           disabled={!activeBlock || alreadyInBlock}
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%',
@@ -1229,7 +1252,22 @@ export default function PreviewSessionPage() {
                     )
                   })}
                   {filteredExercises.length === 0 && (
-                    <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 14, color: c.textMuted }}>No exercise matches your filters.</div>
+                    <div style={{ padding: '40px 0', textAlign: 'center' }}>
+                      <div style={{ fontSize: 14, color: c.textMuted, marginBottom: exerciseSearch.trim() ? 16 : 0 }}>No exercise matches your filters.</div>
+                      {exerciseSearch.trim() && (
+                        <button
+                          onClick={createCustomExercise}
+                          disabled={!activeBlock}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 8, border: `1.5px solid ${c.blue}`, color: c.blue,
+                            fontWeight: 700, fontSize: 14, borderRadius: 'var(--r)', padding: '10px 18px', background: c.bg,
+                            cursor: activeBlock ? 'pointer' : 'not-allowed',
+                          }}
+                        >
+                          <Plus size={15} weight="bold" /> Create &quot;{exerciseSearch.trim()}&quot;
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
@@ -1240,13 +1278,13 @@ export default function PreviewSessionPage() {
         {/* Modales de config après choix d'un exercice : nombre de séries puis temps de récup */}
         {configStep === 'sets' && (
           <>
-            <div onClick={closeExerciseConfig} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 210 }} />
+            <div onClick={closeExerciseConfig} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 210 }} />
             <div style={{
               position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 211,
-              width: 520, maxWidth: 'calc(100vw - 32px)', background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+              width: 520, maxWidth: 'calc(100vw - 32px)', background: c.bg, borderRadius: 'var(--rl)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
-                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Number of sets</span>
+                <span style={{ ...heading, fontSize: 19 }}>Number of sets</span>
                 <button onClick={closeExerciseConfig} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
                   <X size={20} />
                 </button>
@@ -1285,13 +1323,13 @@ export default function PreviewSessionPage() {
 
         {configStep === 'rest' && (
           <>
-            <div onClick={closeExerciseConfig} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 210 }} />
+            <div onClick={closeExerciseConfig} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 210 }} />
             <div style={{
               position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 211,
-              width: 520, maxWidth: 'calc(100vw - 32px)', background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+              width: 520, maxWidth: 'calc(100vw - 32px)', background: c.bg, borderRadius: 'var(--rl)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
-                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Rest time</span>
+                <span style={{ ...heading, fontSize: 19 }}>Rest time</span>
                 <button onClick={closeExerciseConfig} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
                   <X size={20} />
                 </button>
@@ -1363,13 +1401,13 @@ export default function PreviewSessionPage() {
         {/* Modale Notes — attachée à un (set, exercice) précis d'un bloc exercice */}
         {notesModalOpen && (
           <>
-            <div onClick={closeSetNotesModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 220 }} />
+            <div onClick={closeSetNotesModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 220 }} />
             <div style={{
               position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 221,
-              width: 560, maxWidth: 'calc(100vw - 32px)', background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+              width: 560, maxWidth: 'calc(100vw - 32px)', background: c.bg, borderRadius: 'var(--rl)', boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
-                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Notes</span>
+                <span style={{ ...heading, fontSize: 19 }}>Notes</span>
                 <button onClick={closeSetNotesModal} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
                   <X size={20} />
                 </button>

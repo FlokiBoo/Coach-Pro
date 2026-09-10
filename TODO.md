@@ -13,3 +13,5 @@ Tâches identifiées mais pas encore traitées, à reprendre en session.
 - [ ] Mettre l'app native en ligne sur le Google Play Store.
 - [ ] Ajouter un mode "Cardio" sous "Add exercise" et "Circuit" (éditeur de séance, blocs).
 - [ ] Faire la DA (direction artistique) du site.
+- [ ] Dans la recherche d'exercice (éditeur de séance), rendre l'étoile à côté du "+" fonctionnelle : cliquer dessus ajoute le mouvement aux favoris, retrouvable ensuite dans l'onglet "Favorites".
+- [ ] **Séance libre côté athlète** : un client qui crée sa propre séance doit pouvoir, comme le coach, créer un mouvement à la volée — mais celui-ci est privé (visible seulement pour lui, dans "My Exercises"), pas partagé avec le coach ni les autres athlètes. Chaque mouvement perso doit avoir un historique comme n'importe quel mouvement du catalogue. Nécessite un constructeur de séance côté athlète (app/s/[token]) qui n'existe pas encore — chantier à part de l'éditeur de séance coach en cours.

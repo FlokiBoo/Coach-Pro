@@ -343,7 +343,9 @@ function SessionEditorPage({ params }) {
 
   const goBack = () => {
     if (hasUnsavedChanges() && !window.confirm('Tu as des modifications non sauvegardées sur cette page. Les quitter sans enregistrer ?')) return
-    router.push(`/programs/${athleteId}/${programId}`)
+    // replace, pas push : sinon la page séance reste dans l'historique et un clic sur "retour"
+    // juste après y renvoie (push empile une entrée en plus au lieu de vraiment revenir en arrière).
+    router.replace(`/programs/${athleteId}/${programId}`)
   }
 
   const handleSave = async () => {
