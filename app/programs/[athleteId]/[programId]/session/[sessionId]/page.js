@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import { setUnsavedChanges, hasUnsavedChanges } from '@/lib/unsavedChanges'
 import { MUSCLE_GROUPS as REAL_MUSCLE_GROUPS } from '@/app/components/MuscleAnatomyDiagram'
-import { isCardioMovementName, PACE_BASES } from '@/lib/raceEstimates'
+import { isCardioMovementName, cardioMovementSortKey, PACE_BASES } from '@/lib/raceEstimates'
 import {
   X, TextB, TextItalic, LinkSimple, ListBullets, TextTSlash,
   CaretLeft, CaretRight, ArrowsDownUp, Plus, FileText, Flame, Snowflake, Barbell,
@@ -364,7 +364,11 @@ function SessionEditorPage({ params }) {
       const { data } = await query
       if (cancelled) return
       let list = (data || []).map(m => ({ id: m.id, name: m.name, muscles: m.muscles || '' }))
-      if (isCardio) list = list.filter(m => isCardioMovementName(m.name)).slice(0, 100)
+      if (isCardio) {
+        list = list.filter(m => isCardioMovementName(m.name))
+          .sort((a, b) => cardioMovementSortKey(a.name) - cardioMovementSortKey(b.name))
+          .slice(0, 100)
+      }
       setMovementsList(list)
     }, 250)
     return () => { cancelled = true; clearTimeout(timer) }

@@ -26,7 +26,7 @@ import {
   Lightning, PencilSimple, Calculator, CalendarBlank, Prohibit, Lightbulb, ChartBar, ChartLineUp,
   LinkSimple, Circle, Clock,
 } from '@phosphor-icons/react'
-import { annotatePaceReferences, formatPace, isRunMovement, isCardioMovementName, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, formatDistance, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
+import { annotatePaceReferences, formatPace, isRunMovement, isCardioMovementName, cardioMovementSortKey, is3030Movement, PACE_BASES, computePaceForBasePct, computeDistanceForBasePct, formatDistance, RACE_TARGETS, parsePaceInput } from '@/lib/raceEstimates'
 import { CIRCUIT_MODES } from '@/lib/circuitModes'
 import { registerPushNotifications } from '@/lib/pushRegistration'
 import { unlockAudio } from '@/lib/audioBeep'
@@ -2508,7 +2508,11 @@ function FreeExerciseAdder({ sessionId, exos, onAdd, onToggleSuperset, activityM
     let query = supabase.from('movements').select('name').ilike('name', `%${val.trim()}%`).order('name').limit(isCardio ? 500 : 6)
     const { data } = await query
     let names = (data || []).map(m => m.name)
-    if (isCardio) names = names.filter(isCardioMovementName).slice(0, 6)
+    if (isCardio) {
+      names = names.filter(isCardioMovementName)
+        .sort((a, b) => cardioMovementSortKey(a) - cardioMovementSortKey(b))
+        .slice(0, 6)
+    }
     setSuggestions(names)
   }
 
