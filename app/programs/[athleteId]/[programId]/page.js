@@ -450,7 +450,6 @@ function ProgramEditorPage({ params }) {
   const [savedIds, setSavedIds] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [historyExo, setHistoryExo] = useState(null)
-  const [hiddenSessions, setHiddenSessions] = useState(new Set())
   const [pinnedSessions, setPinnedSessions] = useState(new Set())
   const [selectedSessionIds, setSelectedSessionIds] = useState(new Set())
   const [addMenuOpen, setAddMenuOpen] = useState(false)
@@ -536,26 +535,9 @@ function ProgramEditorPage({ params }) {
   }, [isTemplate, programId])
 
   useEffect(() => {
-    // Masquage propre au coach : stocké côté serveur (comme les mouvements/tips masqués) plutôt
-    // qu'en localStorage, pour que ça survive à un changement d'appareil ou un nettoyage du
-    // navigateur, tout en restant strictement privé (jamais vu par les clients).
-    supabase.from('coach_hidden_content').select('content_id').eq('content_type', 'program_session')
-      .then(({ data }) => setHiddenSessions(new Set((data || []).map(r => r.content_id))))
     const rawPinned = localStorage.getItem(`coachpro_pinned_sessions_${programId}`)
     if (rawPinned) setPinnedSessions(new Set(JSON.parse(rawPinned)))
   }, [programId])
-
-  const toggleHiddenSession = async (id) => {
-    const isHidden = hiddenSessions.has(id)
-    if (isHidden) {
-      await supabase.from('coach_hidden_content').delete().eq('content_type', 'program_session').eq('content_id', id)
-      setHiddenSessions(prev => { const next = new Set(prev); next.delete(id); return next })
-    } else {
-      const coachId = await getCoachId()
-      await supabase.from('coach_hidden_content').insert({ coach_id: coachId, content_type: 'program_session', content_id: id })
-      setHiddenSessions(prev => new Set(prev).add(id))
-    }
-  }
 
   const togglePinnedSession = (id) => {
     setPinnedSessions(prev => {
@@ -1754,6 +1736,22 @@ function ProgramEditorPage({ params }) {
           </div>
         )}
 
+        {/* Une séance récurrente vit hors calendrier (week_number/day_of_week toujours nuls, voir
+            handleSave dans SessionBlockEditor) donc n'apparaîtrait sinon que noyée dans "Non
+            planifiées" au bas de la grille — ce bandeau la rend facile à retrouver et rouvrir. */}
+        {sessions.some(s => s.session_type === 'recurrent') && (
+          <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--bg2)', border: '1px solid var(--border)', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><Repeat size={12} /> Séances récurrentes :</span>
+            {sessions.filter(s => s.session_type === 'recurrent').map(s => (
+              <button key={s.id} onClick={() => goToSessionPage(s.id)}
+                title="Ouvrir cette séance"
+                style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                {s.title || `Séance ${sessions.indexOf(s) + 1}`}
+              </button>
+            ))}
+          </div>
+        )}
+
         <WeekGrid
           sessions={sessions}
           durationWeeks={program?.duration_weeks || 1}
@@ -1794,19 +1792,6 @@ function ProgramEditorPage({ params }) {
           </div>
         )}
 
-        {hiddenSessions.size > 0 && (
-          <div style={{ margin: '12px 16px 0', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 'var(--rl)', background: 'var(--bg2)', border: '1px solid var(--border)', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><EyeSlash size={12} /> Masquées :</span>
-            {sessions.filter(s => hiddenSessions.has(s.id)).map(s => (
-              <button key={s.id} onClick={() => toggleHiddenSession(s.id)}
-                title="Réafficher cette séance"
-                style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: 'var(--text2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                {s.title || `Séance ${sessions.indexOf(s) + 1}`} <Eye size={12} />
-              </button>
-            ))}
-          </div>
-        )}
-
         {/* La séance ouverte s'affiche en plein écran plutôt que dans une liste toujours visible —
             la grille Jour 1→N ci-dessus (WeekGrid) est désormais l'unique point d'entrée pour
             parcourir/ouvrir les séances du programme. */}
@@ -1821,7 +1806,6 @@ function ProgramEditorPage({ params }) {
           <SortableGroup ids={sessions.map(s => s.id)} onReorder={(id, dir) => moveSession(id, dir)}>
           {sessions.filter(s => s.id === openId).map((s) => {
             const idx = sessions.indexOf(s)
-            if (hiddenSessions.has(s.id)) return null
             const isOpen = true
             const labels = computeLabels(s.exercises)
             const completion = completionsMap[s.id]
@@ -2032,9 +2016,6 @@ function ProgramEditorPage({ params }) {
                       borderRadius: 4, padding: '2px 6px', fontSize: 11,
                       color: isPinned ? 'var(--green)' : 'var(--text3)', cursor: 'pointer', display: 'flex',
                     }}><PushPin size={11} weight={isPinned ? 'fill' : 'regular'} /></button>
-                  <button onClick={e => { e.stopPropagation(); toggleHiddenSession(s.id) }}
-                    title="Masquer cette séance (n'affecte pas son ordre)"
-                    style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', display: 'flex', color: 'var(--text3)', cursor: 'pointer' }}><EyeSlash size={11} /></button>
                   <button onClick={e => { e.stopPropagation(); deleteSession(s.id) }}
                     style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>×</button>
                   <span style={{ fontSize: 14, color: 'var(--text3)' }}>{isOpen ? '▲' : '▼'}</span>
