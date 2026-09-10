@@ -1,13 +1,20 @@
 'use client'
 
 import { useState } from 'react'
-import { PersonSimpleRun, Lightning, Barbell, Heartbeat, CaretLeft } from '@phosphor-icons/react'
+import { PersonSimpleRun, Lightning, Barbell, Heartbeat, CaretLeft, Play, NotePencil } from '@phosphor-icons/react'
 
+// "Séance libre" enchaîne deux choix avant de créer la séance :
+// 1. Standard/Cardio — même distinction que côté coach (voir app/programs/.../page.js), pour que
+//    la recherche de mouvement propose directement Run/Row/Ski Erg/Bike plutôt que la bibliothèque force.
+// 2. Maintenant/Plus tard — "Maintenant" ouvre direct la séance en cours (comme avant : le sportif
+//    ajoute ses exercices et logue ses performances en direct, à la volée). "Plus tard" ouvre le
+//    même éditeur "blocks" que le coach (SessionBlockEditor) pour construire la séance à l'avance
+//    (exercices, séries/récup ou allure cardio), sans la lancer tout de suite.
 export default function AddActionSheet({ onClose, onAddActivity, onFreeSession }) {
-  // "Séance libre" ouvre un second niveau (Standard/Cardio) avant de créer la séance — même choix
-  // que côté coach (voir app/programs/.../page.js), pour qu'une séance de course créée par le
-  // sportif propose directement les mouvements Run/Row/Ski Erg/Bike plutôt que la bibliothèque force.
-  const [choosingMode, setChoosingMode] = useState(false)
+  const [step, setStep] = useState('root') // 'root' | 'mode' | 'timing'
+  const [mode, setMode] = useState(null)
+
+  const pickMode = (m) => { setMode(m); setStep('timing') }
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 600, display: 'flex', alignItems: 'flex-end' }}>
@@ -17,7 +24,7 @@ export default function AddActionSheet({ onClose, onAddActivity, onFreeSession }
       }}>
         <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border2)', margin: '0 auto 8px' }} />
 
-        {!choosingMode ? (
+        {step === 'root' && (
           <>
             <button onClick={onAddActivity} style={{
               display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)',
@@ -30,7 +37,7 @@ export default function AddActionSheet({ onClose, onAddActivity, onFreeSession }
               </div>
             </button>
 
-            <button onClick={() => setChoosingMode(true)} style={{
+            <button onClick={() => setStep('mode')} style={{
               display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)',
               borderRadius: 'var(--rl)', padding: '16px', cursor: 'pointer', textAlign: 'left',
             }}>
@@ -45,16 +52,18 @@ export default function AddActionSheet({ onClose, onAddActivity, onFreeSession }
               Annuler
             </button>
           </>
-        ) : (
+        )}
+
+        {step === 'mode' && (
           <>
-            <button onClick={() => setChoosingMode(false)} style={{
+            <button onClick={() => setStep('root')} style={{
               display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none',
               color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '0 0 4px', alignSelf: 'flex-start',
             }}>
               <CaretLeft size={14} /> Retour
             </button>
 
-            <button onClick={() => onFreeSession('standard')} style={{
+            <button onClick={() => pickMode('standard')} style={{
               display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)',
               borderRadius: 'var(--rl)', padding: '16px', cursor: 'pointer', textAlign: 'left',
             }}>
@@ -65,7 +74,7 @@ export default function AddActionSheet({ onClose, onAddActivity, onFreeSession }
               </div>
             </button>
 
-            <button onClick={() => onFreeSession('cardio')} style={{
+            <button onClick={() => pickMode('cardio')} style={{
               display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)',
               borderRadius: 'var(--rl)', padding: '16px', cursor: 'pointer', textAlign: 'left',
             }}>
@@ -73,6 +82,43 @@ export default function AddActionSheet({ onClose, onAddActivity, onFreeSession }
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>Cardio</div>
                 <div style={{ fontSize: 12, color: 'var(--text3)' }}>Course, rameur, ski erg... avec une allure en % VMA/Seuil</div>
+              </div>
+            </button>
+
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 14, fontWeight: 600, cursor: 'pointer', padding: '8px 0', textAlign: 'center' }}>
+              Annuler
+            </button>
+          </>
+        )}
+
+        {step === 'timing' && (
+          <>
+            <button onClick={() => setStep('mode')} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none',
+              color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '0 0 4px', alignSelf: 'flex-start',
+            }}>
+              <CaretLeft size={14} /> Retour
+            </button>
+
+            <button onClick={() => onFreeSession(mode, 'now')} style={{
+              display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)',
+              borderRadius: 'var(--rl)', padding: '16px', cursor: 'pointer', textAlign: 'left',
+            }}>
+              <span style={{ display: 'flex' }}><Play size={24} weight="fill" /></span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>Maintenant, en direct</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)' }}>Ajoute tes exercices et note tes performances au fur et à mesure</div>
+              </div>
+            </button>
+
+            <button onClick={() => onFreeSession(mode, 'later')} style={{
+              display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg2)', border: '1px solid var(--border)',
+              borderRadius: 'var(--rl)', padding: '16px', cursor: 'pointer', textAlign: 'left',
+            }}>
+              <span style={{ display: 'flex' }}><NotePencil size={24} /></span>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>Programmer pour plus tard</div>
+                <div style={{ fontSize: 12, color: 'var(--text3)' }}>Prépare la séance (exercices, séries, allure) sans la lancer tout de suite</div>
               </div>
             </button>
 

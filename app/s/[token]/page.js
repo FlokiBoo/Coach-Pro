@@ -1176,7 +1176,7 @@ function AthleteView({ params }) {
         <AddActionSheet
           onClose={() => setShowAddSheet(false)}
           onAddActivity={() => { setShowAddSheet(false); setShowAddWizard(true) }}
-          onFreeSession={mode => { setShowAddSheet(false); startFreeSession([], mode) }}
+          onFreeSession={(mode, timing) => { setShowAddSheet(false); startFreeSession([], mode, timing === 'now' ? 'focus' : 'builder') }}
         />
       )}
       {showAddWizard && (
