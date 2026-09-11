@@ -25,6 +25,9 @@ export default function ResumeLastView() {
   const router = useRouter()
 
   useEffect(() => {
+    // Utile uniquement pour le cold-start Capacitor (retour terrain) — en dev local, ça gêne plus
+    // qu'autre chose (on retombe sur le dernier écran visité au lieu du dashboard à chaque reload).
+    if (process.env.NODE_ENV !== 'production') return
     try {
       const alreadyRunning = sessionStorage.getItem(INIT_FLAG_KEY)
       sessionStorage.setItem(INIT_FLAG_KEY, '1')

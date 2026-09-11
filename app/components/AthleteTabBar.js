@@ -7,7 +7,7 @@ const TABS = [
   { key: 'stats', label: 'Stats', Icon: ChartBar },
 ]
 const TABS_RIGHT = [
-  { key: 'pr', label: 'Records', Icon: Trophy },
+  { key: 'pr', label: 'Performances', Icon: Trophy },
   { key: 'profil', label: 'Profil', Icon: User },
 ]
 

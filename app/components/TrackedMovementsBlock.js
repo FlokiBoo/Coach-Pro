@@ -301,11 +301,18 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
     }
   })
 
+  // Reskin OSTRYK réservé à la vue athlète (isCoach=false, page Performances) — la vue coach
+  // (app/metrics, app/semaine/[athleteId]/[date]) garde son thème --bg/--green actuel inchangé.
+  const cardBg = isCoach ? 'var(--bg)' : 'var(--card-white)'
+  const cardBorder = isCoach ? 'var(--border)' : 'var(--ostryk-border)'
+  const accent = isCoach ? 'var(--green)' : 'var(--bordeaux)'
+  const mutedText = isCoach ? 'var(--text3)' : 'var(--ostryk-text3)'
+
   return (
-    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+    <div style={{ background: cardBg, border: `1px solid ${cardBorder}`, borderRadius: isCoach ? 'var(--rl)' : 'var(--ostryk-card-radius)', overflow: 'hidden' }}>
 
       {/* Header */}
-      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '12px 14px', borderBottom: `1px solid ${cardBorder}` }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'flex', alignItems: 'center', gap: 5 }}>
             <Trophy size={13} /> Records &amp; Tests
@@ -389,13 +396,13 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
 
       {movements.length > 0 && (
         <>
-          {/* Onglets catégories */}
+          {/* Onglets catégories — actif en bordeaux côté athlète (vert côté coach, inchangé) */}
           <div style={{ display: 'flex', gap: 6, padding: '10px 14px 0', overflowX: 'auto' }}>
             {tabs.map(cat => (
               <button key={cat} onClick={() => { setSelectedCategory(cat); setSelectedSubcat('all') }} style={{
-                flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
-                background: selectedCategory === cat ? 'var(--green)' : 'var(--bg2)',
-                color: selectedCategory === cat ? '#fff' : 'var(--text2)',
+                flexShrink: 0, padding: '7px 14px', borderRadius: isCoach ? 20 : 'var(--ostryk-pill-radius)', border: 'none', cursor: 'pointer',
+                background: selectedCategory === cat ? accent : (isCoach ? 'var(--bg2)' : 'var(--card-white)'),
+                color: selectedCategory === cat ? '#fff' : (isCoach ? 'var(--text2)' : 'var(--ostryk-text2)'),
                 fontSize: 13, fontWeight: 700,
               }}>
                 {cat}
@@ -403,26 +410,27 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
             ))}
           </div>
 
-          {/* Pastilles sous-catégories */}
+          {/* Pastilles sous-catégories — actif en vert-forêt uniforme côté athlète (arc-en-ciel
+              DOT_COLORS gardé côté coach, inchangé) */}
           {subcatOrder.length > 0 && (
             <div style={{ display: 'flex', gap: 6, padding: '10px 14px', overflowX: 'auto' }}>
               <button onClick={() => setSelectedSubcat('all')} style={{
-                flexShrink: 0, padding: '6px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                border: `1px solid ${selectedSubcat === 'all' ? 'var(--text)' : 'var(--border2)'}`,
-                background: selectedSubcat === 'all' ? 'var(--text)' : 'transparent',
-                color: selectedSubcat === 'all' ? 'var(--bg)' : 'var(--text2)',
+                flexShrink: 0, padding: '6px 12px', borderRadius: isCoach ? 20 : 'var(--ostryk-pill-radius)', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                border: `1px solid ${selectedSubcat === 'all' ? (isCoach ? 'var(--text)' : 'var(--vert-foret)') : (isCoach ? 'var(--border2)' : 'var(--ostryk-chip-border)')}`,
+                background: selectedSubcat === 'all' ? (isCoach ? 'var(--text)' : 'var(--vert-foret)') : 'transparent',
+                color: selectedSubcat === 'all' ? (isCoach ? 'var(--bg)' : '#fff') : (isCoach ? 'var(--text2)' : 'var(--ostryk-text2)'),
               }}>
                 Tous
               </button>
               {subcatOrder.map((sc, i) => {
-                const color = DOT_COLORS[i % DOT_COLORS.length]
+                const color = isCoach ? DOT_COLORS[i % DOT_COLORS.length] : 'var(--vert-foret)'
                 const active = selectedSubcat === sc
                 return (
                   <button key={sc} onClick={() => setSelectedSubcat(sc)} style={{
-                    flexShrink: 0, padding: '6px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                    border: `1px solid ${active ? color : 'var(--border2)'}`,
-                    background: active ? `${color}1A` : 'transparent',
-                    color: active ? color : 'var(--text2)',
+                    flexShrink: 0, padding: '6px 12px', borderRadius: isCoach ? 20 : 'var(--ostryk-pill-radius)', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                    border: `1px solid ${active ? color : (isCoach ? 'var(--border2)' : 'var(--ostryk-chip-border)')}`,
+                    background: active ? (isCoach ? `${color}1A` : color) : 'transparent',
+                    color: active ? (isCoach ? color : '#fff') : (isCoach ? 'var(--text2)' : 'var(--ostryk-text2)'),
                   }}>
                     {sc}
                   </button>
@@ -432,7 +440,7 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
           )}
 
           {categoryMovements.length === 0 && (
-            <div style={{ padding: '20px 14px', textAlign: 'center', color: 'var(--text3)', fontSize: 13 }}>
+            <div style={{ padding: '20px 14px', textAlign: 'center', color: mutedText, fontSize: 13 }}>
               Aucun mouvement dans cette catégorie.
             </div>
           )}
@@ -562,7 +570,7 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
                   const best = bestPerformance(m, m.entries)
                   const isEditingName = editingNameFor === m.id
                   return (
-                    <div key={m.id} style={{ borderTop: '1px solid var(--border)' }}>
+                    <div key={m.id} style={{ borderTop: `1px solid ${cardBorder}` }}>
                       <div onClick={() => !isEditingName && setDetailMovementId(m.id)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', cursor: isEditingName ? 'default' : 'pointer' }}>
                         {isEditingName ? (
                           <input
@@ -583,9 +591,9 @@ export default function TrackedMovementsBlock({ athleteId, isCoach = false }) {
                           <button onClick={e => { e.stopPropagation(); startEditName(m) }} style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}><PencilSimple size={13} /></button>
                         )}
                         {best ? (
-                          <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--green)', flexShrink: 0 }}>{formatPerformance(m, best.value)}</div>
+                          <div style={{ fontWeight: 800, fontSize: 15, color: accent, flexShrink: 0 }}>{formatPerformance(m, best.value)}</div>
                         ) : (
-                          <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', flexShrink: 0 }}>—</div>
+                          <div style={{ fontSize: 12, color: mutedText, fontStyle: 'italic', flexShrink: 0 }}>—</div>
                         )}
                         {isCoach && !isEditingName && (
                           <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}><Trash size={14} /></button>

@@ -3,7 +3,7 @@
 import { Barbell } from '@phosphor-icons/react'
 import { RADAR_GROUPS, computeMuscleScores } from '@/lib/muscleRadar'
 
-const ACCENT = '#2D3A30' // = var(--green) — valeur figée pour permettre le calcul d'opacité hexa ci-dessous
+const ACCENT = '#6D1A22' // = var(--bordeaux) — valeur figée pour permettre le calcul d'opacité hexa ci-dessous
 
 function polarPoint(cx, cy, r, angleDeg) {
   const rad = (angleDeg - 90) * (Math.PI / 180)
@@ -12,9 +12,9 @@ function polarPoint(cx, cy, r, angleDeg) {
 
 // Radar (diagramme en araignée) de la force par groupe musculaire, à partir des badges de force
 // et de cardio déjà calculés par BadgesBlock : plus le score se rapproche du nom du muscle, plus
-// le palier atteint sur les mouvements de ce groupe est élevé. Le clic ouvre une page à part
-// entière listant tous les mouvements suivis avec leur badge (BadgesBlock gère l'affichage).
-export default function ForceRadarBlock({ strengthCards, cardioCards, onOpen }) {
+// le palier atteint sur les mouvements de ce groupe est élevé. Purement visuel (non cliquable) —
+// le détail par mouvement se consulte via la liste Lift/Gym/Cardio (TrackedMovementsBlock) à côté.
+export default function ForceRadarBlock({ strengthCards, cardioCards }) {
   const cards = [...(strengthCards || []), ...(cardioCards || [])]
   const scores = computeMuscleScores(cards)
   const axes = RADAR_GROUPS
@@ -43,15 +43,12 @@ export default function ForceRadarBlock({ strengthCards, cardioCards, onOpen }) 
     : null
 
   return (
-    <button onClick={onOpen} style={{
-      background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16,
-      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, cursor: 'pointer', width: '100%',
+    <div style={{
+      background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: 16,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: '100%',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', width: '100%', marginBottom: 6 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', flex: 1, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6 }}><Barbell size={15} /> Mes Performances</div>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--green)', display: 'flex', alignItems: 'center', gap: 3 }}>
-          Voir tous les mouvements ›
-        </div>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', flex: 1, textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6 }}><Barbell size={15} weight="light" color="var(--vert-foret)" /> Force</div>
       </div>
 
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
@@ -66,7 +63,7 @@ export default function ForceRadarBlock({ strengthCards, cardioCards, onOpen }) 
           const p = polarPoint(cx, cy, maxR, i * angleStep)
           return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="var(--border2)" strokeWidth="1" />
         })}
-        <polygon points={polygonPath} fill={`${ACCENT}26`} stroke={ACCENT} strokeWidth="2" />
+        <polygon points={polygonPath} fill={`${ACCENT}21`} stroke={ACCENT} strokeWidth="2" />
         {dataPoints.map((p, i) => values[i] != null && (
           <circle key={i} cx={p.x} cy={p.y} r="3.5" fill={ACCENT} />
         ))}
@@ -89,17 +86,17 @@ export default function ForceRadarBlock({ strengthCards, cardioCards, onOpen }) 
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: 4 }}>
         {axes.map((a, i) => (
-          <div key={a} style={{ fontSize: 11, color: 'var(--text3)' }}>
-            {a} : <span style={{ fontWeight: 700, color: 'var(--text2)' }}>{values[i] != null ? Math.round(values[i]) : '—'}</span>
+          <div key={a} style={{ fontSize: 11, color: 'var(--ostryk-text2)' }}>
+            {a} : <span style={{ fontWeight: 700, color: 'var(--text)' }}>{values[i] != null ? Math.round(values[i]) : '—'}</span>
           </div>
         ))}
       </div>
 
       {!hasAnyData && hasAnyTracked && (
-        <div style={{ fontSize: 11, color: 'var(--text3)', fontStyle: 'italic', marginTop: 2 }}>
+        <div style={{ fontSize: 11, color: 'var(--ostryk-text3)', fontStyle: 'italic', marginTop: 2 }}>
           Choisis une base de comparaison dans ton profil pour activer ce radar.
         </div>
       )}
-    </button>
+    </div>
   )
 }

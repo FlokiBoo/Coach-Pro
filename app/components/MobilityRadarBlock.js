@@ -1,31 +1,25 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Target, Wrench, Scales, Warning, Plus } from '@phosphor-icons/react'
+import { Target, Wrench, Plus } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { JOINT_TESTS } from '@/lib/jointTests'
 import { scoreJoint, scoreQualitativeJoint, jointTestKey } from '@/lib/jointTestThresholds'
-import {
-  TORQUE_TESTS, PSYCH_QUESTIONNAIRE,
-  verdictLabel, verdictColor,
-  questionnaireLabel, questionnaireLean,
-  computeSynthesis, computeDiscordance,
-} from '@/lib/torqueTests'
 import NewMobilityTestModal from './NewMobilityTestModal'
 
-const ALL_QUESTIONS = PSYCH_QUESTIONNAIRE.flatMap(b => b.questions)
-const ACCENT = '#1F9D6B' // vert accent
+const ACCENT = '#2D3A30' // = var(--vert-foret) — valeur figée pour permettre le calcul d'opacité hexa ci-dessous
 
 function polarPoint(cx, cy, r, angleDeg) {
   const rad = (angleDeg - 90) * (Math.PI / 180)
   return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
 }
 
+// Radar articulaire (Épaule/Hanche/Cheville/Colonne) + liste simple des valeurs — le "Profil
+// Torque" et le questionnaire psychologique/discordance qui vivaient ici ont été retirés de cette
+// page (page Performances) ; NewMobilityTestModal (flux de saisie d'un nouveau test, ouvert en
+// touchant le radar) reste inchangé.
 export default function MobilityRadarBlock({ athleteId }) {
   const [joints, setJoints] = useState(null) // { joint: score|null }
-  const [torqueVerdict, setTorqueVerdict] = useState(null)
-  const [questEntry, setQuestEntry] = useState(null)
-  const [discordance, setDiscordance] = useState(null)
   const [showNewTest, setShowNewTest] = useState(false)
 
   const loadJointScores = useCallback(() => {
@@ -48,23 +42,6 @@ export default function MobilityRadarBlock({ athleteId }) {
   }, [athleteId])
 
   useEffect(() => { loadJointScores() }, [loadJointScores])
-
-  useEffect(() => {
-    if (!athleteId) return
-    supabase.from('torque_test_entries').select('*').eq('athlete_id', athleteId)
-      .order('date', { ascending: false }).order('created_at', { ascending: false })
-      .then(({ data }) => {
-        const map = {}
-        ;(data || []).forEach(e => { if (!map[e.test_key]) map[e.test_key] = e })
-        const verdicts = TORQUE_TESTS.map(t => map[t.key]?.verdict).filter(Boolean)
-        const synthesis = computeSynthesis(verdicts)
-        const qEntry = map.questionnaire || null
-        const qLean = qEntry?.verdict ? questionnaireLean(qEntry.verdict) : null
-        setTorqueVerdict(synthesis)
-        setQuestEntry(qEntry)
-        setDiscordance(computeDiscordance(qLean, synthesis))
-      })
-  }, [athleteId])
 
   const closeNewTest = () => { setShowNewTest(false); loadJointScores() }
 
@@ -91,8 +68,8 @@ export default function MobilityRadarBlock({ athleteId }) {
     : null
 
   return (
-    <div style={{ background: '#fff', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}><Target size={15} /> Bilan mobilité &amp; profil</div>
+    <div style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}><Target size={15} weight="light" color="var(--vert-foret)" /> Mobilité</div>
 
       {hasAnyData ? (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
@@ -110,7 +87,7 @@ export default function MobilityRadarBlock({ athleteId }) {
               const p = polarPoint(cx, cy, maxR, i * angleStep)
               return <line key={i} x1={cx} y1={cy} x2={p.x} y2={p.y} stroke="var(--border2)" strokeWidth="1" />
             })}
-            <polygon points={polygonPath} fill={`${ACCENT}26`} stroke={ACCENT} strokeWidth="2" />
+            <polygon points={polygonPath} fill={`${ACCENT}33`} stroke={ACCENT} strokeWidth="2" />
             {dataPoints.map((p, i) => (
               <circle key={i} cx={p.x} cy={p.y} r="3.5" fill={ACCENT} />
             ))}
@@ -133,12 +110,20 @@ export default function MobilityRadarBlock({ athleteId }) {
             <text x={cx} y={cy + 14} textAnchor="middle" fontSize="10" fill="var(--text3)">/100</text>
           </svg>
           </button>
-          <div style={{ fontSize: 10, color: 'var(--text3)' }}>Toucher le radar pour lancer un nouveau test</div>
+          <div style={{ fontSize: 10, color: 'var(--ostryk-text3)' }}>Toucher le radar pour lancer un nouveau test</div>
 
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center', marginTop: 4 }}>
+          <div style={{ width: '100%', marginTop: 8 }}>
             {axes.map((a, i) => (
-              <div key={a} style={{ fontSize: 11, color: 'var(--text3)' }}>
-                {a} : <span style={{ fontWeight: 700, color: 'var(--text2)' }}>{values[i] != null ? Math.round(values[i]) : '—'}</span>
+              <div key={a} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                padding: '10px 2px', borderTop: '1px solid var(--ostryk-border)',
+              }}>
+                <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{a}</span>
+                {values[i] != null ? (
+                  <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--vert-foret)' }}>{Math.round(values[i])}</span>
+                ) : (
+                  <span style={{ fontSize: 13, color: 'var(--ostryk-text3)' }}>—</span>
+                )}
               </div>
             ))}
           </div>
@@ -165,42 +150,12 @@ export default function MobilityRadarBlock({ athleteId }) {
           background: 'var(--green-light)', border: '1px dashed #B8EAD8', borderRadius: 'var(--r)', padding: '18px 14px',
           cursor: 'pointer', fontFamily: 'inherit', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
         }}>
-          <span style={{ display: 'flex', color: 'var(--green)' }}><Plus size={20} /></span>
-          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--green)' }}>Lancer ton premier test de mobilité</span>
+          <span style={{ display: 'flex', color: 'var(--vert-foret)' }}><Plus size={20} weight="light" /></span>
+          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--vert-foret)' }}>Lancer ton premier test de mobilité</span>
         </button>
       )}
 
       {showNewTest && <NewMobilityTestModal athleteId={athleteId} onClose={closeNewTest} />}
-
-      {torqueVerdict && (() => {
-        const c = verdictColor(torqueVerdict.verdict)
-        return (
-          <div style={{ background: c.bg, border: `1px solid ${c.color}33`, borderRadius: 'var(--r)', padding: '10px 12px' }}>
-            <div style={{ fontSize: 10, fontWeight: 700, color: c.color, textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Scales size={11} /> Profil Torque
-            </div>
-            <div style={{ fontWeight: 800, fontSize: 14, color: c.color }}>{torqueVerdict.label}</div>
-          </div>
-        )
-      })()}
-
-      {questEntry?.verdict && (() => {
-        const c = verdictColor(questionnaireLean(questEntry.verdict))
-        return (
-          <div style={{ fontSize: 12, color: 'var(--text3)' }}>
-            Questionnaire psychologique : <span style={{ fontWeight: 700, color: c.color }}>{questionnaireLabel(questEntry.verdict)}</span>
-          </div>
-        )
-      })()}
-
-      {discordance && (
-        <div style={{ background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 'var(--r)', padding: '10px 12px' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#991B1B', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Warning size={11} /> Discordance
-          </div>
-          <div style={{ fontSize: 12, color: '#991B1B', lineHeight: 1.5 }}>{discordance}</div>
-        </div>
-      )}
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Target, CalendarBlank, ClipboardText } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
+import SwipeCarousel from './athlete/SwipeCarousel'
 
 function formatDateFr(date) {
   return new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -21,6 +22,21 @@ function timeRemaining(dateStr) {
   return `${diffDays} j · ${weeks} sem. · ${months} mois`
 }
 
+// Version courte pour la carte carrousel côté athlète ("Dans 1 jour") — le détail (semaines/mois,
+// date complète) reste dans la vue coach (timeRemaining/formatDateFr ci-dessus, inchangées).
+function shortTimeRemaining(dateStr) {
+  const target = new Date(dateStr + 'T00:00:00')
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  const diffDays = Math.round((target - now) / 86400000)
+  if (diffDays < 0) return `Échéance dépassée (${Math.abs(diffDays)} j)`
+  if (diffDays === 0) return "Aujourd'hui"
+  if (diffDays === 1) return 'Dans 1 jour'
+  if (diffDays < 14) return `Dans ${diffDays} jours`
+  if (diffDays < 60) return `Dans ${Math.round(diffDays / 7)} semaines`
+  return `Dans ${Math.round(diffDays / 30)} mois`
+}
+
 // Échelle fixe (pas relative à la date de création, qui n'a rien à voir avec le début de la
 // préparation) : plus l'échéance est proche, plus la barre est remplie. Au-delà de l'horizon,
 // l'objectif est considéré "pas encore commencé" (barre vide) ; à J-0, elle est pleine.
@@ -31,6 +47,18 @@ function progressPercent(targetDate) {
   const daysLeft = (end - Date.now()) / 86400000
   if (daysLeft <= 0) return 100
   return Math.max(0, Math.min(100, 100 * (1 - daysLeft / PROGRESS_HORIZON_DAYS)))
+}
+
+// Échéance proche (<= 2 mois) = urgent/actif -> bordeaux ; lointaine ou absente = neutre -> vert-forêt.
+// Uniquement pour le rendu carrousel côté athlète (isCoach=false) — la vue coach garde le code
+// couleur par priorité (PRIORITY_STYLES), inchangé.
+const PROXIMITY_THRESHOLD_DAYS = 60
+function proximityAccent(targetDate) {
+  if (!targetDate) return { accent: 'var(--vert-foret)', accentLight: 'var(--vert-foret-light)' }
+  const daysLeft = (new Date(targetDate + 'T00:00:00').getTime() - Date.now()) / 86400000
+  return daysLeft <= PROXIMITY_THRESHOLD_DAYS
+    ? { accent: 'var(--bordeaux)', accentLight: 'var(--bordeaux-light)' }
+    : { accent: 'var(--vert-foret)', accentLight: 'var(--vert-foret-light)' }
 }
 
 const PRIORITY_OPTIONS = [
@@ -124,9 +152,17 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
   }
 
   return (
-    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-      <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Target size={13} /> Objectifs</span>
+    <div style={{
+      background: isCoach ? 'var(--bg)' : 'var(--card-white)',
+      border: `1px solid ${isCoach ? 'var(--border)' : 'var(--ostryk-border)'}`,
+      borderRadius: isCoach ? 'var(--rl)' : 'var(--ostryk-card-radius)', overflow: 'hidden',
+    }}>
+      <div style={{ padding: '12px 14px', borderBottom: `1px solid ${isCoach ? 'var(--border)' : 'var(--ostryk-border)'}` }}>
+        {isCoach ? (
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Target size={13} /> Objectifs</span>
+        ) : (
+          <span style={{ fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 15, color: 'var(--bordeaux)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Target size={14} weight="light" color="var(--vert-foret)" /> Objectifs</span>
+        )}
       </div>
 
       <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -134,7 +170,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
           <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun objectif défini</div>
         )}
 
-        {sorted.map(obj => {
+        {isCoach && sorted.map(obj => {
           const isTop = obj.priority === 1
           const isEditing = editingId === obj.id
           const style = PRIORITY_STYLES[obj.priority] || PRIORITY_STYLES[2]
@@ -190,7 +226,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
                 </div>
               )}
             </div>
-            {!isEditing && isCoach && (
+            {!isEditing && (
               <Link href={`/programs/${athleteId}?objective=${obj.id}`} title="Programmer cet objectif"
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, flexShrink: 0, background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', textDecoration: 'none' }}>
                 <ClipboardText size={16} />
@@ -199,6 +235,63 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
             </div>
           )
         })}
+
+        {/* Carrousel swipe côté athlète (isCoach=false) — pattern réutilisable partagé avec la
+            page Performances (SwipeCarousel). Couleur par proximité d'échéance (bordeaux/vert-forêt)
+            au lieu du code couleur par priorité utilisé côté coach ci-dessus. */}
+        {!isCoach && sorted.length > 0 && (
+          <SwipeCarousel
+            activeColor="var(--bordeaux)"
+            peek
+            slides={sorted.map(obj => {
+              const isEditing = editingId === obj.id
+              const { accent, accentLight } = proximityAccent(obj.target_date)
+              return {
+                key: obj.id,
+                content: (
+                  <div style={{ background: accentLight, border: `1px solid ${accent}`, borderRadius: 'var(--ostryk-card-radius)', padding: '14px 16px', margin: '0 2px' }}>
+                    {isEditing ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <input autoFocus value={editForm.text} onChange={e => setEditForm(f => ({ ...f, text: e.target.value }))}
+                          onKeyDown={e => e.key === 'Enter' && saveEdit()} style={inputStyle} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <input type="date" value={editForm.target_date} onChange={e => setEditForm(f => ({ ...f, target_date: e.target.value }))} style={{ ...inputStyle, flex: 1 }} />
+                        </div>
+                        <EmojiPicker value={editForm.emoji} onChange={e => setEditForm(f => ({ ...f, emoji: e }))} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button onClick={() => setEditingId(null)} style={{ background: 'none', border: '1px solid var(--ostryk-border-input)', color: 'var(--ostryk-text2)', borderRadius: 'var(--r)', padding: '7px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Annuler</button>
+                          <button onClick={saveEdit} disabled={saving} style={{ background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '7px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>{saving ? '…' : 'Enregistrer'}</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                        <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => startEdit(obj)} title="Toucher pour modifier">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 20, color: accent, lineHeight: 1.3, wordBreak: 'break-word' }}>
+                            <span>{obj.emoji || '🎯'}</span> {obj.text}
+                          </div>
+                          {obj.target_date && (
+                            <>
+                              <div style={{ fontSize: 13, color: 'var(--ostryk-text2)', marginTop: 5 }}>
+                                {shortTimeRemaining(obj.target_date)}
+                              </div>
+                              <div style={{ height: 6, borderRadius: 'var(--ostryk-pill-radius)', background: 'rgba(255,255,255,0.6)', overflow: 'hidden', marginTop: 10 }}>
+                                <div style={{
+                                  height: '100%', borderRadius: 'var(--ostryk-pill-radius)', background: accent,
+                                  width: `${progressPercent(obj.target_date)}%`, transition: 'width 0.3s',
+                                }} />
+                              </div>
+                            </>
+                          )}
+                        </div>
+                        <button onClick={() => removeObjective(obj.id)} style={{ background: 'none', border: 'none', color: 'var(--ostryk-text3)', fontSize: 16, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>×</button>
+                      </div>
+                    )}
+                  </div>
+                ),
+              }
+            })}
+          />
+        )}
 
         {/* Formulaire ajout */}
         {showAddForm ? (
@@ -224,15 +317,17 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
                 Annuler
               </button>
               <button onClick={addObjective} disabled={saving || !newText.trim()}
-                style={{ background: newText.trim() ? 'var(--green)' : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0, marginLeft: 'auto' }}>
+                style={{ background: newText.trim() ? (isCoach ? 'var(--green)' : 'var(--bordeaux)') : 'var(--border2)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0, marginLeft: 'auto' }}>
                 {saving ? '…' : '+ Ajouter'}
               </button>
             </div>
           </div>
         ) : (
           <button onClick={() => setShowAddForm(true)} style={{
-            marginTop: sorted.length > 0 ? 4 : 0, background: 'var(--bg2)', border: '1px dashed var(--border2)',
-            color: 'var(--text2)', borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            marginTop: sorted.length > 0 ? 4 : 0,
+            background: isCoach ? 'var(--bg2)' : 'var(--card-white)',
+            border: `1px dashed ${isCoach ? 'var(--border2)' : 'var(--ostryk-border-input)'}`,
+            color: isCoach ? 'var(--text2)' : 'var(--ostryk-text2)', borderRadius: isCoach ? 'var(--r)' : 'var(--ostryk-card-radius)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
           }}>
             + Ajouter un objectif
           </button>

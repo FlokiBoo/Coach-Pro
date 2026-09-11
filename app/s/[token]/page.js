@@ -16,8 +16,9 @@ import StatsTab from '@/app/components/athlete/StatsTab'
 import TemplatesTab from '@/app/components/athlete/TemplatesTab'
 import AddActionSheet from '@/app/components/athlete/AddActionSheet'
 import AddActivityWizard from '@/app/components/athlete/AddActivityWizard'
-import PrTab from '@/app/components/athlete/PrTab'
+import PerformancesTab from '@/app/components/athlete/PerformancesTab'
 import ProfilTab from '@/app/components/athlete/ProfilTab'
+import SessionPlayer from '@/app/components/athlete/SessionPlayer'
 import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 import TimerModal from '@/app/components/TimerModal'
 import SplitTimerSession from '@/app/components/SplitTimerSession'
@@ -171,6 +172,17 @@ function AthleteView({ params }) {
     return () => { cancelled = true; listeners.forEach(l => l.remove()) }
   }, [token, isCoachView])
   const [athlete, setAthlete] = useState(null)
+  // Player d'exécution (exercice/super série un bloc à la fois), lancé depuis l'écran de
+  // préparation (SessionCard en playerMode) — remis à zéro à chaque changement de séance ciblée
+  // pour ne pas rouvrir le player sur une autre séance après un retour au calendrier. Reset ajusté
+  // pendant le rendu (pattern React officiel "Adjusting state when a prop changes") plutôt que
+  // dans un effet, pour ne pas déclencher un second rendu superflu.
+  const [playerStarted, setPlayerStarted] = useState(false)
+  const [playerStartedForSession, setPlayerStartedForSession] = useState(targetSessionId)
+  if (targetSessionId !== playerStartedForSession) {
+    setPlayerStartedForSession(targetSessionId)
+    setPlayerStarted(false)
+  }
   const [unreadMessages, setUnreadMessages] = useState(0)
   const [programs, setPrograms] = useState([])
   const [completions, setCompletions] = useState(new Set())
@@ -1024,6 +1036,15 @@ function AthleteView({ params }) {
           </div>
         </div>
 
+        {focusSession && playerStarted && !isCoachView ? (
+          <SessionPlayer
+            session={focusSession}
+            exerciseSets={exerciseSets}
+            onEnsureExerciseSets={ensureExerciseSets}
+            onSaveExerciseSet={saveExerciseSet}
+            onExit={() => setPlayerStarted(false)}
+          />
+        ) : (
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
           {focusSession ? (
             <SessionCard
@@ -1067,11 +1088,14 @@ function AthleteView({ params }) {
               onLaunchTimer={(config, label) => setRunningTimer({ config, label })}
               onExerciseSaved={() => setExerciseToast('Enregistré')}
               token={token}
+              playerMode={!isCoachView}
+              onStartPlayer={() => setPlayerStarted(true)}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
           )}
         </div>
+        )}
 
         {celebration && (
           <CelebrationModal tonnage={celebration.tonnage} muscles={celebration.muscles} records={celebration.records} onClose={() => setCelebration(null)} />
@@ -1144,6 +1168,7 @@ function AthleteView({ params }) {
             selectedType={selectedType} setSelectedType={setSelectedType}
             router={router} token={token} setActiveTab={setActiveTab}
             onUpdateProgramDays={updateProgramDays} isGroupLeader={isGroupLeader}
+            athlete={athlete} objectives={objectives} setObjectives={setObjectives}
             recurringTodayCounts={recurringTodayCounts}
           />
         </div>
@@ -1151,7 +1176,7 @@ function AthleteView({ params }) {
       {visitedTabs.has('stats') && (
         <div style={{ display: activeTab === 'stats' ? 'block' : 'none' }}>
           <StatsTab
-            athlete={athlete} objectives={objectives} setObjectives={setObjectives} isCoachView={isCoachView}
+            athlete={athlete}
             activityRefreshKey={activityRefreshKey}
           />
         </div>
@@ -1163,7 +1188,7 @@ function AthleteView({ params }) {
       )}
       {visitedTabs.has('pr') && (
         <div style={{ display: activeTab === 'pr' ? 'block' : 'none' }}>
-          <PrTab athleteId={athlete.id} />
+          <PerformancesTab athlete={athlete} />
         </div>
       )}
       {visitedTabs.has('profil') && (
@@ -1463,7 +1488,7 @@ function RunResultLogger({ exo, exerciseLogs, onSaveLog, onSyncRaceMetric, targe
   )
 }
 
-function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, validating, exerciseLogs = {}, onSaveLog, athleteId, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, onUpdateFreeSessionDate, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, onLaunchTimer, onSaveCoachNote, onExerciseSaved, isRecurring = false, token }) {
+function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onToggle, onValidate, onUnvalidate, onSkip, onPostpone, validating, exerciseLogs = {}, onSaveLog, athleteId, trackedMovements = [], onSaveMetricResult, exerciseSets = {}, onAddExerciseSet, onEnsureExerciseSets, onSaveExerciseSet, onDeleteExerciseSet, isCoachView, isCoach, raceKnown = {}, onSyncRaceMetric, targetPaces, onSaveTargetPace, isFreeSession = false, onAddExercise, onToggleSuperset, onDuplicateFreeSession, onUpdateFreeSessionDate, circuitLogs = {}, onSaveCircuitLog, isGroupLeader = false, onLaunchTimer, onSaveCoachNote, onExerciseSaved, isRecurring = false, token, playerMode = false, onStartPlayer }) {
   const [showGroupPaces, setShowGroupPaces] = useState(false)
   const [showPostpone, setShowPostpone] = useState(false)
   const paceRefs = annotatePaceReferences(session.coach_notes, raceKnown)
@@ -1715,6 +1740,38 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
               ))}
             </div>
           )}
+          {playerMode ? (
+            <>
+              {(session.circuits || []).filter(c => circuitSlot(c) === 0).map(c => renderCircuit(c))}
+              {exos.map((exo, ei) => (
+                <Fragment key={exo.id}>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: 10, background: 'var(--card-white)',
+                    border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '10px 14px',
+                  }}>
+                    <span style={{
+                      minWidth: 24, height: 24, borderRadius: '50%', background: 'var(--beige)', color: 'var(--bordeaux)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, padding: '0 4px', flexShrink: 0,
+                    }}>
+                      {labels[exo.id] || String.fromCharCode(65 + ei)}
+                    </span>
+                    <span style={{ fontWeight: 700, fontSize: 14, flex: 1 }}>{exo.name}</span>
+                    {exo.sets && <span style={{ fontSize: 12, color: 'var(--ostryk-text2)', fontWeight: 600 }}>{exo.sets} séries</span>}
+                  </div>
+                  {(session.circuits || []).filter(c => circuitSlot(c) === ei + 1).map(c => renderCircuit(c))}
+                </Fragment>
+              ))}
+              {onStartPlayer && exos.length > 0 && (
+                <button onClick={onStartPlayer} style={{
+                  background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: 'var(--ostryk-pill-radius)',
+                  padding: '15px', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%', marginTop: 4,
+                }}>
+                  ▶ Démarrer l&apos;entraînement
+                </button>
+              )}
+            </>
+          ) : (
+          <>
           {(session.circuits || []).filter(c => circuitSlot(c) === 0).map(c => renderCircuit(c))}
           {exos.map((exo, ei) => {
             const isCollapsed = savedIds[exo.id] && !expandedOverride[exo.id]
@@ -1941,6 +1998,8 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
             </Fragment>
             )
           })}
+          </>
+          )}
 
           {isFreeSession && onUpdateFreeSessionDate && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

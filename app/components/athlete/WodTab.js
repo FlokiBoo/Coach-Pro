@@ -1,25 +1,31 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { EyeSlash, Backpack, ClipboardText, CalendarBlank, ClockCounterClockwise, CaretDown, CaretUp, UsersThree, Play, Repeat } from '@phosphor-icons/react'
+import { ClipboardText, UsersThree, Play, Repeat, Barbell, Clock } from '@phosphor-icons/react'
 import { WEEK_DAYS, jsDayToWeekDay } from '@/lib/weekDays'
+import ObjectivesBlock from '@/app/components/ObjectivesBlock'
+import SwipeCarousel from './SwipeCarousel'
 
-// Page d'accueil : la prochaine séance doit être visible immédiatement, sans scroll (retour
-// terrain : objectifs/stats en haut noyaient l'élément principal) — ils ont leur propre onglet
-// Stats désormais. Donc notes puis liste des séances simplifiée (nom + flèche → ouvre le mode
-// focus existant), groupée par thème quand il y en a plusieurs. Le détail (séries/reps/
-// progression) reste dans le mode focus, pas ici.
+// Aucune durée réelle n'est connue avant d'avoir fait la séance (duration_minutes n'existe qu'en
+// feedback post-séance) — estimation grossière à partir du nombre de séries prescrites, juste pour
+// donner un ordre de grandeur sur la carte "Séance du jour".
+function estimateDurationMin(exercises) {
+  const base = 5
+  const perExo = (exercises || []).filter(e => e.name).reduce((sum, e) => sum + (parseInt(e.sets, 10) || 3) * 1.5, 0)
+  return Math.round(base + perExo)
+}
+
+// Page d'accueil : la séance du jour doit être visible immédiatement, sans scroll. "Objectifs"
+// (déplacé depuis l'onglet Stats, qui garde le reste) et "Séance du jour" (fusion des séances
+// récurrentes + séances placées sur aujourd'hui) sont en tête — "Ma semaine" et l'affichage par
+// type d'activité/programme non daté ont été retirés (redondants avec "Séance du jour").
 export default function WodTab({
   isCoachView, noteBlocks,
-  programs, completions, skippedSessions, selectedType, setSelectedType,
-  router, token, setActiveTab, onUpdateProgramDays,
+  programs, completions, skippedSessions,
+  router, token, setActiveTab,
   recurringTodayCounts = {},
+  athlete, objectives, setObjectives,
 }) {
-  const [selectedProgramId, setSelectedProgramId] = useState(null)
-  const [materielSession, setMaterielSession] = useState(null)
-  const [dayPickerProgram, setDayPickerProgram] = useState(null)
-  const [expandedUpcoming, setExpandedUpcoming] = useState(() => new Set())
-  const [historyProgram, setHistoryProgram] = useState(null)
   const [leaderGroups, setLeaderGroups] = useState([])
 
   const openSession = (sessionId) => {
@@ -42,19 +48,16 @@ export default function WodTab({
   // dans sa liste perso fait doublon avec ce qu'il vit en cours et surcharge l'écran pour rien.
   const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived && !p.group_id)
 
-  // Retour terrain (Simon) : avec 2 templates actifs en parallèle (ex: Course + Hyrox), les
-  // pastilles de sélection par programme/type ne donnent aucune vue d'ensemble claire de la
-  // semaine. Deux façons d'obtenir un jour pour une séance : le coach le fixe séance par séance
-  // sur le template (day_of_week), ou — pour les templates existants qu'on ne veut pas
-  // réorganiser — le coach conseille juste un rythme (recommended_sessions_per_week) et c'est
-  // l'athlète qui choisit ses jours (athlete_days_of_week) depuis son espace. Dans les deux cas
-  // les séances rejoignent la même vue "Ma semaine", fusionnées par jour. Les programmes sans
-  // aucun jour restent dans l'ancien système de pastilles ci-dessous (coexistence volontaire,
-  // pas de migration forcée).
+  // Deux façons d'obtenir un jour pour une séance : le coach le fixe séance par séance sur le
+  // template (day_of_week), ou l'athlète choisit ses jours (athlete_days_of_week) — dans les deux
+  // cas la séance rejoint "Séance du jour" quand c'est aujourd'hui (voir todaysEntries plus bas).
+  // Les programmes sans aucun jour assigné (unscheduledPrograms) ne remontent plus nulle part sur
+  // cet écran — plus d'affichage par type d'activité ici (retiré, coach doit désormais assigner
+  // des jours à toute séance ; TODO.md : reprendre l'accès à ces programmes tant qu'ils n'ont pas
+  // de jour, ex. depuis l'onglet Templates).
   // Séance récurrente (session_type === 'recurrent') : vit hors du calendrier — elle ne compte pas
-  // pour déterminer si un programme est "daté", elle est listée à part, une seule fois, tout en
-  // haut de la page (voir recurringEntries plus bas), et jamais "consommée" par la progression
-  // classique (elle reste proposable indéfiniment, même après avoir été validée une fois).
+  // pour déterminer si un programme est "daté", elle est listée à part (voir recurringEntries plus
+  // bas), et jamais "consommée" par la progression classique (reste proposable indéfiniment).
   const recurringEntries = []
   boardPrograms.forEach(prog => {
     prog.sessions.filter(s => s.session_type === 'recurrent').forEach(s => recurringEntries.push({ session: s, program: prog }))
@@ -97,93 +100,117 @@ export default function WodTab({
   const todayWeekDay = jsDayToWeekDay(new Date().getDay())
   const hasDayView = datedProgramsCount > 0
 
-  const renderSessionRow = (s, { showProgramLabel, isNext } = {}) => {
-    const isDone = completions.has(s.id) && !skippedSessions.has(s.id)
-    const isSkipped = skippedSessions.has(s.id)
+  // Bilan "Ma semaine" : séances de la semaine "active" de chaque programme daté par le coach
+  // (même semaine que la prochaine séance non complétée, ou la dernière si tout est fait — même
+  // ancrage que dayGroups ci-dessus). Les programmes datés par l'athlète (rotation par créneaux,
+  // pas de week_number) n'ont pas de notion de "semaine" comparable et ne sont pas comptés ici.
+  const weekTally = { done: 0, total: 0 }
+  coachDatedPrograms.forEach(prog => {
+    const progressionSessions = prog.sessions.filter(s => s.session_type !== 'recurrent' && s.day_of_week != null)
+    if (!progressionSessions.length) return
+    const nextUncompleted = progressionSessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
+    const weekNum = nextUncompleted ? nextUncompleted.week_number : progressionSessions[progressionSessions.length - 1].week_number
+    const weekSessions = weekNum != null ? progressionSessions.filter(s => s.week_number === weekNum) : progressionSessions
+    weekTally.total += weekSessions.length
+    weekTally.done += weekSessions.filter(s => completions.has(s.id) && !skippedSessions.has(s.id)).length
+  })
+
+  // "Séance du jour" = récurrentes (toujours dispo) + séances placées sur aujourd'hui (programmes
+  // datés coach/athlète). Les programmes non datés n'apparaissent plus du tout sur cet écran.
+  const todaysEntries = [
+    ...recurringEntries.map(e => ({ ...e, isRecurring: true })),
+    ...(hasDayView ? dayGroups.find(d => d.key === todayWeekDay).entries.map(e => ({ ...e, isRecurring: false })) : []),
+  ]
+
+  // Séance récurrente : hors calendrier, proposée tous les jours, fusionnée dans la carte "Séance
+  // du jour" ci-dessous. S'ouvre comme n'importe quelle séance (voir openSession) — le compteur du
+  // jour (recurring_session_logs) repart à zéro le lendemain sans faire disparaître la séance.
+
+  const renderDayCard = (entry, i) => {
+    const { session: s, program, isRecurring } = entry
+    const exoCount = (s.exercises || []).filter(e => e.name).length
+    const durationMin = estimateDurationMin(s.exercises)
+    const isDone = !isRecurring && completions.has(s.id) && !skippedSessions.has(s.id)
+    const recurringMet = isRecurring && (recurringTodayCounts[s.id] || 0) >= (s.recurring_daily_target || 1)
+    const isPrimary = i === 0
     return (
-      <div key={s.id} role="button" tabIndex={0} onClick={() => openSession(s.id)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openSession(s.id) }} style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none',
-        borderBottom: '1px solid var(--border)', padding: '13px 14px', cursor: 'pointer', textAlign: 'left',
-      }}>
-        {isDone ? (
-          <span style={{ color: 'var(--green)', fontSize: 15, flexShrink: 0 }}>✓</span>
-        ) : isSkipped ? (
-          <span style={{ color: '#DC2626', fontSize: 15, flexShrink: 0 }}>✗</span>
-        ) : (
-          <span style={{ width: 15, flexShrink: 0 }} />
+      <div key={s.id} style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '16px', margin: '0 2px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {isRecurring && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: 'var(--vert-foret)' }}><Repeat size={12} weight="light" /> Tous les jours</span>
         )}
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'block', fontSize: isNext ? 16 : 14, fontWeight: isNext ? 800 : 600, color: isDone || isSkipped ? 'var(--text3)' : 'var(--text)' }}>
-            {s.hidden && <EyeSlash size={13} style={{ verticalAlign: -2, marginRight: 4 }} />}{s.title || 'Séance'}
-          </span>
-          {showProgramLabel && (
-            <span style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>{showProgramLabel}</span>
-          )}
-        </span>
-        {s.materiel && (
-          <button onClick={e => { e.stopPropagation(); setMaterielSession(s) }} title="Matériel à prévoir pour cette séance"
-            style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', display: 'flex', cursor: 'pointer', flexShrink: 0 }}>
-            <Backpack size={13} />
-          </button>
-        )}
-        <span style={{ color: 'var(--text3)', fontSize: 16 }}>›</span>
+        <div style={{ fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 19, color: 'var(--bordeaux)' }}>
+          {s.title || 'Séance'}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, color: 'var(--ostryk-text2)' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Barbell size={13} weight="light" color="var(--vert-foret)" /> {exoCount} exercice{exoCount > 1 ? 's' : ''}</span>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Clock size={13} weight="light" color="var(--vert-foret)" /> ~{durationMin} min</span>
+        </div>
+        <button onClick={() => openSession(s.id)} style={{
+          background: isPrimary ? 'var(--bordeaux)' : 'transparent',
+          color: isPrimary ? '#fff' : 'var(--vert-foret)',
+          border: isPrimary ? 'none' : '1.5px solid var(--vert-foret)',
+          borderRadius: 'var(--ostryk-pill-radius)', padding: '12px', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%',
+        }}>
+          {(isDone || recurringMet) ? '✓ Commencer' : 'Commencer'}
+        </button>
       </div>
     )
   }
-
-  // Séance récurrente : hors calendrier, proposée tous les jours, uniquement listée ici (jamais
-  // dans "Ma semaine"). S'ouvre comme n'importe quelle séance (voir openSession) — le formulaire de
-  // ressenti reste simple ("Valider la séance"), et valider n'éteint jamais la ligne : le compteur
-  // du jour (recurring_session_logs) repart à zéro le lendemain sans la faire disparaître.
-  const renderRecurringRow = ({ session: s, program }) => {
-    const target = s.recurring_daily_target || 1
-    const count = recurringTodayCounts[s.id] || 0
-    const met = count >= target
-    return (
-      <div key={s.id} role="button" tabIndex={0} onClick={() => openSession(s.id)}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openSession(s.id) }} style={{
-        width: '100%', display: 'flex', alignItems: 'center', gap: 10, background: 'none', border: 'none',
-        borderBottom: '1px solid var(--border)', padding: '13px 14px', cursor: 'pointer', textAlign: 'left',
-      }}>
-        {met ? (
-          <span style={{ color: 'var(--green)', fontSize: 15, flexShrink: 0 }}>✓</span>
-        ) : (
-          <span style={{ width: 15, flexShrink: 0 }} />
-        )}
-        <span style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
-            <Repeat size={12} style={{ flexShrink: 0 }} />{s.title || 'Séance'}
-          </span>
-          <span style={{ display: 'block', fontSize: 11, color: 'var(--text3)', marginTop: 1 }}>
-            {count}/{target} aujourd&apos;hui{recurringEntries.length > 1 ? ` · ${program.title}` : ''}
-          </span>
-        </span>
-        <span style={{ color: 'var(--text3)', fontSize: 16 }}>›</span>
-      </div>
-    )
-  }
-
-  const allTypes = [...new Set(unscheduledPrograms.map(p => p.activity_type || 'Musculation 🏋️'))]
-  const effectiveType = allTypes.length <= 1 ? null
-    : ((selectedType && allTypes.includes(selectedType)) ? selectedType
-      : ((unscheduledPrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || unscheduledPrograms[0]).activity_type || 'Musculation 🏋️'))
-  const typePrograms = effectiveType
-    ? unscheduledPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === effectiveType)
-    : unscheduledPrograms
-
-  const effectiveProgramId = (selectedProgramId && typePrograms.some(p => p.id === selectedProgramId)) ? selectedProgramId
-    : (typePrograms.find(p => p.sessions.some(s => !completions.has(s.id))) || typePrograms[0])?.id
-  const visiblePrograms = typePrograms.filter(p => p.id === effectiveProgramId)
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {recurringEntries.length > 0 && (
-        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Repeat size={14} /> Tous les jours
+      {!isCoachView && athlete?.id && (
+        <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} isCoach={false} />
+      )}
+
+      {todaysEntries.length > 0 && (
+        <div id="seance-du-jour">
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Séance du jour</div>
+          {todaysEntries.length === 1 ? (
+            renderDayCard(todaysEntries[0], 0)
+          ) : (
+            <SwipeCarousel activeColor="var(--bordeaux)" peek slides={todaysEntries.map((entry, i) => ({
+              key: entry.session.id,
+              content: (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text3)', textAlign: 'center' }}>
+                    {i + 1}/{todaysEntries.length}{datedProgramsCount + (recurringEntries.length ? 1 : 0) > 1 ? ` · ${entry.program.title}` : ''}
+                  </div>
+                  {renderDayCard(entry, i)}
+                </div>
+              ),
+            }))} />
+          )}
+        </div>
+      )}
+
+      {weekTally.total > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Ma semaine</div>
+          <div style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
+              <span style={{ fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 22, color: 'var(--bordeaux)' }}>{weekTally.done}/{weekTally.total}</span>
+              <span style={{ fontSize: 13, color: 'var(--ostryk-text2)' }}>séances cette semaine</span>
+            </div>
+            <div style={{ height: 6, borderRadius: 'var(--ostryk-pill-radius)', background: 'var(--beige)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', borderRadius: 'var(--ostryk-pill-radius)', background: 'var(--vert-foret)', width: `${Math.round((weekTally.done / weekTally.total) * 100)}%`, transition: 'width 0.3s' }} />
+            </div>
           </div>
-          {recurringEntries.map(entry => renderRecurringRow(entry))}
+        </div>
+      )}
+
+      {weekTally.total === 0 && hasDayView && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Ma semaine</div>
+          <div style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '24px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <span style={{ fontSize: 14, color: 'var(--ostryk-text2)' }}>Pas encore de séance cette semaine</span>
+            <button onClick={() => document.getElementById('seance-du-jour')?.scrollIntoView({ behavior: 'smooth' })} style={{
+              background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: 'var(--ostryk-pill-radius)',
+              padding: '12px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+            }}>
+              Voir ma séance du jour
+            </button>
+          </div>
         </div>
       )}
 
@@ -248,228 +275,6 @@ export default function WodTab({
         </div>
       )}
 
-      {hasDayView && (
-        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 700, color: 'var(--text2)', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <CalendarBlank size={14} /> Ma semaine
-          </div>
-          {dayGroups.map(d => (
-            <div key={d.key}>
-              <div style={{
-                padding: '8px 14px', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.4px',
-                background: d.key === todayWeekDay ? 'var(--green-light)' : 'var(--bg2)',
-                color: d.key === todayWeekDay ? 'var(--green)' : 'var(--text3)',
-              }}>
-                {d.label}{d.key === todayWeekDay ? " · Aujourd'hui" : ''}
-              </div>
-              {d.entries.length === 0 ? (
-                <div style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', borderBottom: '1px solid var(--border)' }}>
-                  Repos
-                </div>
-              ) : (
-                d.entries.map(({ session, program }) => renderSessionRow(session, { showProgramLabel: datedProgramsCount > 1 ? program.title : null }))
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {allTypes.length > 1 && (
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${allTypes.length}, minmax(100px, 1fr))`, gap: 8, overflowX: 'auto' }}>
-          {allTypes.map(t => {
-            const tPrograms = unscheduledPrograms.filter(p => (p.activity_type || 'Musculation 🏋️') === t)
-            const total = tPrograms.reduce((n, p) => n + p.sessions.length, 0)
-            const done = tPrograms.reduce((n, p) => n + p.sessions.filter(s => completions.has(s.id) && !skippedSessions.has(s.id)).length, 0)
-            const isSelected = effectiveType === t
-            return (
-              <button key={t} onClick={() => setSelectedType(t)} style={{
-                display: 'flex', flexDirection: 'column', gap: 4, textAlign: 'left', minWidth: 0,
-                background: isSelected ? 'var(--green-light)' : 'var(--bg)',
-                border: isSelected ? '1.5px solid var(--green)' : '1px solid var(--border)',
-                borderRadius: 'var(--rl)', padding: '10px 8px', cursor: 'pointer',
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: isSelected ? 'var(--green)' : 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t}</div>
-                {total > 0 && <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)' }}>{done}/{total}</div>}
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      {typePrograms.length > 1 && (
-        <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
-          {typePrograms.map(p => {
-            const isSelected = effectiveProgramId === p.id
-            return (
-              <button key={p.id} onClick={() => setSelectedProgramId(p.id)} style={{
-                flexShrink: 0, background: isSelected ? 'var(--green-light)' : 'var(--bg)',
-                border: isSelected ? '1.5px solid var(--green)' : '1px solid var(--border)',
-                borderRadius: 20, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-                color: isSelected ? 'var(--green)' : 'var(--text2)', whiteSpace: 'nowrap',
-              }}>
-                {p.title}
-              </button>
-            )
-          })}
-        </div>
-      )}
-
-      {visiblePrograms.map(prog => {
-        const nextIdx = prog.sessions.findIndex(s => !completions.has(s.id) && !skippedSessions.has(s.id))
-        const pastSessions = nextIdx === -1 ? prog.sessions : prog.sessions.slice(0, nextIdx)
-        const upcomingSessions = nextIdx === -1 ? [] : prog.sessions.slice(nextIdx)
-        const isExpanded = expandedUpcoming.has(prog.id)
-        const visibleUpcoming = isExpanded ? upcomingSessions : upcomingSessions.slice(0, 3)
-        const remainingCount = upcomingSessions.length - visibleUpcoming.length
-        return (
-          <div key={prog.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              {typePrograms.length <= 1 && (
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: 'var(--text2)' }}>{prog.title}</span>
-              )}
-              {pastSessions.length > 0 && (
-                <button onClick={() => setHistoryProgram(prog)} style={{
-                  marginLeft: typePrograms.length <= 1 ? 0 : 'auto',
-                  background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20,
-                  padding: '3px 10px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', gap: 4,
-                }}>
-                  <ClockCounterClockwise size={12} />Historique
-                </button>
-              )}
-              {!isCoachView && onUpdateProgramDays && (
-                <button onClick={() => setDayPickerProgram(prog)} style={{
-                  background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20,
-                  padding: '3px 10px', fontSize: 11, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer', flexShrink: 0,
-                }}>
-                  <CalendarBlank size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Choisir mes jours
-                </button>
-              )}
-            </div>
-            {upcomingSessions.length === 0 ? (
-              <div style={{ padding: '16px 14px', fontSize: 13, color: 'var(--text3)', textAlign: 'center' }}>
-                Programme terminé — consulte l&apos;historique ci-dessus.
-              </div>
-            ) : (
-              <>
-                {visibleUpcoming.map((s, i) => renderSessionRow(s, { isNext: i === 0 }))}
-                {remainingCount > 0 && (
-                  <button onClick={() => setExpandedUpcoming(prev => new Set(prev).add(prog.id))} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                    background: 'none', border: 'none', borderTop: '1px solid var(--border)', padding: '10px',
-                    fontSize: 12, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer',
-                  }}>
-                    <CaretDown size={12} />Voir les {remainingCount} séances suivantes
-                  </button>
-                )}
-                {isExpanded && upcomingSessions.length > 3 && (
-                  <button onClick={() => setExpandedUpcoming(prev => { const next = new Set(prev); next.delete(prog.id); return next })} style={{
-                    width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                    background: 'none', border: 'none', borderTop: '1px solid var(--border)', padding: '10px',
-                    fontSize: 12, fontWeight: 700, color: 'var(--text3)', cursor: 'pointer',
-                  }}>
-                    <CaretUp size={12} />Réduire
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )
-      })}
-
-      {materielSession && (
-        <div onClick={() => setMaterielSession(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><Backpack size={32} /></div>
-            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center' }}>
-              Matériel à prévoir
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', marginBottom: 12 }}>{materielSession.title}</div>
-            <div style={{ fontSize: 14, color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap', marginBottom: 16 }}>{materielSession.materiel}</div>
-            <button onClick={() => setMaterielSession(null)} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: 'pointer', width: '100%' }}>
-              Compris
-            </button>
-          </div>
-        </div>
-      )}
-
-      {historyProgram && (
-        <div onClick={() => setHistoryProgram(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', maxWidth: 420, width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
-            <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <ClockCounterClockwise size={16} />
-              <span style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 16, fontWeight: 700, flex: 1 }}>Historique</span>
-              <span style={{ fontSize: 12, color: 'var(--text3)' }}>{historyProgram.title}</span>
-            </div>
-            <div style={{ overflowY: 'auto' }}>
-              {(() => {
-                const idx = historyProgram.sessions.findIndex(s => !completions.has(s.id) && !skippedSessions.has(s.id))
-                const past = idx === -1 ? historyProgram.sessions : historyProgram.sessions.slice(0, idx)
-                return past.slice().reverse().map(s => renderSessionRow(s))
-              })()}
-            </div>
-            <button onClick={() => setHistoryProgram(null)} style={{ background: 'none', border: 'none', borderTop: '1px solid var(--border)', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', padding: 12 }}>
-              Fermer
-            </button>
-          </div>
-        </div>
-      )}
-
-      {dayPickerProgram && (
-        <DayPickerModal
-          program={dayPickerProgram}
-          onClose={() => setDayPickerProgram(null)}
-          onSave={days => { onUpdateProgramDays(dayPickerProgram.id, days); setDayPickerProgram(null) }}
-        />
-      )}
-    </div>
-  )
-}
-
-function DayPickerModal({ program, onClose, onSave }) {
-  const [selected, setSelected] = useState(new Set(program.athlete_days_of_week || []))
-  const toggle = (key) => setSelected(prev => {
-    const next = new Set(prev)
-    next.has(key) ? next.delete(key) : next.add(key)
-    return next
-  })
-
-  return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, maxWidth: 380, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
-        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 17, fontWeight: 700, marginBottom: 4, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-          <CalendarBlank size={16} /> Mes jours — {program.title}
-        </div>
-        {(program.recommended_sessions_per_week || program.min_hours_between_sessions) && (
-          <div style={{ fontSize: 12, color: 'var(--text3)', textAlign: 'center', marginBottom: 12 }}>
-            Conseillé par ton coach :{' '}
-            {program.recommended_sessions_per_week ? `${program.recommended_sessions_per_week} séances/semaine` : ''}
-            {program.recommended_sessions_per_week && program.min_hours_between_sessions ? ', ' : ''}
-            {program.min_hours_between_sessions ? `min. ${program.min_hours_between_sessions}h d'écart entre les séances` : ''}
-          </div>
-        )}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginBottom: 16 }}>
-          {WEEK_DAYS.map(d => (
-            <button key={d.key} onClick={() => toggle(d.key)} style={{
-              display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--r)',
-              border: selected.has(d.key) ? '1.5px solid var(--green)' : '1px solid var(--border2)',
-              background: selected.has(d.key) ? 'var(--green-light)' : 'var(--bg2)',
-              color: selected.has(d.key) ? 'var(--green)' : 'var(--text2)',
-              fontWeight: 700, fontSize: 14, cursor: 'pointer', textAlign: 'left',
-            }}>
-              <span>{selected.has(d.key) ? '✓' : ''}</span>
-              {d.label}
-            </button>
-          ))}
-        </div>
-        <button onClick={() => onSave([...selected])} disabled={selected.size === 0}
-          style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '11px', fontSize: 14, fontWeight: 700, cursor: selected.size === 0 ? 'default' : 'pointer', width: '100%', opacity: selected.size === 0 ? 0.5 : 1, marginBottom: 8 }}>
-          Valider
-        </button>
-        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', padding: 6 }}>
-          Annuler
-        </button>
-      </div>
     </div>
   )
 }

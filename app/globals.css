@@ -72,6 +72,18 @@ h1, h2, h3, h4, h5, h6 {
   --text3: #8B8171;
   --r: 8px;
   --rl: 12px;
+
+  /* Tokens additifs "refonte Performances/Profil athlète" — n'écrasent aucune variable existante
+     ci-dessus (utilisées telles quelles partout ailleurs, coach compris) : cartes en blanc pur et
+     nuances de texte/bordure plus claires, propres à cette refonte. */
+  --card-white: #FFFFFF;
+  --ostryk-text2: #8a8378;
+  --ostryk-text3: #B0A796;
+  --ostryk-border: #F0EBE2;
+  --ostryk-border-input: #E3DACB;
+  --ostryk-chip-border: #D8CFC0;
+  --ostryk-card-radius: 15px;
+  --ostryk-pill-radius: 100px;
 }
 
 /* ── Layout coach ── */

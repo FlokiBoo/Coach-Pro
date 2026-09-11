@@ -13,7 +13,28 @@ const rowStyle = {
   padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left', width: '100%',
 }
 
-export default function SettingsScreen({ athlete, token, onClose }) {
+// Champ d'identité, distinct de la base de comparaison utilisée pour les badges (cf. BADGE_STANDARD_OPTIONS) —
+// quelqu'un qui ne se reconnaît pas dans Homme/Femme choisit quand même explicitement sa base de badges.
+const SEX_OPTIONS = [
+  { v: 'H', l: 'Homme' },
+  { v: 'F', l: 'Femme' },
+  { v: 'NB', l: 'Non-binaire' },
+  { v: 'autre', l: 'Autre' },
+  { v: 'ND', l: 'Préfère ne pas dire' },
+]
+
+const BADGE_STANDARD_OPTIONS = [
+  { v: '', l: 'Aucune — pas de badge' },
+  { v: 'H', l: 'Standards Homme' },
+  { v: 'F', l: 'Standards Femme' },
+]
+
+const selectFieldStyle = {
+  width: '100%', boxSizing: 'border-box', padding: '7px 8px', border: '1px solid var(--border2)',
+  borderRadius: 6, fontSize: 13, fontWeight: 700, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
+}
+
+export default function SettingsScreen({ athlete, token, onClose, onSexUpdate, onBadgeStandardUpdate }) {
   const [showPassword, setShowPassword] = useState(false)
   const [showSubscription, setShowSubscription] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
@@ -96,6 +117,18 @@ export default function SettingsScreen({ athlete, token, onClose }) {
     window.location.assign(json.url)
   }
 
+  const saveSex = async (val) => {
+    await supabase.from('athletes').update({ sex: val }).eq('id', athlete.id)
+    onSexUpdate?.(val)
+  }
+
+  const saveBadgeStandard = async (val) => {
+    const value = val || null
+    const { error } = await supabase.from('athletes').update({ badge_standard: value }).eq('id', athlete.id)
+    if (error) { alert("Cette version n'est pas encore déployée, réessaie dans quelques minutes."); return }
+    onBadgeStandardUpdate?.(value)
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'var(--bg2)', zIndex: 500, display: 'flex', flexDirection: 'column' }}>
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
@@ -104,7 +137,29 @@ export default function SettingsScreen({ athlete, token, onClose }) {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', maxWidth: 460, width: '100%', margin: '0 auto', boxSizing: 'border-box', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Compte</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Profil</div>
+
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Sexe</div>
+            <select value={athlete.sex || ''} onChange={e => saveSex(e.target.value)} style={selectFieldStyle}>
+              <option value="" disabled>Choisir…</option>
+              {SEX_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4 }}>Base de comparaison pour les badges</div>
+            <select value={athlete.badge_standard || ''} onChange={e => saveBadgeStandard(e.target.value)} style={selectFieldStyle}>
+              {BADGE_STANDARD_OPTIONS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+            </select>
+            <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 4, lineHeight: 1.4 }}>
+              Indépendant du sexe déclaré — choisis &quot;Aucune&quot; si tu ne veux pas de comparaison H/F sur tes badges de force et cardio.
+            </div>
+          </div>
+        </div>
+
+        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginTop: 8 }}>Compte</div>
 
         <button onClick={() => setShowSubscription(true)} style={rowStyle}>
           <span style={{ display: 'flex' }}><CreditCard size={20} /></span>
