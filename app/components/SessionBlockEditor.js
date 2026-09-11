@@ -6,8 +6,8 @@
 // (app/s/[token]/session/[sessionId]/page.js, "Séance libre" → mode Standard/Cardio) : les deux
 // wrappers ne font que fournir `sessionId` et `backHref`, RLS fait le reste (un athlète ne peut
 // lire/écrire que ses propres program_sessions/program_exercises, voir supabase_schema policies).
-// Périmètre volontairement réduit (pas de reps/kg par set, pas des types de séance avancés —
-// ceux-ci restent gérés par l'ancien éditeur plein écran côté coach).
+// Périmètre volontairement réduit (pas des types de séance avancés — ceux-ci restent gérés par
+// l'ancien éditeur plein écran côté coach).
 
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
@@ -112,6 +112,7 @@ function groupExercisesIntoBlocks(rows) {
     const setCount = Math.max(1, parseInt(g.rows[0].sets, 10) || 1)
     const sets = Array.from({ length: setCount }, (_, i) => ({ id: `set-${firstId}-${i}` }))
     const setNotes = {}
+    const setValues = {}
     const paceValues = {}
     // La granularité par set est perdue côté ancien schéma (un seul `note` par exercice) : on la
     // réattache au premier set de chaque exercice (grille standard) ET sous une clé "note:<ex>"
@@ -121,6 +122,15 @@ function groupExercisesIntoBlocks(rows) {
       if (r.note) {
         setNotes[`${sets[0].id}:${exId}`] = r.note
         setNotes[`note:${exId}`] = r.note
+      }
+      // set_details : reps/kg par set, index-aligné sur `sets` (voir flattenBlocksToExerciseRows).
+      if (Array.isArray(r.set_details)) {
+        r.set_details.forEach((d, i) => {
+          const set = sets[i]
+          if (set && d && (d.reps || d.kg != null)) {
+            setValues[`${set.id}:${exId}`] = { reps: d.reps || '', kg: d.kg != null ? String(d.kg) : '' }
+          }
+        })
       }
       if (r.pace_base || r.pct_low != null || r.pct_high != null) {
         paceValues[exId] = { base: r.pace_base || '', pctLow: r.pct_low ?? '', pctHigh: r.pct_high ?? '' }
@@ -134,6 +144,7 @@ function groupExercisesIntoBlocks(rows) {
       sets,
       restSeconds: parseRestToSeconds(g.rows[0].rest),
       setNotes,
+      setValues,
       paceValues,
     }
   })
@@ -204,11 +215,21 @@ function flattenBlocksToExerciseRows(blocks, activityMode) {
           pace_base: pace.base || null,
           pct_low: pace.pctLow !== '' && pace.pctLow != null ? parseFloat(pace.pctLow) : null,
           pct_high: pace.pctHigh !== '' && pace.pctHigh != null ? parseFloat(pace.pctHigh) : null,
+          set_details: null,
         })
       } else {
         const notes = (block.sets || [])
           .map(s => block.setNotes?.[`${s.id}:${ex.id}`])
           .filter(Boolean)
+        // Reps/kg gardent leur granularité par set (contrairement à `note` ci-dessus, fusionnée
+        // en une seule chaîne) : un tableau index-aligné sur `sets`, relu par groupExercisesIntoBlocks.
+        const setDetails = (block.sets || []).map(s => {
+          const v = block.setValues?.[`${s.id}:${ex.id}`]
+          return {
+            reps: v?.reps || null,
+            kg: v?.kg !== '' && v?.kg != null ? parseFloat(v.kg) : null,
+          }
+        })
         rows.push({
           block_type: block.type,
           name: ex.name,
@@ -219,6 +240,7 @@ function flattenBlocksToExerciseRows(blocks, activityMode) {
           pace_base: null,
           pct_low: null,
           pct_high: null,
+          set_details: setDetails.some(d => d.reps || d.kg != null) ? setDetails : null,
         })
       }
     })
@@ -325,7 +347,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     async function load() {
       const [{ data: sessionRow }, { data: exerciseRows }] = await Promise.all([
         supabase.from('program_sessions').select('id, title, coach_notes, circuits, session_type, recurring_daily_target, activity_mode').eq('id', sessionId).single(),
-        supabase.from('program_exercises').select('id, order_index, name, sets, rest, note, superset_group, block_type, pace_base, pct_low, pct_high').eq('program_session_id', sessionId).order('order_index'),
+        supabase.from('program_exercises').select('id, order_index, name, sets, rest, note, superset_group, block_type, pace_base, pct_low, pct_high, set_details').eq('program_session_id', sessionId).order('order_index'),
       ])
       if (cancelled) return
       if (!sessionRow) {
@@ -504,6 +526,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     setMentionQuery(null)
     setMentionRange(null)
     setDescModalOpen(true)
+    requestAnimationFrame(resizeDescriptionTextarea)
   }
 
   const closeDescModal = () => {
@@ -577,11 +600,27 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     setExercisesModalOpen(false)
   }
 
+  // Nouveau SET = copie du dernier SET existant (reps, kg, notes, par exercice) : le coach entre
+  // rarement des valeurs totalement différentes d'un set à l'autre, autant partir de la même base
+  // et ne laisser que les écarts à corriger plutôt que tout ressaisir.
   const addSet = () => {
     if (!activeBlock) return
-    setBlocks(blocks.map((b, i) => (
-      i === activeBlockIndex ? { ...b, sets: [...(b.sets || []), { id: nextBlockId() }] } : b
-    )))
+    setBlocks(blocks.map((b, i) => {
+      if (i !== activeBlockIndex) return b
+      const newSetId = nextBlockId()
+      const lastSet = (b.sets || [])[(b.sets || []).length - 1]
+      const setValues = { ...(b.setValues || {}) }
+      const setNotes = { ...(b.setNotes || {}) }
+      if (lastSet) {
+        (b.exercises || []).forEach(ex => {
+          const lastValue = b.setValues?.[setCellKey(lastSet.id, ex.id)]
+          if (lastValue) setValues[setCellKey(newSetId, ex.id)] = { ...lastValue }
+          const lastNote = b.setNotes?.[setCellKey(lastSet.id, ex.id)]
+          if (lastNote) setNotes[setCellKey(newSetId, ex.id)] = lastNote
+        })
+      }
+      return { ...b, sets: [...(b.sets || []), { id: newSetId }], setValues, setNotes }
+    }))
     setUnsavedChanges(true)
   }
 
@@ -608,7 +647,19 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     setUnsavedChanges(true)
   }
 
-  const setNoteKey = (setId, exerciseId) => `${setId}:${exerciseId}`
+  const setCellKey = (setId, exerciseId) => `${setId}:${exerciseId}`
+
+  // Reps/kg par (set, exercice) — grille standard uniquement, voir updatePaceValue pour le cardio.
+  const updateSetValue = (setId, exerciseId, field, value) => {
+    setBlocks(blocks.map((b, i) => {
+      if (i !== activeBlockIndex) return b
+      const key = setCellKey(setId, exerciseId)
+      const setValues = { ...(b.setValues || {}) }
+      setValues[key] = { ...(setValues[key] || { reps: '', kg: '' }), [field]: value }
+      return { ...b, setValues }
+    }))
+    setUnsavedChanges(true)
+  }
 
   // Base (VMA/Seuil60/Δ) + %1/%2 par exercice — mode cardio uniquement, pas de grille de sets
   // (voir flattenBlocksToExerciseRows / groupExercisesIntoBlocks pour le mapping DB).
@@ -625,7 +676,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const openSetNotesModal = (setId, exerciseId) => {
     if (!activeBlock) return
     setActiveNoteContext({ setId, exerciseId })
-    setDraftSetNote(activeBlock.setNotes?.[setNoteKey(setId, exerciseId)] || '')
+    setDraftSetNote(activeBlock.setNotes?.[setCellKey(setId, exerciseId)] || '')
     setApplyNoteToNextSets(false)
     setNotesModalOpen(true)
   }
@@ -641,11 +692,11 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
       setBlocks(blocks.map((b, i) => {
         if (i !== activeBlockIndex) return b
         const setNotes = { ...(b.setNotes || {}) }
-        setNotes[setNoteKey(setId, exerciseId)] = draftSetNote
+        setNotes[setCellKey(setId, exerciseId)] = draftSetNote
         if (applyNoteToNextSets) {
           const setIndex = (b.sets || []).findIndex(s => s.id === setId)
           for (const s of (b.sets || []).slice(setIndex + 1)) {
-            setNotes[setNoteKey(s.id, exerciseId)] = draftSetNote
+            setNotes[setCellKey(s.id, exerciseId)] = draftSetNote
           }
         }
         return { ...b, setNotes }
@@ -686,11 +737,26 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     return parts
   }
 
+  // Le textarea (transparent, texte réel invisible) est superposé à un calque de rendu qui
+  // surligne les mentions #exercice — les deux doivent occuper EXACTEMENT la même hauteur/largeur
+  // pour que le curseur reste aligné sur le texte affiché. Sans auto-grandissement, le textarea
+  // (rows=3 fixe) finit par scroller en interne dès qu'on dépasse 3 lignes : sa scrollbar réduit
+  // la largeur de saisie effective sans toucher au calque (overflow:hidden, jamais de scrollbar),
+  // donc les deux retombent le texte différemment et le curseur dérive visuellement.
+  const resizeDescriptionTextarea = () => {
+    const ta = descriptionRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = `${ta.scrollHeight}px`
+  }
+
   const handleDescriptionChange = (e) => {
     const value = e.target.value
     const cursor = e.target.selectionStart
     setDraftDescription(value)
     setUnsavedChanges(true)
+    e.target.style.height = 'auto'
+    e.target.style.height = `${e.target.scrollHeight}px`
     const uptoCursor = value.slice(0, cursor)
     const hashIndex = uptoCursor.lastIndexOf('#')
     const query = hashIndex === -1 ? null : uptoCursor.slice(hashIndex + 1)
@@ -727,6 +793,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
       ta.focus()
       const pos = before.length + insertion.length
       ta.setSelectionRange(pos, pos)
+      resizeDescriptionTextarea()
     })
   }
 
@@ -1019,7 +1086,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {activeBlock.exercises.map(ex => {
                       const pace = activeBlock.paceValues?.[ex.id] || { base: '', pctLow: '', pctHigh: '' }
-                      const hasNote = Boolean(activeBlock.setNotes?.[setNoteKey('note', ex.id)])
+                      const hasNote = Boolean(activeBlock.setNotes?.[setCellKey('note', ex.id)])
                       return (
                         <div key={ex.id} style={{ border: `1px solid ${c.border}`, borderRadius: 8, padding: '14px 16px' }}>
                           <div style={{ fontSize: 14, fontWeight: 600, color: c.text, textDecoration: 'underline', marginBottom: 10 }}>{ex.name}</div>
@@ -1078,7 +1145,8 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                             )}
                           </div>
                           {activeBlock.exercises.map(ex => {
-                            const hasNote = Boolean(activeBlock.setNotes?.[setNoteKey(s.id, ex.id)])
+                            const hasNote = Boolean(activeBlock.setNotes?.[setCellKey(s.id, ex.id)])
+                            const value = activeBlock.setValues?.[setCellKey(s.id, ex.id)] || { reps: '', kg: '' }
                             return (
                               <div key={ex.id} style={{ marginBottom: 10 }}>
                                 <div style={{ fontSize: 14, fontWeight: 600, color: c.text, textDecoration: 'underline', marginBottom: 6 }}>{ex.name}</div>
@@ -1095,9 +1163,23 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                                   <FileText size={14} /> Notes
                                 </button>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <input placeholder="" style={{ width: 60, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 6px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+                                  <input
+                                    type="text"
+                                    placeholder=""
+                                    value={value.reps}
+                                    onChange={e => updateSetValue(s.id, ex.id, 'reps', e.target.value)}
+                                    style={{ width: 60, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 6px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
+                                  />
                                   <span style={{ fontSize: 13, color: c.textMuted }}>rep</span>
-                                  <input placeholder="" style={{ width: 60, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 6px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }} />
+                                  <input
+                                    type="number"
+                                    step="0.5"
+                                    min="0"
+                                    placeholder=""
+                                    value={value.kg}
+                                    onChange={e => updateSetValue(s.id, ex.id, 'kg', e.target.value)}
+                                    style={{ width: 60, boxSizing: 'border-box', textAlign: 'center', border: `1px solid ${c.border}`, borderRadius: 6, padding: '8px 6px', fontSize: 14, outline: 'none', fontFamily: 'inherit' }}
+                                  />
                                   <span style={{ fontSize: 13, color: c.textMuted }}>kg</span>
                                 </div>
                               </div>
