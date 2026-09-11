@@ -80,14 +80,59 @@ function parseRestToSeconds(rest) {
   return Number.isFinite(num) ? Math.round(num) : 60
 }
 
-function RestDivider({ seconds }) {
+// Badge REST cliquable (état d'ouverture local à chaque instance — plusieurs RestDivider peuvent
+// être montés pour le même bloc, voir leurs deux usages plus bas) : ouvre un petit popover de
+// presets + une valeur libre en secondes, seul moyen de changer la récup depuis la suppression du
+// popup à l'ajout d'exercice (commit "Supprime le détour Number of sets/Rest time").
+function RestDivider({ seconds, onChange }) {
+  const [open, setOpen] = useState(false)
+  const [customValue, setCustomValue] = useState('')
+
+  const applyCustom = () => {
+    const n = parseInt(customValue, 10)
+    if (Number.isFinite(n) && n > 0) onChange(n)
+    setCustomValue('')
+    setOpen(false)
+  }
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 2px', color: c.textMuted, fontSize: 13, fontWeight: 700 }}>
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 2px', color: c.textMuted, fontSize: 13, fontWeight: 700 }}>
       <Timer size={16} />
       <span>REST</span>
-      <span style={{ marginLeft: 'auto', background: c.disabledBg, borderRadius: 6, padding: '4px 12px', fontSize: 13, fontWeight: 600, color: c.text }}>
+      <button onClick={() => setOpen(v => !v)} style={{
+        marginLeft: 'auto', background: c.disabledBg, borderRadius: 6, padding: '4px 12px', fontSize: 13, fontWeight: 600,
+        color: c.text, border: 'none', cursor: 'pointer',
+      }}>
         {formatRestLabel(seconds)}
-      </span>
+      </button>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+          <div style={{
+            position: 'absolute', right: 0, top: '100%', marginTop: 4, background: c.bg, border: `1px solid ${c.border}`,
+            borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', zIndex: 100, padding: 8,
+            display: 'flex', flexDirection: 'column', gap: 2, width: 160,
+          }}>
+            {REST_PRESETS.map(p => (
+              <button key={p.seconds} onClick={() => { onChange(p.seconds); setOpen(false) }} style={{
+                textAlign: 'left', padding: '6px 8px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                border: 'none', background: p.seconds === seconds ? c.blueBorder : 'none', color: p.seconds === seconds ? c.blue : c.text,
+              }}>
+                {p.label}
+              </button>
+            ))}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, borderTop: `1px solid ${c.border}`, marginTop: 4, paddingTop: 6 }}>
+              <input
+                type="number" min="1" placeholder="Autre (s)" value={customValue}
+                onChange={e => setCustomValue(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && applyCustom()}
+                style={{ width: 0, flex: 1, boxSizing: 'border-box', border: `1px solid ${c.border}`, borderRadius: 6, padding: '5px 6px', fontSize: 12, outline: 'none', fontFamily: 'inherit' }}
+              />
+              <button onClick={applyCustom} style={{ border: 'none', background: 'none', color: c.blue, fontWeight: 700, fontSize: 12, cursor: 'pointer', padding: '4px 2px' }}>OK</button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -315,6 +360,15 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const [exercisesModalOpen, setExercisesModalOpen] = useState(false)
   const [exerciseSearch, setExerciseSearch] = useState('')
   const [selectedMuscles, setSelectedMuscles] = useState([])
+  // Détour "nombre de séries" puis "temps de récup" à la toute première sélection d'un exercice —
+  // coach uniquement (canManageCatalog), voir plus bas. Le sportif en "Séance libre" (canManageCatalog
+  // false) et l'ajout d'un exercice suivant en superset (addingSecondaryExercise) gardent l'ajout
+  // direct avec 1 série de base.
+  const [configStep, setConfigStep] = useState(null) // null | 'sets' | 'rest'
+  const [pendingExercise, setPendingExercise] = useState(null)
+  const [pendingSets, setPendingSets] = useState(3)
+  const [pendingRest, setPendingRest] = useState(60)
+  const [addingSecondaryExercise, setAddingSecondaryExercise] = useState(false)
   const [pendingCircuitExercises, setPendingCircuitExercises] = useState([])
   const [activeBlockIndex, setActiveBlockIndex] = useState(0)
   const [descModalOpen, setDescModalOpen] = useState(false)
@@ -501,6 +555,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     setActiveBlockIndex(insertAt)
     setUnsavedChanges(true)
     setAddMenuOpen(false)
+    setAddingSecondaryExercise(false)
     setPendingCircuitExercises([])
     setExercisesModalOpen(true)
   }
@@ -548,11 +603,13 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   }
 
   const openExercisePickerForBlock = () => {
+    setAddingSecondaryExercise(false)
     setPendingCircuitExercises([])
     setExercisesModalOpen(true)
   }
 
   const openFollowExercisePicker = () => {
+    setAddingSecondaryExercise(true)
     setPendingCircuitExercises([])
     setExercisesModalOpen(true)
   }
@@ -562,9 +619,10 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     setPendingCircuitExercises([])
   }
 
-  // Ajoute directement l'exercice au bloc actif, sans demander le nombre de séries au préalable —
-  // 1 série de base (voir "Add set" pour en ajouter), même geste que "Follow with another exercise"
-  // pour la toute première sélection : pas de détour par une config séries/récup à chaque fois.
+  // Ajoute directement l'exercice au bloc actif, sans détour séries/récup — 1 série de base (voir
+  // "Add set" pour en ajouter). Utilisé pour l'ajout en superset (addingSecondaryExercise), en mode
+  // cardio, et pour la toute première sélection côté sportif (canManageCatalog false, "Séance
+  // libre") ; côté coach c'est startExerciseConfig ci-dessous qui gère la première sélection.
   const addExerciseToActiveBlock = (ex) => {
     if (!activeBlock) return
     setBlocks(blocks.map((b, i) => {
@@ -575,6 +633,42 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     }))
     setUnsavedChanges(true)
     setExercisesModalOpen(false)
+    setAddingSecondaryExercise(false)
+  }
+
+  // Détour coach : nombre de séries puis temps de récup, avant que l'exercice n'atterrisse dans le
+  // bloc (contrairement à addExerciseToActiveBlock qui l'ajoute tout de suite avec 1 série).
+  const startExerciseConfig = (ex) => {
+    setPendingExercise(ex)
+    setPendingSets(3)
+    setPendingRest(60)
+    setConfigStep('sets')
+    setExercisesModalOpen(false)
+  }
+
+  const closeExerciseConfig = () => {
+    setConfigStep(null)
+    setPendingExercise(null)
+  }
+
+  const confirmSetsStep = () => setConfigStep('rest')
+
+  const confirmRestStep = () => {
+    if (activeBlock && pendingExercise) {
+      const newSets = Array.from({ length: pendingSets }, () => ({ id: nextBlockId() }))
+      setBlocks(blocks.map((b, i) => (
+        i === activeBlockIndex
+          ? {
+              ...b,
+              exercises: [...(b.exercises || []), { id: nextBlockId(), name: pendingExercise.name, muscles: pendingExercise.muscles }],
+              sets: newSets,
+              restSeconds: pendingRest,
+            }
+          : b
+      )))
+      setUnsavedChanges(true)
+    }
+    closeExerciseConfig()
   }
 
   const toggleCircuitPending = (ex) => {
@@ -658,6 +752,14 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
       setValues[key] = { ...(setValues[key] || { reps: '', kg: '' }), [field]: value }
       return { ...b, setValues }
     }))
+    setUnsavedChanges(true)
+  }
+
+  // Récup du bloc actif (un seul restSeconds partagé par tous les RestDivider du bloc, voir
+  // addExerciseToActiveBlock) — remplace le popup retiré à l'ajout d'exercice : la valeur reste
+  // éditable après coup en cliquant le badge REST.
+  const updateBlockRest = (seconds) => {
+    setBlocks(blocks.map((b, i) => (i === activeBlockIndex ? { ...b, restSeconds: seconds } : b)))
     setUnsavedChanges(true)
   }
 
@@ -1186,7 +1288,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                             )
                           })}
                         </div>
-                        {i < activeBlock.sets.length - 1 && <RestDivider seconds={activeBlock.restSeconds} />}
+                        {i < activeBlock.sets.length - 1 && <RestDivider seconds={activeBlock.restSeconds} onChange={updateBlockRest} />}
                       </div>
                     ))}
 
@@ -1199,7 +1301,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                       </span>
                       Add set
                     </button>
-                    <RestDivider seconds={activeBlock.restSeconds} />
+                    <RestDivider seconds={activeBlock.restSeconds} onChange={updateBlockRest} />
                   </>
                 )}
               </div>
@@ -1516,14 +1618,18 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                         </div>
                         <button
                           onClick={() => {
-                            // Pas de config séries/récup à la sélection : 1 série de base (voir
-                            // addExerciseToActiveBlock), "Add set" ensuite pour en ajouter. En mode
-                            // cardio, l'allure se règle par exercice (base + %low/%high) plutôt
-                            // qu'en séries — voir la vue cardio ci-dessous.
+                            // Détour séries/récup réservé au coach (canManageCatalog) et à la toute
+                            // première sélection du bloc — pas pour un ajout en superset
+                            // (addingSecondaryExercise) ni en circuit, et jamais en cardio où
+                            // l'allure se règle par exercice (base + %low/%high), voir la vue
+                            // cardio ci-dessous. Le sportif en "Séance libre" ajoute toujours
+                            // directement avec 1 série de base (voir addExerciseToActiveBlock).
                             if (isCircuitBlock) {
                               if (!alreadyInBlock) toggleCircuitPending(ex)
-                            } else {
+                            } else if (!canManageCatalog || addingSecondaryExercise || activityMode === 'cardio') {
                               addExerciseToActiveBlock(ex)
+                            } else {
+                              startExerciseConfig(ex)
                             }
                           }}
                           disabled={!activeBlock || alreadyInBlock}
@@ -1542,6 +1648,129 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                     <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 14, color: c.textMuted }}>No exercise matches your filters.</div>
                   )}
                 </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Modales de config après choix d'un exercice (coach uniquement) : nombre de séries puis temps de récup */}
+        {configStep === 'sets' && (
+          <>
+            <div onClick={closeExerciseConfig} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 210 }} />
+            <div style={{
+              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 211,
+              width: 520, maxWidth: 'calc(100vw - 32px)', background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
+                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Number of sets</span>
+                <button onClick={closeExerciseConfig} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div style={{ padding: '40px 24px', display: 'flex', justifyContent: 'center' }}>
+                <input
+                  type="number"
+                  min={1}
+                  value={pendingSets}
+                  onChange={e => setPendingSets(Math.max(1, parseInt(e.target.value) || 1))}
+                  autoFocus
+                  style={{
+                    width: 120, boxSizing: 'border-box', textAlign: 'center', fontSize: 20, fontWeight: 600,
+                    padding: '10px 12px', border: `1.5px solid ${c.blueBorder}`, borderRadius: 8, outline: 'none',
+                    color: c.text, fontFamily: 'inherit',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 24px', borderTop: `1px solid ${c.border}` }}>
+                <button onClick={closeExerciseConfig} style={{
+                  border: `1px solid ${c.border}`, color: c.text, fontWeight: 600, fontSize: 14, borderRadius: 6,
+                  padding: '9px 20px', background: c.bg, cursor: 'pointer',
+                }}>
+                  Close
+                </button>
+                <button onClick={confirmSetsStep} style={{
+                  border: `1px solid ${c.blue}`, color: c.blue, fontWeight: 600, fontSize: 14, borderRadius: 6,
+                  padding: '9px 20px', background: c.bg, cursor: 'pointer',
+                }}>
+                  Next
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {configStep === 'rest' && (
+          <>
+            <div onClick={closeExerciseConfig} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 210 }} />
+            <div style={{
+              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 211,
+              width: 520, maxWidth: 'calc(100vw - 32px)', background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
+                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Rest time</span>
+                <button onClick={closeExerciseConfig} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div style={{ padding: '28px 24px 8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10, marginBottom: 24 }}>
+                  {REST_PRESETS.map(preset => {
+                    const active = pendingRest === preset.seconds
+                    return (
+                      <button key={preset.seconds} onClick={() => setPendingRest(preset.seconds)} style={{
+                        padding: '9px 4px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        border: `1.5px solid ${active ? c.blue : c.border}`, color: active ? c.blue : c.text,
+                        background: c.bg,
+                      }}>
+                        {preset.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                  <input
+                    type="number"
+                    min={0}
+                    value={Math.floor(pendingRest / 60)}
+                    onChange={e => setPendingRest(Math.max(0, parseInt(e.target.value) || 0) * 60 + (pendingRest % 60))}
+                    style={{
+                      width: 70, boxSizing: 'border-box', textAlign: 'center', fontSize: 18, fontWeight: 600,
+                      padding: '10px 12px', border: `1.5px solid ${c.blueBorder}`, borderRadius: 8, outline: 'none',
+                      color: c.text, fontFamily: 'inherit',
+                    }}
+                  />
+                  <span style={{ fontSize: 14, color: c.textMuted }}>min</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={59}
+                    value={pendingRest % 60}
+                    onChange={e => {
+                      const secs = Math.min(59, Math.max(0, parseInt(e.target.value) || 0))
+                      setPendingRest(Math.floor(pendingRest / 60) * 60 + secs)
+                    }}
+                    style={{
+                      width: 70, boxSizing: 'border-box', textAlign: 'center', fontSize: 18, fontWeight: 600,
+                      padding: '10px 12px', border: `1.5px solid ${c.blueBorder}`, borderRadius: 8, outline: 'none',
+                      color: c.text, fontFamily: 'inherit',
+                    }}
+                  />
+                  <span style={{ fontSize: 14, color: c.textMuted }}>s</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 24px', borderTop: `1px solid ${c.border}` }}>
+                <button onClick={closeExerciseConfig} style={{
+                  border: `1px solid ${c.border}`, color: c.text, fontWeight: 600, fontSize: 14, borderRadius: 6,
+                  padding: '9px 20px', background: c.bg, cursor: 'pointer',
+                }}>
+                  Close
+                </button>
+                <button onClick={confirmRestStep} style={{
+                  border: `1px solid ${c.blue}`, color: c.blue, fontWeight: 600, fontSize: 14, borderRadius: 6,
+                  padding: '9px 20px', background: c.bg, cursor: 'pointer',
+                }}>
+                  Add
+                </button>
               </div>
             </div>
           </>
