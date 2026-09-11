@@ -148,9 +148,8 @@ function SessionSummaryBlock({ exercises }) {
     })
   }, [summaryKey])
 
-  if (!summary) return null
-  const totalTorque = Object.values(summary.torqueCounts).reduce((a, b) => a + b, 0)
-  const muscleEntries = Object.entries(summary.setsByMuscle).sort((a, b) => b[1] - a[1])
+  const totalTorque = summary ? Object.values(summary.torqueCounts).reduce((a, b) => a + b, 0) : 0
+  const muscleEntries = summary ? Object.entries(summary.setsByMuscle).sort((a, b) => b[1] - a[1]) : []
 
   const detail = (
     <>
@@ -198,7 +197,7 @@ function SessionSummaryBlock({ exercises }) {
         </button>
       </div>
 
-      {summary.muscles.length > 0 && (
+      {summary?.muscles.length > 0 ? (
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 5 }}>Muscles sollicités</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -206,6 +205,10 @@ function SessionSummaryBlock({ exercises }) {
               <span key={i} style={{ fontSize: 11, background: 'var(--green-light)', color: 'var(--green)', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>{m}</span>
             ))}
           </div>
+        </div>
+      ) : (
+        <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>
+          Aucune donnée — renseigne les muscles des exercices dans la bibliothèque de mouvements.
         </div>
       )}
 
@@ -217,7 +220,7 @@ function SessionSummaryBlock({ exercises }) {
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}>×</button>
             </div>
 
-            {summary.muscles.length > 0 && (
+            {summary?.muscles.length > 0 && (
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 5 }}>Muscles sollicités</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -225,6 +228,12 @@ function SessionSummaryBlock({ exercises }) {
                     <span key={i} style={{ fontSize: 11, background: 'var(--green-light)', color: 'var(--green)', borderRadius: 20, padding: '2px 8px', fontWeight: 600 }}>{m}</span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {!summary && (
+              <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>
+                Aucune donnée — renseigne les muscles des exercices dans la bibliothèque de mouvements.
               </div>
             )}
 
@@ -2225,8 +2234,9 @@ function ProgramEditorPage({ params }) {
                     {(s.circuits || []).filter(c => circuitSlot(c) === 0 && isCircuitVisible(c)).map(c => renderCircuit(c, (s.circuits || []).indexOf(c)))}
 
                     {/* Carrousel : un bloc à la fois (exercice seul / supersérie / circuit), navigation
-                        par pastilles numérotées + flèches — remplace la liste qui défilait en continu. */}
-                    {blocks.length > 1 && (
+                        par pastilles numérotées + flèches — remplace la liste qui défilait en continu.
+                        Affichée même à un seul bloc pour garder un visuel identique sur toutes les séances. */}
+                    {blocks.length > 0 && (
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '4px 0 2px', flexWrap: 'wrap' }}>
                         <button onClick={() => setBlockIndex(i => Math.max(0, i - 1))} disabled={clampedBlockIndex === 0}
                           style={{ background: 'none', border: 'none', fontSize: 18, padding: '2px 6px', cursor: clampedBlockIndex === 0 ? 'default' : 'pointer', color: clampedBlockIndex === 0 ? 'var(--border2)' : 'var(--text2)', lineHeight: 1 }}>
