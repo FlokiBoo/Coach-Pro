@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ClipboardText, UsersThree, Play, Repeat, Barbell, Clock } from '@phosphor-icons/react'
-import { WEEK_DAYS, jsDayToWeekDay } from '@/lib/weekDays'
+import { ClipboardText, UsersThree, Play, Repeat, Barbell, Clock, CalendarBlank } from '@phosphor-icons/react'
+import { WEEK_DAYS } from '@/lib/weekDays'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import SwipeCarousel from './SwipeCarousel'
+import ChooseDaysModal from './ChooseDaysModal'
 
 // Aucune durée réelle n'est connue avant d'avoir fait la séance (duration_minutes n'existe qu'en
 // feedback post-séance) — estimation grossière à partir du nombre de séries prescrites, juste pour
@@ -16,17 +17,26 @@ function estimateDurationMin(exercises) {
 }
 
 // Page d'accueil : la séance du jour doit être visible immédiatement, sans scroll. "Objectifs"
-// (déplacé depuis l'onglet Stats, qui garde le reste) et "Séance du jour" (fusion des séances
-// récurrentes + séances placées sur aujourd'hui) sont en tête — "Ma semaine" et l'affichage par
-// type d'activité/programme non daté ont été retirés (redondants avec "Séance du jour").
+// (déplacé depuis l'onglet Stats, qui garde le reste) et "Séance du jour" sont en tête.
+// "Séance du jour" montre en permanence la PROCHAINE séance non complétée de chaque programme
+// actif — récurrente, datée par le coach, datée par l'athlète, ou même pas encore datée du tout
+// (voir programEntries plus bas) — peu importe le jour où elle est prévue. Retour terrain : filtrer
+// par "aujourd'hui" faisait disparaître une séance manquée sans que l'athlète s'en rende compte, ou
+// la cachait avant son jour ; elle reste maintenant affichée, avec son jour prévu écrit sur la
+// carte (dayKey), jusqu'à ce qu'elle soit validée.
 export default function WodTab({
   isCoachView, noteBlocks,
   programs, completions, skippedSessions,
   router, token, setActiveTab,
   recurringTodayCounts = {},
   athlete, objectives, setObjectives,
+  onUpdateProgramDays,
 }) {
   const [leaderGroups, setLeaderGroups] = useState([])
+  // Programmes pour lesquels l'athlète a fermé le popup de choix de jours sans valider — masqué
+  // seulement pour cette visite (pas persisté), il redemandera à la prochaine ouverture tant que
+  // athlete_days_of_week reste vide.
+  const [dismissedDayPickerIds, setDismissedDayPickerIds] = useState(new Set())
 
   const openSession = (sessionId) => {
     router.push(`/s/${token}?session=${sessionId}&focus=1${isCoachView ? '&coach=1' : ''}`)
@@ -49,12 +59,10 @@ export default function WodTab({
   const boardPrograms = programs.filter(p => p.pinned_board !== false && !p.archived && !p.group_id)
 
   // Deux façons d'obtenir un jour pour une séance : le coach le fixe séance par séance sur le
-  // template (day_of_week), ou l'athlète choisit ses jours (athlete_days_of_week) — dans les deux
-  // cas la séance rejoint "Séance du jour" quand c'est aujourd'hui (voir todaysEntries plus bas).
-  // Les programmes sans aucun jour assigné (unscheduledPrograms) ne remontent plus nulle part sur
-  // cet écran — plus d'affichage par type d'activité ici (retiré, coach doit désormais assigner
-  // des jours à toute séance ; TODO.md : reprendre l'accès à ces programmes tant qu'ils n'ont pas
-  // de jour, ex. depuis l'onglet Templates).
+  // template (day_of_week), ou l'athlète choisit ses jours (athlete_days_of_week). Dans les deux
+  // cas, comme pour un programme pas encore daté du tout, seule la PROCHAINE séance non complétée
+  // compte désormais (voir programEntries plus bas) — le jour choisi n'est plus qu'une indication
+  // écrite sur la carte, il ne conditionne plus sa visibilité (cas réel : Kévin Cosaque / VO2MAX).
   // Séance récurrente (session_type === 'recurrent') : vit hors du calendrier — elle ne compte pas
   // pour déterminer si un programme est "daté", elle est listée à part (voir recurringEntries plus
   // bas), et jamais "consommée" par la progression classique (reste proposable indéfiniment).
@@ -72,38 +80,43 @@ export default function WodTab({
     else if (!prog.sessions.every(s => s.session_type === 'recurrent')) unscheduledPrograms.push(prog)
   })
   const datedProgramsCount = coachDatedPrograms.length + athleteDatedPrograms.length
-
-  const dayGroups = WEEK_DAYS.map(d => ({ ...d, entries: [] }))
-  coachDatedPrograms.forEach(prog => {
-    const progressionSessions = prog.sessions.filter(s => s.session_type !== 'recurrent')
-    const nextUncompleted = progressionSessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
-    if (!nextUncompleted) return
-    const weekSessions = nextUncompleted.week_number != null
-      ? progressionSessions.filter(s => s.week_number === nextUncompleted.week_number)
-      : [nextUncompleted]
-    weekSessions.forEach(s => {
-      if (s.day_of_week != null) dayGroups[s.day_of_week].entries.push({ session: s, program: prog })
-    })
-  })
-  // Jours choisis par l'athlète : chaque séance est assignée à un jour fixe selon sa position
-  // dans le programme (séance 1 → jour A, séance 2 → jour B, séance 3 → jour A à nouveau, etc.),
-  // pas recalculé "à plat" à chaque validation — sinon compléter une séance décale toutes les
-  // suivantes d'un jour à l'autre au lieu de garder chaque jour sur sa propre rotation stable.
-  athleteDatedPrograms.forEach(prog => {
-    const chosenDays = prog.athlete_days_of_week
-    chosenDays.forEach((day, slotIdx) => {
-      const sessionsForSlot = prog.sessions.filter((_, idx) => idx % chosenDays.length === slotIdx)
-      const nextForSlot = sessionsForSlot.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
-      if (nextForSlot) dayGroups[day].entries.push({ session: nextForSlot, program: prog })
-    })
-  })
-  const todayWeekDay = jsDayToWeekDay(new Date().getDay())
   const hasDayView = datedProgramsCount > 0
 
+  const nextUncompletedOf = (prog) => {
+    const progressionSessions = prog.sessions.filter(s => s.session_type !== 'recurrent')
+    return progressionSessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
+  }
+
+  // Une seule carte par programme actif, toujours affichée jusqu'à validation de la séance —
+  // dayKey (quand connu) n'est là que pour l'affichage ("le jour choisi est écrit"), voir
+  // renderDayCard. Un programme entièrement fini (plus de nextUncompleted, ex. une "Séance libre"
+  // déjà faite) n'a simplement pas d'entrée, comme avant.
+  const programEntries = []
+  coachDatedPrograms.forEach(prog => {
+    const next = nextUncompletedOf(prog)
+    if (next) programEntries.push({ session: next, program: prog, isRecurring: false, dayKey: next.day_of_week ?? null })
+  })
+  // Jour "de référence" de l'athlète : chaque séance a une position fixe dans la rotation de ses
+  // jours choisis (séance 1 → jour A, séance 2 → jour B, séance 3 → jour A, etc.) — ne sert plus
+  // qu'à afficher le jour prévu sur la carte, plus à décider si la séance doit apparaître ou non.
+  athleteDatedPrograms.forEach(prog => {
+    const progressionSessions = prog.sessions.filter(s => s.session_type !== 'recurrent')
+    const next = nextUncompletedOf(prog)
+    if (!next) return
+    const chosenDays = prog.athlete_days_of_week
+    const idx = progressionSessions.findIndex(s => s.id === next.id)
+    const dayKey = chosenDays.length ? chosenDays[idx % chosenDays.length] : null
+    programEntries.push({ session: next, program: prog, isRecurring: false, dayKey })
+  })
+  unscheduledPrograms.forEach(prog => {
+    const next = nextUncompletedOf(prog)
+    if (next) programEntries.push({ session: next, program: prog, isRecurring: false, dayKey: null })
+  })
+
   // Bilan "Ma semaine" : séances de la semaine "active" de chaque programme daté par le coach
-  // (même semaine que la prochaine séance non complétée, ou la dernière si tout est fait — même
-  // ancrage que dayGroups ci-dessus). Les programmes datés par l'athlète (rotation par créneaux,
-  // pas de week_number) n'ont pas de notion de "semaine" comparable et ne sont pas comptés ici.
+  // (même semaine que sa prochaine séance non complétée, ou la dernière si tout est fait). Les
+  // programmes datés par l'athlète (rotation par créneaux, pas de week_number) n'ont pas de notion
+  // de "semaine" comparable et ne sont pas comptés ici — inchangé par le passage à programEntries.
   const weekTally = { done: 0, total: 0 }
   coachDatedPrograms.forEach(prog => {
     const progressionSessions = prog.sessions.filter(s => s.session_type !== 'recurrent' && s.day_of_week != null)
@@ -115,28 +128,45 @@ export default function WodTab({
     weekTally.done += weekSessions.filter(s => completions.has(s.id) && !skippedSessions.has(s.id)).length
   })
 
-  // "Séance du jour" = récurrentes (toujours dispo) + séances placées sur aujourd'hui (programmes
-  // datés coach/athlète). Les programmes non datés n'apparaissent plus du tout sur cet écran.
+  // "Séance du jour" = récurrentes (toujours dispo) + prochaine séance de chaque programme actif,
+  // daté ou non — balayer la carte montre celle du programme suivant si plusieurs sont en cours.
   const todaysEntries = [
-    ...recurringEntries.map(e => ({ ...e, isRecurring: true })),
-    ...(hasDayView ? dayGroups.find(d => d.key === todayWeekDay).entries.map(e => ({ ...e, isRecurring: false })) : []),
+    ...recurringEntries.map(e => ({ ...e, isRecurring: true, dayKey: null })),
+    ...programEntries,
   ]
 
   // Séance récurrente : hors calendrier, proposée tous les jours, fusionnée dans la carte "Séance
   // du jour" ci-dessous. S'ouvre comme n'importe quelle séance (voir openSession) — le compteur du
   // jour (recurring_session_logs) repart à zéro le lendemain sans faire disparaître la séance.
 
+  // Un vrai programme multi-séances non daté doit demander à l'athlète son rythme hebdomadaire
+  // (popup) — une "Séance libre" ponctuelle (1 seule séance) n'a pas de "rythme" à choisir, elle
+  // reste juste accessible via sa carte dans "Séance du jour" ci-dessus sans popup.
+  const programsNeedingDays = unscheduledPrograms.filter(prog =>
+    prog.sessions.filter(s => s.session_type !== 'recurrent').length > 1
+    && !dismissedDayPickerIds.has(prog.id)
+    && nextUncompletedOf(prog)
+  )
+  const dayPickerProgram = programsNeedingDays[0] || null
+
   const renderDayCard = (entry, i) => {
-    const { session: s, program, isRecurring } = entry
+    const { session: s, program, isRecurring, dayKey } = entry
     const exoCount = (s.exercises || []).filter(e => e.name).length
     const durationMin = estimateDurationMin(s.exercises)
     const isDone = !isRecurring && completions.has(s.id) && !skippedSessions.has(s.id)
     const recurringMet = isRecurring && (recurringTodayCounts[s.id] || 0) >= (s.recurring_daily_target || 1)
     const isPrimary = i === 0
+    // Indication écrite du jour prévu — n'a plus d'effet sur la visibilité de la carte (voir
+    // programEntries plus haut) : la séance reste affichée avant comme après ce jour, tant qu'elle
+    // n'est pas validée.
+    const dayLabel = !isRecurring && dayKey != null ? WEEK_DAYS.find(d => d.key === dayKey)?.label : null
     return (
       <div key={s.id} style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '16px', margin: '0 2px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {isRecurring && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: 'var(--vert-foret)' }}><Repeat size={12} weight="light" /> Tous les jours</span>
+        )}
+        {dayLabel && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: 'var(--vert-foret)' }}><CalendarBlank size={12} weight="light" /> Prévue {dayLabel}</span>
         )}
         <div style={{ fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 19, color: 'var(--bordeaux)' }}>
           {s.title || 'Séance'}
@@ -177,7 +207,7 @@ export default function WodTab({
               content: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text3)', textAlign: 'center' }}>
-                    {i + 1}/{todaysEntries.length}{datedProgramsCount + (recurringEntries.length ? 1 : 0) > 1 ? ` · ${entry.program.title}` : ''}
+                    {i + 1}/{todaysEntries.length} · {entry.program.title}
                   </div>
                   {renderDayCard(entry, i)}
                 </div>
@@ -276,6 +306,16 @@ export default function WodTab({
         <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '20px', fontSize: 13 }}>
           Aucun programme épinglé au tableau de bord
         </div>
+      )}
+
+      {!isCoachView && dayPickerProgram && onUpdateProgramDays && (
+        <ChooseDaysModal
+          program={dayPickerProgram}
+          onSave={async (days) => {
+            await onUpdateProgramDays(dayPickerProgram.id, days)
+          }}
+          onDismiss={() => setDismissedDayPickerIds(prev => new Set(prev).add(dayPickerProgram.id))}
+        />
       )}
 
     </div>
