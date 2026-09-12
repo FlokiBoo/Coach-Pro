@@ -4,7 +4,7 @@ import { useState, Suspense } from 'react'
 import { Eye, EyeSlash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { PASSWORD_MIN_LENGTH } from '@/lib/passwordPolicy'
+import { PASSWORD_MIN_LENGTH, isPasswordValid, passwordPolicyMessage } from '@/lib/passwordPolicy'
 import PasswordChecklist from '@/app/components/PasswordChecklist'
 
 const fieldStyle = {
@@ -32,6 +32,7 @@ function LoginPage() {
   const [targetWeight, setTargetWeight] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
   const [mode, setMode] = useState(searchParams.get('mode') === 'signup' ? 'signup' : 'login') // 'login' | 'signup' | 'reset'
   const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
@@ -47,7 +48,7 @@ function LoginPage() {
     router.push(athlete?.token ? `/s/${athlete.token}` : '/')
   }
 
-  const switchMode = (m) => { setMode(m); setError(''); setSuccess('') }
+  const switchMode = (m) => { setMode(m); setError(''); setSuccess(''); setPasswordConfirm('') }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -66,6 +67,8 @@ function LoginPage() {
     }
 
     if (mode === 'signup') {
+      if (password !== passwordConfirm) { setError('Les deux mots de passe ne sont pas identiques.'); setLoading(false); return }
+      if (!isPasswordValid(password)) { setError(passwordPolicyMessage()); setLoading(false); return }
       if (!acceptedTerms) { setError('Merci d\'accepter les CGU et la politique de confidentialité.'); setLoading(false); return }
       const name = `${firstName.trim()} ${lastName.trim()}`.trim()
       const res = await fetch('/api/signup', {
@@ -73,6 +76,7 @@ function LoginPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name, email, password,
+          accepted_terms: acceptedTerms,
           birth_date: birthDate || null,
           height: height || null,
           weight: weight || null,
@@ -232,6 +236,26 @@ function LoginPage() {
             </div>
           )}
 
+          {mode === 'signup' && (
+            <div>
+              <input
+                type={showPwd ? 'text' : 'password'}
+                placeholder="Confirmer le mot de passe"
+                value={passwordConfirm}
+                onChange={e => setPasswordConfirm(e.target.value)}
+                required
+                minLength={PASSWORD_MIN_LENGTH}
+                autoComplete="new-password"
+                style={fieldStyle}
+              />
+              {passwordConfirm && password !== passwordConfirm && (
+                <div style={{ fontSize: 12, color: '#DC2626', marginTop: 5 }}>
+                  Les deux mots de passe ne sont pas identiques.
+                </div>
+              )}
+            </div>
+          )}
+
           {mode === 'signup' && <PasswordChecklist password={password} />}
 
           {mode === 'login' && (
@@ -248,8 +272,8 @@ function LoginPage() {
               <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)}
                 style={{ marginTop: 2, flexShrink: 0 }} />
               <span>
-                J&apos;accepte les <a href="/cgu" style={{ color: 'var(--green)' }}>CGU</a> et la{' '}
-                <a href="/confidentialite" style={{ color: 'var(--green)' }}>politique de confidentialité</a>.
+                J&apos;accepte les <a href="/cgu" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green)' }}>CGU</a> et la{' '}
+                <a href="/confidentialite" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green)' }}>politique de confidentialité</a>.
               </span>
             </label>
           )}

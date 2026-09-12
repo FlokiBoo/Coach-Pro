@@ -30,6 +30,7 @@ function DefinirMotDePasseInner() {
   const [weight, setWeight] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [acceptedTerms, setAcceptedTerms] = useState(false)
   const [showPwd, setShowPwd] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -77,6 +78,7 @@ function DefinirMotDePasseInner() {
     setError('')
     if (!isPasswordValid(password)) { setError(passwordPolicyMessage()); return }
     if (password !== confirm) { setError('Les mots de passe ne correspondent pas.'); return }
+    if (!acceptedTerms) { setError('Merci d\'accepter les CGU et la politique de confidentialité.'); return }
 
     setLoading(true)
 
@@ -85,7 +87,7 @@ function DefinirMotDePasseInner() {
 
     const res = await fetch('/api/password-set', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, birth_date: birthDate || null, height: height || null, weight: weight || null }),
+      body: JSON.stringify({ name, birth_date: birthDate || null, height: height || null, weight: weight || null, accepted_terms: acceptedTerms }),
     })
     const { athleteToken } = await res.json().catch(() => ({}))
     window.location.href = athleteToken ? `/s/${athleteToken}` : '/'
@@ -183,6 +185,15 @@ function DefinirMotDePasseInner() {
             </Field>
 
             <PasswordChecklist password={password} />
+
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 12, color: 'var(--text3)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={acceptedTerms} onChange={e => setAcceptedTerms(e.target.checked)}
+                style={{ marginTop: 2, flexShrink: 0 }} />
+              <span>
+                J&apos;accepte les <a href="/cgu" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green)' }}>CGU</a> et la{' '}
+                <a href="/confidentialite" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--green)' }}>politique de confidentialité</a>.
+              </span>
+            </label>
 
             {error && (
               <div style={{ fontSize: 13, color: '#DC2626', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 'var(--r)', padding: '10px 12px' }}>

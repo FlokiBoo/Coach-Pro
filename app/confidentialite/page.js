@@ -1,4 +1,5 @@
 import BackButton from '@/app/components/BackButton'
+import { LEGAL_VERSION_LABEL } from '@/lib/legal'
 
 export const metadata = { title: 'Politique de confidentialité — OSTRYK' }
 
@@ -15,7 +16,7 @@ export default function ConfidentialitePage() {
       <div style={{ maxWidth: 720, margin: '0 auto', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '36px 32px' }}>
         <BackButton />
         <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 26, fontWeight: 700, marginBottom: 4 }}>Politique de confidentialité</div>
-        <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 32 }}>Dernière mise à jour : 23 août 2026</div>
+        <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 32 }}>Dernière mise à jour : {LEGAL_VERSION_LABEL}</div>
 
         <Section title="1. Qui sommes-nous">
           <p>

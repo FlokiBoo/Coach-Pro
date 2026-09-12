@@ -2,6 +2,7 @@ import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { LEGAL_VERSION } from '@/lib/legal'
 
 export async function POST(request) {
   const profile = await request.json().catch(() => ({}))
@@ -28,11 +29,20 @@ export async function POST(request) {
     { auth: { autoRefreshToken: false, persistSession: false } }
   )
 
+  // Consentement CGU du parcours sur invitation : horodaté + versionné comme à l'auto-inscription
+  // (RGPD art. 7.1 — il faut pouvoir prouver à quelle version le client a consenti, et quand).
+  // Absent quand la route est appelée depuis /update-password (simple réinitialisation) : on ne
+  // touche alors pas au consentement déjà enregistré.
+  const userMetadataUpdate = profile.accepted_terms === true && !user.user_metadata?.cgu_accepted_at
+    ? { user_metadata: { ...user.user_metadata, cgu_accepted_at: new Date().toISOString(), cgu_version: LEGAL_VERSION } }
+    : {}
+
   await adminClient.auth.admin.updateUserById(user.id, {
     app_metadata: {
       ...user.app_metadata,
       needs_password: false
-    }
+    },
+    ...userMetadataUpdate
   })
 
   // Lie le compte à son profil sportif si ce n'est pas déjà fait (cas : lien de récupération

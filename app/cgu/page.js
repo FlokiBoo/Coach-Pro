@@ -1,4 +1,5 @@
 import BackButton from '@/app/components/BackButton'
+import { LEGAL_VERSION_LABEL } from '@/lib/legal'
 
 export const metadata = { title: 'CGU & CGV — OSTRYK' }
 
@@ -17,7 +18,7 @@ export default function CguPage() {
         <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontSize: 26, fontWeight: 700, marginBottom: 4 }}>
           Conditions générales d&apos;utilisation et de vente
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 32 }}>Dernière mise à jour : 23 août 2026</div>
+        <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 32 }}>Dernière mise à jour : {LEGAL_VERSION_LABEL}</div>
 
         <Section title="1. Objet">
           <p>
