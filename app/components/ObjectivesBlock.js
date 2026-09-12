@@ -92,7 +92,7 @@ const PRIORITY_STYLES = {
   3: { bg: '#EFF6FF', border: '#93C5FD', text: '#1D4ED8', textDate: '#1D4ED8', bullet: '#2563EB' },
 }
 
-export default function ObjectivesBlock({ athleteId, objectives, setObjectives, isCoach = true }) {
+export default function ObjectivesBlock({ athleteId, objectives, setObjectives, isCoach = true, bare = false }) {
   const [newText, setNewText] = useState('')
   const [newDate, setNewDate] = useState('')
   const [newPriority, setNewPriority] = useState(2)
@@ -151,21 +151,9 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
     fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', fontFamily: 'inherit',
   }
 
-  return (
-    <div style={{
-      background: isCoach ? 'var(--bg)' : 'var(--card-white)',
-      border: `1px solid ${isCoach ? 'var(--border)' : 'var(--ostryk-border)'}`,
-      borderRadius: isCoach ? 'var(--rl)' : 'var(--ostryk-card-radius)', overflow: 'hidden',
-    }}>
-      <div style={{ padding: '12px 14px', borderBottom: `1px solid ${isCoach ? 'var(--border)' : 'var(--ostryk-border)'}` }}>
-        {isCoach ? (
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Target size={13} /> Objectifs</span>
-        ) : (
-          <span style={{ fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 15, color: 'var(--bordeaux)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Target size={14} weight="light" color="var(--vert-foret)" /> Objectifs</span>
-        )}
-      </div>
-
-      <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+  const content = (
+    <>
+      <div style={{ padding: bare ? 0 : 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {sorted.length === 0 && (
           <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun objectif défini</div>
         )}
@@ -333,6 +321,25 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
           </button>
         )}
       </div>
+    </>
+  )
+
+  if (bare) return content
+
+  return (
+    <div style={{
+      background: isCoach ? 'var(--bg)' : 'var(--card-white)',
+      border: `1px solid ${isCoach ? 'var(--border)' : 'var(--ostryk-border)'}`,
+      borderRadius: isCoach ? 'var(--rl)' : 'var(--ostryk-card-radius)', overflow: 'hidden',
+    }}>
+      <div style={{ padding: '12px 14px', borderBottom: `1px solid ${isCoach ? 'var(--border)' : 'var(--ostryk-border)'}` }}>
+        {isCoach ? (
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', display: 'inline-flex', alignItems: 'center', gap: 5 }}><Target size={13} /> Objectifs</span>
+        ) : (
+          <span style={{ fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 15, color: 'var(--bordeaux)', display: 'inline-flex', alignItems: 'center', gap: 6 }}><Target size={14} weight="light" color="var(--vert-foret)" /> Objectifs</span>
+        )}
+      </div>
+      {content}
     </div>
   )
 }

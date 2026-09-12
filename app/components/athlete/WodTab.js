@@ -160,7 +160,10 @@ export default function WodTab({
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
       {!isCoachView && athlete?.id && (
-        <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} isCoach={false} />
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Objectifs</div>
+          <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} isCoach={false} bare />
+        </div>
       )}
 
       {todaysEntries.length > 0 && (
