@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ClipboardText, UsersThree, Play, Repeat, Barbell, Clock } from '@phosphor-icons/react'
+import { ClipboardText, UsersThree, Play, Repeat, Barbell, Clock, CalendarBlank } from '@phosphor-icons/react'
 import { WEEK_DAYS, jsDayToWeekDay } from '@/lib/weekDays'
 import ObjectivesBlock from '@/app/components/ObjectivesBlock'
 import SwipeCarousel from './SwipeCarousel'
@@ -22,11 +22,12 @@ function estimateDurationMin(exercises) {
 export default function WodTab({
   isCoachView, noteBlocks,
   programs, completions, skippedSessions,
-  router, token, setActiveTab,
+  router, token, setActiveTab, onUpdateProgramDays,
   recurringTodayCounts = {},
   athlete, objectives, setObjectives,
 }) {
   const [leaderGroups, setLeaderGroups] = useState([])
+  const [dayPickerProgram, setDayPickerProgram] = useState(null)
 
   const openSession = (sessionId) => {
     router.push(`/s/${token}?session=${sessionId}&focus=1${isCoachView ? '&coach=1' : ''}`)
@@ -51,10 +52,11 @@ export default function WodTab({
   // Deux façons d'obtenir un jour pour une séance : le coach le fixe séance par séance sur le
   // template (day_of_week), ou l'athlète choisit ses jours (athlete_days_of_week) — dans les deux
   // cas la séance rejoint "Séance du jour" quand c'est aujourd'hui (voir todaysEntries plus bas).
-  // Les programmes sans aucun jour assigné (unscheduledPrograms) ne remontent plus nulle part sur
-  // cet écran — plus d'affichage par type d'activité ici (retiré, coach doit désormais assigner
-  // des jours à toute séance ; TODO.md : reprendre l'accès à ces programmes tant qu'ils n'ont pas
-  // de jour, ex. depuis l'onglet Templates).
+  // Les programmes sans aucun jour assigné (unscheduledPrograms) ont leur propre section "Mes
+  // programmes" plus bas : sans elle, un programme en cours dont le coach n'a daté aucune séance
+  // et pour lequel l'athlète n'a pas choisi ses jours disparaissait totalement de l'app (écran
+  // Séance vide, rien non plus dans Templates qui ne liste que les programmes *disponibles*) —
+  // remonté par un sportif qui ne retrouvait plus son programme VO2max en cours.
   // Séance récurrente (session_type === 'recurrent') : vit hors du calendrier — elle ne compte pas
   // pour déterminer si un programme est "daté", elle est listée à part (voir recurringEntries plus
   // bas), et jamais "consommée" par la progression classique (reste proposable indéfiniment).
@@ -122,12 +124,21 @@ export default function WodTab({
     ...(hasDayView ? dayGroups.find(d => d.key === todayWeekDay).entries.map(e => ({ ...e, isRecurring: false })) : []),
   ]
 
+  // Programmes en cours sans aucun jour : leur prochaine séance à faire, accessible sans condition
+  // de jour (session null = programme terminé, on le dit plutôt que de masquer la carte).
+  const unscheduledEntries = unscheduledPrograms.map(prog => {
+    const progressionSessions = prog.sessions.filter(s => s.session_type !== 'recurrent')
+    const next = progressionSessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
+    return { program: prog, session: next || null, isRecurring: false }
+  })
+
   // Séance récurrente : hors calendrier, proposée tous les jours, fusionnée dans la carte "Séance
   // du jour" ci-dessous. S'ouvre comme n'importe quelle séance (voir openSession) — le compteur du
   // jour (recurring_session_logs) repart à zéro le lendemain sans faire disparaître la séance.
 
-  const renderDayCard = (entry, i) => {
+  const renderDayCard = (entry, i, opts = {}) => {
     const { session: s, program, isRecurring } = entry
+    const { programLabel, onPickDays } = opts
     const exoCount = (s.exercises || []).filter(e => e.name).length
     const durationMin = estimateDurationMin(s.exercises)
     const isDone = !isRecurring && completions.has(s.id) && !skippedSessions.has(s.id)
@@ -137,6 +148,9 @@ export default function WodTab({
       <div key={s.id} style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '16px', margin: '0 2px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {isRecurring && (
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: 'var(--vert-foret)' }}><Repeat size={12} weight="light" /> Tous les jours</span>
+        )}
+        {programLabel && (
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{programLabel}</span>
         )}
         <div style={{ fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 19, color: 'var(--bordeaux)' }}>
           {s.title || 'Séance'}
@@ -153,6 +167,16 @@ export default function WodTab({
         }}>
           {(isDone || recurringMet) ? '✓ Commencer' : 'Commencer'}
         </button>
+        {onPickDays && (
+          <button onClick={onPickDays} style={{
+            background: 'none', border: 'none', color: 'var(--ostryk-text2)',
+            fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 2,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+          }}>
+            <CalendarBlank size={13} weight="light" />
+            {program.athlete_days_of_week?.length ? 'Modifier mes jours' : 'Choisir mes jours'}
+          </button>
+        )}
       </div>
     )
   }
@@ -184,6 +208,48 @@ export default function WodTab({
               ),
             }))} />
           )}
+        </div>
+      )}
+
+      {!isCoachView && onUpdateProgramDays && athleteDatedPrograms.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Mes jours</div>
+          <div style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', overflow: 'hidden' }}>
+            {athleteDatedPrograms.map((prog, i) => (
+              <button key={prog.id} onClick={() => setDayPickerProgram(prog)} style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '13px 16px',
+                background: 'none', border: 'none', borderTop: i === 0 ? 'none' : '1px solid var(--ostryk-border)',
+                cursor: 'pointer', textAlign: 'left',
+              }}>
+                <CalendarBlank size={15} weight="light" color="var(--vert-foret)" />
+                <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: 'var(--bordeaux)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{prog.title}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--ostryk-text2)', flexShrink: 0 }}>
+                  {prog.athlete_days_of_week.map(d => WEEK_DAYS[d].short).join(' · ')}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {unscheduledEntries.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Mes programmes</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {unscheduledEntries.map(entry => (
+              entry.session
+                ? renderDayCard(entry, todaysEntries.length === 0 ? 0 : 1, {
+                    programLabel: entry.program.title,
+                    onPickDays: !isCoachView && onUpdateProgramDays ? () => setDayPickerProgram(entry.program) : null,
+                  })
+                : (
+                  <div key={entry.program.id} style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '16px', margin: '0 2px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{entry.program.title}</span>
+                    <span style={{ fontSize: 14, color: 'var(--ostryk-text2)' }}>Programme terminé — bravo ! 🎉</span>
+                  </div>
+                )
+            ))}
+          </div>
         </div>
       )}
 
@@ -278,6 +344,65 @@ export default function WodTab({
         </div>
       )}
 
+      {dayPickerProgram && (
+        <DayPickerModal
+          program={dayPickerProgram}
+          onClose={() => setDayPickerProgram(null)}
+          onSave={days => { onUpdateProgramDays(dayPickerProgram.id, days); setDayPickerProgram(null) }}
+        />
+      )}
+
+    </div>
+  )
+}
+
+// Choix des jours d'entraînement par l'athlète lui-même, pour un programme que le coach n'a pas
+// daté séance par séance — une fois validé, le programme rejoint "Séance du jour" les jours cochés.
+function DayPickerModal({ program, onClose, onSave }) {
+  const [selected, setSelected] = useState(new Set(program.athlete_days_of_week || []))
+  const toggle = (key) => setSelected(prev => {
+    const next = new Set(prev)
+    if (next.has(key)) next.delete(key); else next.add(key)
+    return next
+  })
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1300, padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card-white)', borderRadius: 'var(--ostryk-card-radius)', padding: 20, maxWidth: 380, width: '100%', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.4)' }}>
+        <div style={{ fontFamily: 'var(--font-title)', color: 'var(--bordeaux)', fontSize: 18, fontWeight: 600, marginBottom: 4, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <CalendarBlank size={16} weight="light" /> Mes jours
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--ostryk-text2)', textAlign: 'center', marginBottom: 10 }}>{program.title}</div>
+        {(program.recommended_sessions_per_week || program.min_hours_between_sessions) && (
+          <div style={{ fontSize: 12, color: 'var(--ostryk-text3)', textAlign: 'center', marginBottom: 12 }}>
+            Conseillé par ton coach :{' '}
+            {program.recommended_sessions_per_week ? `${program.recommended_sessions_per_week} séances/semaine` : ''}
+            {program.recommended_sessions_per_week && program.min_hours_between_sessions ? ', ' : ''}
+            {program.min_hours_between_sessions ? `min. ${program.min_hours_between_sessions}h d'écart entre les séances` : ''}
+          </div>
+        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, marginBottom: 16 }}>
+          {WEEK_DAYS.map(d => (
+            <button key={d.key} onClick={() => toggle(d.key)} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: '11px 12px', borderRadius: 'var(--ostryk-card-radius)',
+              border: selected.has(d.key) ? '1.5px solid var(--vert-foret)' : '1px solid var(--ostryk-border)',
+              background: selected.has(d.key) ? 'var(--beige)' : 'transparent',
+              color: selected.has(d.key) ? 'var(--vert-foret)' : 'var(--ostryk-text2)',
+              fontWeight: 700, fontSize: 14, cursor: 'pointer', textAlign: 'left',
+            }}>
+              <span style={{ width: 12 }}>{selected.has(d.key) ? '✓' : ''}</span>
+              {d.label}
+            </button>
+          ))}
+        </div>
+        <button onClick={() => onSave([...selected])} disabled={selected.size === 0}
+          style={{ background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: 'var(--ostryk-pill-radius)', padding: '12px', fontSize: 14, fontWeight: 700, cursor: selected.size === 0 ? 'default' : 'pointer', width: '100%', opacity: selected.size === 0 ? 0.5 : 1, marginBottom: 8 }}>
+          Valider
+        </button>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--ostryk-text2)', fontSize: 13, fontWeight: 600, cursor: 'pointer', width: '100%', padding: 6 }}>
+          Annuler
+        </button>
+      </div>
     </div>
   )
 }
