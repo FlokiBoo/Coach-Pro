@@ -1,7 +1,7 @@
 'use client'
 
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { SortableContext, useSortable, verticalListSortingStrategy, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 
 // Liste réordonnable par glisser-déposer (appui maintenu ~250ms puis glisser), en complément des
@@ -9,7 +9,9 @@ import { CSS } from '@dnd-kit/utilities'
 // `ids` : liste des identifiants (mêmes clés que les items rendus). `onReorder(id, dir)` : appelé
 // une fois par cran franchi pendant le glisser, avec le MÊME contrat que les flèches existantes
 // (dir = -1 | 1) — pour rester garanti cohérent avec la logique de déplacement déjà en place.
-export function SortableGroup({ ids, onReorder, children }) {
+// `orientation` : 'vertical' (défaut, listes empilées) ou 'horizontal' (rangée, ex. cercles de
+// navigation entre blocs) — ne change que la stratégie de calcul de position de dnd-kit.
+export function SortableGroup({ ids, onReorder, children, orientation = 'vertical' }) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { delay: 250, tolerance: 6 } })
   )
@@ -26,7 +28,7 @@ export function SortableGroup({ ids, onReorder, children }) {
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+      <SortableContext items={ids} strategy={orientation === 'horizontal' ? horizontalListSortingStrategy : verticalListSortingStrategy}>
         {children}
       </SortableContext>
     </DndContext>

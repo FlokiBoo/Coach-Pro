@@ -356,6 +356,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const [movementsList, setMovementsList] = useState([]) // [{ id, name, muscles }]
 
   const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const [blockMenuOpen, setBlockMenuOpen] = useState(false)
   const [blocks, setBlocks] = useState([])
   const [exercisesModalOpen, setExercisesModalOpen] = useState(false)
   const [exerciseSearch, setExerciseSearch] = useState('')
@@ -370,7 +371,12 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const [pendingRest, setPendingRest] = useState(60)
   const [addingSecondaryExercise, setAddingSecondaryExercise] = useState(false)
   const [pendingCircuitExercises, setPendingCircuitExercises] = useState([])
-  const [activeBlockIndex, setActiveBlockIndex] = useState(0)
+  // Sélection par id (pas par index) : un glisser-déposer des blocs (voir moveBlock/orderMode
+  // plus bas) peut réordonner le tableau `blocks` en plusieurs étapes synchrones avant tout
+  // re-render — un index resterait figé sur une position pendant que son contenu change sous lui.
+  // L'id, lui, continue de désigner le même bloc quel que soit son nouvel index.
+  const [activeBlockId, setActiveBlockId] = useState(null)
+  const [orderMode, setOrderMode] = useState(false)
   const [descModalOpen, setDescModalOpen] = useState(false)
   const [draftName, setDraftName] = useState('')
   const [draftDescription, setDraftDescription] = useState('')
@@ -414,7 +420,9 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
       setSessionType(sessionRow.session_type || null)
       setActivityMode(sessionRow.activity_mode || 'standard')
       setRecurringTarget(sessionRow.recurring_daily_target || 1)
-      setBlocks(buildBlocksFromDb(exerciseRows || [], sessionRow.circuits || []))
+      const builtBlocks = buildBlocksFromDb(exerciseRows || [], sessionRow.circuits || [])
+      setBlocks(builtBlocks)
+      if (builtBlocks.length) setActiveBlockId(builtBlocks[0].id)
       setAddMenuOpen((exerciseRows || []).length === 0 && !(sessionRow.circuits || []).length)
       setLoading(false)
     }
@@ -523,25 +531,26 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   }
 
   const addWarmupBlock = () => {
-    const existingIndex = blocks.findIndex(b => b.type === 'warmup')
-    if (existingIndex !== -1) {
-      setActiveBlockIndex(existingIndex)
+    const existing = blocks.find(b => b.type === 'warmup')
+    if (existing) {
+      setActiveBlockId(existing.id)
     } else {
-      setBlocks([{ id: nextBlockId(), type: 'warmup', name: '', description: '', note: '' }, ...blocks])
-      setActiveBlockIndex(0)
+      const newBlock = { id: nextBlockId(), type: 'warmup', name: '', description: '', note: '' }
+      setBlocks([newBlock, ...blocks])
+      setActiveBlockId(newBlock.id)
     }
     setUnsavedChanges(true)
     setAddMenuOpen(false)
   }
 
   const addCooldownBlock = () => {
-    const existingIndex = blocks.findIndex(b => b.type === 'cooldown')
-    if (existingIndex !== -1) {
-      setActiveBlockIndex(existingIndex)
+    const existing = blocks.find(b => b.type === 'cooldown')
+    if (existing) {
+      setActiveBlockId(existing.id)
     } else {
-      const newBlocks = [...blocks, { id: nextBlockId(), type: 'cooldown', name: '', description: '', note: '' }]
-      setBlocks(newBlocks)
-      setActiveBlockIndex(newBlocks.length - 1)
+      const newBlock = { id: nextBlockId(), type: 'cooldown', name: '', description: '', note: '' }
+      setBlocks([...blocks, newBlock])
+      setActiveBlockId(newBlock.id)
     }
     setUnsavedChanges(true)
     setAddMenuOpen(false)
@@ -552,7 +561,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     const insertAt = cooldownIndex === -1 ? blocks.length : cooldownIndex
     const newBlock = { id: nextBlockId(), type, name: '', description: '', note: '' }
     setBlocks([...blocks.slice(0, insertAt), newBlock, ...blocks.slice(insertAt)])
-    setActiveBlockIndex(insertAt)
+    setActiveBlockId(newBlock.id)
     setUnsavedChanges(true)
     setAddMenuOpen(false)
     setAddingSecondaryExercise(false)
@@ -566,11 +575,81 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const removeBlock = (index) => {
     const newBlocks = blocks.filter((_, i) => i !== index)
     setBlocks(newBlocks)
-    setActiveBlockIndex(Math.min(index, newBlocks.length - 1))
+    setActiveBlockId(newBlocks[Math.min(index, newBlocks.length - 1)]?.id ?? null)
     setUnsavedChanges(true)
   }
 
+  // Duplique le bloc avec de nouveaux id (bloc, exercices, sets) — jamais les mêmes que
+  // l'original, sinon les clés de setNotes/setValues/paceValues (indexées par ces id) et les clés
+  // React `key` se retrouveraient partagées entre les deux blocs. dbCircuitId est délibérément
+  // abandonné : un bloc circuit dupliqué doit créer sa propre ligne `circuits` à la sauvegarde,
+  // pas réutiliser celle de l'original.
+  const duplicateBlock = (index) => {
+    const original = blocks[index]
+    if (!original) return
+
+    const exerciseIdMap = new Map()
+    const exercises = (original.exercises || []).map(ex => {
+      const newId = nextBlockId()
+      exerciseIdMap.set(ex.id, newId)
+      return { ...ex, id: newId }
+    })
+    const setIdMap = new Map()
+    const sets = (original.sets || []).map(s => {
+      const newId = nextBlockId()
+      setIdMap.set(s.id, newId)
+      return { ...s, id: newId }
+    })
+    const remapRecord = (record) => {
+      const out = {}
+      Object.entries(record || {}).forEach(([key, value]) => {
+        const [setPart, exPart] = key.split(':')
+        out[`${setIdMap.get(setPart) ?? setPart}:${exerciseIdMap.get(exPart) ?? exPart}`] = value
+      })
+      return out
+    }
+    const paceValues = {}
+    Object.entries(original.paceValues || {}).forEach(([exId, value]) => {
+      paceValues[exerciseIdMap.get(exId) ?? exId] = value
+    })
+
+    const duplicate = {
+      ...original,
+      id: nextBlockId(),
+      dbCircuitId: undefined,
+      exercises,
+      sets,
+      setNotes: remapRecord(original.setNotes),
+      setValues: remapRecord(original.setValues),
+      paceValues,
+    }
+
+    setBlocks([...blocks.slice(0, index + 1), duplicate, ...blocks.slice(index + 1)])
+    setActiveBlockId(duplicate.id)
+    setUnsavedChanges(true)
+  }
+
+  // Dérivé de activeBlockId (voir sa déclaration) plutôt que stocké directement.
+  const activeBlockIndex = blocks.findIndex(b => b.id === activeBlockId)
   const activeBlock = blocks[activeBlockIndex] ?? null
+
+  // Glisser-déposer des cercles de navigation pour réordonner les blocs (actif seulement en mode
+  // Order — hors de ce mode, un tap sur un cercle sert à naviguer, pas à déplacer). Même contrat
+  // que moveExercise : résout l'index courant par id à l'intérieur du functional updater, jamais
+  // via un index capturé à l'extérieur — un glisser sur plusieurs crans déclenche plusieurs appels
+  // synchrones avant le prochain rendu (voir SortableGroup).
+  const moveBlock = (blockId, dir) => {
+    setBlocks(prev => {
+      const idx = prev.findIndex(b => b.id === blockId)
+      const newIdx = idx + dir
+      if (idx === -1 || newIdx < 0 || newIdx >= prev.length) return prev
+      const newBlocks = [...prev]
+      const [item] = newBlocks.splice(idx, 1)
+      newBlocks.splice(newIdx, 0, item)
+      return newBlocks
+    })
+    setUnsavedChanges(true)
+  }
   const isCircuitBlock = activeBlock?.type === 'circuit'
 
   const openDescModal = () => {
@@ -1053,31 +1132,74 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
               </>
             )}
           </div>
-          <button disabled style={{
-            display: 'flex', alignItems: 'center', gap: 8, background: c.disabledBg, border: `1px solid ${c.border}`,
-            borderRadius: 6, padding: '9px 16px', fontSize: 13, fontWeight: 600, color: c.disabled, cursor: 'not-allowed',
-          }}>
+          <button
+            onClick={() => setOrderMode(v => !v)}
+            disabled={blocks.length < 2}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, borderRadius: 6, padding: '9px 16px', fontSize: 13, fontWeight: 600,
+              cursor: blocks.length < 2 ? 'not-allowed' : 'pointer',
+              border: `1px solid ${orderMode ? c.blue : c.border}`,
+              background: blocks.length < 2 ? c.disabledBg : (orderMode ? c.blueBorder : c.bg),
+              color: blocks.length < 2 ? c.disabled : (orderMode ? c.blue : c.text),
+            }}
+          >
             <ArrowsDownUp size={14} /> Order
           </button>
         </div>
+
+        {orderMode && (
+          <div style={{ marginTop: 10, fontSize: 12, color: c.textMuted }}>
+            Touch and hold a circle, then drag it left or right to reorder the blocks.
+          </div>
+        )}
 
         {/* Navigation entre blocs */}
         {blocks.length > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 24 }}>
             <button
-              disabled={activeBlockIndex === 0}
-              onClick={() => setActiveBlockIndex(i => Math.max(0, i - 1))}
-              style={{ display: 'flex', background: 'none', border: 'none', padding: 4, cursor: activeBlockIndex === 0 ? 'default' : 'pointer', color: activeBlockIndex === 0 ? c.borderDashed : c.text }}
+              disabled={orderMode || activeBlockIndex === 0}
+              onClick={() => setActiveBlockId(blocks[Math.max(0, activeBlockIndex - 1)]?.id)}
+              style={{ display: 'flex', background: 'none', border: 'none', padding: 4, cursor: (orderMode || activeBlockIndex === 0) ? 'default' : 'pointer', color: (orderMode || activeBlockIndex === 0) ? c.borderDashed : c.text }}
             >
               <CaretLeft size={18} weight="bold" />
             </button>
 
-            {blocks.map((b, i) => {
+            {orderMode ? (
+              <SortableGroup ids={blocks.map(b => b.id)} onReorder={moveBlock} orientation="horizontal">
+                {blocks.map((b, i) => {
+                  const meta = BLOCK_META[b.type]
+                  const Icon = meta.icon
+                  const isActive = i === activeBlockIndex
+                  return (
+                    <SortableItem key={b.id} id={b.id}>
+                      {({ attributes, listeners }) => (
+                        <button {...attributes} {...listeners} onClick={() => setActiveBlockId(b.id)} style={{
+                          position: 'relative', width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
+                          background: isActive ? c.text : c.disabledBg, color: isActive ? '#fff' : c.textMuted,
+                          border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                          gap: 1, cursor: 'grab', touchAction: 'none',
+                        }}>
+                          <Icon size={14} weight="fill" />
+                          <span style={{ fontSize: 6, fontWeight: 800, letterSpacing: '0.2px', lineHeight: 1, textAlign: 'center' }}>{meta.badgeLabel}</span>
+                          <span style={{
+                            position: 'absolute', bottom: -2, right: -2, width: 16, height: 16, borderRadius: '50%',
+                            background: c.bg, border: `1px solid ${c.border}`, color: c.text, fontSize: 9, fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {i + 1}
+                          </span>
+                        </button>
+                      )}
+                    </SortableItem>
+                  )
+                })}
+              </SortableGroup>
+            ) : blocks.map((b, i) => {
               const meta = BLOCK_META[b.type]
               const Icon = meta.icon
               const isActive = i === activeBlockIndex
               return (
-                <button key={b.id} onClick={() => setActiveBlockIndex(i)} style={{
+                <button key={b.id} onClick={() => setActiveBlockId(b.id)} style={{
                   position: 'relative', width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
                   background: isActive ? c.text : c.disabledBg, color: isActive ? '#fff' : c.textMuted,
                   border: 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -1097,9 +1219,9 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
             })}
 
             <button
-              disabled={activeBlockIndex >= blocks.length - 1}
-              onClick={() => setActiveBlockIndex(i => Math.min(blocks.length - 1, i + 1))}
-              style={{ display: 'flex', background: 'none', border: 'none', padding: 4, cursor: activeBlockIndex >= blocks.length - 1 ? 'default' : 'pointer', color: activeBlockIndex >= blocks.length - 1 ? c.borderDashed : c.text }}
+              disabled={orderMode || activeBlockIndex >= blocks.length - 1}
+              onClick={() => setActiveBlockId(blocks[Math.min(blocks.length - 1, activeBlockIndex + 1)]?.id)}
+              style={{ display: 'flex', background: 'none', border: 'none', padding: 4, cursor: (orderMode || activeBlockIndex >= blocks.length - 1) ? 'default' : 'pointer', color: (orderMode || activeBlockIndex >= blocks.length - 1) ? c.borderDashed : c.text }}
             >
               <CaretRight size={18} weight="bold" />
             </button>
@@ -1114,9 +1236,37 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
               <span style={{ flex: 1, textAlign: 'center', fontSize: 13, fontWeight: 700, letterSpacing: '0.6px', color: c.textMuted }}>
                 {BLOCK_META[activeBlock.type].title}
               </span>
-              <button onClick={() => removeBlock(activeBlockIndex)} style={{ display: 'flex', flexShrink: 0, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.textMuted }}>
-                <DotsThreeVertical size={18} weight="bold" />
-              </button>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <button onClick={() => setBlockMenuOpen(v => !v)} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.textMuted }}>
+                  <DotsThreeVertical size={18} weight="bold" />
+                </button>
+                {blockMenuOpen && (
+                  <>
+                    {/* absolute (pas fixed) : même raison que le backdrop du menu Add plus haut —
+                        en vue côte à côte, un backdrop plein viewport intercepterait les clics
+                        destinés aux autres panneaux tant que ce menu reste ouvert. */}
+                    <div onClick={() => setBlockMenuOpen(false)} style={{ position: 'absolute', inset: 0, zIndex: 90 }} />
+                    <div style={{
+                      position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 200, background: c.bg,
+                      border: `1px solid ${c.border}`, borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                      zIndex: 100, padding: 8, display: 'flex', flexDirection: 'column', gap: 2,
+                    }}>
+                      <button
+                        onClick={() => { duplicateBlock(activeBlockIndex); setBlockMenuOpen(false) }}
+                        style={{ padding: '10px 12px', borderRadius: 6, fontSize: 14, color: c.text, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        Duplicate this part
+                      </button>
+                      <button
+                        onClick={() => { removeBlock(activeBlockIndex); setBlockMenuOpen(false) }}
+                        style={{ padding: '10px 12px', borderRadius: 6, fontSize: 14, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                      >
+                        Delete this part
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
 
             {activeBlock.exercises?.length > 0 ? (
