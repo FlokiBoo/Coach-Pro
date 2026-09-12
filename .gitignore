@@ -43,3 +43,7 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# éditeurs / IDE (config locale, propre à chaque poste)
+.vscode/
+android/.idea/
