@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ChartLineUp, BookOpen, Trophy, PencilSimple, Trash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
-import { UNITS, unitOf, estimate1RM, formatPerformance, CATEGORIES, DOT_COLORS } from '@/app/components/TrackedMovementsBlock'
+import { UNITS, unitOf, estimate1RM, formatPerformance, CATEGORIES } from '@/app/components/TrackedMovementsBlock'
 
 function today() {
   const n = new Date()
@@ -141,7 +141,7 @@ export default function MetricsPage() {
             <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 8 }}><ChartLineUp size={17} /> Metrics</div>
             <div style={{ fontSize: 12, color: 'var(--text3)' }}>Catalogue de mouvements suivis, accessible à tous les clients</div>
           </div>
-          <button onClick={() => { setCreating(v => !v); setNewName(''); setNewUnit('kg'); setNewCategory(selectedCategory === 'À classer' ? 'Lift' : selectedCategory); setNewSubcategory('') }} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+          <button onClick={() => { setCreating(v => !v); setNewName(''); setNewUnit('kg'); setNewCategory(selectedCategory === 'À classer' ? 'Lift' : selectedCategory); setNewSubcategory('') }} style={{ background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
             + Mouvement
           </button>
         </div>
@@ -199,7 +199,7 @@ export default function MetricsPage() {
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Rechercher un mouvement…"
-            style={{ padding: '10px 12px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
+            style={{ padding: '10px 12px', border: '1px solid var(--ostryk-border-input)', borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg)', color: 'var(--text)' }}
           />
 
           {loading ? (
@@ -218,7 +218,7 @@ export default function MetricsPage() {
                 {tabs.map(cat => (
                   <button key={cat} onClick={() => { setSelectedCategory(cat); setSelectedSubcat('all') }} style={{
                     flexShrink: 0, padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
-                    background: selectedCategory === cat ? 'var(--green)' : 'var(--bg2)',
+                    background: selectedCategory === cat ? 'var(--bordeaux)' : 'var(--bg2)',
                     color: selectedCategory === cat ? '#fff' : 'var(--text2)',
                     fontSize: 13, fontWeight: 700,
                   }}>
@@ -232,21 +232,20 @@ export default function MetricsPage() {
                 <div style={{ display: 'flex', gap: 6, padding: '10px 14px', overflowX: 'auto' }}>
                   <button onClick={() => setSelectedSubcat('all')} style={{
                     flexShrink: 0, padding: '6px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                    border: `1px solid ${selectedSubcat === 'all' ? 'var(--text)' : 'var(--border2)'}`,
-                    background: selectedSubcat === 'all' ? 'var(--text)' : 'transparent',
-                    color: selectedSubcat === 'all' ? 'var(--bg)' : 'var(--text2)',
+                    border: `1px solid ${selectedSubcat === 'all' ? 'var(--green)' : 'var(--border2)'}`,
+                    background: selectedSubcat === 'all' ? 'var(--green-light)' : 'transparent',
+                    color: selectedSubcat === 'all' ? 'var(--green)' : 'var(--text2)',
                   }}>
                     Tous
                   </button>
-                  {subcatOrder.map((sc, i) => {
-                    const color = DOT_COLORS[i % DOT_COLORS.length]
+                  {subcatOrder.map(sc => {
                     const active = selectedSubcat === sc
                     return (
                       <button key={sc} onClick={() => setSelectedSubcat(sc)} style={{
                         flexShrink: 0, padding: '6px 12px', borderRadius: 20, cursor: 'pointer', fontSize: 12, fontWeight: 700,
-                        border: `1px solid ${active ? color : 'var(--border2)'}`,
-                        background: active ? `${color}1A` : 'transparent',
-                        color: active ? color : 'var(--text2)',
+                        border: `1px solid ${active ? 'var(--green)' : 'var(--border2)'}`,
+                        background: active ? 'var(--green-light)' : 'transparent',
+                        color: active ? 'var(--green)' : 'var(--text2)',
                       }}>
                         {sc}
                       </button>
@@ -263,8 +262,7 @@ export default function MetricsPage() {
 
               {visibleSubcats.map(sc => (
                 <div key={sc}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '14px 14px 6px' }}>
-                    <span style={{ width: 7, height: 7, borderRadius: '50%', background: DOT_COLORS[subcatOrder.indexOf(sc) % DOT_COLORS.length], flexShrink: 0 }} />
+                  <div style={{ padding: '14px 14px 6px' }}>
                     <span style={{ fontSize: 13, fontWeight: 800 }}>{sc}</span>
                   </div>
 
@@ -294,7 +292,7 @@ export default function MetricsPage() {
                           )}
                           {!isEditingName && (
                             <button onClick={e => { e.stopPropagation(); startEditName(m) }}
-                              style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}>
+                              style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--green)', padding: '0 2px', flexShrink: 0 }}>
                               <PencilSimple size={13} />
                             </button>
                           )}
@@ -318,7 +316,7 @@ export default function MetricsPage() {
                           <div style={{ fontSize: 12, color: 'var(--text3)', flexShrink: 0 }}>
                             {m.entries.length} perf.
                           </div>
-                          <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--text3)', padding: '0 2px', flexShrink: 0 }}><Trash size={14} /></button>
+                          <button onClick={e => { e.stopPropagation(); deleteMovement(m.id) }} style={{ background: 'none', border: 'none', display: 'flex', cursor: 'pointer', color: 'var(--ostryk-text3)', padding: '0 2px', flexShrink: 0 }}><Trash size={14} /></button>
                         </div>
 
                         {isOpen && (

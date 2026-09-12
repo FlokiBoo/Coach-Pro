@@ -56,14 +56,16 @@ export function SortableItem({ id, children }) {
 }
 
 // Petite poignée "⠿" à coller à côté des flèches ▲▼ existantes — maintenir dessus ~250ms puis
-// glisser verticalement pour réordonner à la main.
-export function DragHandle({ dragProps }) {
+// glisser verticalement pour réordonner à la main. `color` par défaut inchangé (var(--text3)) pour
+// ne pas affecter les pages existantes qui l'utilisent déjà — seules les pages reprenant la
+// nouvelle charte (Tips, Activations) passent explicitement var(--green).
+export function DragHandle({ dragProps, color = 'var(--text3)' }) {
   return (
     <span
       {...(dragProps?.attributes || {})}
       {...(dragProps?.listeners || {})}
       style={{
-        cursor: 'grab', touchAction: 'none', fontSize: 14, color: 'var(--text3)',
+        cursor: 'grab', touchAction: 'none', fontSize: 14, color,
         padding: '2px 3px', lineHeight: 1, userSelect: 'none', flexShrink: 0,
       }}
       title="Maintenir puis glisser pour déplacer"

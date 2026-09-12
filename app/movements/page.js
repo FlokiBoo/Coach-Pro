@@ -184,7 +184,7 @@ export default function MovementsPage() {
 
   const inputStyle = {
     width: '100%', boxSizing: 'border-box', padding: '7px 10px',
-    border: '1px solid var(--border2)', borderRadius: 6,
+    border: '1px solid var(--ostryk-border-input)', borderRadius: 6,
     fontSize: 13, outline: 'none', background: 'var(--bg)', color: 'var(--text)',
     fontFamily: 'inherit',
   }
@@ -203,7 +203,7 @@ export default function MovementsPage() {
           </div>
           <button
             onClick={() => { setShowCreate(v => !v); setNewForm(emptyForm()) }}
-            style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            style={{ background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: 20, padding: '9px 18px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
           >
             + Ajouter
           </button>
@@ -352,9 +352,9 @@ export default function MovementsPage() {
                     {(isAdmin || m.coach_id === userId) ? (
                       <>
                         <button onClick={e => { e.stopPropagation(); setEditingId(m.id); setEditForm({ name: m.name, muscles: m.muscles || '', torque: m.torque || '', youtube_url: m.youtube_url || '' }) }}
-                          style={{ background: 'none', border: 'none', color: 'var(--text3)', display: 'flex', cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}><PencilSimple size={14} /></button>
+                          style={{ background: 'none', border: 'none', color: 'var(--green)', display: 'flex', cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}><PencilSimple size={14} /></button>
                         <button onClick={e => { e.stopPropagation(); remove(m.id) }}
-                          style={{ background: 'none', border: 'none', color: 'var(--text3)', display: 'flex', cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}><Trash size={14} /></button>
+                          style={{ background: 'none', border: 'none', color: 'var(--ostryk-text3)', display: 'flex', cursor: 'pointer', padding: '4px 6px', borderRadius: 4 }}><Trash size={14} /></button>
                       </>
                     ) : (
                       <button onClick={e => { e.stopPropagation(); toggleHidden(m.id, hiddenIds.has(m.id)) }}

@@ -293,7 +293,7 @@ export default function ActivationsLibraryPage() {
             </div>
           </div>
           <button onClick={() => setShowCreate(v => !v)} style={{
-            background: 'var(--green)', color: '#fff', border: 'none',
+            background: 'var(--bordeaux)', color: '#fff', border: 'none',
             borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
           }}>+ Activation</button>
         </div>
@@ -370,18 +370,18 @@ export default function ActivationsLibraryPage() {
                       {item.videos?.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                           {item.videos.map((v, vi) => (
-                            <span key={vi} style={{ fontSize: 11, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 20, padding: '2px 8px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><VideoCamera size={11} /> {v.name}</span>
+                            <span key={vi} style={{ fontSize: 11, background: 'var(--bg)', border: '1px solid var(--ostryk-chip-border)', color: 'var(--text2)', borderRadius: 20, padding: '2px 8px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><VideoCamera size={11} /> {v.name}</span>
                           ))}
                         </div>
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                       <button onClick={() => duplicate(item)} disabled={saving} title="Dupliquer"
-                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--text2)', cursor: 'pointer' }}>⧉</button>
+                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--green)', cursor: 'pointer' }}>⧉</button>
                       {(isAdmin || item.coach_id === userId) ? (
                         <>
-                          <button onClick={() => startEdit(item)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--text2)', cursor: 'pointer' }}><PencilSimple size={12} /></button>
-                          <button onClick={() => remove(item.id)} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                          <button onClick={() => startEdit(item)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--green)', cursor: 'pointer' }}><PencilSimple size={12} /></button>
+                          <button onClick={() => remove(item.id)} style={{ background: 'none', border: 'none', color: 'var(--bordeaux)', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
                         </>
                       ) : (
                         <button onClick={() => toggleHidden(item.id, hiddenIds.has(item.id))}

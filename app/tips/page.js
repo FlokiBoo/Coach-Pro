@@ -142,7 +142,7 @@ export default function TipsPage() {
             </div>
           </div>
           <button onClick={() => setShowCreate(v => !v)} style={{
-            background: 'var(--green)', color: '#fff', border: 'none',
+            background: 'var(--bordeaux)', color: '#fff', border: 'none',
             borderRadius: 20, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer'
           }}>+ Tip</button>
         </div>
@@ -219,11 +219,11 @@ export default function TipsPage() {
                 ) : (
                   <div style={{ display: 'flex', gap: 10 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                      <DragHandle dragProps={dragProps} />
+                      <DragHandle dragProps={dragProps} color="var(--green)" />
                       <button onClick={() => move(t.id, -1)} disabled={idx === 0}
-                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: idx === 0 ? 'var(--border2)' : 'var(--text3)', cursor: idx === 0 ? 'default' : 'pointer' }}>▲</button>
+                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: idx === 0 ? 'var(--border2)' : 'var(--green)', cursor: idx === 0 ? 'default' : 'pointer' }}>▲</button>
                       <button onClick={() => move(t.id, 1)} disabled={idx === tips.length - 1}
-                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: idx === tips.length - 1 ? 'var(--border2)' : 'var(--text3)', cursor: idx === tips.length - 1 ? 'default' : 'pointer' }}>▼</button>
+                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: idx === tips.length - 1 ? 'var(--border2)' : 'var(--green)', cursor: idx === tips.length - 1 ? 'default' : 'pointer' }}>▼</button>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 700, fontSize: 14, marginBottom: (t.content || t.diagram) ? 4 : 0, display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -241,8 +241,8 @@ export default function TipsPage() {
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                       {(isAdmin || t.coach_id === userId) ? (
                         <>
-                          <button onClick={() => startEdit(t)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--text2)', cursor: 'pointer' }}><PencilSimple size={12} /></button>
-                          <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', color: '#DC2626', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                          <button onClick={() => startEdit(t)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--green)', cursor: 'pointer' }}><PencilSimple size={12} /></button>
+                          <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', color: 'var(--bordeaux)', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
                         </>
                       ) : (
                         <button onClick={() => toggleHidden(t.id, hiddenIds.has(t.id))}

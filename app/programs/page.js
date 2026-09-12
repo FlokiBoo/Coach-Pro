@@ -211,7 +211,7 @@ export default function ProgramsPage() {
               <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18 }}>Programmes</div>
               <div style={{ fontSize: 11, color: 'var(--text3)' }}>{allTemplates.length} programme{allTemplates.length !== 1 ? 's' : ''}</div>
             </div>
-            <Link href="/programs/new" style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>
+            <Link href="/programs/new" style={{ background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', textDecoration: 'none' }}>
               + Programme
             </Link>
           </div>
@@ -234,7 +234,7 @@ export default function ProgramsPage() {
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Rechercher un programme ou un sportif"
-                  style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px 11px 36px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 14, background: 'var(--bg)', color: 'var(--text)', outline: 'none' }}
+                  style={{ width: '100%', boxSizing: 'border-box', padding: '11px 12px 11px 36px', border: '1px solid var(--ostryk-border-input)', borderRadius: 'var(--r)', fontSize: 14, background: 'var(--bg)', color: 'var(--text)', outline: 'none' }}
                 />
               </div>
 
@@ -301,10 +301,9 @@ export default function ProgramsPage() {
                           <div style={{ flex: '2 1 260px', minWidth: 200, display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div style={{
                               width: 40, height: 40, flexShrink: 0, borderRadius: 'var(--r)',
-                              background: p.available_to_clients ? 'var(--green-light)' : 'var(--bg2)',
-                              border: `1px solid ${p.available_to_clients ? '#B8EAD8' : 'var(--border2)'}`,
+                              background: 'var(--ostryk-border)',
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              color: p.available_to_clients ? 'var(--green)' : 'var(--text3)',
+                              color: 'var(--green)',
                             }}>
                               <ClipboardText size={18} />
                             </div>
@@ -326,7 +325,7 @@ export default function ProgramsPage() {
                             {assignedCopies.length > 0 ? (
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                                 {assignedCopies.slice(0, 3).map(c => (
-                                  <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: 'var(--text2)', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px' }}>
+                                  <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#6D5F4D', background: 'var(--ostryk-border)', borderRadius: 20, padding: '2px 8px' }}>
                                     <User size={10} /> {c.athletes?.name || '—'}
                                   </span>
                                 ))}
@@ -365,7 +364,7 @@ export default function ProgramsPage() {
                                 <div onClick={() => setOpenActionsId(null)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
                                 <div style={{ position: 'fixed', top: actionsMenuPos.top, right: actionsMenuPos.right, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 100, minWidth: 220, padding: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   <Link href={href} onClick={() => setOpenActionsId(null)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: 'var(--text)', textDecoration: 'none' }}>
-                                    <PencilSimple size={14} /> Modifier
+                                    <PencilSimple size={14} color="var(--green)" /> Modifier
                                   </Link>
                                   {athletes.length > 0 && (
                                     <button onClick={() => openAssign(p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
@@ -374,7 +373,7 @@ export default function ProgramsPage() {
                                   )}
                                   {!p.athlete_id && (
                                     <button onClick={() => duplicateProgram(p)} disabled={duplicatingId === p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-                                      <CopySimple size={14} /> {duplicatingId === p.id ? 'Duplication…' : 'Dupliquer'}
+                                      <CopySimple size={14} color="var(--green)" /> {duplicatingId === p.id ? 'Duplication…' : 'Dupliquer'}
                                     </button>
                                   )}
                                   {!p.athlete_id && (
@@ -405,8 +404,8 @@ export default function ProgramsPage() {
                                       )}
                                     </div>
                                   )}
-                                  <button onClick={() => deleteProgram(p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', borderTop: '1px solid var(--border)', marginTop: 2 }}>
-                                    <Trash size={14} /> Supprimer
+                                  <button onClick={() => deleteProgram(p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', borderTop: '1px solid var(--border)', marginTop: 2 }}>
+                                    <Trash size={14} color="var(--ostryk-text3)" /> Supprimer
                                   </button>
                                 </div>
                               </>
