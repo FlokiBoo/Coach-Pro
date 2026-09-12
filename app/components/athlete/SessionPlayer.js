@@ -1,7 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { CaretLeft, X, Play, Timer, Check } from '@phosphor-icons/react'
+import { CaretLeft, X, Play, Timer, Check, Plus } from '@phosphor-icons/react'
+import {
+  isRunMovement, is3030Movement, PACE_BASES, RACE_TARGETS,
+  computePaceForBasePct, computeDistanceForBasePct, formatPace, formatDistance,
+  annotatePaceReferences,
+} from '@/lib/raceEstimates'
 
 // Dupliqué depuis app/s/[token]/page.js (mêmes petites fonctions pures utilisées pour le même champ
 // `rest`/vidéos YouTube) — composant volontairement autonome plutôt qu'un import cross-fichier
@@ -40,6 +45,27 @@ function extractYouTubeId(url) {
     if (m) return m[1]
   }
   return null
+}
+
+// Consigne d'une séance run : le coach la saisit souvent d'un seul bloc, sans retour à la ligne
+// ("2 min Run entre allure 1 et 2 1min Récup Run Facile 3 min ..."), illisible sur mobile. On
+// recoupe le texte avant chaque durée/distance (« 3 min », « 1'30min », « 400m ») pour l'afficher
+// en étapes. Volontairement prudent : pas de lookbehind (WebView iOS anciennes), et on ne découpe
+// que si le résultat ressemble vraiment à une suite d'étapes (≥ 3 morceaux commençant par un
+// chiffre) — sinon le texte est rendu tel quel, jamais tronqué ni réécrit.
+const RUN_STEP_BOUNDARY = /\s+(?=\d+(?:['\u2032:]\d+)?\s*(?:min\b|mn\b|sec\b|s\b|km\b|m\b))/gi
+
+export function splitRunSteps(text) {
+  if (!text) return []
+  const lines = String(text).split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+  if (lines.length > 1) return lines
+  const parts = (lines[0] || '').replace(RUN_STEP_BOUNDARY, '\n').split('\n').map(p => p.trim()).filter(Boolean)
+  if (parts.length >= 3 && /^\d/.test(parts[0])) return parts
+  return lines
+}
+
+function isRecoveryStep(step) {
+  return /r[ée]cup|repos|marche|facile|trot/i.test(step)
 }
 
 function computeLabels(exercises) {
@@ -239,6 +265,234 @@ function ExerciseLogBody({ exo, totalSets, currentSetIndex, validatedCount, ctaL
   )
 }
 
+const runInputStyle = {
+  width: '100%', boxSizing: 'border-box', padding: '10px 12px',
+  border: '1px solid var(--ostryk-border-input)', borderRadius: 'var(--r)',
+  fontSize: 15, outline: 'none', background: 'var(--card-white)', color: 'var(--text)',
+  fontFamily: 'inherit',
+}
+
+const runLabelStyle = {
+  fontSize: 10, fontWeight: 700, color: 'var(--ostryk-text2)',
+  textTransform: 'uppercase', letterSpacing: '0.3px', marginBottom: 4,
+}
+
+// Allures prescrites par le coach (base VMA/Seuil60/Δ + %), converties en min/km pour CE sportif
+// à partir de ses tests (raceKnown). Même calcul que l'écran de préparation (app/s/[token]/page.js)
+// et que l'éditeur coach — dupliqué ici plutôt qu'importé, comme le reste de ce composant.
+function RunTargetCard({ exo, raceKnown }) {
+  const hasPace = exo.pace_base || exo.pct_low != null || exo.pct_high != null
+  // Consigne qui parle d'« allure 1 / allure 2 » sans qu'aucune allure ne soit paramétrée : le
+  // sportif ne peut pas deviner, on le dit au lieu de n'afficher rien du tout.
+  const mentionsPace = /allure/i.test(exo.note || '') || /allure/i.test(exo.sets || '')
+  if (!hasPace) {
+    if (!mentionsPace) return null
+    return (
+      <div style={{ background: 'var(--beige)', border: '1px solid var(--ostryk-chip-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '10px 12px', fontSize: 13, color: 'var(--ostryk-text2)' }}>
+        Les allures ne sont pas encore chiffrées pour cette séance — demande-les à ton coach.
+      </div>
+    )
+  }
+
+  const is3030 = is3030Movement(exo.name)
+  const pace1 = is3030 ? computeDistanceForBasePct(exo.pace_base, exo.pct_low, raceKnown) : computePaceForBasePct(exo.pace_base, exo.pct_low, raceKnown)
+  const pace2 = is3030 ? computeDistanceForBasePct(exo.pace_base, exo.pct_high, raceKnown) : computePaceForBasePct(exo.pace_base, exo.pct_high, raceKnown)
+  const baseLabel = PACE_BASES.find(b => b.key === exo.pace_base)?.label || exo.pace_base
+  const same = pace1 != null && pace2 != null && (is3030 ? pace1 === pace2 : pace1.toFixed(1) === pace2.toFixed(1))
+  const pctLabel = `${exo.pct_low ?? ''}${exo.pct_high != null && exo.pct_high !== exo.pct_low ? `-${exo.pct_high}` : ''}%`
+  const format = v => (is3030 ? formatDistance(v) : `${formatPace(v)}/km`)
+
+  return (
+    <div style={{ background: 'var(--vert-foret-light)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--vert-foret)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+        {is3030 ? 'Distances à tenir' : 'Allures à tenir'} · {baseLabel} {pctLabel}
+      </div>
+      {pace1 == null && pace2 == null ? (
+        <div style={{ fontSize: 13, color: 'var(--ostryk-text2)' }}>
+          Allures non calculables : il manque tes tests VMA (6 min) et Seuil (20 min). Fais-les pour voir tes allures ici.
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {pace1 != null && (
+            <div style={{ flex: 1, minWidth: 110, background: 'var(--card-white)', borderRadius: 'var(--r)', padding: '8px 10px' }}>
+              <div style={runLabelStyle}>{is3030 ? 'Distance 1 (30s)' : 'Allure 1'}</div>
+              <div style={{ fontFamily: 'var(--font-title)', fontSize: 20, fontWeight: 600, color: 'var(--vert-foret)' }}>{format(pace1)}</div>
+            </div>
+          )}
+          {!same && pace2 != null && (
+            <div style={{ flex: 1, minWidth: 110, background: 'var(--card-white)', borderRadius: 'var(--r)', padding: '8px 10px' }}>
+              <div style={runLabelStyle}>{is3030 ? 'Distance 2 (30s)' : 'Allure 2'}</div>
+              <div style={{ fontFamily: 'var(--font-title)', fontSize: 20, fontWeight: 600, color: 'var(--vert-foret)' }}>{format(pace2)}</div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Corps d'un exercice de course : ce que le coach demande (allures calculées + consigne découpée
+// en étapes) et ce que le sportif renvoie (allure moyenne, distance, intervalles, ressenti) —
+// à la place des steppers Reps/Poids, qui n'ont aucun sens sur une séance de run.
+function RunLogBody({ exo, log, raceKnown, onSaveField, onSyncRace, ctaLabel, onValidate }) {
+  const [avgPace, setAvgPace] = useState(log.avg_pace_done || '')
+  const [distance, setDistance] = useState(log.distance_done ?? '')
+  const [intervals, setIntervals] = useState(log.intervals_done || [])
+  const [feedback, setFeedback] = useState(log.note || '')
+
+  const steps = splitRunSteps(exo.note)
+  const structured = steps.length > 1
+  const paceRefs = annotatePaceReferences(exo.note, raceKnown)
+  // Tests chronométrés (6 min, 20 min…) : seule la distance parcourue compte — même règle que
+  // l'écran de préparation, pour que le résultat alimente correctement le suivi VMA/Seuil.
+  const distanceOnly = RACE_TARGETS.find(t => t.match(exo.name))?.kind === 'distance'
+  const isInterval = !!exo.sets
+
+  const saveField = (field, value) => {
+    if (value === (log[field] ?? (field === 'intervals_done' ? [] : ''))) return
+    onSaveField(field, value)
+  }
+  const syncRace = (pace, dist) => onSyncRace?.(dist === '' || dist == null ? null : parseFloat(dist), pace)
+
+  const commitAll = () => {
+    const dist = distance === '' || distance == null ? null : parseFloat(distance)
+    if (!distanceOnly) saveField('avg_pace_done', avgPace)
+    saveField('distance_done', dist)
+    if (!distanceOnly) saveField('intervals_done', intervals)
+    saveField('note', feedback)
+    syncRace(avgPace, distance)
+    onValidate()
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ fontFamily: 'var(--font-title)', color: 'var(--bordeaux)', fontWeight: 600, fontSize: 22, textAlign: 'center' }}>{exo.name}</div>
+
+      {exo.video_url && <VideoThumbnail url={exo.video_url} />}
+
+      <RunTargetCard exo={exo} raceKnown={raceKnown} />
+
+      {paceRefs.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {paceRefs.map((r, i) => (
+            <span key={i} style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-pill-radius)', padding: '4px 10px', fontSize: 12, fontWeight: 700, color: 'var(--vert-foret)' }}>
+              {r.raw} · {formatPace(r.pace.lowKmh)}{r.pace.highKmh !== r.pace.lowKmh ? `–${formatPace(r.pace.highKmh)}` : ''}/km
+            </span>
+          ))}
+        </div>
+      )}
+
+      {(exo.sets || exo.rest) && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {exo.sets && (
+            <span style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-pill-radius)', padding: '6px 12px', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+              Action : {exo.sets}
+            </span>
+          )}
+          {exo.rest && (
+            <span style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-pill-radius)', padding: '6px 12px', fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+              {isInterval ? 'Récup' : 'Durée'} : {exo.rest}
+            </span>
+          )}
+        </div>
+      )}
+
+      {steps.length > 0 && (
+        structured ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {steps.map((step, i) => (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--r)',
+                background: isRecoveryStep(step) ? 'var(--beige)' : 'var(--card-white)',
+                border: `1px solid ${isRecoveryStep(step) ? 'var(--ostryk-chip-border)' : 'var(--ostryk-border)'}`,
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--ostryk-text3)', minWidth: 16 }}>{i + 1}</span>
+                <span style={{ fontSize: 14, color: isRecoveryStep(step) ? 'var(--ostryk-text2)' : 'var(--text)', lineHeight: 1.35 }}>{step}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '12px 14px', fontSize: 14, color: '#5A5348', whiteSpace: 'pre-wrap' }}>
+            {exo.note}
+          </div>
+        )
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 4 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--vert-foret)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Ma course</div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          {!distanceOnly && (
+            <div style={{ flex: 1 }}>
+              <div style={runLabelStyle}>Allure moyenne (min/km)</div>
+              <input type="text" inputMode="decimal" placeholder="ex : 5'30" value={avgPace}
+                onChange={e => setAvgPace(e.target.value)}
+                onBlur={() => { saveField('avg_pace_done', avgPace); syncRace(avgPace, distance) }}
+                style={runInputStyle} />
+            </div>
+          )}
+          <div style={{ flex: 1 }}>
+            <div style={runLabelStyle}>Distance (km)</div>
+            <input type="number" step="0.01" min="0" inputMode="decimal" placeholder="ex : 6.5" value={distance}
+              onChange={e => setDistance(e.target.value)}
+              onBlur={() => {
+                const dist = distance === '' ? null : parseFloat(distance)
+                saveField('distance_done', dist)
+                syncRace(avgPace, distance)
+              }}
+              style={runInputStyle} />
+          </div>
+        </div>
+
+        {!distanceOnly && (
+          <>
+            {intervals.map((it, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input type="number" step="0.01" min="0" inputMode="decimal" placeholder={`Int. ${i + 1} — distance (km)`} value={it.distance}
+                  onChange={e => setIntervals(prev => prev.map((x, idx) => idx === i ? { ...x, distance: e.target.value } : x))}
+                  onBlur={() => saveField('intervals_done', intervals)}
+                  style={{ ...runInputStyle, fontSize: 14 }} />
+                <input type="text" inputMode="decimal" placeholder="Allure" value={it.pace}
+                  onChange={e => setIntervals(prev => prev.map((x, idx) => idx === i ? { ...x, pace: e.target.value } : x))}
+                  onBlur={() => saveField('intervals_done', intervals)}
+                  style={{ ...runInputStyle, fontSize: 14 }} />
+                <button type="button" onClick={() => {
+                  const next = intervals.filter((_, idx) => idx !== i)
+                  setIntervals(next)
+                  onSaveField('intervals_done', next)
+                }} style={{ background: 'none', border: 'none', color: 'var(--ostryk-text3)', fontSize: 20, cursor: 'pointer', padding: '0 2px', flexShrink: 0 }}>×</button>
+              </div>
+            ))}
+            <button type="button" onClick={() => setIntervals(prev => [...prev, { distance: '', pace: '' }])}
+              style={{
+                alignSelf: 'flex-start', background: 'none', border: '1px dashed var(--ostryk-border-input)',
+                borderRadius: 'var(--ostryk-pill-radius)', padding: '8px 14px', fontSize: 13, fontWeight: 700,
+                color: 'var(--ostryk-text2)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+              }}>
+              <Plus size={13} weight="bold" /> Détailler un intervalle
+            </button>
+          </>
+        )}
+
+        <div>
+          <div style={runLabelStyle}>Mon retour au coach</div>
+          <textarea placeholder="Sensations, allures tenues ou non, météo…" value={feedback} rows={3}
+            onChange={e => setFeedback(e.target.value)}
+            onBlur={() => saveField('note', feedback)}
+            style={{ ...runInputStyle, resize: 'none' }} />
+        </div>
+      </div>
+
+      <button onClick={commitAll} style={{
+        background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: 'var(--ostryk-pill-radius)',
+        padding: '15px', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%',
+      }}>
+        {ctaLabel}
+      </button>
+    </div>
+  )
+}
+
 function PlayerHeader({ title, onBack, onClose }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: '1px solid var(--ostryk-border)' }}>
@@ -256,8 +510,12 @@ function PlayerHeader({ title, onBack, onClose }) {
 // Séance : exécution d'un exercice simple, une série à la fois. Chaque série validée écrit
 // immédiatement via onSaveExerciseSet (même table/queue offline que l'écran de préparation) ;
 // un repos discret (RestBanner) s'affiche après chaque série tant que exo.rest est renseigné.
-function SingleExerciseScreen({ exo, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, blockLabel, onPrev, onNext, onExit }) {
-  const totalSets = Math.max(1, parseInt(exo.sets, 10) || 1)
+function SingleExerciseScreen({ exo, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, exerciseLogs, onSaveLog, raceKnown, onSyncRaceMetric, blockLabel, onPrev, onNext, onExit }) {
+  // Séance de course : `sets` porte l'action ("3min", "400m") et `rest` la récup ou la durée totale
+  // de sortie — surtout pas un nombre de séries ni un repos à décompter (parseInt("3min") = 3
+  // fabriquait 3 séries fantômes, et "45min" de sortie lançait un décompte de 45 minutes).
+  const isRun = isRunMovement(exo.name)
+  const totalSets = isRun ? 1 : Math.max(1, parseInt(exo.sets, 10) || 1)
   const [validatedCount, setValidatedCount] = useState(0)
   const [resting, setResting] = useState(false)
   // Remonté à neuf par le parent (key=exo.id) à chaque nouveau bloc solo — validatedCount/resting
@@ -266,7 +524,7 @@ function SingleExerciseScreen({ exo, exerciseSets, onEnsureExerciseSets, onSaveE
   const provisioned = useRef(false)
 
   useEffect(() => {
-    if (provisioned.current) return
+    if (isRun || provisioned.current) return
     provisioned.current = true
     if ((exerciseSets[exo.id] || []).length < totalSets) onEnsureExerciseSets(exo.id, totalSets)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -295,7 +553,14 @@ function SingleExerciseScreen({ exo, exerciseSets, onEnsureExerciseSets, onSaveE
     <>
       <PlayerHeader title={blockLabel} onBack={onPrev} onClose={onExit} />
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        {resting ? (
+        {isRun ? (
+          <RunLogBody
+            exo={exo} log={exerciseLogs[exo.id] || {}} raceKnown={raceKnown}
+            onSaveField={(field, value) => onSaveLog?.(exo.id, exo.name, field, value)}
+            onSyncRace={(distanceKm, avgPace) => onSyncRaceMetric?.(exo.name, distanceKm, avgPace)}
+            ctaLabel="Valider ma course" onValidate={onNext}
+          />
+        ) : resting ? (
           <RestBanner seconds={parseRestSeconds(exo.rest)} onDone={advance} />
         ) : (
           <ExerciseLogBody
@@ -311,7 +576,7 @@ function SingleExerciseScreen({ exo, exerciseSets, onEnsureExerciseSets, onSaveE
 
 // Super série : cycle A1 → A2 → … → repos → retour automatique sur A1, tour suivant. Aucune
 // action requise pour repartir sur le tour suivant (RestBanner.onDone gère l'avance).
-function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, blockLabel, onPrev, onNext, onExit }) {
+function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, exerciseLogs, onSaveLog, raceKnown, onSyncRaceMetric, blockLabel, onPrev, onNext, onExit }) {
   const totalRounds = Math.max(1, parseInt(group[0]?.sets, 10) || 1)
   const [round, setRound] = useState(1)
   const [exoIdx, setExoIdx] = useState(0)
@@ -320,7 +585,7 @@ function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onS
 
   useEffect(() => {
     group.forEach(exo => {
-      if (provisioned.current.has(exo.id)) return
+      if (isRunMovement(exo.name) || provisioned.current.has(exo.id)) return
       provisioned.current.add(exo.id)
       if ((exerciseSets[exo.id] || []).length < totalRounds) onEnsureExerciseSets(exo.id, totalRounds)
     })
@@ -338,6 +603,15 @@ function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onS
     setExoIdx(0)
   }
 
+  // Enchaînement commun aux deux types d'exercices (force ou course) : passer au suivant du
+  // groupe, ou déclencher le repos de fin de tour.
+  const afterValidate = () => {
+    if (!isLastOfGroup) { setExoIdx(i => i + 1); return }
+    const restSeconds = Math.max(...group.map(e => parseRestSeconds(e.rest) || 0))
+    if (restSeconds) setResting(true)
+    else advanceRound()
+  }
+
   const handleValidate = (reps, kg) => {
     const sets = exerciseSets[exo.id] || []
     const set = sets[round - 1]
@@ -345,10 +619,7 @@ function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onS
       onSaveExerciseSet(exo.id, set.id, 'reps_done', String(reps))
       onSaveExerciseSet(exo.id, set.id, 'kg_done', String(kg))
     }
-    if (!isLastOfGroup) { setExoIdx(i => i + 1); return }
-    const restSeconds = Math.max(...group.map(e => parseRestSeconds(e.rest) || 0))
-    if (restSeconds) setResting(true)
-    else advanceRound()
+    afterValidate()
   }
 
   if (!exo) return null
@@ -389,6 +660,15 @@ function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onS
 
         {resting ? (
           <RestBanner seconds={Math.max(...group.map(e => parseRestSeconds(e.rest) || 0))} onDone={advanceRound} />
+        ) : isRunMovement(exo.name) ? (
+          <RunLogBody
+            key={`${exo.id}:${round}`}
+            exo={exo} log={exerciseLogs[exo.id] || {}} raceKnown={raceKnown}
+            onSaveField={(field, value) => onSaveLog?.(exo.id, exo.name, field, value)}
+            onSyncRace={(distanceKm, avgPace) => onSyncRaceMetric?.(exo.name, distanceKm, avgPace)}
+            ctaLabel={isLastOfGroup ? 'Valider — fin du tour, repos' : 'Valider'}
+            onValidate={afterValidate}
+          />
         ) : (
           <ExerciseLogBody
             key={`${exo.id}:${round}`}
@@ -405,7 +685,7 @@ function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onS
 // Player d'exécution de séance — remplace la liste à plat pour le logging des exercices/super
 // séries. Reçoit les mêmes fonctions d'écriture (avec queue offline) que l'écran de préparation
 // (SessionCard) : aucune nouvelle logique de sauvegarde, seulement un nouvel enchaînement d'écrans.
-export default function SessionPlayer({ session, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, onExit }) {
+export default function SessionPlayer({ session, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, exerciseLogs = {}, onSaveLog, raceKnown = {}, onSyncRaceMetric, onExit }) {
   const exos = (session.exercises || []).filter(e => e.name)
   const labels = computeLabels(exos)
   const blocks = computeBlocks(exos)
@@ -433,6 +713,7 @@ export default function SessionPlayer({ session, exerciseSets, onEnsureExerciseS
         key={block.exos[0].id}
         exo={block.exos[0]}
         exerciseSets={exerciseSets} onEnsureExerciseSets={onEnsureExerciseSets} onSaveExerciseSet={onSaveExerciseSet}
+        exerciseLogs={exerciseLogs} onSaveLog={onSaveLog} raceKnown={raceKnown} onSyncRaceMetric={onSyncRaceMetric}
         blockLabel={`Exercice ${blockIndex + 1}/${blocks.length}`}
         onPrev={goPrev} onNext={goNext} onExit={onExit}
       />
@@ -444,6 +725,7 @@ export default function SessionPlayer({ session, exerciseSets, onEnsureExerciseS
       key={block.exos.map(e => e.id).join(',')}
       group={block.exos} labels={labels}
       exerciseSets={exerciseSets} onEnsureExerciseSets={onEnsureExerciseSets} onSaveExerciseSet={onSaveExerciseSet}
+      exerciseLogs={exerciseLogs} onSaveLog={onSaveLog} raceKnown={raceKnown} onSyncRaceMetric={onSyncRaceMetric}
       blockLabel="Super série"
       onPrev={goPrev} onNext={goNext} onExit={onExit}
     />

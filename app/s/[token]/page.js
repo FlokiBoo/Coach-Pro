@@ -1042,6 +1042,10 @@ function AthleteView({ params }) {
             exerciseSets={exerciseSets}
             onEnsureExerciseSets={ensureExerciseSets}
             onSaveExerciseSet={saveExerciseSet}
+            exerciseLogs={exerciseLogs}
+            onSaveLog={saveExerciseLog}
+            raceKnown={raceKnown}
+            onSyncRaceMetric={syncRaceMetric}
             onExit={() => setPlayerStarted(false)}
           />
         ) : (
