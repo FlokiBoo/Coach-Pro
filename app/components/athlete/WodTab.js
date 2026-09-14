@@ -172,17 +172,6 @@ export default function WodTab({
 
   return (
     <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {/* isCoachView (?coach=1) est vrai à la fois quand un coach prévisualise un VRAI client et
-          quand il consulte son propre profil sportif via "Switch to athlete" (voir backHref dans
-          app/s/[token]/page.js — même distinction déjà faite là-bas) : dans ce second cas ce sont
-          bien ses objectifs perso, pas ceux d'un client, ils doivent rester visibles. */}
-      {(!isCoachView || athlete?.is_coach) && athlete?.id && (
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Objectifs</div>
-          <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} isCoach={false} bare />
-        </div>
-      )}
-
       {recurringDisplayEntries.length > 0 && (
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Séance récurrente</div>
@@ -222,6 +211,20 @@ export default function WodTab({
               ),
             }))} />
           )}
+        </div>
+      )}
+
+      {/* isCoachView (?coach=1) est vrai à la fois quand un coach prévisualise un VRAI client et
+          quand il consulte son propre profil sportif via "Switch to athlete" (voir backHref dans
+          app/s/[token]/page.js — même distinction déjà faite là-bas) : dans ce second cas ce sont
+          bien ses objectifs perso, pas ceux d'un client, ils doivent rester visibles. Placé après
+          Séance récurrente/Séance du jour (plutôt qu'en tête) pour que la séance à faire reste
+          visible sans scroll — un objectif avec échéance ne doit pas la repousser sous la ligne
+          de flottaison. */}
+      {(!isCoachView || athlete?.is_coach) && athlete?.id && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Objectifs</div>
+          <ObjectivesBlock athleteId={athlete.id} objectives={objectives} setObjectives={setObjectives} isCoach={false} bare />
         </div>
       )}
 
