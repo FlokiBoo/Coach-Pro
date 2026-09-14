@@ -521,7 +521,29 @@ function ProgramEditorPage({ params }) {
   const [removingParticipantId, setRemovingParticipantId] = useState(null)
 
   const isTemplate = athleteId === 'templates'
+  // Un programme avec group_id est un "cycle d'entraînement" propre à un groupe (créé depuis
+  // /groups/[groupId]) : il ne doit pas être proposable comme template en place (ça le retirerait
+  // pas du groupe pour autant) — seule la duplication vers un programme indépendant a du sens ici.
+  const isGroupCycle = isTemplate && !!program?.group_id
   const [otherTemplates, setOtherTemplates] = useState([])
+  const [duplicatingAsProgram, setDuplicatingAsProgram] = useState(false)
+
+  const duplicateGroupCycleAsProgram = async () => {
+    if (!program) return
+    setDuplicatingAsProgram(true)
+    const coachId = await getCoachId()
+    const copy = await cloneTemplateToAthlete({
+      templateProgramId: programId, templateTitle: program.title, templateActivityType: program.activity_type,
+      athleteId: null, coachId,
+    })
+    if (!copy) {
+      setDuplicatingAsProgram(false)
+      alert('Erreur lors de la duplication.')
+      return
+    }
+    await supabase.from('programs').update({ is_template: true }).eq('id', copy.id)
+    router.push(`/programs/templates/${copy.id}`)
+  }
 
   useEffect(() => {
     if (!isTemplate) return
@@ -1293,7 +1315,7 @@ function ProgramEditorPage({ params }) {
   }
 
   const deleteWholeProgram = async () => {
-    if (!confirm('Supprimer ce programme et toutes ses séances ? Cette action est définitive.')) return
+    if (!confirm(isGroupCycle ? 'Supprimer ce cycle d\'entraînement et toutes ses séances ? Cette action est définitive.' : 'Supprimer ce programme et toutes ses séances ? Cette action est définitive.')) return
 
     const sessionIds = sessions.map(s => s.id)
     if (sessionIds.length) {
@@ -1310,7 +1332,7 @@ function ProgramEditorPage({ params }) {
 
     const { error } = await supabase.from('programs').delete().eq('id', programId)
     if (error) { alert('Erreur : ' + error.message); return }
-    router.push(isTemplate ? '/programs' : `/programs/${athleteId}`)
+    router.push(isGroupCycle ? `/groups/${program.group_id}` : isTemplate ? '/programs' : `/programs/${athleteId}`)
   }
 
   const openAddParticipant = async () => {
@@ -1486,11 +1508,13 @@ function ProgramEditorPage({ params }) {
                 onBlur={saveTitle}
                 onKeyDown={e => e.key === 'Enter' && e.target.blur()}
                 style={{ fontFamily: 'var(--font-title)', fontWeight: 700, fontSize: 19, border: 'none', outline: 'none', background: 'transparent', width: '100%', color: 'var(--title)' }}
-                placeholder="Nom du programme"
+                placeholder={isGroupCycle ? 'Nom du cycle' : 'Nom du programme'}
               />
               {titleSaving && <div style={{ fontSize: 10, color: 'var(--text3)' }}>Enregistrement…</div>}
               <div style={{ fontSize: 11, color: 'var(--text3)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2 }}>
-                {isTemplate ? <><ClipboardText size={11} /> {program?.is_template ? 'Template' : 'Brouillon'}</> : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
+                {isGroupCycle
+                  ? <><UsersThree size={11} /> Cycle d&apos;entraînement</>
+                  : isTemplate ? <><ClipboardText size={11} /> {program?.is_template ? 'Template' : 'Brouillon'}</> : athlete?.name} · {sessions.length} séance{sessions.length !== 1 ? 's' : ''}
               </div>
               <ActivityTypeSelect
                 value={program?.activity_type || 'Musculation 🏋️'}
@@ -1499,7 +1523,16 @@ function ProgramEditorPage({ params }) {
                 inputStyle={{ fontSize: 12, fontWeight: 600, borderRadius: 20, color: 'var(--text2)', padding: '4px 10px' }}
               />
             </div>
-            {isTemplate && (
+            {isGroupCycle ? (
+              <button onClick={duplicateGroupCycleAsProgram} disabled={duplicatingAsProgram}
+                title="Créer un programme indépendant, identique à ce cycle, réutilisable en dehors du groupe"
+                style={{
+                  background: 'none', border: '1px solid var(--border2)', color: 'var(--text2)',
+                  borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: duplicatingAsProgram ? 'default' : 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4,
+                }}>
+                <CopySimple size={12} /> {duplicatingAsProgram ? 'Duplication…' : 'Dupliquer en programme'}
+              </button>
+            ) : isTemplate && (
               <button onClick={() => saveIsTemplate(!program?.is_template)}
                 title={program?.is_template ? 'Retirer de la galerie de templates' : 'Proposer ce programme comme template réutilisable'}
                 style={{

@@ -53,8 +53,12 @@ export default function ProgramsPage() {
     async function load() {
       const [{ data: aths }, { data: progs }, { data: grps }, { data: links }] = await Promise.all([
         supabase.from('athletes').select('id, name').neq('archived', true).order('created_at'),
+        // group_id null : un programme créé depuis un groupe est un "cycle d'entraînement" propre à
+        // ce groupe (page /groups/[groupId]), pas un programme réutilisable — il n'apparaît donc pas
+        // ici. Il ne rejoint cette bibliothèque que si le coach le duplique explicitement en programme.
         supabase.from('programs')
           .select('*, athletes(name), program_sessions(id)')
+          .is('group_id', null)
           .order('created_at', { ascending: false }),
         supabase.from('groups').select('*, group_members(athlete_id)').order('name'),
         supabase.from('group_program_templates').select('group_id, program_id'),

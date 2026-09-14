@@ -541,7 +541,7 @@ export default function GroupDetailPage({ params }) {
           {/* Programme en cours */}
           <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}><ClipboardText size={13} /> Programme en cours</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}><ClipboardText size={13} /> Cycle d&apos;entraînement en cours</div>
               {!creatingProgram && (
                 <div style={{ display: 'flex', gap: 12 }}>
                   <button onClick={openTemplatePicker} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>+ Depuis un template</button>
@@ -551,7 +551,7 @@ export default function GroupDetailPage({ params }) {
             </div>
             {creatingProgram && (
               <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                <input autoFocus placeholder="Nom du programme" value={newTitle} onChange={e => setNewTitle(e.target.value)}
+                <input autoFocus placeholder="Nom du cycle" value={newTitle} onChange={e => setNewTitle(e.target.value)}
                   style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--border2)', borderRadius: 'var(--r)', fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)' }} />
                 <button onClick={() => createGroupProgram()} disabled={!newTitle.trim()} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Créer</button>
                 <button onClick={() => setCreatingProgram(false)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '8px 14px', fontSize: 12, cursor: 'pointer', color: 'var(--text3)' }}>Annuler</button>
@@ -628,7 +628,7 @@ export default function GroupDetailPage({ params }) {
                 </div>
               </div>
             ) : (
-              !creatingProgram && linkedTemplates.length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun programme pour ce groupe</div>
+              !creatingProgram && linkedTemplates.length === 0 && <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun cycle d&apos;entraînement pour ce groupe</div>
             )}
           </div>
         </div>
@@ -639,7 +639,7 @@ export default function GroupDetailPage({ params }) {
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 400, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
             <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 12 }}>▶ Choisir la séance à débuter</div>
             {[
-              ...(currentProgram ? [{ key: 'programme', label: 'Programme', prog: currentProgram }] : []),
+              ...(currentProgram ? [{ key: 'programme', label: 'Cycle', prog: currentProgram }] : []),
               ...linkedTemplates.map(l => ({ key: `template-${l.program_id}`, label: 'Template', prog: { title: l.programs?.title, program_sessions: l.programs?.program_sessions } })),
             ].map(({ key, label, prog }) => {
               if (!prog) return null
