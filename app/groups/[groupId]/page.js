@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
 import { notifyAssigned } from '@/lib/notify'
+import { cloneTemplateToAthlete } from '@/lib/programTemplates'
 
 function today() {
   const n = new Date()
@@ -104,6 +105,9 @@ export default function GroupDetailPage({ params }) {
   const [membersExpanded, setMembersExpanded] = useState(false)
   const [togglingLeader, setTogglingLeader] = useState(null)
   const [fanningOut, setFanningOut] = useState(null) // program being assigned to the whole group
+  const [templatePickerOpen, setTemplatePickerOpen] = useState(false)
+  const [availableTemplates, setAvailableTemplates] = useState(null) // null = pas encore chargés
+  const [templateActionBusy, setTemplateActionBusy] = useState(null) // id du template en cours de liaison/copie
   const [expandedSessionId, setExpandedSessionId] = useState(null)
   const [sessionExercises, setSessionExercises] = useState({}) // { [sessionId]: [...] }, chargé à la demande
   const [periodMode, setPeriodMode] = useState('month') // 'month' | 'year'
@@ -217,6 +221,49 @@ export default function GroupDetailPage({ params }) {
     if (error || !data) { alert('Erreur : ' + (error?.message || '')); return }
     await supabase.from('program_sessions').insert({ program_id: data.id, order_index: 0, title: 'Séance 1' })
     router.push(`/programs/templates/${data.id}`)
+  }
+
+  // Templates réutilisables du coach (mêmes critères que la bibliothèque /programs :
+  // athlete_id null) — group_id null en plus, pour ne proposer que de vrais templates partagés,
+  // pas le programme dédié d'un autre groupe. Chargé à la demande, une seule fois.
+  const openTemplatePicker = async () => {
+    setTemplatePickerOpen(true)
+    if (availableTemplates !== null) return
+    const coachId = await getCoachId()
+    const { data } = await supabase.from('programs')
+      .select('id, title, activity_type, program_sessions(id)')
+      .eq('coach_id', coachId).is('athlete_id', null).is('group_id', null)
+      .order('title')
+    setAvailableTemplates(data || [])
+  }
+
+  // Lier : le programme reste le template partagé, synchronisé pour les futurs membres (même
+  // mécanisme que unlinkTemplate/linkedTemplates ci-dessus — jusqu'ici seul le retrait était
+  // possible depuis cette page, l'ajout ne se faisait que depuis /programs).
+  const linkTemplateToGroup = async (template) => {
+    setTemplateActionBusy(template.id)
+    const { error } = await supabase.from('group_program_templates')
+      .insert({ group_id: groupId, program_id: template.id })
+    if (error) { alert('Erreur : ' + error.message); setTemplateActionBusy(null); return }
+    const { data: full } = await supabase.from('programs')
+      .select('title, program_sessions(id, order_index, title)').eq('id', template.id).single()
+    setLinkedTemplates(prev => [...prev, { program_id: template.id, programs: full }])
+    setTemplateActionBusy(null)
+    setTemplatePickerOpen(false)
+  }
+
+  // Copier : nouveau programme indépendant appartenant au groupe (comme createGroupProgram),
+  // pré-rempli avec les séances/exercices du template au lieu de partir de zéro — pas de lien
+  // conservé ensuite, modifiable librement sans impacter le template source.
+  const copyTemplateToGroup = async (template) => {
+    setTemplateActionBusy(template.id)
+    const coachId = await getCoachId()
+    const newProg = await cloneTemplateToAthlete({
+      templateProgramId: template.id, templateTitle: template.title, templateActivityType: template.activity_type,
+      athleteId: null, coachId, groupId,
+    })
+    if (!newProg) { alert('Erreur lors de la copie du template'); setTemplateActionBusy(null); return }
+    router.push(`/programs/templates/${newProg.id}`)
   }
 
   // Ajoute une séance vide directement à la fin du programme du groupe, sans passer par
@@ -496,7 +543,10 @@ export default function GroupDetailPage({ params }) {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', flex: 1, display: 'flex', alignItems: 'center', gap: 5 }}><ClipboardText size={13} /> Programme en cours</div>
               {!creatingProgram && (
-                <button onClick={() => { setCreatingProgram(true); setNewTitle('') }} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>+ Créer</button>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button onClick={openTemplatePicker} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>+ Depuis un template</button>
+                  <button onClick={() => { setCreatingProgram(true); setNewTitle('') }} style={{ background: 'none', border: 'none', color: 'var(--green)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0 }}>+ Créer</button>
+                </div>
               )}
             </div>
             {creatingProgram && (
@@ -616,6 +666,48 @@ export default function GroupDetailPage({ params }) {
               )
             })}
             <button onClick={() => setShowStartPicker(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Annuler</button>
+          </div>
+        </div>
+      )}
+
+      {templatePickerOpen && (
+        <div onClick={() => setTemplatePickerOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 460, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, marginBottom: 4 }}>Depuis un template</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)', marginBottom: 14 }}>
+              <strong>Lier</strong> : reste synchronisé avec le template — les futurs membres du groupe en reçoivent automatiquement une copie. <strong>Copier</strong> : nouveau programme indépendant, modifiable librement.
+            </div>
+            {availableTemplates === null ? (
+              <div style={{ fontSize: 13, color: 'var(--text3)', textAlign: 'center', padding: '20px 0' }}>Chargement…</div>
+            ) : (() => {
+              const linkedIds = new Set(linkedTemplates.map(l => l.program_id))
+              const options = availableTemplates.filter(t => !linkedIds.has(t.id) && t.id !== currentProgram?.id)
+              if (options.length === 0) {
+                return <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic', textAlign: 'center', padding: '20px 0' }}>Aucun template disponible — crée-en un depuis Programmes.</div>
+              }
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {options.map(t => {
+                    const busy = templateActionBusy === t.id
+                    return (
+                      <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '10px 12px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14 }}>{t.title}</div>
+                          <div style={{ fontSize: 12, color: 'var(--text3)' }}>{(t.program_sessions || []).length} séance{(t.program_sessions || []).length !== 1 ? 's' : ''}</div>
+                        </div>
+                        <button onClick={() => linkTemplateToGroup(t)} disabled={busy} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, color: 'var(--text2)', cursor: 'pointer', flexShrink: 0 }}>
+                          {busy ? '…' : 'Lier'}
+                        </button>
+                        <button onClick={() => copyTemplateToGroup(t)} disabled={busy} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
+                          {busy ? '…' : 'Copier'}
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
+            <button onClick={() => setTemplatePickerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, marginTop: 14 }}>Fermer</button>
           </div>
         </div>
       )}
