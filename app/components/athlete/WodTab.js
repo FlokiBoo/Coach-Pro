@@ -111,16 +111,12 @@ export default function WodTab({
   })
 
 
-  // "Séance du jour" = récurrentes (toujours dispo) + prochaine séance de chaque programme actif,
-  // daté ou non — balayer la carte montre celle du programme suivant si plusieurs sont en cours.
-  const todaysEntries = [
-    ...recurringEntries.map(e => ({ ...e, isRecurring: true, dayKey: null })),
-    ...programEntries,
-  ]
-
-  // Séance récurrente : hors calendrier, proposée tous les jours, fusionnée dans la carte "Séance
-  // du jour" ci-dessous. S'ouvre comme n'importe quelle séance (voir openSession) — le compteur du
-  // jour (recurring_session_logs) repart à zéro le lendemain sans faire disparaître la séance.
+  // Séance récurrente : hors calendrier, proposée tous les jours, affichée dans son propre encart
+  // ("Séance récurrente"), séparé de "Séance du jour" — un programme classique n'a rien à voir avec
+  // un WOD du jour qui revient indéfiniment, les mélanger dans une même carte prêtait à confusion.
+  // S'ouvre comme n'importe quelle séance (voir openSession) — le compteur du jour
+  // (recurring_session_logs) repart à zéro le lendemain sans faire disparaître la séance.
+  const recurringDisplayEntries = recurringEntries.map(e => ({ ...e, isRecurring: true, dayKey: null }))
 
   // Un vrai programme multi-séances non daté doit demander à l'athlète son rythme hebdomadaire
   // (popup) — une "Séance libre" ponctuelle (1 seule séance) n'a pas de "rythme" à choisir, elle
@@ -179,18 +175,39 @@ export default function WodTab({
         </div>
       )}
 
-      {todaysEntries.length > 0 && (
-        <div id="seance-du-jour">
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Séance du jour</div>
-          {todaysEntries.length === 1 ? (
-            renderDayCard(todaysEntries[0], 0)
+      {recurringDisplayEntries.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Séance récurrente</div>
+          {recurringDisplayEntries.length === 1 ? (
+            renderDayCard(recurringDisplayEntries[0], 0)
           ) : (
-            <SwipeCarousel activeColor="var(--bordeaux)" peek slides={todaysEntries.map((entry, i) => ({
+            <SwipeCarousel activeColor="var(--bordeaux)" peek slides={recurringDisplayEntries.map((entry, i) => ({
               key: entry.session.id,
               content: (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text3)', textAlign: 'center' }}>
-                    {i + 1}/{todaysEntries.length} · {entry.program.title}
+                    {i + 1}/{recurringDisplayEntries.length} · {entry.program.title}
+                  </div>
+                  {renderDayCard(entry, i)}
+                </div>
+              ),
+            }))} />
+          )}
+        </div>
+      )}
+
+      {programEntries.length > 0 && (
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Séance du jour</div>
+          {programEntries.length === 1 ? (
+            renderDayCard(programEntries[0], 0)
+          ) : (
+            <SwipeCarousel activeColor="var(--bordeaux)" peek slides={programEntries.map((entry, i) => ({
+              key: entry.session.id,
+              content: (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text3)', textAlign: 'center' }}>
+                    {i + 1}/{programEntries.length} · {entry.program.title}
                   </div>
                   {renderDayCard(entry, i)}
                 </div>
