@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Target, CalendarBlank, ClipboardText } from '@phosphor-icons/react'
+import { Target, CalendarBlank, ClipboardText, CheckCircle, X } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import SwipeCarousel from './athlete/SwipeCarousel'
+import { UNITS } from './TrackedMovementsBlock'
 
 function formatDateFr(date) {
   return new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -92,6 +93,56 @@ const PRIORITY_STYLES = {
   3: { bg: '#EFF6FF', border: '#93C5FD', text: '#1D4ED8', textDate: '#1D4ED8', bullet: '#2563EB' },
 }
 
+const completeFieldInput = {
+  padding: '9px 11px', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+  fontSize: 13, outline: 'none', background: 'var(--bg2)', color: 'var(--text)', fontFamily: 'inherit', flex: 1, minWidth: 0,
+}
+
+// Saisie du résultat d'un objectif terminé — même logique que MetricResultField (app/s/[token]/page.js,
+// utilisé pendant une séance) mais dupliquée ici plutôt qu'importée : ce fichier n'est pas pensé
+// comme lib partagée, même convention que documentée dans SessionBlockEditor.js/SessionPlayer.js.
+// Différence : un bouton "Enregistrer" explicite plutôt qu'un onBlur, cette saisie ne vit que dans
+// une modale ponctuelle, pas un champ toujours visible pendant la séance.
+function ObjectiveResultInput({ metric, onSave, saving }) {
+  const isTime = metric.unit === 'time'
+  const cfg = UNITS[metric.unit] || UNITS.kg
+  const [h, setH] = useState('')
+  const [m, setM] = useState('')
+  const [s, setS] = useState('')
+  const [val, setVal] = useState('')
+
+  const submit = () => {
+    if (isTime) {
+      const total = (parseInt(h, 10) || 0) * 3600 + (parseInt(m, 10) || 0) * 60 + (parseInt(s, 10) || 0)
+      if (!total) return
+      onSave(total)
+    } else {
+      if (!val) return
+      onSave(parseFloat(val))
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+        Résultat ({cfg.label})
+      </div>
+      {isTime ? (
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input type="number" min="0" placeholder="h" value={h} onChange={e => setH(e.target.value)} style={completeFieldInput} />
+          <input type="number" min="0" placeholder="min" value={m} onChange={e => setM(e.target.value)} style={completeFieldInput} />
+          <input type="number" min="0" placeholder="sec" value={s} onChange={e => setS(e.target.value)} style={completeFieldInput} />
+        </div>
+      ) : (
+        <input type="number" step="0.1" min="0" placeholder={`ex: 10 ${cfg.suffix}`} value={val} onChange={e => setVal(e.target.value)} style={completeFieldInput} />
+      )}
+      <button onClick={submit} disabled={saving} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 'var(--r)', padding: '9px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+        {saving ? '…' : 'Enregistrer le résultat'}
+      </button>
+    </div>
+  )
+}
+
 export default function ObjectivesBlock({ athleteId, objectives, setObjectives, isCoach = true, bare = false }) {
   const [newText, setNewText] = useState('')
   const [newDate, setNewDate] = useState('')
@@ -101,8 +152,16 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
   const [editForm, setEditForm] = useState({ text: '', target_date: '', priority: 2, emoji: '🎯' })
   const [saving, setSaving] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
+  // Finalisation d'un objectif : optionnellement lié à un mouvement suivi (Metrics) pour enregistrer
+  // le résultat (ex: temps sur un Hyrox), ou juste marqué terminé sans donnée. Une fois complété
+  // (completed_at posé), l'objectif sort de la liste active — voir le filtre sur `sorted` ci-dessous.
+  const [completingObj, setCompletingObj] = useState(null)
+  const [metricSearch, setMetricSearch] = useState('')
+  const [metricSuggestions, setMetricSuggestions] = useState([])
+  const [selectedMetric, setSelectedMetric] = useState(null)
+  const [completing, setCompleting] = useState(false)
 
-  const sorted = [...objectives].sort((a, b) => {
+  const sorted = [...objectives].filter(o => !o.completed_at).sort((a, b) => {
     if (!a.target_date && !b.target_date) return 0
     if (!a.target_date) return 1
     if (!b.target_date) return -1
@@ -144,6 +203,87 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
     const { error } = await supabase.from('athlete_objectives').delete().eq('id', id)
     if (error) { alert('Erreur : ' + error.message); return }
     setObjectives(prev => prev.filter(o => o.id !== id))
+  }
+
+  const openComplete = (obj) => {
+    setCompletingObj(obj)
+    setMetricSearch('')
+    setMetricSuggestions([])
+    setSelectedMetric(null)
+  }
+  const closeComplete = () => setCompletingObj(null)
+
+  const searchMetrics = async (val) => {
+    setMetricSearch(val)
+    setSelectedMetric(null)
+    if (val.trim().length < 2) { setMetricSuggestions([]); return }
+    const { data } = await supabase.from('tracked_movements').select('id, name, unit').ilike('name', `%${val.trim()}%`).limit(8)
+    setMetricSuggestions(data || [])
+  }
+
+  // Crée un nouveau mouvement suivi à la volée si l'objectif correspond à un événement pas encore
+  // dans Metrics (ex: premier Hyrox du client) — même geste que "Créer <name>" ailleurs dans l'app
+  // (bibliothèque de mouvements, activations...). Unité "temps" par défaut : la plupart des
+  // objectifs de ce type sont des courses/épreuves chronométrées, modifiable ensuite dans Metrics.
+  const createMetricAndPick = async () => {
+    const label = metricSearch.trim()
+    if (!label) return
+    setCompleting(true)
+    const { data: existingLib } = await supabase.from('movements').select('id').ilike('name', label).maybeSingle()
+    let libId = existingLib?.id
+    if (!libId) {
+      const { data: newLib } = await supabase.from('movements').insert({ name: label }).select().single()
+      libId = newLib?.id
+    }
+    const { data, error } = await supabase.from('tracked_movements')
+      .insert({ name: label, unit: 'time', category: 'Autre', movement_id: libId || null })
+      .select().single()
+    setCompleting(false)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setSelectedMetric(data)
+    setMetricSuggestions([])
+  }
+
+  const finishObjective = async () => {
+    if (!completingObj) return
+    const { error } = await supabase.from('athlete_objectives')
+      .update({ completed_at: new Date().toISOString() })
+      .eq('id', completingObj.id)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setObjectives(prev => prev.filter(o => o.id !== completingObj.id))
+    setCompletingObj(null)
+  }
+
+  // Même logique que saveMetricResult (app/s/[token]/page.js) dupliquée ici (voir ObjectiveResultInput
+  // plus haut) : détecte si la performance améliore le record actuel, et si non, laisse le coach/
+  // sportif confirmer explicitement plutôt que d'enregistrer silencieusement une contre-performance
+  // comme record.
+  const saveObjectiveResult = async (value) => {
+    if (!selectedMetric || value == null || isNaN(value)) return
+    setCompleting(true)
+    const cfg = UNITS[selectedMetric.unit] || UNITS.kg
+    const date = new Date().toISOString().slice(0, 10)
+    const { data: entries } = await supabase.from('tracked_movement_entries')
+      .select('id, value, date').eq('tracked_movement_id', selectedMetric.id).eq('athlete_id', athleteId)
+    const vals = (entries || []).map(e => e.value).filter(v => v != null)
+    const currentBest = vals.length ? (cfg.betterIsHigher ? Math.max(...vals) : Math.min(...vals)) : null
+    const isNewRecord = currentBest == null || (cfg.betterIsHigher ? value > currentBest : value < currentBest)
+    const existingToday = (entries || []).find(e => e.date === date)
+    const payload = { tracked_movement_id: selectedMetric.id, athlete_id: athleteId, date, value }
+    if (!isNewRecord && currentBest != null) {
+      const ok = confirm("Cette performance n'améliore pas le record actuel sur ce mouvement. L'enregistrer quand même comme record affiché ?")
+      if (ok) {
+        await supabase.from('tracked_movement_entries').update({ is_pr: false })
+          .eq('tracked_movement_id', selectedMetric.id).eq('athlete_id', athleteId)
+        payload.is_pr = true
+      }
+    }
+    const { error } = existingToday
+      ? await supabase.from('tracked_movement_entries').update(payload).eq('id', existingToday.id)
+      : await supabase.from('tracked_movement_entries').insert(payload)
+    setCompleting(false)
+    if (error) { alert('Erreur : ' + error.message); return }
+    finishObjective()
   }
 
   const inputStyle = {
@@ -210,6 +350,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
                       </>
                     )}
                   </div>
+                  <button onClick={() => openComplete(obj)} title="Marquer comme terminé" style={{ background: 'none', border: 'none', color: 'var(--green)', display: 'flex', cursor: 'pointer', padding: 0, flexShrink: 0 }}><CheckCircle size={17} /></button>
                   <button onClick={() => removeObjective(obj.id)} style={{ background: 'none', border: 'none', color: 'var(--text3)', fontSize: 16, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>×</button>
                 </div>
               )}
@@ -271,6 +412,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
                             </>
                           )}
                         </div>
+                        <button onClick={() => openComplete(obj)} title="Marquer comme terminé" style={{ background: 'none', border: 'none', color: 'var(--vert-foret)', display: 'flex', cursor: 'pointer', padding: 0, flexShrink: 0 }}><CheckCircle size={18} /></button>
                         <button onClick={() => removeObjective(obj.id)} style={{ background: 'none', border: 'none', color: 'var(--ostryk-text3)', fontSize: 16, cursor: 'pointer', padding: 0, flexShrink: 0, lineHeight: 1 }}>×</button>
                       </div>
                     )}
@@ -321,6 +463,59 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
           </button>
         )}
       </div>
+
+      {completingObj && (
+        <div onClick={closeComplete} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 420, maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17 }}>Marquer comme terminé</div>
+              <button onClick={closeComplete} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: 0, lineHeight: 1, display: 'flex' }}><X size={18} /></button>
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text3)', marginBottom: 16 }}>« {completingObj.text} »</div>
+
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6 }}>
+              Résultat (optionnel)
+            </div>
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <input
+                placeholder="Chercher un mouvement suivi (ex: Hyrox, Triathlon M…)"
+                value={metricSearch}
+                onChange={e => searchMetrics(e.target.value)}
+                style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }}
+              />
+              {metricSearch.trim().length >= 2 && !selectedMetric && (
+                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', boxShadow: '0 4px 16px rgba(0,0,0,.12)', zIndex: 50, overflow: 'hidden', marginTop: 2 }}>
+                  {metricSuggestions.map(m => (
+                    <button key={m.id} onMouseDown={() => setSelectedMetric(m)}
+                      style={{ display: 'block', width: '100%', padding: '9px 11px', textAlign: 'left', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer' }}>
+                      {m.name}
+                    </button>
+                  ))}
+                  {!metricSuggestions.some(m => m.name.toLowerCase() === metricSearch.trim().toLowerCase()) && (
+                    <button onMouseDown={createMetricAndPick}
+                      style={{ display: 'block', width: '100%', padding: '9px 11px', textAlign: 'left', background: 'var(--bg2)', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--green)', cursor: 'pointer' }}>
+                      + Créer « {metricSearch.trim()} »
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {selectedMetric && (
+              <div style={{ marginBottom: 16 }}>
+                <ObjectiveResultInput metric={selectedMetric} saving={completing} onSave={saveObjectiveResult} />
+              </div>
+            )}
+
+            <button onClick={finishObjective} disabled={completing} style={{
+              width: '100%', background: 'none', border: '1px solid var(--border2)', color: 'var(--text2)',
+              borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+            }}>
+              Terminé sans résultat
+            </button>
+          </div>
+        </div>
+      )}
     </>
   )
 
