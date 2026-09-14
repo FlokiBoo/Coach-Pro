@@ -1016,8 +1016,10 @@ function AthleteView({ params }) {
     const isFocusFree = focusIsFreeSession
     // En coaching en direct, "retour" doit ramener le coach à son tableau de bord — pas dans
     // l'espace du sportif (onglets Séance/Stats/Records/Profil), où il se retrouvait coincé sans
-    // autre sortie que le petit bouton "Switch to coach" (retour terrain).
-    const backHref = isCoachView ? '/' : `/s/${token}`
+    // autre sortie que le petit bouton "Switch to coach" (retour terrain). Exception : sur son
+    // propre profil (ath.is_coach), "Switch to athlete" passe aussi par ?coach=1, donc isCoachView
+    // est vrai alors qu'il s'agit de sa propre séance — "retour" doit alors rester sur sa page séance.
+    const backHref = (isCoachView && !athlete.is_coach) ? '/' : `/s/${token}`
 
     const handleFocusSkip = () => {
       const currentIdx = focusProgSessions.findIndex(s => s.id === focusSession.id)
