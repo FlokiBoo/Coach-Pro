@@ -162,6 +162,10 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
   const [selectedMetric, setSelectedMetric] = useState(null)
   const [completing, setCompleting] = useState(false)
   const [toast, setToast] = useState(null)
+  const [newMetricUnit, setNewMetricUnit] = useState('time')
+  // Rempli quand une performance n'améliore pas le record actuel : suspend l'enregistrement le
+  // temps de demander confirmation dans la modale (remplace l'ancien confirm() natif, hors charte).
+  const [pendingResult, setPendingResult] = useState(null)
 
   const sorted = [...objectives].filter(o => !o.completed_at).sort((a, b) => {
     if (!a.target_date && !b.target_date) return 0
@@ -212,8 +216,10 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
     setMetricSearch('')
     setMetricSuggestions([])
     setSelectedMetric(null)
+    setNewMetricUnit('time')
+    setPendingResult(null)
   }
-  const closeComplete = () => setCompletingObj(null)
+  const closeComplete = () => { setCompletingObj(null); setPendingResult(null) }
 
   const searchMetrics = async (val) => {
     setMetricSearch(val)
@@ -225,8 +231,10 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
 
   // Crée un nouveau mouvement suivi à la volée si l'objectif correspond à un événement pas encore
   // dans Metrics (ex: premier Hyrox du client) — même geste que "Créer <name>" ailleurs dans l'app
-  // (bibliothèque de mouvements, activations...). Unité "temps" par défaut : la plupart des
-  // objectifs de ce type sont des courses/épreuves chronométrées, modifiable ensuite dans Metrics.
+  // (bibliothèque de mouvements, activations...). Unité choisie par le sélecteur juste au-dessus
+  // (kg/temps/reps) plutôt qu'imposée à "temps" par défaut — un objectif de force (ex. "Squat à
+  // 100kg") tombait sinon sur un champ de saisie h/min/sec inadapté, forçant à sortir corriger
+  // l'unité dans Metrics avant de pouvoir revenir enregistrer un résultat.
   const createMetricAndPick = async () => {
     const label = metricSearch.trim()
     if (!label) return
@@ -238,7 +246,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
       libId = newLib?.id
     }
     const { data, error } = await supabase.from('tracked_movements')
-      .insert({ name: label, unit: 'time', category: 'Autre', movement_id: libId || null })
+      .insert({ name: label, unit: newMetricUnit, category: 'Autre', movement_id: libId || null })
       .select().single()
     setCompleting(false)
     if (error) { alert('Erreur : ' + error.message); return }
@@ -258,36 +266,52 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
   }
 
   // Même logique que saveMetricResult (app/s/[token]/page.js) dupliquée ici (voir ObjectiveResultInput
-  // plus haut) : détecte si la performance améliore le record actuel, et si non, laisse le coach/
-  // sportif confirmer explicitement plutôt que d'enregistrer silencieusement une contre-performance
-  // comme record.
+  // plus haut) : détecte si la performance améliore le record actuel. Si non, on ne sauvegarde pas
+  // tout de suite — pendingResult suspend l'écriture le temps de demander confirmation dans une
+  // modale stylée (voir plus bas), plutôt que le confirm() natif du navigateur utilisé avant (seul
+  // endroit de cet écran hors charte visuelle).
   const saveObjectiveResult = async (value) => {
     if (!selectedMetric || value == null || isNaN(value)) return
     setCompleting(true)
     const cfg = UNITS[selectedMetric.unit] || UNITS.kg
-    const date = new Date().toISOString().slice(0, 10)
     const { data: entries } = await supabase.from('tracked_movement_entries')
       .select('id, value, date').eq('tracked_movement_id', selectedMetric.id).eq('athlete_id', athleteId)
+    setCompleting(false)
     const vals = (entries || []).map(e => e.value).filter(v => v != null)
     const currentBest = vals.length ? (cfg.betterIsHigher ? Math.max(...vals) : Math.min(...vals)) : null
     const isNewRecord = currentBest == null || (cfg.betterIsHigher ? value > currentBest : value < currentBest)
+    if (!isNewRecord && currentBest != null) {
+      setPendingResult({ value, entries, currentBest })
+      return
+    }
+    commitObjectiveResult({ value, entries, markAsPr: false, showTrophy: isNewRecord })
+  }
+
+  // Confirmation explicite ("Oui, enregistrer quand même") depuis la modale — équivalent du choix
+  // "ok" dans l'ancien confirm() natif.
+  const confirmNonImprovingResult = () => {
+    if (!pendingResult) return
+    commitObjectiveResult({ value: pendingResult.value, entries: pendingResult.entries, markAsPr: true, showTrophy: true })
+  }
+
+  const commitObjectiveResult = async ({ value, entries, markAsPr, showTrophy }) => {
+    setCompleting(true)
+    const date = new Date().toISOString().slice(0, 10)
     const existingToday = (entries || []).find(e => e.date === date)
     const payload = { tracked_movement_id: selectedMetric.id, athlete_id: athleteId, date, value }
-    if (!isNewRecord && currentBest != null) {
-      const ok = confirm("Cette performance n'améliore pas le record actuel sur ce mouvement. L'enregistrer quand même comme record affiché ?")
-      if (ok) {
-        await supabase.from('tracked_movement_entries').update({ is_pr: false })
-          .eq('tracked_movement_id', selectedMetric.id).eq('athlete_id', athleteId)
-        payload.is_pr = true
-      }
+    if (markAsPr) {
+      await supabase.from('tracked_movement_entries').update({ is_pr: false })
+        .eq('tracked_movement_id', selectedMetric.id).eq('athlete_id', athleteId)
+      payload.is_pr = true
     }
     const { error } = existingToday
       ? await supabase.from('tracked_movement_entries').update(payload).eq('id', existingToday.id)
       : await supabase.from('tracked_movement_entries').insert(payload)
     setCompleting(false)
+    setPendingResult(null)
     if (error) { alert('Erreur : ' + error.message); return }
     finishObjective(
-      (isNewRecord || payload.is_pr)
+      showTrophy
         ? `🏆 Nouveau record : ${formatPerformance(selectedMetric, value)} !`
         : `✓ Résultat enregistré : ${formatPerformance(selectedMetric, value)}`
     )
@@ -499,18 +523,55 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
                     </button>
                   ))}
                   {!metricSuggestions.some(m => m.name.toLowerCase() === metricSearch.trim().toLowerCase()) && (
-                    <button onMouseDown={createMetricAndPick}
-                      style={{ display: 'block', width: '100%', padding: '9px 11px', textAlign: 'left', background: 'var(--bg2)', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--green)', cursor: 'pointer' }}>
-                      + Créer « {metricSearch.trim()} »
-                    </button>
+                    <div style={{ background: 'var(--bg2)', padding: '8px 11px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        {[{ key: 'kg', label: 'Kg' }, { key: 'time', label: 'Temps' }, { key: 'reps', label: 'Reps' }].map(u => (
+                          <button key={u.key} type="button" onMouseDown={e => { e.preventDefault(); setNewMetricUnit(u.key) }} style={{
+                            flex: 1, padding: '5px 0', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                            border: `1px solid ${newMetricUnit === u.key ? 'var(--green)' : 'var(--border2)'}`,
+                            background: newMetricUnit === u.key ? 'var(--green-light)' : 'var(--bg)',
+                            color: newMetricUnit === u.key ? 'var(--green)' : 'var(--text3)',
+                          }}>
+                            {u.label}
+                          </button>
+                        ))}
+                      </div>
+                      <button onMouseDown={createMetricAndPick}
+                        style={{ display: 'block', width: '100%', padding: '9px 11px', textAlign: 'left', background: 'none', border: 'none', fontSize: 13, fontWeight: 700, color: 'var(--green)', cursor: 'pointer' }}>
+                        + Créer « {metricSearch.trim()} »
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
             </div>
 
-            {selectedMetric && (
+            {selectedMetric && !pendingResult && (
               <div style={{ marginBottom: 16 }}>
                 <ObjectiveResultInput metric={selectedMetric} saving={completing} onSave={saveObjectiveResult} />
+              </div>
+            )}
+
+            {pendingResult && (
+              <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 'var(--r)', padding: '12px 14px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ fontSize: 13, color: '#92400E' }}>
+                  Cette performance ({formatPerformance(selectedMetric, pendingResult.value)}) n&apos;améliore pas le record actuel
+                  ({formatPerformance(selectedMetric, pendingResult.currentBest)}). L&apos;enregistrer quand même comme record affiché ?
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button onClick={() => setPendingResult(null)} disabled={completing} style={{
+                    flex: 1, background: 'none', border: '1px solid var(--border2)', color: 'var(--text2)',
+                    borderRadius: 'var(--r)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  }}>
+                    Annuler
+                  </button>
+                  <button onClick={confirmNonImprovingResult} disabled={completing} style={{
+                    flex: 1, background: '#92400E', color: '#fff', border: 'none',
+                    borderRadius: 'var(--r)', padding: '8px', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                  }}>
+                    {completing ? '…' : 'Oui, enregistrer'}
+                  </button>
+                </div>
               </div>
             )}
 
