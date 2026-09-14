@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Warning, ClipboardText, Barbell, PersonSimpleRun, Bell, CalendarBlank, Backpack, Plus, X, UsersThree } from '@phosphor-icons/react'
+import { User, Warning, ClipboardText, Barbell, Bell, CalendarBlank, Backpack, Plus, X, UsersThree } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
@@ -31,6 +31,38 @@ function initials(name) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
 
+const PERIOD_OPTIONS = [
+  { key: 'today', label: "Aujourd'hui", title: 'ACTIVITÉ DU JOUR' },
+  { key: 'week', label: 'Cette semaine', title: 'ACTIVITÉ · CETTE SEMAINE' },
+  { key: 'month', label: 'Ce mois-ci', title: 'ACTIVITÉ · CE MOIS-CI' },
+  { key: 'year', label: 'Cette année', title: 'ACTIVITÉ · CETTE ANNÉE' },
+]
+
+// Bornes (inclusives) de la période sélectionnée, en YYYY-MM-DD — comparable directement en
+// chaîne aux dates des séances/activités (mêmes format que today()/tomorrow() ci-dessus).
+function periodBounds(period) {
+  const now = new Date()
+  const fmt = x => [x.getFullYear(), String(x.getMonth() + 1).padStart(2, '0'), String(x.getDate()).padStart(2, '0')].join('-')
+  if (period === 'today') { const t = fmt(now); return { start: t, end: t } }
+  if (period === 'week') {
+    const dayIdx = (now.getDay() + 6) % 7 // lundi = 0
+    const start = new Date(now); start.setDate(now.getDate() - dayIdx)
+    const end = new Date(start); end.setDate(start.getDate() + 6)
+    return { start: fmt(start), end: fmt(end) }
+  }
+  if (period === 'month') {
+    return { start: fmt(new Date(now.getFullYear(), now.getMonth(), 1)), end: fmt(new Date(now.getFullYear(), now.getMonth() + 1, 0)) }
+  }
+  return { start: `${now.getFullYear()}-01-01`, end: `${now.getFullYear()}-12-31` }
+}
+
+// Une séance/activité fusionnée (voir merged plus bas) porte sa date sous deux formats selon son
+// origine : ISO complet (completed_at/validated_at) pour program/activity, YYYY-MM-DD brut pour
+// legacy — on ramène tout au même préfixe comparable aux bornes de periodBounds.
+function sessionDateKey(s) {
+  return (s.type === 'program' || s.type === 'activity') ? s.date.slice(0, 10) : s.date
+}
+
 export default function Home() {
   const router = useRouter()
   const [athletes, setAthletes] = useState([])
@@ -50,6 +82,7 @@ export default function Home() {
   const [tomorrowPlan, setTomorrowPlan] = useState(null)
   const [showAddCoaching, setShowAddCoaching] = useState(false)
   const [groups, setGroups] = useState([])
+  const [period, setPeriod] = useState('today')
 
   const logout = async () => {
     await supabase.auth.signOut()
@@ -234,6 +267,28 @@ export default function Home() {
     </div>
   )
 
+  const realClients = athletes.filter(a => !a.is_coach)
+  const bounds = periodBounds(period)
+  const periodSessions = (completedSessions || []).filter(s => {
+    const d = sessionDateKey(s)
+    return d >= bounds.start && d <= bounds.end
+  })
+  const activeAthleteIds = new Set(periodSessions.map(s => s.athleteId))
+  const activityByAthlete = {}
+  periodSessions.forEach(s => {
+    if (!activityByAthlete[s.athleteId]) activityByAthlete[s.athleteId] = { athleteId: s.athleteId, athleteName: s.athleteName, sessions: [] }
+    activityByAthlete[s.athleteId].sessions.push(s)
+  })
+  const activityGroups = Object.values(activityByAthlete).sort((a, b) =>
+    b.sessions[0].sortKey.localeCompare(a.sessions[0].sortKey)
+  )
+  const activePeriod = PERIOD_OPTIONS.find(p => p.key === period)
+
+  const openSessionFromList = (s) => {
+    if (s.type === 'program' && s.programId) setBrowserSession(s)
+    else setSelected(s)
+  }
+
   return (
     <div className="coach-layout" style={{ background: 'var(--bg2)' }}>
       <AthletesSidebar athleteId={null} date={today()} />
@@ -297,6 +352,37 @@ export default function Home() {
               }}>{saving ? '…' : 'Créer'}</button>
             </div>
           )}
+
+          {/* Sélecteur de période */}
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto' }}>
+            {PERIOD_OPTIONS.map(opt => {
+              const active = period === opt.key
+              return (
+                <button key={opt.key} onClick={() => setPeriod(opt.key)} style={{
+                  flexShrink: 0, padding: '7px 14px', borderRadius: 20, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  background: active ? 'var(--bordeaux)' : 'none',
+                  border: active ? 'none' : '1px solid #D8CFC0',
+                  color: active ? '#fff' : 'var(--text2)',
+                }}>
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Bandeau 3 stats, recalculé selon la période sélectionnée */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+            {[
+              { label: 'Clients 1:1', value: realClients.length },
+              { label: 'Athlètes actifs', value: activeAthleteIds.size },
+              { label: 'Séances validées', value: periodSessions.length },
+            ].map(stat => (
+              <div key={stat.label} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '12px 10px', textAlign: 'center' }}>
+                <div style={{ fontFamily: 'var(--font-title)', fontSize: 24, fontWeight: 700, color: 'var(--title)' }}>{stat.value}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
 
           {/* Mouvements sans muscles renseignés */}
           {movementsMissingMuscles.length > 0 && (
@@ -416,7 +502,7 @@ export default function Home() {
             />
           )}
 
-          {/* Titre feed */}
+          {/* Activité de la période, groupée par client */}
           {!athletes.length && !showForm ? (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '60px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 12 }}><Barbell size={36} /></div>
@@ -426,20 +512,17 @@ export default function Home() {
           ) : (
             <>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Séances & activités validées
+                {activePeriod.title}
               </div>
 
               {completedSessions === null ? (
                 <div style={{ color: 'var(--text3)', fontSize: 13, padding: '20px 0' }}>Chargement…</div>
-              ) : completedSessions.length === 0 ? (
+              ) : activityGroups.length === 0 ? (
                 <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
-                  <div style={{ fontSize: 13 }}>Aucune séance validée pour l&apos;instant.</div>
+                  <div style={{ fontSize: 13 }}>Aucune activité sur cette période.</div>
                 </div>
-              ) : completedSessions.map(s => (
-                <SessionCard key={s.id} session={s} onOpen={() => {
-                  if (s.type === 'program' && s.programId) setBrowserSession(s)
-                  else setSelected(s)
-                }} />
+              ) : activityGroups.map(group => (
+                <AthleteActivityGroup key={group.athleteId} group={group} onOpenSession={openSessionFromList} />
               ))}
             </>
           )}
@@ -459,80 +542,49 @@ export default function Home() {
   )
 }
 
-function SessionCard({ session, onOpen }) {
-  const dateLabel = session.type === 'program' || session.type === 'activity' ? session.date.slice(0, 10) : session.date
-  const isActivity = session.type === 'activity'
-  const [expanded, setExpanded] = useState(false)
-
+// Accordéon par client (fermé par défaut) : titre = avatar + nom + nb d'activités, dépliage montre
+// chaque activité de la période avec sa pill "✓ X exercices" — y compris à 0 (une activité type
+// Strava sans exercices structurés n'est pas traitée différemment, volontairement : même style
+// partout, pas de grisé ni de cas particulier visuel pour ne pas laisser croire à une anomalie.
+function AthleteActivityGroup({ group, onOpenSession }) {
+  const [open, setOpen] = useState(false)
   return (
-    <div onClick={onOpen} style={{
-      display: 'block', background: 'var(--bg)', border: '1px solid var(--border)',
-      borderRadius: 'var(--rl)', padding: '14px 16px', cursor: 'pointer', color: 'inherit'
-    }}>
-      {/* Header : avatar + nom + date */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: session.title ? 8 : 0 }}>
+    <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+      <button onClick={() => setOpen(v => !v)} style={{
+        width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
+        background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+      }}>
         <div style={{
           width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
           background: 'var(--green-light)', color: 'var(--green)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 12, fontWeight: 800
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800,
         }}>
-          {session.athleteName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+          {initials(group.athleteName)}
         </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>{session.athleteName}</div>
-          <div style={{ fontSize: 12, color: 'var(--text3)', textTransform: 'capitalize' }}>
-            {formatDateLong(dateLabel)}
-          </div>
+        <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14 }}>{group.athleteName}</div>
+        <div style={{ fontSize: 12, color: 'var(--text3)', flexShrink: 0 }}>
+          {group.sessions.length} activité{group.sessions.length !== 1 ? 's' : ''}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, background: '#DCFCE7', color: '#166534', borderRadius: 20, padding: '3px 10px' }}>
-            {isActivity ? <><PersonSimpleRun size={12} style={{ verticalAlign: -2, marginRight: 3 }} />Activité</> : `✓ ${session.exosDone.length} exercice${session.exosDone.length !== 1 ? 's' : ''}`}
-          </div>
-          <button
-            onClick={e => { e.stopPropagation(); setExpanded(v => !v) }}
-            title="Aperçu rapide"
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: 4, lineHeight: 1,
-              transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform .15s',
-            }}
-          >▾</button>
-        </div>
-      </div>
+        <span style={{ color: 'var(--text3)', flexShrink: 0, display: 'flex', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }}>▾</span>
+      </button>
 
-      {/* Titre séance */}
-      {session.title && (
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
-          {session.title}
-        </div>
-      )}
-
-      {expanded && (
-        <div onClick={e => e.stopPropagation()} style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-          {/* Détail activité (km / durée / RPE) */}
-          {isActivity && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-              {session.km != null && <span style={{ fontSize: 12, color: 'var(--text3)' }}>{session.km} km</span>}
-              {session.feedback?.duration_minutes && <span style={{ fontSize: 12, color: 'var(--text3)' }}>{session.feedback.duration_minutes} min</span>}
-              {session.feedback?.difficulty != null && <span style={{ fontSize: 12, color: 'var(--text3)' }}>RPE {session.feedback.difficulty}/10</span>}
-            </div>
-          )}
-
-          {/* Exercices réalisés */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            {session.exosDone.map(e => {
-              const log = e.log
-              const prescribed = [e.sets && `${e.sets} séries`, e.reps && `${e.reps} reps`, e.kg && `${e.kg} kg`].filter(Boolean).join(' · ')
-              const done = [log.sets_done && `${log.sets_done}×`, log.reps_done, log.kg_done && `${log.kg_done} kg`].filter(Boolean).join(' ')
-              return (
-                <div key={e.id} style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 12 }}>
-                  <span style={{ fontWeight: 600, color: 'var(--text)' }}>{e.name}</span>
-                  {done && <span style={{ color: '#166534', fontWeight: 700 }}>→ {done}</span>}
-                  {prescribed && <span style={{ color: 'var(--text3)' }}>({prescribed})</span>}
-                </div>
-              )
-            })}
-          </div>
+      {open && (
+        <div style={{ borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column' }}>
+          {group.sessions.map((s, i) => (
+            <button key={s.id} onClick={() => onOpenSession(s)} style={{
+              display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px',
+              background: 'none', border: 'none', borderBottom: i < group.sessions.length - 1 ? '1px solid var(--border)' : 'none',
+              cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+            }}>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
+                {s.title || (s.type === 'activity' ? 'Activité' : 'Séance')}
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 700, background: '#E4EDE7', color: 'var(--vert-foret)', borderRadius: 20, padding: '3px 10px', flexShrink: 0 }}>
+                ✓ {s.exosDone.length} exercice{s.exosDone.length !== 1 ? 's' : ''}
+              </span>
+              <span style={{ color: 'var(--text3)', flexShrink: 0, display: 'flex' }}>›</span>
+            </button>
+          ))}
         </div>
       )}
     </div>
