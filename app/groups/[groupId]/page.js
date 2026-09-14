@@ -251,7 +251,7 @@ export default function GroupDetailPage({ params }) {
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', fontSize: 13, padding: '9px 6px 9px 10px', flexShrink: 0 }}>
           {expandedSessionId === s.id ? '▾' : '▸'}
         </button>
-        <button onClick={() => router.push(`/programs/templates/${programId}?open=${s.id}`)}
+        <button onClick={() => router.push(`/programs/templates/${programId}/session/${s.id}`)}
           style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text)', padding: '9px 10px 9px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {s.title || `Séance ${i + 1}`}
         </button>

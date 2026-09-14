@@ -80,7 +80,7 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
     const { data: sess } = await supabase.from('program_sessions')
       .insert({ program_id: prog.id, order_index: 0, title: 'Séance libre' })
       .select().single()
-    router.push(`/programs/${athleteId}/${prog.id}${sess ? `?open=${sess.id}` : ''}`)
+    router.push(sess ? `/programs/${athleteId}/${prog.id}/session/${sess.id}` : `/programs/${athleteId}/${prog.id}`)
   }
 
   async function createProgram() {
@@ -222,6 +222,7 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
       setPrograms(prev => prev.map(p =>
         p.id === programId ? { ...p, sessions: [...p.sessions, data] } : p
       ))
+      router.push(`/programs/${athleteId}/${programId}/session/${data.id}`)
     }
   }
 
@@ -269,6 +270,8 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
   }
 
   async function deleteSession(sessId, programId) {
+    if (!window.confirm('Supprimer cette séance ?')) return
+
     const { data: exos } = await supabase.from('program_exercises').select('id').eq('program_session_id', sessId)
     const exoIds = (exos || []).map(e => e.id)
     if (exoIds.length) {
@@ -469,7 +472,7 @@ export default function MicrocyclesBlock({ athleteId, athleteToken }) {
                       {si + 1}
                     </span>
                     <Link
-                      href={`/programs/${athleteId}/${prog.id}?open=${sess.id}`}
+                      href={`/programs/${athleteId}/${prog.id}/session/${sess.id}`}
                       style={{ flex: 1, fontWeight: 600, fontSize: 13, color: 'var(--text)', textDecoration: 'none' }}
                     >
                       {sess.title || `Séance ${si + 1}`}

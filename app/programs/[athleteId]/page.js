@@ -117,7 +117,7 @@ function ProgramsPageInner({ params }) {
     const { data: sess } = await supabase.from('program_sessions')
       .insert({ program_id: prog.id, order_index: 0, title: 'Séance libre' })
       .select().single()
-    router.push(`/programs/${athleteId}/${prog.id}${sess ? `?open=${sess.id}` : ''}`)
+    router.push(sess ? `/programs/${athleteId}/${prog.id}/session/${sess.id}` : `/programs/${athleteId}/${prog.id}`)
   }
 
   const createProgram = async () => {
