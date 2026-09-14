@@ -128,13 +128,17 @@ export default function WodTab({
   )
   const dayPickerProgram = programsNeedingDays[0] || null
 
-  const renderDayCard = (entry, i) => {
+  // isPrimary est fourni explicitement par l'appelant (pas dérivé de la position locale dans sa
+  // propre liste) : "Séance récurrente" et "Séance du jour" sont deux sections indépendantes qui
+  // appellent chacune renderDayCard avec leur propre premier élément — sans ça, les deux
+  // affichaient chacune un CTA plein bordeaux le même jour, sans hiérarchie entre les deux (voir
+  // overallFirstIsRecurring plus bas, qui détermine LEQUEL des deux premiers l'est vraiment).
+  const renderDayCard = (entry, isPrimary) => {
     const { session: s, program, isRecurring, dayKey } = entry
     const exoCount = (s.exercises || []).filter(e => e.name).length
     const durationMin = estimateDurationMin(s.exercises)
     const isDone = !isRecurring && completions.has(s.id) && !skippedSessions.has(s.id)
     const recurringMet = isRecurring && (recurringTodayCounts[s.id] || 0) >= (s.recurring_daily_target || 1)
-    const isPrimary = i === 0
     // Indication écrite du jour prévu — n'a plus d'effet sur la visibilité de la carte (voir
     // programEntries plus haut) : la séance reste affichée avant comme après ce jour, tant qu'elle
     // n'est pas validée.
@@ -183,7 +187,7 @@ export default function WodTab({
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Séance récurrente</div>
           {recurringDisplayEntries.length === 1 ? (
-            renderDayCard(recurringDisplayEntries[0], 0)
+            renderDayCard(recurringDisplayEntries[0], true)
           ) : (
             <SwipeCarousel activeColor="var(--bordeaux)" peek slides={recurringDisplayEntries.map((entry, i) => ({
               key: entry.session.id,
@@ -192,7 +196,7 @@ export default function WodTab({
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text3)', textAlign: 'center' }}>
                     {i + 1}/{recurringDisplayEntries.length} · {entry.program.title}
                   </div>
-                  {renderDayCard(entry, i)}
+                  {renderDayCard(entry, i === 0)}
                 </div>
               ),
             }))} />
@@ -204,7 +208,7 @@ export default function WodTab({
         <div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Séance du jour</div>
           {programEntries.length === 1 ? (
-            renderDayCard(programEntries[0], 0)
+            renderDayCard(programEntries[0], recurringDisplayEntries.length === 0)
           ) : (
             <SwipeCarousel activeColor="var(--bordeaux)" peek slides={programEntries.map((entry, i) => ({
               key: entry.session.id,
@@ -213,7 +217,7 @@ export default function WodTab({
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text3)', textAlign: 'center' }}>
                     {i + 1}/{programEntries.length} · {entry.program.title}
                   </div>
-                  {renderDayCard(entry, i)}
+                  {renderDayCard(entry, recurringDisplayEntries.length === 0 && i === 0)}
                 </div>
               ),
             }))} />
