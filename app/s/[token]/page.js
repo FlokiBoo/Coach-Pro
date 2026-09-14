@@ -1021,6 +1021,13 @@ function AthleteView({ params }) {
     // est vrai alors qu'il s'agit de sa propre séance — "retour" doit alors rester sur sa page séance.
     const backHref = (isCoachView && !athlete.is_coach) ? '/' : `/s/${token}`
 
+    // Le nouveau player exercice-par-exercice (SessionPlayer) ne gère pas encore les mouvements de
+    // course (zone d'allure cible, logging distance/allure, intervalles — voir TODO.md, chantier
+    // explicitement mis de côté à sa création) : il affiquerait à tort des steppers Reps/Poids sans
+    // aucun sens pour un run. Tant que ce n'est pas repris, une séance contenant un run reste sur
+    // l'ancienne vue (SessionCard) qui gère déjà tout ça correctement — pas de bouton "Démarrer".
+    const focusSessionHasRun = !!focusSession?.exercises?.some(e => e.name && isRunMovement(e.name))
+
     const handleFocusSkip = () => {
       const currentIdx = focusProgSessions.findIndex(s => s.id === focusSession.id)
       const next = focusProgSessions.find((s, i) => i > currentIdx && !completions.has(s.id))
@@ -1038,7 +1045,7 @@ function AthleteView({ params }) {
           </div>
         </div>
 
-        {focusSession && playerStarted && !isCoachView ? (
+        {focusSession && playerStarted && !isCoachView && !focusSessionHasRun ? (
           <SessionPlayer
             session={focusSession}
             exerciseSets={exerciseSets}
@@ -1091,7 +1098,7 @@ function AthleteView({ params }) {
               onExerciseSaved={() => setExerciseToast('Enregistré')}
               token={token}
               playerMode={!isCoachView}
-              onStartPlayer={() => setPlayerStarted(true)}
+              onStartPlayer={focusSessionHasRun ? null : () => setPlayerStarted(true)}
             />
           ) : (
             <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px' }}>Séance introuvable</div>
