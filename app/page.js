@@ -267,10 +267,11 @@ export default function Home() {
     </div>
   )
 
-  // "Clients 1:1" = suivi payant individuel (subscription_status active — même signal que partout
-  // ailleurs dans l'app : finances, badges, verrouillage des fonctionnalités gratuites). Les autres
-  // athlètes suivis (pas d'abonnement actif) sont "curiosité" — visibles mais pas prioritaires.
-  const clients1to1 = athletes.filter(a => !a.is_coach && a.subscription_status === 'active')
+  // "Clients 1:1" = statut manuel (is_1to1_client, basculé depuis la page Sportifs), pas
+  // l'abonnement Ostryk — un client peut être suivi en 1:1 sans payer via l'abonnement de l'app
+  // (virement, espèces...) et inversement. Les autres athlètes suivis sont "curiosité" — visibles
+  // mais pas prioritaires.
+  const clients1to1 = athletes.filter(a => !a.is_coach && a.is_1to1_client)
   const client1to1Ids = new Set(clients1to1.map(a => a.id))
   const bounds = periodBounds(period)
   const periodSessions = (completedSessions || []).filter(s => {

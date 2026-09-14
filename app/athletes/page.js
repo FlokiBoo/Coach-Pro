@@ -15,6 +15,15 @@ function initials(name) {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 }
 
+function depuis(dateIso) {
+  if (!dateIso) return 'jamais'
+  const j = Math.floor((Date.now() - new Date(dateIso).getTime()) / 86400000)
+  if (j <= 0) return "aujourd'hui"
+  if (j === 1) return 'hier'
+  if (j < 30) return `il y a ${j} j`
+  return `il y a ${Math.floor(j / 30)} mois`
+}
+
 const TIER_BADGES = {
   A: { label: 'Silver', color: '#57606F', bg: '#E2E8F0' },
   B: { label: 'Gold', color: '#92400E', bg: '#FDE68A' },
@@ -39,6 +48,8 @@ export default function AthletesPage() {
   const [athletes, setAthletes] = useState(null)
   const [groupsByAthlete, setGroupsByAthlete] = useState({})
   const [programsByAthlete, setProgramsByAthlete] = useState({})
+  const [lastActivityByAthlete, setLastActivityByAthlete] = useState({})
+  const [othersOpen, setOthersOpen] = useState(true)
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState('alpha')
   const [showTests, setShowTests] = useState(false)
@@ -63,10 +74,14 @@ export default function AthletesPage() {
   useEffect(() => { load() }, [])
 
   async function load() {
-    const [{ data }, { data: groups }, { data: progs }] = await Promise.all([
+    const [{ data }, { data: groups }, { data: progs }, { data: progComps }, { data: actValidated }] = await Promise.all([
       supabase.from('athletes').select('*').neq('archived', true).order('name'),
       supabase.from('groups').select('id, name, group_members(athlete_id, is_leader)'),
       supabase.from('programs').select('title, athlete_id').not('athlete_id', 'is', null).neq('archived', true),
+      // Dernière activité par sportif — mêmes 2 sources que le dashboard coach (app/page.js),
+      // seule la date importe ici (pas le détail des séances), donc select minimal.
+      supabase.from('program_completions').select('athlete_id, completed_at'),
+      supabase.from('activity_logs').select('athlete_id, validated_at').not('validated_at', 'is', null),
     ])
     setAthletes(data || [])
     const byAthlete = {}
@@ -79,6 +94,15 @@ export default function AthletesPage() {
     const progsByAthlete = {}
     ;(progs || []).forEach(p => { (progsByAthlete[p.athlete_id] ||= []).push(p.title) })
     setProgramsByAthlete(progsByAthlete)
+
+    const lastActivity = {}
+    const bump = (athleteId, dateStr) => {
+      if (!athleteId || !dateStr) return
+      if (!lastActivity[athleteId] || dateStr > lastActivity[athleteId]) lastActivity[athleteId] = dateStr
+    }
+    ;(progComps || []).forEach(c => bump(c.athlete_id, c.completed_at))
+    ;(actValidated || []).forEach(a => bump(a.athlete_id, a.validated_at))
+    setLastActivityByAthlete(lastActivity)
   }
 
   const toggleLeaderFromList = async (athleteId, groupId, current) => {
@@ -139,14 +163,30 @@ export default function AthletesPage() {
     setAthletes(prev => prev.map(x => x.id === a.id ? { ...x, is_test: false } : x))
   }
 
+  const toggleFollowType = async (a) => {
+    setMenu(null)
+    const next = !a.is_1to1_client
+    setBusyId(a.id)
+    const { error } = await supabase.from('athletes').update({ is_1to1_client: next }).eq('id', a.id)
+    setBusyId(null)
+    if (error) { alert('Erreur : ' + error.message); return }
+    setAthletes(prev => prev.map(x => x.id === a.id ? { ...x, is_1to1_client: next } : x))
+  }
+
+  const sortAthletes = (list) => [...list].sort((a, b) => {
+    if (sortBy === 'alpha_desc') return b.name.localeCompare(a.name)
+    if (sortBy === 'date') return new Date(b.created_at) - new Date(a.created_at)
+    if (sortBy === 'subscription') return subscriptionRank(a) - subscriptionRank(b) || a.name.localeCompare(b.name)
+    return a.name.localeCompare(b.name)
+  })
+
   const filtered = (athletes || [])
     .filter(a => (showTests || !a.is_test) && a.name.toLowerCase().includes(search.trim().toLowerCase()))
-    .sort((a, b) => {
-      if (sortBy === 'alpha_desc') return b.name.localeCompare(a.name)
-      if (sortBy === 'date') return new Date(b.created_at) - new Date(a.created_at)
-      if (sortBy === 'subscription') return subscriptionRank(a) - subscriptionRank(b) || a.name.localeCompare(b.name)
-      return a.name.localeCompare(b.name)
-    })
+  // "Suivi 1:1" : statut manuel (is_1to1_client, basculé depuis le menu ⋯), pas l'abonnement
+  // Ostryk — un client peut être suivi en 1:1 sans payer via l'abonnement de l'app (virement,
+  // espèces...) et inversement. Même champ que celui utilisé pour le dashboard coach (app/page.js).
+  const oneToOne = sortAthletes(filtered.filter(a => a.is_1to1_client))
+  const others = sortAthletes(filtered.filter(a => !a.is_1to1_client))
 
   const openAdd = () => {
     setNewName('')
@@ -184,6 +224,98 @@ export default function AthletesPage() {
     setInviteMsg(json.error ? 'Erreur : ' + json.error : `✓ Invitation envoyée à ${newEmail.trim()}`)
   }
 
+  const renderAthleteRow = (a, i) => (
+    <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderTop: i > 0 ? '1px solid var(--border)' : 'none', position: 'relative', opacity: busyId === a.id ? 0.5 : 1 }}>
+      <div
+        onClick={() => router.push(`/semaine/${a.id}/${today()}`)}
+        style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}
+      >
+        <div style={{
+          width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
+          background: 'var(--green-light)', color: 'var(--green)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800,
+        }}>
+          {initials(a.name)}
+        </div>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {a.name}
+            {a.is_coach && (
+              <span style={{ fontSize: 9, fontWeight: 800, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>COACH</span>
+            )}
+            {a.is_test && (
+              <span style={{ fontSize: 9, fontWeight: 800, background: '#FEF3C7', color: '#92400E', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>TEST</span>
+            )}
+            {a.subscription_status === 'active' && TIER_BADGES[a.subscription_tier] ? (
+              <span style={{
+                fontSize: 9, fontWeight: 800, borderRadius: 10, padding: '1px 6px', flexShrink: 0,
+                color: TIER_BADGES[a.subscription_tier].color, background: TIER_BADGES[a.subscription_tier].bg,
+              }}>
+                🏅 {TIER_BADGES[a.subscription_tier].label}
+              </span>
+            ) : a.subscription_status !== 'active' && !a.is_coach && (
+              <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 10, padding: '1px 6px', flexShrink: 0 }}>
+                Non abonné
+              </span>
+            )}
+            <span style={{ fontSize: 10, color: 'var(--text3)', fontWeight: 600, marginLeft: 'auto', flexShrink: 0, whiteSpace: 'nowrap' }}>
+              {depuis(lastActivityByAthlete[a.id])}
+            </span>
+          </div>
+          {groupsByAthlete[a.id]?.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+              {groupsByAthlete[a.id].map(g => {
+                const busyKey = `${a.id}:${g.groupId}`
+                return (
+                  <button
+                    key={g.groupId}
+                    onClick={e => { e.stopPropagation(); toggleLeaderFromList(a.id, g.groupId, g.isLeader) }}
+                    disabled={togglingLeader === busyKey}
+                    title={g.isLeader ? `Retirer le statut de leader (${g.groupName})` : `Désigner comme leader (${g.groupName})`}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0,
+                      background: g.isLeader ? 'var(--green)' : 'var(--bg2)', color: g.isLeader ? '#fff' : 'var(--text3)',
+                      border: '1px solid ' + (g.isLeader ? 'var(--green)' : 'var(--border2)'), borderRadius: 20,
+                      padding: '2px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer',
+                    }}>
+                    {g.isLeader ? '⭐' : '☆'} {g.groupName}
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {programsByAthlete[a.id]?.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+              {programsByAthlete[a.id].map((title, idx) => (
+                <span key={idx} style={{
+                  flexShrink: 0, background: 'var(--bg2)', color: 'var(--text2)',
+                  border: '1px solid var(--border2)', borderRadius: 20,
+                  padding: '2px 8px', fontSize: 10, fontWeight: 700,
+                }}>
+                  📋 {title}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <button onClick={e => {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const openUp = rect.bottom > window.innerHeight - 100
+        setMenu(menu?.athlete.id === a.id ? null : {
+          athlete: a,
+          left: rect.right,
+          top: openUp ? rect.top : rect.bottom,
+          openUp,
+        })
+      }}
+        style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 15, cursor: 'pointer', color: 'var(--text3)', flexShrink: 0, lineHeight: 1 }}>
+        ···
+      </button>
+    </div>
+  )
+
   return (
     <div className="coach-layout" style={{ background: 'var(--bg2)' }}>
       <AthletesSidebar athleteId={null} date={today()} />
@@ -192,7 +324,9 @@ export default function AthletesPage() {
         <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px', position: 'sticky', top: 0, zIndex: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ flex: 1 }}>
             <div style={{ fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 18, marginBottom: 2 }}>👤 Sportifs</div>
-            <div style={{ fontSize: 12, color: 'var(--text3)' }}>{(athletes || []).length} sportif{(athletes || []).length !== 1 ? 's' : ''}</div>
+            <div style={{ fontSize: 12, color: 'var(--text3)' }}>
+              {(athletes || []).length} sportif{(athletes || []).length !== 1 ? 's' : ''} · {oneToOne.length} en suivi 1:1
+            </div>
           </div>
           <button onClick={openAdd} style={{ background: 'var(--green)', color: '#fff', border: 'none', borderRadius: 20, padding: '7px 14px', fontSize: 13, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
             + Ajouter
@@ -249,96 +383,37 @@ export default function AthletesPage() {
               <div style={{ fontSize: 13 }}>Aucun sportif trouvé.</div>
             </div>
           ) : (
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
-              {filtered.map((a, i) => (
-                <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderTop: i > 0 ? '1px solid var(--border)' : 'none', position: 'relative', opacity: busyId === a.id ? 0.5 : 1 }}>
-                  <div
-                    onClick={() => router.push(`/semaine/${a.id}/${today()}`)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}
-                  >
-                    <div style={{
-                      width: 34, height: 34, borderRadius: '50%', flexShrink: 0,
-                      background: 'var(--green-light)', color: 'var(--green)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800,
-                    }}>
-                      {initials(a.name)}
-                    </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {a.name}
-                        {a.is_coach && (
-                          <span style={{ fontSize: 9, fontWeight: 800, background: '#DBEAFE', color: '#1D4ED8', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>COACH</span>
-                        )}
-                        {a.is_test && (
-                          <span style={{ fontSize: 9, fontWeight: 800, background: '#FEF3C7', color: '#92400E', borderRadius: 10, padding: '1px 5px', flexShrink: 0 }}>TEST</span>
-                        )}
-                        {a.subscription_status === 'active' && TIER_BADGES[a.subscription_tier] ? (
-                          <span style={{
-                            fontSize: 9, fontWeight: 800, borderRadius: 10, padding: '1px 6px', flexShrink: 0,
-                            color: TIER_BADGES[a.subscription_tier].color, background: TIER_BADGES[a.subscription_tier].bg,
-                          }}>
-                            🏅 {TIER_BADGES[a.subscription_tier].label}
-                          </span>
-                        ) : a.subscription_status !== 'active' && !a.is_coach && (
-                          <span style={{ fontSize: 9, fontWeight: 700, background: 'var(--bg2)', color: 'var(--text3)', borderRadius: 10, padding: '1px 6px', flexShrink: 0 }}>
-                            Non abonné
-                          </span>
-                        )}
-                      </div>
-                      {groupsByAthlete[a.id]?.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                          {groupsByAthlete[a.id].map(g => {
-                            const busyKey = `${a.id}:${g.groupId}`
-                            return (
-                              <button
-                                key={g.groupId}
-                                onClick={e => { e.stopPropagation(); toggleLeaderFromList(a.id, g.groupId, g.isLeader) }}
-                                disabled={togglingLeader === busyKey}
-                                title={g.isLeader ? `Retirer le statut de leader (${g.groupName})` : `Désigner comme leader (${g.groupName})`}
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0,
-                                  background: g.isLeader ? 'var(--green)' : 'var(--bg2)', color: g.isLeader ? '#fff' : 'var(--text3)',
-                                  border: '1px solid ' + (g.isLeader ? 'var(--green)' : 'var(--border2)'), borderRadius: 20,
-                                  padding: '2px 8px', fontSize: 10, fontWeight: 700, cursor: 'pointer',
-                                }}>
-                                {g.isLeader ? '⭐' : '☆'} {g.groupName}
-                              </button>
-                            )
-                          })}
-                        </div>
-                      )}
-                      {programsByAthlete[a.id]?.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                          {programsByAthlete[a.id].map((title, idx) => (
-                            <span key={idx} style={{
-                              flexShrink: 0, background: 'var(--bg2)', color: 'var(--text2)',
-                              border: '1px solid var(--border2)', borderRadius: 20,
-                              padding: '2px 8px', fontSize: 10, fontWeight: 700,
-                            }}>
-                              📋 {title}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <button onClick={e => {
-                    const rect = e.currentTarget.getBoundingClientRect()
-                    const openUp = rect.bottom > window.innerHeight - 100
-                    setMenu(menu?.athlete.id === a.id ? null : {
-                      athlete: a,
-                      left: rect.right,
-                      top: openUp ? rect.top : rect.bottom,
-                      openUp,
-                    })
-                  }}
-                    style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 15, cursor: 'pointer', color: 'var(--text3)', flexShrink: 0, lineHeight: 1 }}>
-                    ···
-                  </button>
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--bordeaux)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                Suivi 1:1 · {oneToOne.length}
+              </div>
+              {oneToOne.length === 0 ? (
+                <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun sportif en suivi 1:1 pour l&apos;instant.</div>
+              ) : (
+                <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+                  {oneToOne.map((a, i) => renderAthleteRow(a, i))}
                 </div>
-              ))}
-            </div>
+              )}
+
+              {/* "Autres" = suivi hors 1:1 (curiosité, groupe uniquement, etc.) — repliable, ouvert
+                  par défaut, mais toujours après la section prioritaire ci-dessus. */}
+              <button onClick={() => setOthersOpen(v => !v)} style={{
+                display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.4px',
+              }}>
+                <span style={{ fontSize: 10 }}>{othersOpen ? '▾' : '▸'}</span>
+                Autres sportifs · {others.length}
+              </button>
+              {othersOpen && (
+                others.length === 0 ? (
+                  <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic' }}>—</div>
+                ) : (
+                  <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
+                    {others.map((a, i) => renderAthleteRow(a, i))}
+                  </div>
+                )
+              )}
+            </>
           )}
         </div>
       </div>
@@ -361,6 +436,11 @@ export default function AthletesPage() {
             {menu.athlete.is_test && (
               <button onClick={() => convertTestToClient(menu.athlete)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--green)', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
                 ✓ Convertir en client
+              </button>
+            )}
+            {!menu.athlete.is_coach && (
+              <button onClick={() => toggleFollowType(menu.athlete)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--text)', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
+                {menu.athlete.is_1to1_client ? '↩︎ Retirer du suivi 1:1' : '🤝 Marquer en suivi 1:1'}
               </button>
             )}
             <button onClick={() => archiveAthlete(menu.athlete)} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#92400E', cursor: 'pointer' }}>
