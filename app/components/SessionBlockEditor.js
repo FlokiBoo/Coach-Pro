@@ -1132,6 +1132,46 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
 
   return (
     <div style={{ background: c.bg, minHeight: '100svh', fontFamily: 'var(--font-ui)', position: 'relative' }}>
+      {/* Flèches de bord d'écran pour changer de bloc — position: fixed (pas absolute) pour rester
+          visibles au scroll, comme le reste des chrome flottants. Seulement en page normale
+          (!onClose) : en vue côte à côte (plusieurs panneaux SessionBlockEditor de 480px l'un à
+          côté de l'autre, voir app/programs/.../page.js), du fixed couvrirait TOUS les panneaux au
+          lieu de rester dans celui-ci — même piège que documenté plus haut pour les backdrops de
+          menu. z-index sous les modales (200+) pour qu'une modale ouverte les recouvre et les
+          neutralise plutôt que de rester cliquables par-dessus. */}
+      {!onClose && blocks.length > 1 && (
+        <>
+          <button
+            disabled={orderMode || activeBlockIndex === 0}
+            onClick={() => setActiveBlockId(blocks[Math.max(0, activeBlockIndex - 1)]?.id)}
+            aria-label="Previous block"
+            style={{
+              position: 'fixed', left: 12, top: '50%', transform: 'translateY(-50%)', zIndex: 60,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: '50%',
+              background: c.bg, border: `1px solid ${c.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+              cursor: (orderMode || activeBlockIndex === 0) ? 'default' : 'pointer',
+              color: (orderMode || activeBlockIndex === 0) ? c.borderDashed : c.text,
+            }}
+          >
+            <CaretLeft size={22} weight="bold" />
+          </button>
+          <button
+            disabled={orderMode || activeBlockIndex >= blocks.length - 1}
+            onClick={() => setActiveBlockId(blocks[Math.min(blocks.length - 1, activeBlockIndex + 1)]?.id)}
+            aria-label="Next block"
+            style={{
+              position: 'fixed', right: 12, top: '50%', transform: 'translateY(-50%)', zIndex: 60,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: '50%',
+              background: c.bg, border: `1px solid ${c.border}`, boxShadow: '0 4px 16px rgba(0,0,0,0.12)',
+              cursor: (orderMode || activeBlockIndex >= blocks.length - 1) ? 'default' : 'pointer',
+              color: (orderMode || activeBlockIndex >= blocks.length - 1) ? c.borderDashed : c.text,
+            }}
+          >
+            <CaretRight size={22} weight="bold" />
+          </button>
+        </>
+      )}
+
       <div style={{ maxWidth: 680, margin: '0 auto', padding: '28px 32px 60px' }}>
 
         {/* Header */}
