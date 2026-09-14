@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { CaretLeft, X, Play, Timer, Check } from '@phosphor-icons/react'
+import Toast from '@/app/components/Toast'
 
 // Dupliqué depuis app/s/[token]/page.js (mêmes petites fonctions pures utilisées pour le même champ
 // `rest`/vidéos YouTube) — composant volontairement autonome plutôt qu'un import cross-fichier
@@ -283,11 +284,15 @@ function NumericKeypad({ initialValue, decimal, onValidate, onClose }) {
 // séries, steppers, CTA. Le parent (SingleExerciseScreen / SupersetScreen) possède la machine à
 // états (quelle série est courante, ce qui se passe après validation) — ce composant ne fait que
 // remonter (reps, kg) au tap sur le CTA. Remonté à neuf par le parent (key sur exo.id + série
-// courante) à chaque nouvelle série/exercice — pas d'effet de reset ici, les valeurs initiales
-// des steppers repartent de exo.reps/exo.kg à chaque montage.
-function ExerciseLogBody({ exo, totalSets, currentSetIndex, validatedCount, ctaLabel, onValidate }) {
-  const [reps, setReps] = useState(() => parseInt(exo.reps, 10) || 10)
-  const [kg, setKg] = useState(() => parseFloat(exo.kg) || 0)
+// courante) à chaque nouvelle série/exercice — pas d'effet de reset ici. initialReps/initialKg
+// (fournis par le parent, voir lastValues) reprennent la valeur de la DERNIÈRE série validée sur
+// cet exercice plutôt que de toujours retomber sur exo.reps/exo.kg (le plan prescrit) : en
+// pratique le poids/les reps ne changent presque jamais d'une série à l'autre, donc revalider une
+// série identique doit être un seul tap, pas une resaisie complète à chaque fois. Uniquement pour
+// la toute première série (pas encore de valeur précédente), on retombe sur le plan du coach.
+function ExerciseLogBody({ exo, totalSets, currentSetIndex, validatedCount, ctaLabel, onValidate, initialReps, initialKg }) {
+  const [reps, setReps] = useState(() => initialReps ?? (parseInt(exo.reps, 10) || 10))
+  const [kg, setKg] = useState(() => initialKg ?? (parseFloat(exo.kg) || 0))
   const [padField, setPadField] = useState(null) // 'reps' | 'kg' | null
 
   return (
@@ -372,10 +377,11 @@ function PlayerHeader({ title, onBack, onClose }) {
 // Séance : exécution d'un exercice simple, une série à la fois. Chaque série validée écrit
 // immédiatement via onSaveExerciseSet (même table/queue offline que l'écran de préparation) ;
 // un repos discret (RestBanner) s'affiche après chaque série tant que exo.rest est renseigné.
-function SingleExerciseScreen({ exo, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, blockLabel, onPrev, onNext, onExit }) {
+function SingleExerciseScreen({ exo, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, onSetSaved, blockLabel, onPrev, onNext, onExit }) {
   const totalSets = Math.max(1, parseInt(exo.sets, 10) || 1)
   const [validatedCount, setValidatedCount] = useState(0)
   const [resting, setResting] = useState(false)
+  const [lastValues, setLastValues] = useState(null)
   // Remonté à neuf par le parent (key=exo.id) à chaque nouveau bloc solo — validatedCount/resting
   // repartent donc déjà à 0/false sans effet de reset ; le ref ne sert qu'à éviter un double-appel
   // de provisionnement (React 18 strict mode invoque les effets deux fois en dev).
@@ -401,6 +407,8 @@ function SingleExerciseScreen({ exo, exerciseSets, onEnsureExerciseSets, onSaveE
       onSaveExerciseSet(exo.id, set.id, 'reps_done', String(reps))
       onSaveExerciseSet(exo.id, set.id, 'kg_done', String(kg))
     }
+    setLastValues({ reps, kg })
+    onSetSaved?.()
     setValidatedCount(c => c + 1)
     const restSeconds = parseRestSeconds(exo.rest)
     if (restSeconds) setResting(true)
@@ -418,6 +426,7 @@ function SingleExerciseScreen({ exo, exerciseSets, onEnsureExerciseSets, onSaveE
             key={`${exo.id}:${validatedCount}`}
             exo={exo} totalSets={totalSets} currentSetIndex={validatedCount} validatedCount={validatedCount}
             ctaLabel="Valider la série" onValidate={handleValidate}
+            initialReps={lastValues?.reps} initialKg={lastValues?.kg}
           />
         )}
       </div>
@@ -427,11 +436,13 @@ function SingleExerciseScreen({ exo, exerciseSets, onEnsureExerciseSets, onSaveE
 
 // Super série : cycle A1 → A2 → … → repos → retour automatique sur A1, tour suivant. Aucune
 // action requise pour repartir sur le tour suivant (RestBanner.onDone gère l'avance).
-function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, blockLabel, onPrev, onNext, onExit }) {
+function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, onSetSaved, blockLabel, onPrev, onNext, onExit }) {
   const totalRounds = Math.max(1, parseInt(group[0]?.sets, 10) || 1)
   const [round, setRound] = useState(1)
   const [exoIdx, setExoIdx] = useState(0)
   const [resting, setResting] = useState(false)
+  // Une mémoire par exercice (A1/A2 n'ont pas le même poids/reps) — voir ExerciseLogBody.initialReps/initialKg.
+  const [lastValuesByExo, setLastValuesByExo] = useState({})
   const provisioned = useRef(new Set())
 
   useEffect(() => {
@@ -461,6 +472,8 @@ function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onS
       onSaveExerciseSet(exo.id, set.id, 'reps_done', String(reps))
       onSaveExerciseSet(exo.id, set.id, 'kg_done', String(kg))
     }
+    setLastValuesByExo(prev => ({ ...prev, [exo.id]: { reps, kg } }))
+    onSetSaved?.()
     if (!isLastOfGroup) { setExoIdx(i => i + 1); return }
     const restSeconds = Math.max(...group.map(e => parseRestSeconds(e.rest) || 0))
     if (restSeconds) setResting(true)
@@ -511,6 +524,7 @@ function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onS
             exo={exo} totalSets={1} currentSetIndex={0} validatedCount={0}
             ctaLabel={isLastOfGroup ? 'Valider — fin du tour, repos' : 'Valider'}
             onValidate={handleValidate}
+            initialReps={lastValuesByExo[exo.id]?.reps} initialKg={lastValuesByExo[exo.id]?.kg}
           />
         )}
       </div>
@@ -523,6 +537,7 @@ function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onS
 // (SessionCard) : aucune nouvelle logique de sauvegarde, seulement un nouvel enchaînement d'écrans.
 export default function SessionPlayer({ session, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, onExit }) {
   useKeepAwake(true)
+  const [toast, setToast] = useState(null)
   const exos = (session.exercises || []).filter(e => e.name)
   const labels = computeLabels(exos)
   const blocks = computeBlocks(exos)
@@ -546,23 +561,31 @@ export default function SessionPlayer({ session, exerciseSets, onEnsureExerciseS
 
   if (block.type === 'solo') {
     return (
-      <SingleExerciseScreen
-        key={block.exos[0].id}
-        exo={block.exos[0]}
-        exerciseSets={exerciseSets} onEnsureExerciseSets={onEnsureExerciseSets} onSaveExerciseSet={onSaveExerciseSet}
-        blockLabel={`Exercice ${blockIndex + 1}/${blocks.length}`}
-        onPrev={goPrev} onNext={goNext} onExit={onExit}
-      />
+      <>
+        <SingleExerciseScreen
+          key={block.exos[0].id}
+          exo={block.exos[0]}
+          exerciseSets={exerciseSets} onEnsureExerciseSets={onEnsureExerciseSets} onSaveExerciseSet={onSaveExerciseSet}
+          onSetSaved={() => setToast('✓ Série enregistrée')}
+          blockLabel={`Exercice ${blockIndex + 1}/${blocks.length}`}
+          onPrev={goPrev} onNext={goNext} onExit={onExit}
+        />
+        <Toast message={toast} show={!!toast} onDone={() => setToast(null)} position="top" />
+      </>
     )
   }
 
   return (
-    <SupersetScreen
-      key={block.exos.map(e => e.id).join(',')}
-      group={block.exos} labels={labels}
-      exerciseSets={exerciseSets} onEnsureExerciseSets={onEnsureExerciseSets} onSaveExerciseSet={onSaveExerciseSet}
-      blockLabel="Super série"
-      onPrev={goPrev} onNext={goNext} onExit={onExit}
-    />
+    <>
+      <SupersetScreen
+        key={block.exos.map(e => e.id).join(',')}
+        group={block.exos} labels={labels}
+        exerciseSets={exerciseSets} onEnsureExerciseSets={onEnsureExerciseSets} onSaveExerciseSet={onSaveExerciseSet}
+        onSetSaved={() => setToast('✓ Série enregistrée')}
+        blockLabel="Super série"
+        onPrev={goPrev} onNext={goNext} onExit={onExit}
+      />
+      <Toast message={toast} show={!!toast} onDone={() => setToast(null)} position="top" />
+    </>
   )
 }
