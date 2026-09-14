@@ -6,20 +6,19 @@ import { WEEK_DAYS } from '@/lib/weekDays'
 
 // Popup affiché à l'ouverture quand un programme est assigné à l'athlète mais que le coach n'a
 // daté aucune de ses séances (day_of_week) — sans ça le programme restait invisible ailleurs que
-// dans "Mes programmes" (voir WodTab). recommended_sessions_per_week (réglé par le coach dans
-// l'éditeur de programme, "Rythme conseillé") fixe le nombre de jours à choisir ; 2 par défaut
-// si le coach ne l'a pas précisé.
+// dans "Mes programmes" (voir WodTab). L'athlète choisit librement combien de jours par semaine
+// il veut s'entraîner (pas de nombre imposé) : recommended_sessions_per_week et
+// min_hours_between_sessions (réglés par le coach dans l'éditeur de programme, "Rythme conseillé")
+// ne sont plus qu'un conseil affiché ici, jamais une contrainte — quoi que l'athlète choisisse,
+// les séances s'enchaînent dans l'ordre du programme (voir nextUncompletedOf dans WodTab), le jour
+// choisi ne sert qu'à afficher une étiquette indicative sur la carte.
 export default function ChooseDaysModal({ program, onSave, onDismiss }) {
   const [selected, setSelected] = useState([])
   const [saving, setSaving] = useState(false)
-  const target = program.recommended_sessions_per_week || 2
+  const advisedCount = program.recommended_sessions_per_week || null
 
   const toggleDay = (key) => {
-    setSelected(prev => {
-      if (prev.includes(key)) return prev.filter(d => d !== key)
-      if (prev.length >= target) return prev
-      return [...prev, key]
-    })
+    setSelected(prev => prev.includes(key) ? prev.filter(d => d !== key) : [...prev, key])
   }
 
   const save = async () => {
@@ -37,11 +36,22 @@ export default function ChooseDaysModal({ program, onSave, onDismiss }) {
           </div>
         </div>
         <div style={{ fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 19, color: 'var(--bordeaux)', textAlign: 'center', marginBottom: 6 }}>
-          Choisis tes jours d&apos;entraînement
+          Choisis ton rythme d&apos;entraînement
         </div>
-        <div style={{ fontSize: 13, color: 'var(--ostryk-text2)', textAlign: 'center', marginBottom: 20, lineHeight: 1.5 }}>
-          Pour « {program.title} », sélectionne {target} jour{target > 1 ? 's' : ''} par semaine.
+        <div style={{ fontSize: 13, color: 'var(--ostryk-text2)', textAlign: 'center', marginBottom: 14, lineHeight: 1.5 }}>
+          Pour « {program.title} », choisis combien de fois par semaine tu veux t&apos;entraîner et quels jours.
         </div>
+
+        {(advisedCount || program.min_hours_between_sessions) && (
+          <div style={{
+            background: 'var(--ostryk-border)', borderRadius: 12, padding: '10px 14px', marginBottom: 18,
+            fontSize: 12.5, color: 'var(--bordeaux)', lineHeight: 1.5, textAlign: 'center',
+          }}>
+            💡 Conseil de ton coach : {advisedCount ? `${advisedCount} séance${advisedCount > 1 ? 's' : ''} par semaine` : ''}
+            {advisedCount && program.min_hours_between_sessions ? ', ' : ''}
+            {program.min_hours_between_sessions ? `au moins ${program.min_hours_between_sessions}h entre deux séances` : ''}
+          </div>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
           {WEEK_DAYS.map(d => {
@@ -61,15 +71,14 @@ export default function ChooseDaysModal({ program, onSave, onDismiss }) {
         </div>
 
         <div style={{ fontSize: 12, color: 'var(--ostryk-text3)', textAlign: 'center', marginBottom: 18 }}>
-          {selected.length}/{target} jour{target > 1 ? 's' : ''} sélectionné{selected.length > 1 ? 's' : ''}
-          {program.min_hours_between_sessions ? ` · espace-les d'au moins ${program.min_hours_between_sessions}h` : ''}
+          {selected.length === 0 ? 'Sélectionne au moins un jour' : `${selected.length} séance${selected.length > 1 ? 's' : ''} par semaine`}
         </div>
 
-        <button onClick={save} disabled={selected.length !== target || saving} style={{
-          width: '100%', background: selected.length === target ? 'var(--bordeaux)' : 'var(--ostryk-border)',
-          color: selected.length === target ? '#fff' : 'var(--ostryk-text3)',
+        <button onClick={save} disabled={selected.length === 0 || saving} style={{
+          width: '100%', background: selected.length > 0 ? 'var(--bordeaux)' : 'var(--ostryk-border)',
+          color: selected.length > 0 ? '#fff' : 'var(--ostryk-text3)',
           border: 'none', borderRadius: 'var(--ostryk-pill-radius)', padding: '14px',
-          fontSize: 15, fontWeight: 700, cursor: selected.length === target ? 'pointer' : 'default', marginBottom: 10,
+          fontSize: 15, fontWeight: 700, cursor: selected.length > 0 ? 'pointer' : 'default', marginBottom: 10,
         }}>
           {saving ? '…' : 'Valider mes jours'}
         </button>
