@@ -1539,6 +1539,12 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
     setFocusPicker(null)
   }
   const exos = session.exercises.filter(e => e.name)
+  // La liste condensée du mode player (juste nom + nb de séries, voir plus bas) n'affiche jamais la
+  // note du coach — sans conséquence tant qu'elle mène à SessionPlayer, qui la montre à son tour,
+  // mais pour une séance de course (redirigée vers cette vue complète, SessionPlayer ne gérant pas
+  // encore le cardio) ce serait la seule vue jamais montrée à l'athlète. On bascule alors sur le
+  // détail complet ci-dessous (note, zone d'allure, logging) plutôt que la liste condensée.
+  const sessionHasRun = exos.some(e => isRunMovement(e.name))
   const labels = computeLabels(session.exercises)
   const [savedIds, setSavedIds] = useState({})
   // Une fois enregistré, l'exercice se replie automatiquement (retour terrain : la card pleine
@@ -1749,7 +1755,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
               ))}
             </div>
           )}
-          {playerMode ? (
+          {playerMode && !sessionHasRun ? (
             <>
               {(session.circuits || []).filter(c => circuitSlot(c) === 0).map(c => renderCircuit(c))}
               {exos.map((exo, ei) => (
