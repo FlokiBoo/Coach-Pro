@@ -15,7 +15,7 @@ import { clearLastPath } from '@/lib/lastPath'
 import {
   House, User, UsersThree, Robot, Timer as TimerIcon, Ruler, CalendarBlank, CookingPot, Carrot,
   ForkKnife, ClipboardText, ChartLineUp, Lightbulb, BookOpen, Lightning, Money, EnvelopeSimple,
-  MagnifyingGlass, GearSix, SignOut,
+  MagnifyingGlass, GearSix, SignOut, Barbell,
 } from '@phosphor-icons/react'
 
 async function logout() {
@@ -385,6 +385,16 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
               color: 'var(--text2)', background: 'transparent',
             }}><ClipboardText size={16} /> Programmes</Link>
+            <Link href="/workouts" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}><Barbell size={16} /> Workouts</Link>
+            <Link href="/movements" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
+              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
+              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
+              color: 'var(--text2)', background: 'transparent',
+            }}><BookOpen size={16} /> Bibliothèque d&apos;exercices</Link>
             <Link href="/metrics" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
@@ -407,11 +417,6 @@ export default function AthletesSidebar({ athleteId, date = today() }) {
         </button>
         {!sectionsCollapsed.exercice && (
           <>
-            <Link href="/movements" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
-              display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
-              borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,
-              color: 'var(--text2)', background: 'transparent',
-            }}><BookOpen size={16} /> Mouvements</Link>
             <Link href="/library/activations" onClick={e => { if (guardNavigation(e)) setOpen(false) }} style={{
               display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px',
               borderRadius: 'var(--r)', textDecoration: 'none', fontSize: 13, fontWeight: 600,

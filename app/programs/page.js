@@ -56,9 +56,12 @@ export default function ProgramsPage() {
         // group_id null : un programme créé depuis un groupe est un "cycle d'entraînement" propre à
         // ce groupe (page /groups/[groupId]), pas un programme réutilisable — il n'apparaît donc pas
         // ici. Il ne rejoint cette bibliothèque que si le coach le duplique explicitement en programme.
+        // is_workout false : les workouts (séances types réutilisables, une seule séance) ont leur
+        // propre bibliothèque dédiée (/workouts), pas de doublon ici.
         supabase.from('programs')
           .select('*, athletes(name), program_sessions(id)')
           .is('group_id', null)
+          .eq('is_workout', false)
           .order('created_at', { ascending: false }),
         supabase.from('groups').select('*, group_members(athlete_id)').order('name'),
         supabase.from('group_program_templates').select('group_id, program_id'),

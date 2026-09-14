@@ -23,7 +23,7 @@ import SessionBlockEditor from '@/app/components/SessionBlockEditor'
 import {
   ChartBar, PushPin, ClipboardText, CalendarBlank, Trash, UsersThree, EyeSlash, Eye, Repeat,
   VideoCamera, Lightbulb, Target, ChartLineUp, Backpack, FloppyDisk,
-  CopySimple, ArrowsOutCardinal, Barbell, CaretDown, MagnifyingGlass, Plus, Heartbeat, Columns,
+  CopySimple, ArrowsOutCardinal, Barbell, CaretDown, MagnifyingGlass, Plus, Heartbeat, Columns, X,
 } from '@phosphor-icons/react'
 
 function today() {
@@ -304,7 +304,7 @@ function SessionChip({ s, selected, onToggleSelect, onOpen, onDuplicate, compact
   )
 }
 
-function WeekDayCell({ week, d, dayNumber, cellSessions, isFirstCol, selectedIds, onToggleSelect, onOpenSession, onAddAt, onDuplicateSession }) {
+function WeekDayCell({ week, d, dayNumber, cellSessions, isFirstCol, selectedIds, onToggleSelect, onOpenSession, onAddAt, onAddFromWorkout, onDuplicateSession }) {
   const { isOver, setNodeRef } = useDroppable({ id: `${week}-${d.key}` })
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   return (
@@ -343,6 +343,12 @@ function WeekDayCell({ week, d, dayNumber, cellSessions, isFirstCol, selectedIds
               }}>
                 <Heartbeat size={13} /> Cardio
               </button>
+              <button onClick={() => { setAddMenuOpen(false); onAddFromWorkout(week, d.key) }} style={{
+                display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 12,
+                color: 'var(--text)', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontWeight: 600,
+              }}>
+                <Barbell size={13} /> Depuis un workout
+              </button>
             </div>
           </>
         )}
@@ -351,7 +357,7 @@ function WeekDayCell({ week, d, dayNumber, cellSessions, isFirstCol, selectedIds
   )
 }
 
-function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession, onMoveSession, onDuplicateSession, selectedIds, onToggleSelect }) {
+function WeekGrid({ sessions, durationWeeks, onAddAt, onAddFromWorkout, onOpenSession, onMoveSession, onDuplicateSession, selectedIds, onToggleSelect }) {
   const byCell = {}
   sessions.forEach(s => {
     if (s.week_number == null || s.day_of_week == null) return
@@ -415,7 +421,7 @@ function WeekGrid({ sessions, durationWeeks, onAddAt, onOpenSession, onMoveSessi
                   <WeekDayCell key={d.key} week={week} d={d} dayNumber={dayNumber}
                     cellSessions={byCell[`${week}-${d.key}`] || []} isFirstCol={di === 0}
                     selectedIds={selectedIds} onToggleSelect={onToggleSelect}
-                    onOpenSession={onOpenSession} onAddAt={onAddAt} onDuplicateSession={onDuplicateSession} />
+                    onOpenSession={onOpenSession} onAddAt={onAddAt} onAddFromWorkout={onAddFromWorkout} onDuplicateSession={onDuplicateSession} />
                 )
               })}
             </div>
@@ -1194,6 +1200,56 @@ function ProgramEditorPage({ params }) {
     if (s) router.push(`/programs/${athleteId}/${programId}/session/${s.id}`)
   }
 
+  // Picker "Depuis un workout" (bouton + Ajouter d'une case du calendrier) : liste chargée à la
+  // demande plutôt qu'au montage de la page, ces workouts ne servant qu'à cette action ponctuelle.
+  const [workoutPickerFor, setWorkoutPickerFor] = useState(null) // { week, day } ou null
+  const [availableWorkouts, setAvailableWorkouts] = useState([])
+  const [loadingWorkouts, setLoadingWorkouts] = useState(false)
+
+  const openWorkoutPicker = async (week, day) => {
+    setWorkoutPickerFor({ week, day })
+    setLoadingWorkouts(true)
+    const { data } = await supabase.from('programs')
+      .select('id, title, activity_type, program_sessions(id, title, program_exercises(id))')
+      .eq('is_workout', true).order('created_at', { ascending: false })
+    setAvailableWorkouts(data || [])
+    setLoadingWorkouts(false)
+  }
+
+  const addSessionFromWorkout = async (workout) => {
+    const { week, day } = workoutPickerFor
+    const srcSessionId = workout.program_sessions?.[0]?.id
+    setWorkoutPickerFor(null)
+    if (!srcSessionId) return
+    const { data: srcSession } = await supabase.from('program_sessions')
+      .select('*, program_exercises(*)').eq('id', srcSessionId).single()
+    if (!srcSession) return
+
+    const { data: newSess } = await supabase.from('program_sessions')
+      .insert({
+        program_id: programId, order_index: sessions.length,
+        title: srcSession.title || workout.title || '', week_number: week, day_of_week: day,
+        activation: srcSession.activation || null, coach_notes: srcSession.coach_notes || null,
+        activation_videos: srcSession.activation_videos || [], circuits: srcSession.circuits || [],
+        warmup_block: srcSession.warmup_block || null, cooldown_block: srcSession.cooldown_block || null,
+        materiel: srcSession.materiel || null, activity_mode: srcSession.activity_mode || 'standard',
+      })
+      .select().single()
+    if (!newSess) return
+
+    const exos = (srcSession.program_exercises || []).sort((a, b) => a.order_index - b.order_index)
+    if (exos.length) {
+      await supabase.from('program_exercises').insert(exos.map(e => ({
+        program_session_id: newSess.id, order_index: e.order_index, name: e.name,
+        sets: e.sets, reps: e.reps, kg: e.kg, rest: e.rest, note: e.note, video_url: e.video_url,
+        superset_group: e.superset_group, focus_muscles: e.focus_muscles || null,
+        pace_base: e.pace_base || null, pct_low: e.pct_low, pct_high: e.pct_high,
+        timer_config: e.timer_config || null,
+      })))
+    }
+    router.push(`/programs/${athleteId}/${programId}/session/${newSess.id}`)
+  }
+
   // Clic sur une séance déjà existante dans la grille : ouvre elle aussi la nouvelle page séance
   // (blocks), pas l'ancien éditeur — cohérent avec la création via addSessionAt ci-dessus.
   const goToSessionPage = (id) => router.push(`/programs/${athleteId}/${programId}/session/${id}`)
@@ -1802,6 +1858,7 @@ function ProgramEditorPage({ params }) {
           sessions={sessions}
           durationWeeks={program?.duration_weeks || 1}
           onAddAt={addSessionAt}
+          onAddFromWorkout={openWorkoutPicker}
           onOpenSession={goToSessionPage}
           onMoveSession={moveSessionToDay}
           onDuplicateSession={(id) => duplicateSession(id, null, { skipOpen: true })}
@@ -2763,6 +2820,38 @@ function ProgramEditorPage({ params }) {
                 Enregistrer
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {workoutPickerFor && (
+        <div onClick={() => setWorkoutPickerFor(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg)', borderRadius: 'var(--rl)', padding: 20, width: '100%', maxWidth: 420, maxHeight: '80svh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ flex: 1, fontFamily: 'var(--font-title)', color: 'var(--title)', fontWeight: 700, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8 }}><Barbell size={16} /> Choisir un workout</div>
+              <button onClick={() => setWorkoutPickerFor(null)} style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text3)', cursor: 'pointer', padding: '2px 4px', lineHeight: 1 }}><X size={18} /></button>
+            </div>
+            {loadingWorkouts ? (
+              <div style={{ fontSize: 13, color: 'var(--text3)' }}>Chargement…</div>
+            ) : availableWorkouts.length === 0 ? (
+              <div style={{ fontSize: 13, color: 'var(--text3)', fontStyle: 'italic' }}>Aucun workout dans ta bibliothèque pour l&apos;instant.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {availableWorkouts.map(w => {
+                  const sess = w.program_sessions?.[0]
+                  const exoCount = sess?.program_exercises?.length || 0
+                  return (
+                    <button key={w.id} onClick={() => addSessionFromWorkout(w)} style={{
+                      textAlign: 'left', background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 'var(--r)',
+                      padding: '10px 12px', cursor: 'pointer', fontFamily: 'inherit',
+                    }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>{sess?.title || w.title}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text3)', marginTop: 2 }}>{w.activity_type || 'Musculation 🏋️'} · {exoCount} exercice{exoCount !== 1 ? 's' : ''}</div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
