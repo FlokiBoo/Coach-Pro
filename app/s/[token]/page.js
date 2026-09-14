@@ -1098,7 +1098,7 @@ function AthleteView({ params }) {
         )}
 
         {celebration && (
-          <CelebrationModal tonnage={celebration.tonnage} muscles={celebration.muscles} records={celebration.records} onClose={() => setCelebration(null)} />
+          <CelebrationModal tonnage={celebration.tonnage} muscles={celebration.muscles} records={celebration.records} onClose={() => { setCelebration(null); router.push(backHref) }} />
         )}
         {!celebration && freeGateUpsell && (
           <FreeGateUpsellModal upsell={freeGateUpsell} subscribing={subscribingFromGate} onSubscribe={subscribeFromGate} onClose={() => setFreeGateUpsell(null)} />
