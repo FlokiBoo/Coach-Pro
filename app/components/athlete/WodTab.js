@@ -79,9 +79,6 @@ export default function WodTab({
     else if (prog.athlete_days_of_week?.length) athleteDatedPrograms.push(prog)
     else if (!prog.sessions.every(s => s.session_type === 'recurrent')) unscheduledPrograms.push(prog)
   })
-  const datedProgramsCount = coachDatedPrograms.length + athleteDatedPrograms.length
-  const hasDayView = datedProgramsCount > 0
-
   const nextUncompletedOf = (prog) => {
     const progressionSessions = prog.sessions.filter(s => s.session_type !== 'recurrent')
     return progressionSessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
@@ -113,20 +110,6 @@ export default function WodTab({
     if (next) programEntries.push({ session: next, program: prog, isRecurring: false, dayKey: null })
   })
 
-  // Bilan "Ma semaine" : séances de la semaine "active" de chaque programme daté par le coach
-  // (même semaine que sa prochaine séance non complétée, ou la dernière si tout est fait). Les
-  // programmes datés par l'athlète (rotation par créneaux, pas de week_number) n'ont pas de notion
-  // de "semaine" comparable et ne sont pas comptés ici — inchangé par le passage à programEntries.
-  const weekTally = { done: 0, total: 0 }
-  coachDatedPrograms.forEach(prog => {
-    const progressionSessions = prog.sessions.filter(s => s.session_type !== 'recurrent' && s.day_of_week != null)
-    if (!progressionSessions.length) return
-    const nextUncompleted = progressionSessions.find(s => !(completions.has(s.id) && !skippedSessions.has(s.id)))
-    const weekNum = nextUncompleted ? nextUncompleted.week_number : progressionSessions[progressionSessions.length - 1].week_number
-    const weekSessions = weekNum != null ? progressionSessions.filter(s => s.week_number === weekNum) : progressionSessions
-    weekTally.total += weekSessions.length
-    weekTally.done += weekSessions.filter(s => completions.has(s.id) && !skippedSessions.has(s.id)).length
-  })
 
   // "Séance du jour" = récurrentes (toujours dispo) + prochaine séance de chaque programme actif,
   // daté ou non — balayer la carte montre celle du programme suivant si plusieurs sont en cours.
@@ -214,36 +197,6 @@ export default function WodTab({
               ),
             }))} />
           )}
-        </div>
-      )}
-
-      {weekTally.total > 0 && (
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Ma semaine</div>
-          <div style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-              <span style={{ fontFamily: 'var(--font-title)', fontWeight: 600, fontSize: 22, color: 'var(--bordeaux)' }}>{weekTally.done}/{weekTally.total}</span>
-              <span style={{ fontSize: 13, color: 'var(--ostryk-text2)' }}>séances cette semaine</span>
-            </div>
-            <div style={{ height: 6, borderRadius: 'var(--ostryk-pill-radius)', background: 'var(--beige)', overflow: 'hidden' }}>
-              <div style={{ height: '100%', borderRadius: 'var(--ostryk-pill-radius)', background: 'var(--vert-foret)', width: `${Math.round((weekTally.done / weekTally.total) * 100)}%`, transition: 'width 0.3s' }} />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {weekTally.total === 0 && hasDayView && (
-        <div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>Ma semaine</div>
-          <div style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '24px 16px', textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <span style={{ fontSize: 14, color: 'var(--ostryk-text2)' }}>Pas encore de séance cette semaine</span>
-            <button onClick={() => document.getElementById('seance-du-jour')?.scrollIntoView({ behavior: 'smooth' })} style={{
-              background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: 'var(--ostryk-pill-radius)',
-              padding: '12px', fontSize: 14, fontWeight: 700, cursor: 'pointer',
-            }}>
-              Voir ma séance du jour
-            </button>
-          </div>
         </div>
       )}
 
