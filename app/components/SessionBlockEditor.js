@@ -419,6 +419,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const [draftNote, setDraftNote] = useState('')
   const [activationPresets, setActivationPresets] = useState(null) // null = pas encore chargé
   const [presetsMenuOpen, setPresetsMenuOpen] = useState(false)
+  const [warmupLibraryOpen, setWarmupLibraryOpen] = useState(false)
   const [mentionQuery, setMentionQuery] = useState(null)
   const [mentionRange, setMentionRange] = useState(null)
   const [notesModalOpen, setNotesModalOpen] = useState(false)
@@ -504,12 +505,13 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   }, [exercisesModalOpen, exerciseSearch, selectedMuscles, activityMode, mentionActive, mentionQuery])
 
   // Bibliothèque d'activations pré-construites (app/library/activations) — chargée une seule fois,
-  // à la première ouverture de la modale Description, pas à chaque frappe (contrairement aux
+  // à la première ouverture de la modale Description OU du picker "Create from library" d'un bloc
+  // warmup/cooldown (voir openExercisePickerForBlock), pas à chaque frappe (contrairement aux
   // mouvements ci-dessus) : la liste est courte (protocoles créés à la main par le coach), pas
   // besoin de recherche serveur. Coach uniquement (canManageCatalog) : un athlète en "Séance libre"
   // n'a pas de bibliothèque d'activations à piocher.
   useEffect(() => {
-    if (!descModalOpen || !canManageCatalog || activationPresets !== null) return
+    if ((!descModalOpen && !warmupLibraryOpen) || !canManageCatalog || activationPresets !== null) return
     let cancelled = false
     async function loadPresets() {
       const [{ data: presets }, { data: hidden }] = await Promise.all([
@@ -522,7 +524,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     }
     loadPresets()
     return () => { cancelled = true }
-  }, [descModalOpen, canManageCatalog, activationPresets])
+  }, [descModalOpen, warmupLibraryOpen, canManageCatalog, activationPresets])
 
   useEffect(() => {
     const handler = (e) => {
@@ -765,11 +767,50 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     setSelectedMuscles(prev => prev.includes(muscleKey) ? prev.filter(m => m !== muscleKey) : [...prev, muscleKey])
   }
 
+  // Pour warmup/cooldown, "Create from library" propose d'abord les activations pré-construites
+  // du coach (bibliothèque app/library/activations) plutôt que la recherche mouvement par
+  // mouvement — un échauffement se compose presque toujours d'un protocole déjà prêt, pas d'une
+  // recherche depuis zéro. openMovementPickerDirectly() reste accessible depuis cette modale pour
+  // le cas où le coach veut malgré tout piocher un mouvement précis.
   const openExercisePickerForBlock = () => {
+    if (activeBlock && ['warmup', 'cooldown'].includes(activeBlock.type)) {
+      setWarmupLibraryOpen(true)
+      return
+    }
+    openMovementPickerDirectly()
+  }
+
+  const openMovementPickerDirectly = () => {
     setAddingSecondaryExercise(false)
     setReplacingExerciseId(null)
     setPendingCircuitExercises([])
+    setWarmupLibraryOpen(false)
     setExercisesModalOpen(true)
+  }
+
+  // Ajoute en une seule fois tous les mouvements d'une activation pré-construite au bloc actif —
+  // en boucle, plusieurs appels à addExerciseToActiveBlock écraseraient chacun le résultat du
+  // précédent (même fermeture `blocks` non réactualisée entre deux appels synchrones). Le nom/texte
+  // du protocole s'ajoute au nom/description du bloc sans écraser ce qui y est déjà (même logique
+  // additive que applyPreset dans la modale Description — un coach compose parfois plusieurs
+  // protocoles dans le même bloc).
+  const applyPresetToActiveBlock = (preset) => {
+    if (!activeBlock) return
+    const newExercises = (preset.videos || []).map(v => ({ id: nextBlockId(), name: v.name, muscles: '' }))
+    setBlocks(blocks.map((b, i) => {
+      if (i !== activeBlockIndex) return b
+      const sets = b.sets?.length > 0 ? b.sets : [{ id: nextBlockId() }]
+      const restSeconds = b.restSeconds ?? 60
+      return {
+        ...b,
+        name: b.name || preset.name,
+        description: b.description ? `${b.description}\n\n${preset.text || ''}` : (preset.text || ''),
+        exercises: [...(b.exercises || []), ...newExercises],
+        sets, restSeconds,
+      }
+    }))
+    setUnsavedChanges(true)
+    setWarmupLibraryOpen(false)
   }
 
   const openFollowExercisePicker = () => {
@@ -1864,6 +1905,60 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                   padding: '9px 20px', background: c.bg, cursor: 'pointer',
                 }}>
                   Ok
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Modale "Create from library" pour warmup/cooldown : bibliothèque d'activations
+            pré-construites plutôt que la recherche mouvement par mouvement. */}
+        {warmupLibraryOpen && (
+          <>
+            <div onClick={() => setWarmupLibraryOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200 }} />
+            <div style={{
+              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 201,
+              width: 480, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column',
+              background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)', overflow: 'hidden',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
+                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Activations</span>
+                <button onClick={() => setWarmupLibraryOpen(false)} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ flex: 1, overflowY: 'auto', padding: '8px 16px' }}>
+                {activationPresets === null ? (
+                  <div style={{ padding: '20px 8px', fontSize: 14, color: c.textMuted }}>Chargement…</div>
+                ) : activationPresets.length === 0 ? (
+                  <div style={{ padding: '20px 8px', fontSize: 14, color: c.textMuted }}>
+                    Aucune activation pré-construite — gère-les dans Bibliothèque → Activations.
+                  </div>
+                ) : activationPresets.map(preset => (
+                  <div key={preset.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 8px', borderBottom: `1px solid ${c.border}` }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: c.text }}>{preset.name}</div>
+                      {preset.videos?.length > 0 && (
+                        <div style={{ fontSize: 12, color: c.textMuted, marginTop: 2 }}>{preset.videos.length} mouvement{preset.videos.length > 1 ? 's' : ''}</div>
+                      )}
+                    </div>
+                    <button onClick={() => applyPresetToActiveBlock(preset)} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${c.blue}`, color: c.blue,
+                      fontWeight: 700, fontSize: 13, borderRadius: 6, padding: '7px 14px', background: c.bg, cursor: 'pointer', flexShrink: 0,
+                    }}>
+                      <Plus size={13} weight="bold" /> Ajouter
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ padding: '14px 24px', borderTop: `1px solid ${c.border}` }}>
+                <button onClick={openMovementPickerDirectly} style={{
+                  border: 'none', background: 'none', color: c.textMuted, fontSize: 13, fontWeight: 600,
+                  textDecoration: 'underline', cursor: 'pointer', padding: 0,
+                }}>
+                  Chercher un mouvement précis à la place
                 </button>
               </div>
             </div>
