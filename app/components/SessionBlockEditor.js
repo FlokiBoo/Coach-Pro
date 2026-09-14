@@ -404,6 +404,8 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const [pendingSets, setPendingSets] = useState(3)
   const [pendingRest, setPendingRest] = useState(60)
   const [addingSecondaryExercise, setAddingSecondaryExercise] = useState(false)
+  const [replacingExerciseId, setReplacingExerciseId] = useState(null)
+  const [exerciseMenuOpenId, setExerciseMenuOpenId] = useState(null)
   const [pendingCircuitExercises, setPendingCircuitExercises] = useState([])
   // Sélection par id (pas par index) : un glisser-déposer des blocs (voir moveBlock/orderMode
   // plus bas) peut réordonner le tableau `blocks` en plusieurs étapes synchrones avant tout
@@ -765,19 +767,64 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
 
   const openExercisePickerForBlock = () => {
     setAddingSecondaryExercise(false)
+    setReplacingExerciseId(null)
     setPendingCircuitExercises([])
     setExercisesModalOpen(true)
   }
 
   const openFollowExercisePicker = () => {
     setAddingSecondaryExercise(true)
+    setReplacingExerciseId(null)
     setPendingCircuitExercises([])
     setExercisesModalOpen(true)
+  }
+
+  // Menu "⋮" par exercice (Replace / Delete) — ouvre le même picker que "+ Exercises" mais en mode
+  // remplacement : le nom choisi prend la place de celui-ci sans toucher à son id, donc ses séries/
+  // reps/notes déjà saisies restent attachées plutôt que d'être perdues comme avec un delete+add.
+  const openReplaceExercisePicker = (exerciseId) => {
+    setReplacingExerciseId(exerciseId)
+    setAddingSecondaryExercise(false)
+    setPendingCircuitExercises([])
+    setExercisesModalOpen(true)
+    setExerciseMenuOpenId(null)
   }
 
   const closeExercisesModal = () => {
     setExercisesModalOpen(false)
     setPendingCircuitExercises([])
+    setReplacingExerciseId(null)
+  }
+
+  const replaceExerciseInActiveBlock = (ex) => {
+    if (!activeBlock || !replacingExerciseId) return
+    setBlocks(blocks.map((b, i) => (
+      i === activeBlockIndex
+        ? { ...b, exercises: (b.exercises || []).map(e => e.id === replacingExerciseId ? { ...e, name: ex.name, muscles: ex.muscles } : e) }
+        : b
+    )))
+    setUnsavedChanges(true)
+    setExercisesModalOpen(false)
+    setReplacingExerciseId(null)
+  }
+
+  // Purge les données rattachées à l'exercice supprimé (sets/notes/valeurs/pace) pour ne pas les
+  // ressusciter si un futur exercice réutilise le même id.
+  const removeExerciseFromActiveBlock = (exerciseId) => {
+    if (!activeBlock) return
+    if (!window.confirm('Supprimer cet exercice ?')) return
+    setBlocks(blocks.map((b, i) => {
+      if (i !== activeBlockIndex) return b
+      const exercises = (b.exercises || []).filter(e => e.id !== exerciseId)
+      const dropKey = (k) => k.endsWith(`:${exerciseId}`) || k === `note:${exerciseId}`
+      const setValues = Object.fromEntries(Object.entries(b.setValues || {}).filter(([k]) => !dropKey(k)))
+      const setNotes = Object.fromEntries(Object.entries(b.setNotes || {}).filter(([k]) => !dropKey(k)))
+      const paceValues = { ...(b.paceValues || {}) }
+      delete paceValues[exerciseId]
+      return { ...b, exercises, setValues, setNotes, paceValues }
+    }))
+    setUnsavedChanges(true)
+    setExerciseMenuOpenId(null)
   }
 
   // Ajoute directement l'exercice au bloc actif, sans détour séries/récup — 1 série de base (voir
@@ -1376,9 +1423,37 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                               </span>
                             )}
                           </div>
-                          <button style={{ display: 'flex', flexShrink: 0, background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.textMuted }}>
-                            <DotsThreeVertical size={18} weight="bold" />
-                          </button>
+                          <div style={{ position: 'relative', flexShrink: 0 }}>
+                            <button
+                              onClick={() => setExerciseMenuOpenId(v => v === ex.id ? null : ex.id)}
+                              style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.textMuted }}
+                            >
+                              <DotsThreeVertical size={18} weight="bold" />
+                            </button>
+                            {exerciseMenuOpenId === ex.id && (
+                              <>
+                                <div onClick={() => setExerciseMenuOpenId(null)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
+                                <div style={{
+                                  position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 190, background: c.bg,
+                                  border: `1px solid ${c.border}`, borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                                  zIndex: 100, padding: 8, display: 'flex', flexDirection: 'column', gap: 2,
+                                }}>
+                                  <button
+                                    onClick={() => openReplaceExercisePicker(ex.id)}
+                                    style={{ padding: '10px 12px', borderRadius: 6, fontSize: 14, color: c.text, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                                  >
+                                    Replace exercise
+                                  </button>
+                                  <button
+                                    onClick={() => removeExerciseFromActiveBlock(ex.id)}
+                                    style={{ padding: '10px 12px', borderRadius: 6, fontSize: 14, color: '#DC2626', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                                  >
+                                    Delete exercise
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                       )}
                     </SortableItem>
@@ -1765,7 +1840,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
               background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)', overflow: 'hidden',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
-                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Exercises</span>
+                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>{replacingExerciseId ? 'Replace exercise' : 'Exercises'}</span>
                 <button onClick={closeExercisesModal} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
                   <X size={20} />
                 </button>
@@ -1897,7 +1972,9 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                             // l'allure se règle par exercice (base + %low/%high), voir la vue
                             // cardio ci-dessous. Le sportif en "Séance libre" ajoute toujours
                             // directement avec 1 série de base (voir addExerciseToActiveBlock).
-                            if (isCircuitBlock) {
+                            if (replacingExerciseId) {
+                              replaceExerciseInActiveBlock(ex)
+                            } else if (isCircuitBlock) {
                               if (!alreadyInBlock) toggleCircuitPending(ex)
                             } else if (!canManageCatalog || addingSecondaryExercise || activityMode === 'cardio') {
                               addExerciseToActiveBlock(ex)
@@ -1905,11 +1982,12 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                               startExerciseConfig(ex)
                             }
                           }}
-                          disabled={!activeBlock || alreadyInBlock}
+                          disabled={!activeBlock || (!replacingExerciseId && alreadyInBlock)}
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: '50%',
                             border: `1.5px solid ${added ? c.blue : c.border}`, background: added ? c.blue : c.bg,
-                            color: added ? '#fff' : c.text, cursor: activeBlock && !alreadyInBlock ? 'pointer' : 'not-allowed', flexShrink: 0,
+                            color: added ? '#fff' : c.text,
+                            cursor: activeBlock && (replacingExerciseId || !alreadyInBlock) ? 'pointer' : 'not-allowed', flexShrink: 0,
                           }}
                         >
                           {added ? <Check size={16} weight="bold" /> : <Plus size={16} />}
