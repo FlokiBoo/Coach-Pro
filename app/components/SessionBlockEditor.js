@@ -19,7 +19,7 @@ import {
   X, TextB, TextItalic, LinkSimple, ListBullets, TextTSlash,
   CaretLeft, CaretRight, ArrowsDownUp, Plus, FileText, Flame, Snowflake, Barbell,
   DotsThreeVertical, PencilSimple, Info, MagnifyingGlass, Check, Timer, DotsSixVertical,
-  ArrowsClockwise, Heartbeat,
+  ArrowsClockwise, Heartbeat, VideoCamera,
 } from '@phosphor-icons/react'
 import { SortableGroup, SortableItem } from '@/app/components/SortableItem'
 
@@ -430,25 +430,31 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     return () => { cancelled = true }
   }, [sessionId])
 
-  // Recherche de mouvements côté serveur (débounced), tant que la modale Exercises est ouverte —
-  // pas de fetch fixe : la bibliothèque de mouvements peut dépasser largement une seule page.
+  // Recherche de mouvements côté serveur (débounced), tant que la modale Exercises OU l'autocomplete
+  // "#mention" de la modale Description est active — pas de fetch fixe : la bibliothèque de
+  // mouvements peut dépasser largement une seule page. mentionQuery !== null couvre à la fois le
+  // clic sur "+ Exercises" (ouvre l'autocomplete avec une requête vide) et la frappe de "#" dans le
+  // texte : sans ce déclencheur, movementsList restait vide dans la modale Description et ni le
+  // bouton ni le "#" ne proposaient jamais rien.
+  const mentionActive = mentionQuery !== null
   useEffect(() => {
-    if (!exercisesModalOpen) return
+    if (!exercisesModalOpen && !mentionActive) return
     let cancelled = false
     const isCardio = activityMode === 'cardio'
+    const searchTerm = exercisesModalOpen ? exerciseSearch : (mentionQuery || '')
     const timer = setTimeout(async () => {
       // En mode cardio, le filtre Run/Row/Ski Erg/Bike (voir isCardioMovementName) s'applique
       // après coup en JS : il faut donc charger toute la bibliothèque (400+ mouvements chez ce
       // coach) plutôt que les 100 premiers par ordre alphabétique, sous peine de couper avant
       // d'atteindre "Run EF" etc. si aucun texte de recherche ne réduit déjà la liste.
-      let query = supabase.from('movements').select('id, name, muscles').order('name').limit(isCardio ? 2000 : 100)
-      if (exerciseSearch.trim()) query = query.ilike('name', `%${exerciseSearch.trim()}%`)
-      if (selectedMuscles.length > 0 && !isCardio) {
+      let query = supabase.from('movements').select('id, name, muscles, video_url, youtube_url').order('name').limit(isCardio ? 2000 : 100)
+      if (searchTerm.trim()) query = query.ilike('name', `%${searchTerm.trim()}%`)
+      if (selectedMuscles.length > 0 && !isCardio && exercisesModalOpen) {
         query = query.or(selectedMuscles.map(m => `muscles.ilike.%${m}%`).join(','))
       }
       const { data } = await query
       if (cancelled) return
-      let list = (data || []).map(m => ({ id: m.id, name: m.name, muscles: m.muscles || '' }))
+      let list = (data || []).map(m => ({ id: m.id, name: m.name, muscles: m.muscles || '', videoUrl: m.video_url || m.youtube_url || '' }))
       if (isCardio) {
         list = list.filter(m => isCardioMovementName(m.name))
           .sort((a, b) => cardioMovementSortKey(a.name) - cardioMovementSortKey(b.name))
@@ -457,7 +463,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
       setMovementsList(list)
     }, 250)
     return () => { cancelled = true; clearTimeout(timer) }
-  }, [exercisesModalOpen, exerciseSearch, selectedMuscles, activityMode])
+  }, [exercisesModalOpen, exerciseSearch, selectedMuscles, activityMode, mentionActive, mentionQuery])
 
   useEffect(() => {
     const handler = (e) => {
@@ -985,7 +991,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
 
   const mentionMatches = mentionQuery === null
     ? []
-    : movementNames.filter(m => m.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 5)
+    : movementsList.filter(m => m.name.toLowerCase().startsWith(mentionQuery.toLowerCase())).slice(0, 5)
 
   if (loading) {
     return (
@@ -1570,15 +1576,16 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                         }}>
                           {mentionMatches.map((m, i) => (
                             <button
-                              key={m}
+                              key={m.id}
                               onMouseDown={e => e.preventDefault()}
-                              onClick={() => pickMovement(m)}
+                              onClick={() => pickMovement(m.name)}
                               style={{
-                                display: 'block', width: '100%', padding: '12px 14px', borderRadius: 6, fontSize: 15,
+                                display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '12px 14px', borderRadius: 6, fontSize: 15,
                                 color: c.text, background: i === 0 ? c.blueBorder : 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
                               }}
                             >
-                              {m}
+                              <span style={{ flex: 1 }}>{m.name}</span>
+                              {m.videoUrl && <VideoCamera size={15} style={{ color: c.blue, flexShrink: 0 }} />}
                             </button>
                           ))}
                         </div>
