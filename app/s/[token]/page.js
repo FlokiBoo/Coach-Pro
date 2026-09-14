@@ -1790,7 +1790,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
             <Fragment key={exo.id}>
             <div style={{ background: 'var(--bg2)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '12px 14px' }}>
               <div onClick={isCollapsed ? () => setExpandedOverride(p => ({ ...p, [exo.id]: true })) : undefined}
-                style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: (!isCollapsed && (exo.sets || exo.reps || exo.kg || exo.note)) ? 8 : 0, cursor: isCollapsed ? 'pointer' : 'default' }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: (exo.note || (!isCollapsed && (exo.sets || exo.reps || exo.kg))) ? 8 : 0, cursor: isCollapsed ? 'pointer' : 'default' }}>
                 <div style={{
                   minWidth: 24, height: 24, borderRadius: '50%',
                   background: isCollapsed ? '#DCFCE7' : 'var(--green-light)', color: isCollapsed ? '#166534' : 'var(--green)',
@@ -1816,6 +1816,12 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                   </>
                 )}
               </div>
+
+              {/* Consigne du coach : reste visible même une fois la série "collapsée" (loggée) —
+                  contrairement au détail sets/reps/pace ci-dessous, c'est une note permanente que
+                  l'athlète doit pouvoir relire pendant tout l'exercice (ex: consigne de respiration
+                  sur un run), pas un détail de saisie qui ne sert plus une fois enregistré. */}
+              {exo.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>{exo.note}</div>}
 
               {!isCollapsed && <>
               {(() => {
@@ -1915,7 +1921,6 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                   {exo.rest && <Pill value={exo.rest} label="récup" color="#EFF6FF" textColor="#1D4ED8" onClick={() => { unlockAudio(); unlockSpeech(); setShowTimer({ seconds: parseRestSeconds(exo.rest), label: 'RÉCUP' }) }} />}
                 </div>
               )}
-              {exo.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>{exo.note}</div>}
 
               {/* Log client */}
               {onSaveLog && isRunMovement(exo.name) && (
