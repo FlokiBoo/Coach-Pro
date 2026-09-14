@@ -267,7 +267,11 @@ export default function Home() {
     </div>
   )
 
-  const realClients = athletes.filter(a => !a.is_coach)
+  // "Clients 1:1" = suivi payant individuel (subscription_status active — même signal que partout
+  // ailleurs dans l'app : finances, badges, verrouillage des fonctionnalités gratuites). Les autres
+  // athlètes suivis (pas d'abonnement actif) sont "curiosité" — visibles mais pas prioritaires.
+  const clients1to1 = athletes.filter(a => !a.is_coach && a.subscription_status === 'active')
+  const client1to1Ids = new Set(clients1to1.map(a => a.id))
   const bounds = periodBounds(period)
   const periodSessions = (completedSessions || []).filter(s => {
     const d = sessionDateKey(s)
@@ -282,6 +286,8 @@ export default function Home() {
   const activityGroups = Object.values(activityByAthlete).sort((a, b) =>
     b.sessions[0].sortKey.localeCompare(a.sessions[0].sortKey)
   )
+  const priorityGroups = activityGroups.filter(g => client1to1Ids.has(g.athleteId))
+  const otherGroups = activityGroups.filter(g => !client1to1Ids.has(g.athleteId))
   const activePeriod = PERIOD_OPTIONS.find(p => p.key === period)
 
   const openSessionFromList = (s) => {
@@ -370,16 +376,21 @@ export default function Home() {
             })}
           </div>
 
-          {/* Bandeau 3 stats, recalculé selon la période sélectionnée */}
+          {/* Bandeau 3 stats — les 2 dernières se recalculent selon la période, "Clients 1:1" reste
+              un total (nombre de clients suivis en 1:1, indépendant de la période : voir "total"
+              en dessous pour ne pas laisser croire à un bug quand elle ne bouge pas au changement
+              de période, contrairement aux deux autres). */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
             {[
-              { label: 'Clients 1:1', value: realClients.length },
+              { label: 'Clients 1:1', value: clients1to1.length, sub: 'total' },
               { label: 'Athlètes actifs', value: activeAthleteIds.size },
               { label: 'Séances validées', value: periodSessions.length },
             ].map(stat => (
               <div key={stat.label} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: '12px 10px', textAlign: 'center' }}>
                 <div style={{ fontFamily: 'var(--font-title)', fontSize: 24, fontWeight: 700, color: 'var(--title)' }}>{stat.value}</div>
-                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>{stat.label}</div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', marginTop: 2 }}>
+                  {stat.label}{stat.sub && <span style={{ opacity: 0.7 }}> ({stat.sub})</span>}
+                </div>
               </div>
             ))}
           </div>
@@ -521,9 +532,25 @@ export default function Home() {
                 <div style={{ textAlign: 'center', color: 'var(--text3)', padding: '40px 20px', border: '1px dashed var(--border2)', borderRadius: 'var(--rl)', background: 'var(--bg)' }}>
                   <div style={{ fontSize: 13 }}>Aucune activité sur cette période.</div>
                 </div>
-              ) : activityGroups.map(group => (
-                <AthleteActivityGroup key={group.athleteId} group={group} onOpenSession={openSessionFromList} />
-              ))}
+              ) : (
+                <>
+                  {priorityGroups.map(group => (
+                    <AthleteActivityGroup key={group.athleteId} group={group} onOpenSession={openSessionFromList} />
+                  ))}
+                  {/* "Autres" = athlètes suivis hors abonnement 1:1 (curiosité) — une catégorie à
+                      part, visible mais clairement secondaire par rapport aux vrais clients 1:1. */}
+                  {otherGroups.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: priorityGroups.length > 0 ? 6 : 0, opacity: 0.7 }}>
+                        Autres athlètes
+                      </div>
+                      {otherGroups.map(group => (
+                        <AthleteActivityGroup key={group.athleteId} group={group} onOpenSession={openSessionFromList} />
+                      ))}
+                    </>
+                  )}
+                </>
+              )}
             </>
           )}
         </div>
@@ -548,18 +575,31 @@ export default function Home() {
 // partout, pas de grisé ni de cas particulier visuel pour ne pas laisser croire à une anomalie.
 function AthleteActivityGroup({ group, onOpenSession }) {
   const [open, setOpen] = useState(false)
+  // Point discret sur l'en-tête replié quand au moins une activité du groupe mérite un coup d'œil
+  // (note coach déjà laissée, ou ressenti/difficulté élevé remonté par l'athlète) — sans ça, trier
+  // 15 clients sur "ce mois-ci" oblige à ouvrir chaque accordéon un par un pour repérer ce qui sort
+  // du lot. Pas de texte, juste un indice visuel — le détail reste dans le dépliage/la modale.
+  const needsAttention = group.sessions.some(s => s.coachNotes || (s.feedback?.difficulty != null && s.feedback.difficulty >= 8))
   return (
     <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', overflow: 'hidden' }}>
       <button onClick={() => setOpen(v => !v)} style={{
         width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
         background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
       }}>
-        <div style={{
-          width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
-          background: 'var(--green-light)', color: 'var(--green)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800,
-        }}>
-          {initials(group.athleteName)}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: '50%',
+            background: 'var(--green-light)', color: 'var(--green)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 800,
+          }}>
+            {initials(group.athleteName)}
+          </div>
+          {needsAttention && (
+            <span title="Note coach ou ressenti élevé à voir" style={{
+              position: 'absolute', top: -1, right: -1, width: 10, height: 10, borderRadius: '50%',
+              background: 'var(--bordeaux)', border: '2px solid var(--bg)',
+            }} />
+          )}
         </div>
         <div style={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: 14 }}>{group.athleteName}</div>
         <div style={{ fontSize: 12, color: 'var(--text3)', flexShrink: 0 }}>
