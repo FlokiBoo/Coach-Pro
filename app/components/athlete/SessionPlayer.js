@@ -42,6 +42,32 @@ function extractYouTubeId(url) {
   return null
 }
 
+// Empêche l'écran de s'éteindre pendant la séance — surtout utile pendant un repos où l'athlète ne
+// touche pas l'écran, il n'a alors plus à le rallumer manuellement à chaque tour. Se ré-acquiert
+// automatiquement si l'app revient au premier plan après une mise en veille (le wake lock est
+// relâché par le système dès que l'onglet passe en arrière-plan, contrairement à un simple minuteur).
+function useKeepAwake(active) {
+  useEffect(() => {
+    let lock = null
+    let cancelled = false
+    async function acquire() {
+      try {
+        if (active && 'wakeLock' in navigator) lock = await navigator.wakeLock.request('screen')
+      } catch (e) {
+        // Wake lock indisponible (navigateur non supporté, onglet en arrière-plan...) — on continue sans.
+      }
+    }
+    acquire()
+    const onVisible = () => { if (document.visibilityState === 'visible' && !cancelled) acquire() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      document.removeEventListener('visibilitychange', onVisible)
+      if (lock) lock.release().catch(() => {})
+    }
+  }, [active])
+}
+
 function computeLabels(exercises) {
   const labels = {}
   let letterIdx = 0, i = 0
@@ -86,13 +112,18 @@ function RestBanner({ seconds, onDone }) {
   const onDoneRef = useRef(onDone)
   useEffect(() => { onDoneRef.current = onDone })
 
+  const finish = () => {
+    try { navigator.vibrate?.([120, 60, 120]) } catch (e) { /* vibration indisponible, tant pis */ }
+    onDoneRef.current?.()
+  }
+
   // seconds ne change jamais sur une instance donnée (RestBanner est toujours remonté à neuf pour
   // chaque repos, jamais réutilisé pour un décompte différent) — décompte lancé une seule fois au montage.
   useEffect(() => {
     if (!seconds || seconds <= 0) { onDoneRef.current?.(); return }
     const interval = setInterval(() => {
       setRemaining(r => {
-        if (r <= 1) { clearInterval(interval); onDoneRef.current?.(); return 0 }
+        if (r <= 1) { clearInterval(interval); finish(); return 0 }
         return r - 1
       })
     }, 1000)
@@ -106,7 +137,19 @@ function RestBanner({ seconds, onDone }) {
       padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 14,
     }}>
       <Timer size={16} weight="light" />
-      Repos : {remaining}s
+      <span style={{ flex: 1 }}>Repos : {remaining}s</span>
+      <button onClick={() => setRemaining(r => r + 15)} style={{
+        background: 'rgba(255,255,255,0.15)', border: 'none', color: '#fff', borderRadius: 'var(--ostryk-pill-radius)',
+        fontSize: 12, fontWeight: 700, padding: '5px 10px', cursor: 'pointer',
+      }}>
+        +15s
+      </button>
+      <button onClick={() => onDoneRef.current?.()} style={{
+        background: 'none', border: 'none', color: 'rgba(255,255,255,0.85)', fontSize: 12, textDecoration: 'underline',
+        padding: '5px 4px', cursor: 'pointer',
+      }}>
+        passer
+      </button>
     </div>
   )
 }
@@ -156,7 +199,10 @@ function VideoThumbnail({ url }) {
   )
 }
 
-function Stepper({ label, value, onChange, step = 1, suffix = '' }) {
+// Le tap sur la valeur centrale ouvre un pavé numérique (onOpenPad, optionnel) pour une saisie
+// précise directe — plus rapide que d'incrémenter au pas quand l'écart avec la valeur voulue est
+// grand (ex: passer de 10 à 67,5 kg). Les boutons +/- restent la voie rapide pour un petit ajustement.
+function Stepper({ label, value, onChange, step = 1, suffix = '', onOpenPad }) {
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
       <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--ostryk-text2)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>{label}</div>
@@ -165,13 +211,69 @@ function Stepper({ label, value, onChange, step = 1, suffix = '' }) {
           width: 34, height: 34, borderRadius: '50%', border: `1px solid var(--ostryk-border-input)`, background: 'var(--card-white)',
           fontSize: 18, fontWeight: 700, color: 'var(--vert-foret)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>−</button>
-        <div style={{ minWidth: 56, textAlign: 'center', fontFamily: 'var(--font-title)', fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>
-          {value}{suffix}
-        </div>
+        {onOpenPad ? (
+          <button onClick={onOpenPad} style={{
+            minWidth: 56, textAlign: 'center', fontFamily: 'var(--font-title)', fontSize: 20, fontWeight: 600, color: 'var(--text)',
+            background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+          }}>
+            {value}{suffix}
+          </button>
+        ) : (
+          <div style={{ minWidth: 56, textAlign: 'center', fontFamily: 'var(--font-title)', fontSize: 20, fontWeight: 600, color: 'var(--text)' }}>
+            {value}{suffix}
+          </div>
+        )}
         <button onClick={() => onChange(value + step)} style={{
           width: 34, height: 34, borderRadius: '50%', border: `1px solid var(--ostryk-border-input)`, background: 'var(--card-white)',
           fontSize: 18, fontWeight: 700, color: 'var(--vert-foret)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>+</button>
+      </div>
+    </div>
+  )
+}
+
+// Pavé numérique pour une saisie directe (voir Stepper.onOpenPad) — decimal autorise la virgule
+// (poids en kg), pas les reps (nombres entiers uniquement).
+function NumericKeypad({ initialValue, decimal, onValidate, onClose }) {
+  const [buf, setBuf] = useState('')
+  const [error, setError] = useState('')
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', decimal ? ',' : '', '0', '←']
+
+  const confirm = () => {
+    const v = parseFloat(buf.replace(',', '.'))
+    if (buf === '' || Number.isNaN(v)) { setError('Entre une valeur'); return }
+    onValidate(v)
+  }
+
+  const keyStyle = {
+    border: 'none', background: 'var(--beige)', borderRadius: 10, height: 44, fontSize: 17,
+    color: 'var(--text)', cursor: 'pointer', fontFamily: 'inherit',
+  }
+
+  return (
+    <div style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border-input)', borderRadius: 'var(--ostryk-card-radius)', padding: 12 }}>
+      <div style={{ fontFamily: 'var(--font-title)', fontSize: 22, textAlign: 'center', color: 'var(--bordeaux)', marginBottom: error ? 2 : 8 }}>
+        {buf === '' ? initialValue : buf}
+      </div>
+      {error && <div style={{ fontSize: 12, color: '#A32D2D', textAlign: 'center', marginBottom: 8 }}>{error}</div>}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
+        {keys.map((k, i) => k === '' ? <span key={i} /> : (
+          <button key={i} type="button" style={keyStyle} onClick={() => {
+            setError('')
+            if (k === '←') setBuf(b => b.slice(0, -1))
+            else setBuf(b => (b.length > 6 ? b : b + k))
+          }}>
+            {k}
+          </button>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <button type="button" onClick={onClose} style={{ flex: 1, border: 'none', background: 'var(--beige)', color: 'var(--ostryk-text2)', borderRadius: 10, height: 44, fontSize: 14, cursor: 'pointer' }}>
+          Annuler
+        </button>
+        <button type="button" onClick={confirm} style={{ flex: 2, border: 'none', background: 'var(--bordeaux)', color: '#fff', borderRadius: 10, height: 44, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+          Confirmer
+        </button>
       </div>
     </div>
   )
@@ -186,6 +288,7 @@ function Stepper({ label, value, onChange, step = 1, suffix = '' }) {
 function ExerciseLogBody({ exo, totalSets, currentSetIndex, validatedCount, ctaLabel, onValidate }) {
   const [reps, setReps] = useState(() => parseInt(exo.reps, 10) || 10)
   const [kg, setKg] = useState(() => parseFloat(exo.kg) || 0)
+  const [padField, setPadField] = useState(null) // 'reps' | 'kg' | null
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -225,9 +328,22 @@ function ExerciseLogBody({ exo, totalSets, currentSetIndex, validatedCount, ctaL
       )}
 
       <div style={{ display: 'flex', gap: 16, justifyContent: 'center' }}>
-        <Stepper label="Reps" value={reps} onChange={setReps} />
-        <Stepper label="Poids" value={kg} onChange={setKg} step={2.5} suffix=" kg" />
+        <Stepper label="Reps" value={reps} onChange={setReps} onOpenPad={() => setPadField('reps')} />
+        <Stepper label="Poids" value={kg} onChange={setKg} step={2.5} suffix=" kg" onOpenPad={() => setPadField('kg')} />
       </div>
+
+      {padField && (
+        <NumericKeypad
+          initialValue={padField === 'reps' ? reps : kg}
+          decimal={padField === 'kg'}
+          onClose={() => setPadField(null)}
+          onValidate={v => {
+            if (padField === 'reps') setReps(Math.max(0, Math.round(v)))
+            else setKg(Math.max(0, v))
+            setPadField(null)
+          }}
+        />
+      )}
 
       <button onClick={() => onValidate(reps, kg)} style={{
         background: 'var(--bordeaux)', color: '#fff', border: 'none', borderRadius: 'var(--ostryk-pill-radius)',
@@ -406,6 +522,7 @@ function SupersetScreen({ group, labels, exerciseSets, onEnsureExerciseSets, onS
 // séries. Reçoit les mêmes fonctions d'écriture (avec queue offline) que l'écran de préparation
 // (SessionCard) : aucune nouvelle logique de sauvegarde, seulement un nouvel enchaînement d'écrans.
 export default function SessionPlayer({ session, exerciseSets, onEnsureExerciseSets, onSaveExerciseSet, onExit }) {
+  useKeepAwake(true)
   const exos = (session.exercises || []).filter(e => e.name)
   const labels = computeLabels(exos)
   const blocks = computeBlocks(exos)
