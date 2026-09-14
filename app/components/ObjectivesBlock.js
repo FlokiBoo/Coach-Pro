@@ -5,7 +5,8 @@ import Link from 'next/link'
 import { Target, CalendarBlank, ClipboardText, CheckCircle, X } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import SwipeCarousel from './athlete/SwipeCarousel'
-import { UNITS } from './TrackedMovementsBlock'
+import Toast from './Toast'
+import { UNITS, formatPerformance } from './TrackedMovementsBlock'
 
 function formatDateFr(date) {
   return new Date(date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -160,6 +161,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
   const [metricSuggestions, setMetricSuggestions] = useState([])
   const [selectedMetric, setSelectedMetric] = useState(null)
   const [completing, setCompleting] = useState(false)
+  const [toast, setToast] = useState(null)
 
   const sorted = [...objectives].filter(o => !o.completed_at).sort((a, b) => {
     if (!a.target_date && !b.target_date) return 0
@@ -244,7 +246,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
     setMetricSuggestions([])
   }
 
-  const finishObjective = async () => {
+  const finishObjective = async (toastMessage) => {
     if (!completingObj) return
     const { error } = await supabase.from('athlete_objectives')
       .update({ completed_at: new Date().toISOString() })
@@ -252,6 +254,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
     if (error) { alert('Erreur : ' + error.message); return }
     setObjectives(prev => prev.filter(o => o.id !== completingObj.id))
     setCompletingObj(null)
+    setToast(toastMessage || '✓ Objectif marqué comme terminé')
   }
 
   // Même logique que saveMetricResult (app/s/[token]/page.js) dupliquée ici (voir ObjectiveResultInput
@@ -283,7 +286,11 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
       : await supabase.from('tracked_movement_entries').insert(payload)
     setCompleting(false)
     if (error) { alert('Erreur : ' + error.message); return }
-    finishObjective()
+    finishObjective(
+      (isNewRecord || payload.is_pr)
+        ? `🏆 Nouveau record : ${formatPerformance(selectedMetric, value)} !`
+        : `✓ Résultat enregistré : ${formatPerformance(selectedMetric, value)}`
+    )
   }
 
   const inputStyle = {
@@ -507,7 +514,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
               </div>
             )}
 
-            <button onClick={finishObjective} disabled={completing} style={{
+            <button onClick={() => finishObjective()} disabled={completing} style={{
               width: '100%', background: 'none', border: '1px solid var(--border2)', color: 'var(--text2)',
               borderRadius: 'var(--r)', padding: '10px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
             }}>
@@ -516,6 +523,7 @@ export default function ObjectivesBlock({ athleteId, objectives, setObjectives, 
           </div>
         </div>
       )}
+      <Toast message={toast} show={!!toast} onDone={() => setToast(null)} />
     </>
   )
 
