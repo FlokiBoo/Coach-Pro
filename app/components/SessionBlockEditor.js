@@ -233,8 +233,33 @@ function insertCircuits(exerciseBlocks, circuits) {
   return result
 }
 
-function buildBlocksFromDb(exerciseRows, circuits) {
-  return insertCircuits(groupExercisesIntoBlocks(exerciseRows), circuits || [])
+// Nom/description/notes d'un bloc warmup ou cooldown vivent à part (program_sessions.warmup_block /
+// .cooldown_block, voir handleSave) car ces blocs n'ont pas forcément d'exercice — flattenBlocksToExerciseRows
+// ignore tout bloc sans exercice, donc rien à raccrocher dans program_exercises pour eux. On les
+// réinjecte ici : sur un bloc déjà présent (créé via "Create from library") ou, s'il n'y en a pas
+// encore, en synthétisant un bloc vide à la bonne position (warmup en tête, cooldown en fin — comme
+// addWarmupBlock/addCooldownBlock).
+function applyBlockMeta(blocks, type, meta, position) {
+  const idx = blocks.findIndex(b => b.type === type)
+  if (idx !== -1) {
+    if (!meta) return blocks
+    const next = [...blocks]
+    next[idx] = { ...next[idx], name: meta.name || '', description: meta.description || '', note: meta.note || '' }
+    return next
+  }
+  if (!meta) return blocks
+  const newBlock = {
+    id: `${type}-meta`, type, name: meta.name || '', description: meta.description || '', note: meta.note || '',
+    exercises: [], sets: [], restSeconds: 60,
+  }
+  return position === 'prepend' ? [newBlock, ...blocks] : [...blocks, newBlock]
+}
+
+function buildBlocksFromDb(exerciseRows, circuits, warmupMeta, cooldownMeta) {
+  let blocks = insertCircuits(groupExercisesIntoBlocks(exerciseRows), circuits || [])
+  blocks = applyBlockMeta(blocks, 'warmup', warmupMeta, 'prepend')
+  blocks = applyBlockMeta(blocks, 'cooldown', cooldownMeta, 'append')
+  return blocks
 }
 
 // --- Traduction blocks -> DB (écriture) -------------------------------------------------------
@@ -312,6 +337,15 @@ function flattenBlocksToCircuits(blocks) {
   return circuits
 }
 
+// Contrepartie écriture de applyBlockMeta : null si le bloc n'existe pas ou est resté entièrement
+// vide, pour ne pas polluer program_sessions.warmup_block/cooldown_block avec des lignes {"","",""}.
+function extractBlockMeta(blocks, type) {
+  const b = blocks.find(x => x.type === type)
+  if (!b) return null
+  const meta = { name: b.name || '', description: b.description || '', note: b.note || '' }
+  return (meta.name || meta.description || meta.note) ? meta : null
+}
+
 // Charte graphique OSTRYK (app/globals.css) — même palette que le prototype visuel
 // (app/preview-session/page.js, commit "Remet la page séance aux couleurs OSTRYK") : cette version
 // branchée sur les vraies données n'avait pas encore reçu cette passe. `blue` reste le nom du token
@@ -381,6 +415,8 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const [draftName, setDraftName] = useState('')
   const [draftDescription, setDraftDescription] = useState('')
   const [draftNote, setDraftNote] = useState('')
+  const [activationPresets, setActivationPresets] = useState(null) // null = pas encore chargé
+  const [presetsMenuOpen, setPresetsMenuOpen] = useState(false)
   const [mentionQuery, setMentionQuery] = useState(null)
   const [mentionRange, setMentionRange] = useState(null)
   const [notesModalOpen, setNotesModalOpen] = useState(false)
@@ -406,7 +442,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     let cancelled = false
     async function load() {
       const [{ data: sessionRow }, { data: exerciseRows }] = await Promise.all([
-        supabase.from('program_sessions').select('id, title, coach_notes, circuits, session_type, recurring_daily_target, activity_mode').eq('id', sessionId).single(),
+        supabase.from('program_sessions').select('id, title, coach_notes, circuits, session_type, recurring_daily_target, activity_mode, warmup_block, cooldown_block').eq('id', sessionId).single(),
         supabase.from('program_exercises').select('id, order_index, name, sets, rest, note, superset_group, block_type, pace_base, pct_low, pct_high, set_details').eq('program_session_id', sessionId).order('order_index'),
       ])
       if (cancelled) return
@@ -420,7 +456,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
       setSessionType(sessionRow.session_type || null)
       setActivityMode(sessionRow.activity_mode || 'standard')
       setRecurringTarget(sessionRow.recurring_daily_target || 1)
-      const builtBlocks = buildBlocksFromDb(exerciseRows || [], sessionRow.circuits || [])
+      const builtBlocks = buildBlocksFromDb(exerciseRows || [], sessionRow.circuits || [], sessionRow.warmup_block || null, sessionRow.cooldown_block || null)
       setBlocks(builtBlocks)
       if (builtBlocks.length) setActiveBlockId(builtBlocks[0].id)
       setAddMenuOpen((exerciseRows || []).length === 0 && !(sessionRow.circuits || []).length)
@@ -464,6 +500,27 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     }, 250)
     return () => { cancelled = true; clearTimeout(timer) }
   }, [exercisesModalOpen, exerciseSearch, selectedMuscles, activityMode, mentionActive, mentionQuery])
+
+  // Bibliothèque d'activations pré-construites (app/library/activations) — chargée une seule fois,
+  // à la première ouverture de la modale Description, pas à chaque frappe (contrairement aux
+  // mouvements ci-dessus) : la liste est courte (protocoles créés à la main par le coach), pas
+  // besoin de recherche serveur. Coach uniquement (canManageCatalog) : un athlète en "Séance libre"
+  // n'a pas de bibliothèque d'activations à piocher.
+  useEffect(() => {
+    if (!descModalOpen || !canManageCatalog || activationPresets !== null) return
+    let cancelled = false
+    async function loadPresets() {
+      const [{ data: presets }, { data: hidden }] = await Promise.all([
+        supabase.from('activation_presets').select('id, name, text, videos, coach_id').order('name'),
+        supabase.from('coach_hidden_content').select('content_id').eq('content_type', 'activation_preset'),
+      ])
+      if (cancelled) return
+      const hiddenIds = new Set((hidden || []).map(r => r.content_id))
+      setActivationPresets((presets || []).filter(p => !hiddenIds.has(p.id)))
+    }
+    loadPresets()
+    return () => { cancelled = true }
+  }, [descModalOpen, canManageCatalog, activationPresets])
 
   useEffect(() => {
     const handler = (e) => {
@@ -517,6 +574,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
       await supabase.from('program_sessions')
         .update({
           title: sessionTitle, coach_notes: description, circuits: flattenBlocksToCircuits(blocks),
+          warmup_block: extractBlockMeta(blocks, 'warmup'), cooldown_block: extractBlockMeta(blocks, 'cooldown'),
           activity_mode: activityMode,
           session_type: sessionType, recurring_daily_target: sessionType === 'recurrent' ? recurringTarget : null,
           // Récurrente = hors calendrier : jamais de semaine/jour, même si la séance en avait un
@@ -678,6 +736,19 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     setDescModalOpen(false)
     setMentionQuery(null)
     setMentionRange(null)
+    setPresetsMenuOpen(false)
+  }
+
+  // Insère un protocole d'activation pré-construit (bibliothèque coach, voir app/library/activations)
+  // — ajoute plutôt qu'écrase : un coach compose parfois une activation à partir de plusieurs
+  // protocoles (ex. mobilité épaule + activation genou), donc le nom ne remplace le champ que s'il
+  // est vide et le texte s'ajoute à la suite de ce qui est déjà écrit.
+  const applyPreset = (preset) => {
+    setDraftName(prev => prev || preset.name)
+    setDraftDescription(prev => (prev ? `${prev}\n\n${preset.text || ''}` : (preset.text || '')))
+    setPresetsMenuOpen(false)
+    setUnsavedChanges(true)
+    requestAnimationFrame(resizeDescriptionTextarea)
   }
 
   const confirmDescModal = () => {
@@ -1591,13 +1662,53 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                         </div>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderTop: `1px solid ${c.border}`, borderRadius: '0 0 6px 6px', background: c.disabledBg }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderTop: `1px solid ${c.border}`, borderRadius: '0 0 6px 6px', background: c.disabledBg, flexWrap: 'wrap' }}>
                       <button onClick={openExercisePicker} style={{
                         display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${c.blue}`, color: c.blue,
                         fontWeight: 700, fontSize: 13, borderRadius: 6, padding: '6px 12px', background: c.bg, cursor: 'pointer',
                       }}>
                         <Plus size={13} weight="bold" /> Exercises
                       </button>
+                      {canManageCatalog && (
+                        <div style={{ position: 'relative' }}>
+                          <button onClick={() => setPresetsMenuOpen(v => !v)} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 6, border: `1px solid ${c.border}`, color: c.text,
+                            fontWeight: 700, fontSize: 13, borderRadius: 6, padding: '6px 12px', background: c.bg, cursor: 'pointer',
+                          }}>
+                            <Heartbeat size={13} /> Pré-construites
+                          </button>
+                          {presetsMenuOpen && (
+                            <>
+                              <div onClick={() => setPresetsMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 210 }} />
+                              <div style={{
+                                position: 'absolute', bottom: '100%', left: 0, marginBottom: 6, width: 280, maxHeight: 280, overflowY: 'auto',
+                                background: c.bg, border: `1px solid ${c.border}`, borderRadius: 8, boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
+                                zIndex: 211, padding: 6,
+                              }}>
+                                {activationPresets === null ? (
+                                  <div style={{ padding: 12, fontSize: 13, color: c.textMuted }}>Chargement…</div>
+                                ) : activationPresets.length === 0 ? (
+                                  <div style={{ padding: 12, fontSize: 13, color: c.textMuted }}>
+                                    Aucune activation pré-construite — gère-les dans Bibliothèque → Activations.
+                                  </div>
+                                ) : activationPresets.map(preset => (
+                                  <button
+                                    key={preset.id}
+                                    onClick={() => applyPreset(preset)}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', borderRadius: 6,
+                                      fontSize: 13, fontWeight: 600, color: c.text, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+                                    }}
+                                  >
+                                    <span style={{ flex: 1 }}>{preset.name}</span>
+                                    {preset.videos?.length > 0 && <VideoCamera size={13} style={{ color: c.blue, flexShrink: 0 }} />}
+                                  </button>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                       <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: c.textMuted }}>
                         <Info size={13} /> You can also use the # character to add an exercise
                       </span>
