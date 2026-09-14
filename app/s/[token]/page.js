@@ -1827,7 +1827,7 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                   contrairement au détail sets/reps/pace ci-dessous, c'est une note permanente que
                   l'athlète doit pouvoir relire pendant tout l'exercice (ex: consigne de respiration
                   sur un run), pas un détail de saisie qui ne sert plus une fois enregistré. */}
-              {exo.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5 }}>{exo.note}</div>}
+              {exo.note && <div style={{ fontSize: 12, color: 'var(--text2)', fontStyle: 'italic', marginTop: 4, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{exo.note}</div>}
 
               {!isCollapsed && <>
               {(() => {

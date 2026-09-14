@@ -1722,7 +1722,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                     display: 'flex', alignItems: 'flex-start', gap: 10, background: c.disabledBg, borderRadius: 8,
                     padding: '12px 14px', width: '100%', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
                   }}>
-                    <span style={{ flex: 1, fontStyle: 'italic', fontSize: 14, color: activeBlock.description ? c.text : c.textFaint }}>
+                    <span style={{ flex: 1, fontStyle: 'italic', fontSize: 14, color: activeBlock.description ? c.text : c.textFaint, whiteSpace: 'pre-wrap' }}>
                       {activeBlock.description || BLOCK_META[activeBlock.type].descriptionPlaceholder}
                     </span>
                     <PencilSimple size={16} style={{ color: c.textMuted, flexShrink: 0, marginTop: 2 }} />
@@ -1733,7 +1733,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                   display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px 18px', width: '100%',
                   border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
                 }}>
-                  <span style={{ flex: 1, fontStyle: 'italic', fontSize: 14, color: activeBlock.note ? c.text : c.textFaint }}>
+                  <span style={{ flex: 1, fontStyle: 'italic', fontSize: 14, color: activeBlock.note ? c.text : c.textFaint, whiteSpace: 'pre-wrap' }}>
                     {activeBlock.note || 'Write a note'}
                   </span>
                   <PencilSimple size={16} style={{ color: c.textMuted, flexShrink: 0 }} />

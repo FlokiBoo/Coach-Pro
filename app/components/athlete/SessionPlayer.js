@@ -194,7 +194,7 @@ function ExerciseLogBody({ exo, totalSets, currentSetIndex, validatedCount, ctaL
       {exo.video_url && <VideoThumbnail url={exo.video_url} />}
 
       {exo.note && (
-        <div style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '12px 14px', fontSize: 14, color: '#5A5348' }}>
+        <div style={{ background: 'var(--card-white)', border: '1px solid var(--ostryk-border)', borderRadius: 'var(--ostryk-card-radius)', padding: '12px 14px', fontSize: 14, color: '#5A5348', whiteSpace: 'pre-wrap' }}>
           {exo.note}
         </div>
       )}
