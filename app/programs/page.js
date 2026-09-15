@@ -43,7 +43,7 @@ export default function ProgramsPage() {
   const [sortBy, setSortBy] = useState('created_desc') // 'created_desc' | 'title_asc'
   const [search, setSearch] = useState('')
   const [openActionsId, setOpenActionsId] = useState(null)
-  const [actionsMenuPos, setActionsMenuPos] = useState(null) // { top, right } en coordonnées viewport
+  const [actionsMenuPos, setActionsMenuPos] = useState(null) // { top|bottom, right } en coordonnées viewport
   const [duplicatingId, setDuplicatingId] = useState(null)
   const [groups, setGroups] = useState([])
   const [groupTemplateLinks, setGroupTemplateLinks] = useState([])
@@ -359,7 +359,16 @@ export default function ProgramsPage() {
                                 // absolute (overflow-y devient implicitement "auto" dès que overflow-x
                                 // n'est pas "visible", donc le menu était rogné par ce même conteneur).
                                 const rect = e.currentTarget.getBoundingClientRect()
-                                setActionsMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                                // Le menu (options "gratuit"/"séances gratuites" incluses) peut dépasser
+                                // 300px de haut — pour une ligne proche du bas de l'écran (dernières lignes
+                                // de la liste), l'ouvrir vers le bas le coupait hors du viewport. On l'ouvre
+                                // vers le haut dès qu'il n'y a pas assez de place en dessous.
+                                const estimatedMenuHeight = 300
+                                const openUpward = window.innerHeight - rect.bottom < estimatedMenuHeight && rect.top > estimatedMenuHeight
+                                setActionsMenuPos({
+                                  ...(openUpward ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
+                                  right: window.innerWidth - rect.right,
+                                })
                                 setOpenActionsId(p.id)
                               }}
                               style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: 4, display: 'flex' }}
@@ -369,7 +378,7 @@ export default function ProgramsPage() {
                             {actionsOpen && actionsMenuPos && (
                               <>
                                 <div onClick={() => setOpenActionsId(null)} style={{ position: 'fixed', inset: 0, zIndex: 90 }} />
-                                <div style={{ position: 'fixed', top: actionsMenuPos.top, right: actionsMenuPos.right, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 100, minWidth: 220, padding: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                <div style={{ position: 'fixed', ...actionsMenuPos, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', boxShadow: '0 8px 24px rgba(0,0,0,0.15)', zIndex: 100, minWidth: 220, maxHeight: 'calc(100vh - 24px)', overflowY: 'auto', padding: 6, display: 'flex', flexDirection: 'column', gap: 2 }}>
                                   <Link href={href} onClick={() => setOpenActionsId(null)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 6, fontSize: 13, color: 'var(--text)', textDecoration: 'none' }}>
                                     <PencilSimple size={14} color="var(--green)" /> Modifier
                                   </Link>
