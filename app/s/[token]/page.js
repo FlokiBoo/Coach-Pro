@@ -1649,6 +1649,13 @@ function SessionCard({ session, idx, isOpen, isCompleted, isSkipped = false, onT
                 <Backpack size={13} />
               </button>
             )}
+            {session.timer_config && (
+              <button onClick={e => { e.stopPropagation(); unlockAudio(); unlockSpeech(); onLaunchTimer?.(session.timer_config, session.title || `Séance ${idx + 1}`) }}
+                title="Lancer le timer de la séance"
+                style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 20, padding: '2px 8px', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3, cursor: 'pointer', flexShrink: 0 }}>
+                ▶⏱
+              </button>
+            )}
             {isGroupLeader && session.source_session_id && (
               <button onClick={e => { e.stopPropagation(); setShowGroupPaces(true) }} title="Voir les allures/distances de tout le groupe pour cette séance"
                 style={{ background: 'var(--bg2)', border: '1px solid var(--border2)', borderRadius: 20, padding: '2px 8px', display: 'flex', cursor: 'pointer', flexShrink: 0 }}>

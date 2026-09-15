@@ -22,6 +22,7 @@ import {
   ArrowsClockwise, Heartbeat, VideoCamera,
 } from '@phosphor-icons/react'
 import { SortableGroup, SortableItem } from '@/app/components/SortableItem'
+import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerConfigEditor'
 
 const BLOCK_META = {
   warmup: {
@@ -191,6 +192,10 @@ function groupExercisesIntoBlocks(rows) {
       setNotes,
       setValues,
       paceValues,
+      // Timer lié au bloc entier (superset compris) : porté par le premier exercice du bloc
+      // côté program_exercises.timer_config, même colonne que l'ancien éditeur plein écran —
+      // voir flattenBlocksToExerciseRows pour l'écriture symétrique.
+      timerConfig: g.rows[0].timer_config || null,
     }
   })
 }
@@ -270,7 +275,11 @@ function flattenBlocksToExerciseRows(blocks, activityMode) {
   blocks.forEach(block => {
     if (block.type === 'circuit' || !block.exercises?.length) return
     const supersetToken = block.exercises.length > 1 ? Math.random().toString(36).slice(2, 8) : null
-    block.exercises.forEach(ex => {
+    block.exercises.forEach((ex, exIndex) => {
+      // Timer lié au bloc entier : porté uniquement par le premier exercice de la ligne
+      // program_exercises (superset compris) — voir groupExercisesIntoBlocks pour la lecture
+      // symétrique. Les autres exercices du même bloc restent à null pour ne pas dupliquer/désync.
+      const timer_config = exIndex === 0 ? (block.timerConfig || null) : null
       if (isCardio) {
         // Pas de grille de sets en mode cardio (allure réglée en % VMA/Seuil/Δ, pas en séries) —
         // une seule note et un seul couple base/%low-%high par exercice, voir updatePaceValue.
@@ -286,6 +295,7 @@ function flattenBlocksToExerciseRows(blocks, activityMode) {
           pct_low: pace.pctLow !== '' && pace.pctLow != null ? parseFloat(pace.pctLow) : null,
           pct_high: pace.pctHigh !== '' && pace.pctHigh != null ? parseFloat(pace.pctHigh) : null,
           set_details: null,
+          timer_config,
         })
       } else {
         const notes = (block.sets || [])
@@ -311,6 +321,7 @@ function flattenBlocksToExerciseRows(blocks, activityMode) {
           pct_low: null,
           pct_high: null,
           set_details: setDetails.some(d => d.reps || d.kg != null) ? setDetails : null,
+          timer_config,
         })
       }
     })
@@ -389,6 +400,14 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const [recurringTarget, setRecurringTarget] = useState(1)
   const [movementsList, setMovementsList] = useState([]) // [{ id, name, muscles }]
 
+  // Timer de séance (program_sessions.timer_config) — distinct des timers par bloc, qui vivent
+  // sur `block.timerConfig` (voir groupExercisesIntoBlocks/flattenBlocksToExerciseRows, stockés
+  // sur le premier exercice du bloc côté program_exercises.timer_config, même colonne que
+  // l'ancien éditeur plein écran). timerEditor : null | { scope: 'session' | 'block' }.
+  const [sessionTimerConfig, setSessionTimerConfig] = useState(null)
+  const [timerEditor, setTimerEditor] = useState(null)
+  const [timerDraft, setTimerDraft] = useState(null)
+
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const [blockMenuOpen, setBlockMenuOpen] = useState(false)
   const [blocks, setBlocks] = useState([])
@@ -452,8 +471,8 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     let cancelled = false
     async function load() {
       const [{ data: sessionRow }, { data: exerciseRows }] = await Promise.all([
-        supabase.from('program_sessions').select('id, title, coach_notes, circuits, session_type, recurring_daily_target, activity_mode, warmup_block, cooldown_block').eq('id', sessionId).single(),
-        supabase.from('program_exercises').select('id, order_index, name, sets, rest, note, superset_group, block_type, pace_base, pct_low, pct_high, set_details').eq('program_session_id', sessionId).order('order_index'),
+        supabase.from('program_sessions').select('id, title, coach_notes, circuits, session_type, recurring_daily_target, activity_mode, warmup_block, cooldown_block, timer_config').eq('id', sessionId).single(),
+        supabase.from('program_exercises').select('id, order_index, name, sets, rest, note, superset_group, block_type, pace_base, pct_low, pct_high, set_details, timer_config').eq('program_session_id', sessionId).order('order_index'),
       ])
       if (cancelled) return
       if (!sessionRow) {
@@ -466,6 +485,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
       setSessionType(sessionRow.session_type || null)
       setActivityMode(sessionRow.activity_mode || 'standard')
       setRecurringTarget(sessionRow.recurring_daily_target || 1)
+      setSessionTimerConfig(sessionRow.timer_config || null)
       const builtBlocks = buildBlocksFromDb(exerciseRows || [], sessionRow.circuits || [], sessionRow.warmup_block || null, sessionRow.cooldown_block || null)
       setBlocks(builtBlocks)
       if (builtBlocks.length) setActiveBlockId(builtBlocks[0].id)
@@ -586,6 +606,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
         .update({
           title: sessionTitle, coach_notes: description, circuits: flattenBlocksToCircuits(blocks),
           warmup_block: extractBlockMeta(blocks, 'warmup'), cooldown_block: extractBlockMeta(blocks, 'cooldown'),
+          timer_config: sessionTimerConfig,
           activity_mode: activityMode,
           session_type: sessionType, recurring_daily_target: sessionType === 'recurrent' ? recurringTarget : null,
           // Récurrente = hors calendrier : jamais de semaine/jour, même si la séance en avait un
@@ -769,6 +790,43 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     )))
     setUnsavedChanges(true)
     closeDescModal()
+  }
+
+  // Timer de séance / timer de bloc — config seulement ici (EMOM/AMRAP/TABATA/Perso, voir
+  // TimerConfigEditor) : le lancement réel (vue split timer/séance) se fait à l'exécution de la
+  // séance (app/s/[token]/page.js, session groupe...), pas dans ce builder.
+  const openSessionTimerEditor = () => {
+    setTimerDraft(sessionTimerConfig || defaultTimerConfig())
+    setTimerEditor({ scope: 'session' })
+  }
+
+  const openBlockTimerEditor = () => {
+    if (!activeBlock) return
+    setTimerDraft(activeBlock.timerConfig || defaultTimerConfig())
+    setTimerEditor({ scope: 'block' })
+    setBlockMenuOpen(false)
+  }
+
+  const closeTimerEditor = () => setTimerEditor(null)
+
+  const saveTimerEditor = () => {
+    if (timerEditor?.scope === 'session') {
+      setSessionTimerConfig(timerDraft)
+    } else if (timerEditor?.scope === 'block') {
+      setBlocks(blocks.map((b, i) => i === activeBlockIndex ? { ...b, timerConfig: timerDraft } : b))
+    }
+    setUnsavedChanges(true)
+    closeTimerEditor()
+  }
+
+  const removeTimerEditor = () => {
+    if (timerEditor?.scope === 'session') {
+      setSessionTimerConfig(null)
+    } else if (timerEditor?.scope === 'block') {
+      setBlocks(blocks.map((b, i) => i === activeBlockIndex ? { ...b, timerConfig: null } : b))
+    }
+    setUnsavedChanges(true)
+    closeTimerEditor()
   }
 
   const toggleMuscle = (muscleKey) => {
@@ -1407,6 +1465,18 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
           >
             <ArrowsDownUp size={14} /> Order
           </button>
+          <button
+            onClick={openSessionTimerEditor}
+            title={sessionTimerConfig ? 'Modifier le timer de la séance' : 'Créer un timer pour toute la séance'}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 8, borderRadius: 6, padding: '9px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              border: `1px solid ${sessionTimerConfig ? c.blue : c.border}`,
+              background: sessionTimerConfig ? c.blueBorder : c.bg,
+              color: sessionTimerConfig ? c.blue : c.text,
+            }}
+          >
+            <Timer size={14} weight={sessionTimerConfig ? 'fill' : 'regular'} /> Timer
+          </button>
         </div>
 
         {orderMode && (
@@ -1513,6 +1583,18 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                       border: `1px solid ${c.border}`, borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
                       zIndex: 100, padding: 8, display: 'flex', flexDirection: 'column', gap: 2,
                     }}>
+                      {activeBlock.type === 'exercise' && (
+                        <>
+                          <button
+                            onClick={openBlockTimerEditor}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 6, fontSize: 14, color: c.text, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                          >
+                            <Timer size={14} color={activeBlock.timerConfig ? c.blue : c.textMuted} />
+                            {activeBlock.timerConfig ? 'Edit linked timer' : 'Create a linked timer'}
+                          </button>
+                          <div style={{ height: 1, background: c.border, margin: '4px 0' }} />
+                        </>
+                      )}
                       <button
                         onClick={() => { duplicateBlock(activeBlockIndex); setBlockMenuOpen(false) }}
                         style={{ padding: '10px 12px', borderRadius: 6, fontSize: 14, color: c.text, background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
@@ -1958,6 +2040,44 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                 }}>
                   Ok
                 </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Modale timer (séance ou bloc) : configure seulement (EMOM/AMRAP/TABATA/Perso) — le
+            lancement réel se fait à l'exécution de la séance, voir openSessionTimerEditor. */}
+        {timerEditor && (
+          <>
+            <div onClick={closeTimerEditor} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200 }} />
+            <div style={{
+              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 201,
+              width: 420, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto',
+              background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
+                <span style={{ fontSize: 20, fontWeight: 700, color: c.text }}>
+                  {timerEditor.scope === 'session' ? 'Timer de la séance' : 'Timer du bloc'}
+                </span>
+                <button onClick={closeTimerEditor} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
+                  <X size={20} />
+                </button>
+              </div>
+              <div style={{ padding: 24 }}>
+                <TimerConfigEditor value={timerDraft} onChange={setTimerDraft} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '16px 24px', borderTop: `1px solid ${c.border}` }}>
+                <button onClick={removeTimerEditor} style={{ border: 'none', color: '#DC2626', fontWeight: 600, fontSize: 14, background: 'none', cursor: 'pointer', padding: '9px 4px' }}>
+                  Retirer le timer
+                </button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={closeTimerEditor} style={{ border: `1px solid ${c.border}`, color: c.text, fontWeight: 600, fontSize: 14, borderRadius: 6, padding: '9px 20px', background: c.bg, cursor: 'pointer' }}>
+                    Annuler
+                  </button>
+                  <button onClick={saveTimerEditor} style={{ border: `1px solid ${c.blue}`, color: c.blue, fontWeight: 600, fontSize: 14, borderRadius: 6, padding: '9px 20px', background: c.bg, cursor: 'pointer' }}>
+                    Ok
+                  </button>
+                </div>
               </div>
             </div>
           </>

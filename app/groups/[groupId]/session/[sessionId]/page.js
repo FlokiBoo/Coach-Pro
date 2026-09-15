@@ -192,6 +192,13 @@ function GroupCoachingSessionPage({ params }) {
             {isPast && ' · modification'}
           </div>
         </div>
+        {session?.timer_config && (
+          <button onClick={() => { unlockAudio(); unlockSpeech(); setRunningTimer({ config: session.timer_config, label: session.title || 'Timer de la séance' }) }}
+            title="Lancer le timer de la séance"
+            style={{ background: 'var(--green-light)', color: 'var(--green)', border: '1px solid #B8EAD8', borderRadius: 'var(--r)', padding: '6px 12px', fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: 'pointer' }}>
+            ▶⏱ Séance
+          </button>
+        )}
       </div>
 
       <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>

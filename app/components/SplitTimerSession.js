@@ -1,14 +1,30 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import EmbeddedTimer from './EmbeddedTimer'
+
+const LAYOUT_CYCLE = ['split', 'timer', 'workout']
 
 // Écran plein viewport, timer en haut / séance en bas (50/50 par défaut). Les deux flèches
 // permettent de passer l'une ou l'autre en plein écran puis de revenir au 50/50, en alternance —
 // le timer reste toujours monté (jamais démonté) pour ne pas perdre son décompte pendant qu'on
-// bascule l'affichage.
+// bascule l'affichage. La touche "N" fait le même cycle split → timer plein écran → séance
+// plein écran → split, pour zoomer au clavier sans lâcher la souris/le doigt pendant la séance.
 export default function SplitTimerSession({ config, timerLabel, onClose, children }) {
   const [layout, setLayout] = useState('split') // 'split' | 'timer' | 'workout'
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.key !== 'n' && e.key !== 'N') return
+      // Ignore la frappe si elle vient d'un champ texte (ex. note libre sous la séance) — sinon
+      // taper "n" dans une note bascule le layout au lieu d'écrire la lettre.
+      const tag = document.activeElement?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return
+      setLayout(l => LAYOUT_CYCLE[(LAYOUT_CYCLE.indexOf(l) + 1) % LAYOUT_CYCLE.length])
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
 
   const timerHeight = layout === 'workout' ? '0%' : layout === 'timer' ? '100%' : '50%'
   const workoutHeight = layout === 'timer' ? '0%' : layout === 'workout' ? '100%' : '50%'
