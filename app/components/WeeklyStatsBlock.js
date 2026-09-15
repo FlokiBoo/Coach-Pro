@@ -9,7 +9,7 @@ function fmt(d) {
   return [d.getFullYear(), String(d.getMonth() + 1).padStart(2, '0'), String(d.getDate()).padStart(2, '0')].join('-')
 }
 
-function getWeekRange(offset = 0) {
+export function getWeekRange(offset = 0) {
   const now = new Date()
   const day = now.getDay()
   const monday = new Date(now)
@@ -196,6 +196,37 @@ async function fetchProgressions(athleteId, start, end) {
 
   results.sort((a, b) => b.pct - a.pct)
   return results.slice(0, 8)
+}
+
+// Rassemble tout ce que WeekRecapModal attend en props pour une semaine donnée — même calcul que
+// le bouton "Récap de la semaine" ci-dessous, mais réutilisable en dehors de ce composant (voir
+// WeeklyRecapPopup, qui ouvre ce même récap automatiquement le week-end plutôt que sur clic).
+export async function buildWeekRecapData(athleteId, start, end) {
+  const [stats, wellnessAvg, feedbackAvg, progressions] = await Promise.all([
+    fetchStats(athleteId, start, end),
+    fetchWellnessAverages(athleteId, start, end),
+    fetchFeedbackAverages(athleteId, start, end),
+    fetchProgressions(athleteId, start, end),
+  ])
+
+  const { kmByLabel = {}, durByLabel = {}, countByLabel = {}, totalKm = 0, totalCardioMin = 0, tonnage = 0 } = stats
+  const bigStats = [
+    tonnage > 0 && { value: Math.round(tonnage).toLocaleString('fr-FR') + ' kg', label: '🏋️ Tonnage' },
+    totalKm > 0 && { value: fmtKm(Math.round(totalKm * 10) / 10), label: '🗺️ Distance' },
+    totalCardioMin > 0 && { value: formatDur(totalCardioMin), label: '⏱️ Temps total' },
+  ].filter(Boolean)
+  const activityLabels = [...new Set([...Object.keys(kmByLabel), ...Object.keys(durByLabel), ...Object.keys(countByLabel)])]
+
+  const d = new Date(start + 'T00:00:00')
+  const e = new Date(end + 'T00:00:00')
+  const fmtShort = (x) => `${x.getDate()}/${String(x.getMonth() + 1).padStart(2, '0')}`
+  const periodLabel = `${fmtShort(d)} au ${fmtShort(e)}`
+
+  return {
+    periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, countByLabel,
+    progressions, wellnessAvg, feedbackAvg,
+    hasAny: tonnage > 0 || totalKm > 0 || totalCardioMin > 0 || activityLabels.length > 0,
+  }
 }
 
 export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
@@ -520,7 +551,7 @@ export default function WeeklyStatsBlock({ athleteId, refreshKey }) {
   )
 }
 
-function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, countByLabel, progressions, wellnessAvg, feedbackAvg, initialPage = 0, onClose }) {
+export function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel, durByLabel, countByLabel, progressions, wellnessAvg, feedbackAvg, initialPage = 0, onClose, onShare }) {
   const [page, setPage] = useState(initialPage)
   const [sharing, setSharing] = useState(false)
   const touchStartX = useRef(0)
@@ -535,6 +566,7 @@ function WeekRecapModal({ mode, periodLabel, bigStats, activityLabels, kmByLabel
 
   const share = async () => {
     setSharing(true)
+    onShare?.()
     const statLine = bigStats.map(s => `${s.value} ${s.label}`).join(' · ')
     await shareCardImage(cardRef.current, {
       filename: 'bilan.png',

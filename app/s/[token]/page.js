@@ -22,6 +22,7 @@ import SessionPlayer from '@/app/components/athlete/SessionPlayer'
 import { UNITS, unitOf, formatPerformance } from '@/app/components/TrackedMovementsBlock'
 import TimerModal from '@/app/components/TimerModal'
 import SplitTimerSession from '@/app/components/SplitTimerSession'
+import WeeklyRecapPopup from '@/app/components/WeeklyRecapPopup'
 import {
   House, WifiSlash, Bell, Target, Repeat, SkipForward, Lock, EyeSlash, Backpack, UsersThree,
   Lightning, PencilSimple, Calculator, CalendarBlank, Prohibit, Lightbulb, ChartBar, ChartLineUp,
@@ -1166,6 +1167,15 @@ function AthleteView({ params }) {
           <span style={{ display: 'flex' }}><WifiSlash size={14} /></span>
           <span style={{ fontSize: 12, fontWeight: 600, color: '#92400E' }}>Hors ligne — tu vois les dernières données chargées. Les actions (valider, enregistrer) reprendront une fois reconnecté.</span>
         </div>
+      )}
+
+      {/* Bilan hebdomadaire auto (dimanche 18h → mardi 22h, une fois par semaine) — jamais côté
+          coach qui prévisualise le compte d'un client (isCoachView). */}
+      {!isCoachView && (
+        <WeeklyRecapPopup
+          athlete={athlete}
+          onSeen={weekStart => setAthlete(a => ({ ...a, weekly_recap_shown_for: weekStart }))}
+        />
       )}
 
       {visitedTabs.has('wod') && (
