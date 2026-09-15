@@ -3,7 +3,7 @@
 import { useState, useEffect, use } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { UsersThree, User, CalendarBlank, PencilSimple, NotePencil, ClipboardText, LinkSimple, Hourglass, SkipForward } from '@phosphor-icons/react'
+import { UsersThree, User, CalendarBlank, PencilSimple, NotePencil, ClipboardText, LinkSimple, Hourglass, SkipForward, CopySimple, TrashSimple } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import { getCoachId } from '@/lib/coach'
@@ -110,6 +110,7 @@ export default function GroupDetailPage({ params }) {
   const [templateActionBusy, setTemplateActionBusy] = useState(null) // id du template en cours de liaison/copie
   const [expandedSessionId, setExpandedSessionId] = useState(null)
   const [sessionExercises, setSessionExercises] = useState({}) // { [sessionId]: [...] }, chargé à la demande
+  const [sessionActionBusy, setSessionActionBusy] = useState(null) // id de la séance en cours de duplication/suppression
   const [periodMode, setPeriodMode] = useState('month') // 'month' | 'year'
   const [yearMode, setYearMode] = useState('scolaire') // 'scolaire' | 'civile'
   const [monthCursor, setMonthCursor] = useState(new Date())
@@ -279,6 +280,82 @@ export default function GroupDetailPage({ params }) {
     setCurrentProgram(prev => ({ ...prev, program_sessions: [...(prev.program_sessions || []), data] }))
   }
 
+  // Ajoute/retire une séance dans le bon state (currentProgram ou le template lié concerné) — les
+  // deux listes cohabitent dans le même aperçu (voir renderSessionRow, partagé entre les deux).
+  const appendSessionToState = (programId, newSession) => {
+    if (currentProgram?.id === programId) {
+      setCurrentProgram(prev => ({ ...prev, program_sessions: [...(prev.program_sessions || []), newSession] }))
+    } else {
+      setLinkedTemplates(prev => prev.map(l => l.program_id !== programId ? l : {
+        ...l, programs: { ...l.programs, program_sessions: [...(l.programs?.program_sessions || []), newSession] },
+      }))
+    }
+  }
+  const removeSessionFromState = (programId, sessionId) => {
+    if (currentProgram?.id === programId) {
+      setCurrentProgram(prev => ({ ...prev, program_sessions: (prev.program_sessions || []).filter(s => s.id !== sessionId) }))
+    } else {
+      setLinkedTemplates(prev => prev.map(l => l.program_id !== programId ? l : {
+        ...l, programs: { ...l.programs, program_sessions: (l.programs?.program_sessions || []).filter(s => s.id !== sessionId) },
+      }))
+    }
+    setSessionExercises(prev => { const next = { ...prev }; delete next[sessionId]; return next })
+    if (expandedSessionId === sessionId) setExpandedSessionId(null)
+  }
+
+  // Duplique une séance depuis l'aperçu groupe — relit la séance et ses exercices en base plutôt que
+  // de se fier au state local, car les templates liés ne préchargent que id/order_index/title (voir
+  // le select de linkedTemplates plus haut).
+  const duplicateGroupSession = async (programId, sessionId) => {
+    setSessionActionBusy(sessionId)
+    const { data: s } = await supabase.from('program_sessions').select('*').eq('id', sessionId).single()
+    const { data: exos } = await supabase.from('program_exercises').select('*').eq('program_session_id', sessionId).order('order_index')
+    if (!s) { alert('Séance introuvable'); setSessionActionBusy(null); return }
+    const siblings = currentProgram?.id === programId
+      ? (currentProgram.program_sessions || [])
+      : (linkedTemplates.find(l => l.program_id === programId)?.programs?.program_sessions || [])
+    const { data: newSession, error } = await supabase.from('program_sessions')
+      .insert({
+        program_id: programId, order_index: siblings.length,
+        title: s.title ? `${s.title} (copie)` : '',
+        activation: s.activation || null, coach_notes: s.coach_notes || null,
+        activation_videos: s.activation_videos || [], activation_links: s.activation_links || {},
+        warmup_block: s.warmup_block || null, cooldown_block: s.cooldown_block || null,
+        session_type: s.session_type || null, recurring_daily_target: s.recurring_daily_target ?? null,
+        materiel: s.materiel || null, week_number: s.week_number, day_of_week: s.day_of_week,
+      })
+      .select().single()
+    if (error || !newSession) { alert('Erreur duplication : ' + (error?.message || '')); setSessionActionBusy(null); return }
+    if ((exos || []).length) {
+      const { error: insErr } = await supabase.from('program_exercises').insert(exos.map((e, j) => ({
+        program_session_id: newSession.id, order_index: j, name: e.name, sets: e.sets, reps: e.reps, kg: e.kg,
+        rest: e.rest, note: e.note, video_url: e.video_url, superset_group: e.superset_group,
+        focus_muscles: e.focus_muscles, pace_base: e.pace_base, pct_low: e.pct_low, pct_high: e.pct_high,
+        timer_config: e.timer_config,
+      })))
+      if (insErr) { alert('Erreur duplication des exercices : ' + insErr.message); setSessionActionBusy(null); return }
+    }
+    appendSessionToState(programId, newSession)
+    setSessionActionBusy(null)
+  }
+
+  // Même cascade que la suppression de séance dans l'éditeur programme (voir
+  // app/programs/[athleteId]/[programId]/page.js#deleteSessionCascade) : une séance liée
+  // (source_session_id) déjà validée par un client (program_completions) est préservée.
+  const deleteGroupSession = async (programId, sessionId) => {
+    if (!confirm('Supprimer cette séance ? Elle sera aussi supprimée chez les clients à qui ce programme est lié (sauf s\'ils l\'ont déjà validée).')) return
+    setSessionActionBusy(sessionId)
+    const { data: linked } = await supabase.from('program_sessions').select('id').eq('source_session_id', sessionId)
+    for (const l of (linked || [])) {
+      const { data: completion } = await supabase.from('program_completions')
+        .select('program_session_id').eq('program_session_id', l.id).maybeSingle()
+      if (!completion) await supabase.from('program_sessions').delete().eq('id', l.id)
+    }
+    await supabase.from('program_sessions').delete().eq('id', sessionId)
+    removeSessionFromState(programId, sessionId)
+    setSessionActionBusy(null)
+  }
+
   const toggleSessionExpand = async (sessionId) => {
     if (expandedSessionId === sessionId) { setExpandedSessionId(null); return }
     setExpandedSessionId(sessionId)
@@ -301,6 +378,14 @@ export default function GroupDetailPage({ params }) {
         <button onClick={() => router.push(`/programs/templates/${programId}/session/${s.id}`)}
           style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text)', padding: '9px 10px 9px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {s.title || `Séance ${i + 1}`}
+        </button>
+        <button onClick={() => duplicateGroupSession(programId, s.id)} disabled={sessionActionBusy === s.id} title="Dupliquer cette séance"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: '9px 6px', flexShrink: 0, display: 'flex' }}>
+          <CopySimple size={14} />
+        </button>
+        <button onClick={() => deleteGroupSession(programId, s.id)} disabled={sessionActionBusy === s.id} title="Supprimer cette séance"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text3)', padding: '9px 10px 9px 6px', flexShrink: 0, display: 'flex' }}>
+          <TrashSimple size={14} />
         </button>
       </div>
       {expandedSessionId === s.id && (
