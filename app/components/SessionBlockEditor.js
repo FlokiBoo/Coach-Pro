@@ -407,6 +407,13 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const [replacingExerciseId, setReplacingExerciseId] = useState(null)
   const [exerciseMenuOpenId, setExerciseMenuOpenId] = useState(null)
   const [pendingCircuitExercises, setPendingCircuitExercises] = useState([])
+  // Création rapide d'un mouvement absent du catalogue, depuis la modale Exercises elle-même
+  // (coach uniquement, canManageCatalog) — voir createMovement plus bas.
+  const [createMovementOpen, setCreateMovementOpen] = useState(false)
+  const [newMovementName, setNewMovementName] = useState('')
+  const [newMovementMuscles, setNewMovementMuscles] = useState([])
+  const [newMovementVideoUrl, setNewMovementVideoUrl] = useState('')
+  const [creatingMovement, setCreatingMovement] = useState(false)
   // Sélection par id (pas par index) : un glisser-déposer des blocs (voir moveBlock/orderMode
   // plus bas) peut réordonner le tableau `blocks` en plusieurs étapes synchrones avant tout
   // re-render — un index resterait figé sur une position pendant que son contenu change sous lui.
@@ -926,6 +933,49 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     setPendingCircuitExercises(prev => (
       prev.some(p => p.name === ex.name) ? prev.filter(p => p.name !== ex.name) : [...prev, ex]
     ))
+  }
+
+  const openCreateMovement = () => {
+    setNewMovementName(exerciseSearch.trim())
+    setNewMovementMuscles([])
+    setNewMovementVideoUrl('')
+    setCreateMovementOpen(true)
+  }
+
+  const toggleNewMovementMuscle = (key) => {
+    setNewMovementMuscles(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+  }
+
+  // Insère le mouvement dans le catalogue (même shape que app/movements/page.js : nom seul
+  // obligatoire, muscles/vidéo optionnels) puis le sélectionne tout de suite comme si le coach
+  // venait de cliquer sur son "+" dans la liste — mêmes branchements que la ligne normale
+  // (replace / circuit / ajout direct / détour séries-récup) : pas besoin de le rechercher une
+  // seconde fois juste après l'avoir créé.
+  const createMovement = async () => {
+    const name = newMovementName.trim()
+    if (!name || creatingMovement) return
+    setCreatingMovement(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: coachRow } = await supabase.from('coaches').select('is_admin').eq('id', user?.id).maybeSingle()
+    const musclesLabel = newMovementMuscles
+      .map(key => REAL_MUSCLE_GROUPS.find(g => g.key === key)?.label)
+      .filter(Boolean)
+      .join(', ')
+    const { data, error } = await supabase.from('movements').insert({
+      name,
+      muscles: musclesLabel || null,
+      youtube_url: newMovementVideoUrl.trim() || null,
+      coach_id: coachRow?.is_admin ? null : (user?.id || null),
+    }).select('id, name, muscles, video_url, youtube_url').single()
+    setCreatingMovement(false)
+    if (error || !data) { alert('Erreur : ' + (error?.message || 'création impossible')); return }
+    const ex = { id: data.id, name: data.name, muscles: data.muscles || '', videoUrl: data.video_url || data.youtube_url || '' }
+    setMovementsList(prev => [ex, ...prev])
+    setCreateMovementOpen(false)
+    if (replacingExerciseId) replaceExerciseInActiveBlock(ex)
+    else if (isCircuitBlock) toggleCircuitPending(ex)
+    else if (!canManageCatalog || addingSecondaryExercise || activityMode === 'cardio') addExerciseToActiveBlock(ex)
+    else startExerciseConfig(ex)
   }
 
   const confirmCircuitSelection = () => {
@@ -2002,6 +2052,14 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                       style={{ ...input, width: 220, paddingLeft: 30 }}
                     />
                   </div>
+                  {canManageCatalog && (
+                    <button onClick={openCreateMovement} style={{
+                      border: `1px dashed ${c.blue}`, color: c.blue, background: 'none', borderRadius: 6,
+                      padding: '9px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                    }}>
+                      + Nouveau mouvement
+                    </button>
+                  )}
                   {isCircuitBlock && (
                     <button
                       onClick={confirmCircuitSelection}
@@ -2133,9 +2191,101 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                     )
                   })}
                   {filteredExercises.length === 0 && (
-                    <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 14, color: c.textMuted }}>No exercise matches your filters.</div>
+                    <div style={{ padding: '40px 0', textAlign: 'center' }}>
+                      <div style={{ fontSize: 14, color: c.textMuted, marginBottom: canManageCatalog ? 14 : 0 }}>No exercise matches your filters.</div>
+                      {canManageCatalog && (
+                        <button onClick={openCreateMovement} style={{
+                          border: `1px dashed ${c.blue}`, color: c.blue, background: 'none', borderRadius: 6,
+                          padding: '9px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                        }}>
+                          + Créer{exerciseSearch.trim() ? ` « ${exerciseSearch.trim()} »` : ''} comme nouveau mouvement
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Création rapide d'un mouvement absent du catalogue, sans quitter la modale Exercises —
+            seul le nom est requis (muscles/vidéo facultatifs, complétables plus tard depuis
+            /movements). Se referme en sélectionnant directement le mouvement créé. */}
+        {createMovementOpen && (
+          <>
+            <div onClick={() => setCreateMovementOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 210 }} />
+            <div style={{
+              position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 211,
+              width: 520, maxWidth: 'calc(100vw - 32px)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto',
+              background: c.bg, borderRadius: 10, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: `1px solid ${c.border}` }}>
+                <span style={{ fontSize: 22, fontWeight: 700, color: c.text }}>Nouveau mouvement</span>
+                <button onClick={() => setCreateMovementOpen(false)} style={{ display: 'flex', background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: c.text }}>
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div>
+                  <span style={label}>Nom *</span>
+                  <input
+                    value={newMovementName}
+                    onChange={e => setNewMovementName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && createMovement()}
+                    placeholder="Ex: Développé incliné haltères…"
+                    autoFocus
+                    style={input}
+                  />
+                </div>
+
+                <div>
+                  <span style={label}>Muscles (facultatif)</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {REAL_MUSCLE_GROUPS.map(group => {
+                      const active = newMovementMuscles.includes(group.key)
+                      return (
+                        <button key={group.key} onClick={() => toggleNewMovementMuscle(group.key)} style={{
+                          border: `1.5px solid ${active ? c.blue : c.border}`, background: active ? c.blueBorder : c.bg,
+                          color: active ? c.blue : c.textMuted, borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                        }}>
+                          {group.label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div>
+                  <span style={label}>Vidéo (facultatif)</span>
+                  <input
+                    value={newMovementVideoUrl}
+                    onChange={e => setNewMovementVideoUrl(e.target.value)}
+                    placeholder="Lien YouTube…"
+                    style={input}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, padding: '16px 24px', borderTop: `1px solid ${c.border}` }}>
+                <button onClick={() => setCreateMovementOpen(false)} style={{
+                  border: `1px solid ${c.border}`, color: c.text, fontWeight: 600, fontSize: 14, borderRadius: 6,
+                  padding: '9px 20px', background: c.bg, cursor: 'pointer',
+                }}>
+                  Annuler
+                </button>
+                <button
+                  onClick={createMovement}
+                  disabled={!newMovementName.trim() || creatingMovement}
+                  style={{
+                    border: 'none', color: '#fff', fontWeight: 700, fontSize: 14, borderRadius: 6, padding: '9px 20px',
+                    background: (!newMovementName.trim() || creatingMovement) ? c.disabledBg : c.blue,
+                    cursor: (!newMovementName.trim() || creatingMovement) ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  {creatingMovement ? '…' : 'Créer et sélectionner'}
+                </button>
               </div>
             </div>
           </>
