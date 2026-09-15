@@ -157,6 +157,14 @@ function AthleteView({ params }) {
   const [showAddSheet, setShowAddSheet] = useState(false)
   const [showAddWizard, setShowAddWizard] = useState(false)
 
+  // Dans l'app native, le contenu doit occuper tout l'écran (phone comme tablette) — le plafond à
+  // 480px n'a de sens que pour le lien web (magic link ouvert sur desktop), où il évite un layout
+  // mobile étiré sur un grand écran.
+  const [isNative, setIsNative] = useState(false)
+  useEffect(() => {
+    import('@capacitor/core').then(({ Capacitor }) => setIsNative(Capacitor.isNativePlatform())).catch(() => {})
+  }, [])
+
   // Onglets gardés montés une fois visités (display:none plutôt que démontage) : évite de
   // relancer tous les fetchs internes (stats, PR, profil...) et de réafficher leurs
   // "Chargement…" à chaque tap sur la tab bar — retour terrain : c'était systématique et pénible.
@@ -1127,14 +1135,14 @@ function AthleteView({ params }) {
     }
 
     return (
-      <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 60 }}>
+      <div style={{ maxWidth: isNative ? 'none' : 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 60 }}>
         {workoutContent}
       </div>
     )
   }
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 90 }}>
+    <div style={{ maxWidth: isNative ? 'none' : 480, margin: '0 auto', minHeight: '100svh', background: 'var(--bg2)', paddingBottom: 90 }}>
 
       {/* Header */}
       <div style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)', padding: '14px 16px' }}>
