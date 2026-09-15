@@ -19,7 +19,7 @@ import {
   X, TextB, TextItalic, LinkSimple, ListBullets, TextTSlash,
   CaretLeft, CaretRight, ArrowsDownUp, Plus, FileText, Flame, Snowflake, Barbell,
   DotsThreeVertical, PencilSimple, Info, MagnifyingGlass, Check, Timer, DotsSixVertical,
-  ArrowsClockwise, Heartbeat, VideoCamera,
+  ArrowsClockwise, Heartbeat, VideoCamera, Lightbulb,
 } from '@phosphor-icons/react'
 import { SortableGroup, SortableItem } from '@/app/components/SortableItem'
 import TimerConfigEditor, { defaultTimerConfig } from '@/app/components/TimerConfigEditor'
@@ -396,6 +396,12 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const [sessionTitle, setSessionTitle] = useState('')
   const [description, setDescription] = useState('')
   const [sessionType, setSessionType] = useState(null)
+  // Séance "explication" (session_type: 'explication', porté depuis l'ancien éditeur plein
+  // écran) : juste une note (réutilise `description`) + un lien vidéo, pas d'exercices — pour
+  // un coach qui veut expliquer un programme sans prescrire de contenu. Le lien vidéo réutilise
+  // program_sessions.activation_videos (même convention détournée que l'ancien éditeur, pas de
+  // colonne dédiée) : un tableau à un seul élément { name: 'Vidéo', video_url }.
+  const [explicationVideo, setExplicationVideo] = useState('')
   const [activityMode, setActivityMode] = useState('standard')
   const [recurringTarget, setRecurringTarget] = useState(1)
   const [movementsList, setMovementsList] = useState([]) // [{ id, name, muscles }]
@@ -471,7 +477,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     let cancelled = false
     async function load() {
       const [{ data: sessionRow }, { data: exerciseRows }] = await Promise.all([
-        supabase.from('program_sessions').select('id, title, coach_notes, circuits, session_type, recurring_daily_target, activity_mode, warmup_block, cooldown_block, timer_config').eq('id', sessionId).single(),
+        supabase.from('program_sessions').select('id, title, coach_notes, circuits, session_type, recurring_daily_target, activity_mode, warmup_block, cooldown_block, timer_config, activation_videos').eq('id', sessionId).single(),
         supabase.from('program_exercises').select('id, order_index, name, sets, rest, note, superset_group, block_type, pace_base, pct_low, pct_high, set_details, timer_config').eq('program_session_id', sessionId).order('order_index'),
       ])
       if (cancelled) return
@@ -486,6 +492,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
       setActivityMode(sessionRow.activity_mode || 'standard')
       setRecurringTarget(sessionRow.recurring_daily_target || 1)
       setSessionTimerConfig(sessionRow.timer_config || null)
+      setExplicationVideo(sessionRow.activation_videos?.[0]?.video_url || '')
       const builtBlocks = buildBlocksFromDb(exerciseRows || [], sessionRow.circuits || [], sessionRow.warmup_block || null, sessionRow.cooldown_block || null)
       setBlocks(builtBlocks)
       if (builtBlocks.length) setActiveBlockId(builtBlocks[0].id)
@@ -612,6 +619,9 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
           // Récurrente = hors calendrier : jamais de semaine/jour, même si la séance en avait un
           // avant (créée via une case du calendrier puis basculée en récurrente après coup).
           ...(sessionType === 'recurrent' ? { week_number: null, day_of_week: null } : {}),
+          // N'écrit activation_videos que pour une séance "explication" — ailleurs ce champ
+          // n'est pas géré par cet éditeur, pas de raison de l'écraser.
+          ...(sessionType === 'explication' ? { activation_videos: explicationVideo.trim() ? [{ name: 'Vidéo', video_url: explicationVideo.trim() }] : [] } : {}),
         })
         .eq('id', sessionId)
 
@@ -1398,8 +1408,22 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
               x/day
             </label>
           )}
+          <button
+            onClick={() => { setSessionType(t => t === 'explication' ? null : 'explication'); setUnsavedChanges(true) }}
+            title="Séance de type explication : juste une note + une vidéo, sans exercices"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              border: `1px solid ${sessionType === 'explication' ? c.blue : c.border}`,
+              background: sessionType === 'explication' ? c.blueBorder : c.bg,
+              color: sessionType === 'explication' ? c.blue : c.textMuted,
+            }}
+          >
+            <Lightbulb size={14} weight={sessionType === 'explication' ? 'fill' : 'regular'} /> Explication
+          </button>
         </div>
 
+        {sessionType !== 'explication' && (
+        <>
         {/* Add / Order */}
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ position: 'relative' }}>
@@ -1874,6 +1898,20 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
                 </button>
               </>
             )}
+          </div>
+        )}
+        </>
+        )}
+
+        {sessionType === 'explication' && (
+          <div style={{ marginTop: 8 }}>
+            <label style={{ fontSize: 13, color: c.textMuted, marginBottom: 6, display: 'block' }}>Video link</label>
+            <input
+              value={explicationVideo}
+              onChange={e => { setExplicationVideo(e.target.value); setUnsavedChanges(true) }}
+              placeholder="https://…"
+              style={{ ...input, width: '100%' }}
+            />
           </div>
         )}
 
