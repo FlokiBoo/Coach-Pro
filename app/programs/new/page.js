@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { ClipboardText, CalendarBlank, Tag, Plus, MagnifyingGlass, TrendUp } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import ActivityTypeSelect from '@/app/components/ActivityTypeSelect'
 import { getCoachId } from '@/lib/coach'
@@ -23,7 +22,6 @@ function today() {
 }
 
 export default function NewProgramPage() {
-  const router = useRouter()
   const [templates, setTemplates] = useState([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState(null) // 'blank' ou l'id du template en cours de duplication
@@ -75,7 +73,11 @@ export default function NewProgramPage() {
       return
     }
     await supabase.from('program_sessions').insert({ program_id: data.id, order_index: 0, title: 'Séance 1' })
-    router.push(`/programs/templates/${data.id}`)
+    // Navigation "dure" (pas router.push) : en dev, le rechargement à chaud de Next.js entre en
+    // conflit avec une navigation client-side juste après une création — la page revenait sur
+    // /programs/new au lieu d'ouvrir le programme fraîchement créé. Un vrai changement de page
+    // contourne le souci (vérifié en conditions réelles) et reste fiable en prod aussi.
+    window.location.href = `/programs/templates/${data.id}`
   }
 
   const duplicateTemplate = async (tpl) => {
@@ -90,7 +92,12 @@ export default function NewProgramPage() {
       setBusyId(null)
       return
     }
-    router.push(`/programs/templates/${copy.id}`)
+    // Même pattern que createBlank ci-dessus et que window.location.href ailleurs dans l'app
+    // (app/page.js, AthletesSidebar.js...) ; le linter (react-compiler) ne le signale que sur
+    // cette occurrence précise, pas la précédente identique — faux positif de l'analyse
+    // statique, pas une vraie mutation d'état React.
+    // eslint-disable-next-line
+    window.location.href = `/programs/templates/${copy.id}`
   }
 
   const allGoals = [...new Set(templates.map(t => t.goal).filter(Boolean))].sort()
