@@ -3,6 +3,7 @@
 import { DndContext, PointerSensor, useSensor, useSensors, closestCenter } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy, horizontalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { DotsSixVertical } from '@phosphor-icons/react'
 
 // Liste réordonnable par glisser-déposer (appui maintenu ~250ms puis glisser), en complément des
 // flèches ▲▼ déjà en place partout dans l'app — ne remplace jamais les flèches, s'y ajoute.
@@ -55,11 +56,12 @@ export function SortableItem({ id, children }) {
   )
 }
 
-// Petite poignée "⠿" à coller à côté des flèches ▲▼ existantes — maintenir dessus ~250ms puis
+// Petite poignée à coller à côté des flèches ▲▼ existantes — maintenir dessus ~250ms puis
 // glisser verticalement pour réordonner à la main. `color` par défaut inchangé (var(--text3)) pour
 // ne pas affecter les pages existantes qui l'utilisent déjà — seules les pages reprenant la
-// nouvelle charte (Tips, Activations) passent explicitement var(--green).
-export function DragHandle({ dragProps, color = 'var(--text3)' }) {
+// nouvelle charte (Tips, Activations) passent explicitement var(--green). `icon` (idem, opt-in) :
+// remplace le glyphe "⠿" par l'icône Phosphor dots-six-vertical en poids Light, pour ces mêmes pages.
+export function DragHandle({ dragProps, color = 'var(--text3)', icon = false }) {
   return (
     <span
       {...(dragProps?.attributes || {})}
@@ -67,10 +69,11 @@ export function DragHandle({ dragProps, color = 'var(--text3)' }) {
       style={{
         cursor: 'grab', touchAction: 'none', fontSize: 14, color,
         padding: '2px 3px', lineHeight: 1, userSelect: 'none', flexShrink: 0,
+        display: 'inline-flex', alignItems: 'center',
       }}
       title="Maintenir puis glisser pour déplacer"
     >
-      ⠿
+      {icon ? <DotsSixVertical size={14} weight="light" /> : '⠿'}
     </span>
   )
 }

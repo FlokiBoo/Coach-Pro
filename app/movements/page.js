@@ -12,8 +12,7 @@ function today() {
 }
 
 const COLUMNS = [
-  { key: 'name',        label: 'Nom du mouvement',   flex: 3 },
-  { key: 'muscles',     label: 'Muscles principaux',  flex: 2 },
+  { key: 'name',        label: 'Nom du mouvement',   flex: 4 },
   { key: 'torque',      label: 'Torque',              flex: 1 },
   { key: 'youtube_url', label: 'Vidéo',               flex: 1 },
 ]
@@ -285,7 +284,7 @@ export default function MovementsPage() {
             </div>
           )}
 
-          {sorted.map(m => (
+          {sorted.map((m, idx) => (
             <div key={m.id} style={{ borderBottom: '1px solid var(--border)' }}>
 
               {editingId === m.id ? (
@@ -319,24 +318,30 @@ export default function MovementsPage() {
                 /* Ligne normale */
                 <div
                   onClick={() => router.push(`/movements/${m.id}`)}
-                  style={{ display: 'flex', padding: '13px 24px', alignItems: 'center', gap: 0, cursor: 'pointer' }}
+                  style={{ display: 'flex', padding: '13px 24px', alignItems: 'center', gap: 0, cursor: 'pointer', background: idx % 2 === 0 ? 'var(--card-white)' : '#FBF9F5' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg2)'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  onMouseLeave={e => e.currentTarget.style.background = idx % 2 === 0 ? 'var(--card-white)' : '#FBF9F5'}
                 >
-                  <div style={{ flex: 3, fontWeight: 600, fontSize: 14, color: 'var(--text)', paddingRight: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {m.name}
-                    {m.coach_id === userId && (
-                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', background: 'var(--green-light)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Perso</span>
-                    )}
-                    {m.coach_id === null && hiddenIds.has(m.id) && (
-                      <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Masqué</span>
+                  <div style={{ flex: 4, paddingRight: 12, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {m.name}
+                      {m.coach_id === userId && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', background: 'var(--green-light)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Perso</span>
+                      )}
+                      {m.coach_id === null && hiddenIds.has(m.id) && (
+                        <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Masqué</span>
+                      )}
+                    </div>
+                    {m.muscles && (
+                      <div style={{ fontSize: 11, color: 'var(--ostryk-text2)', marginTop: 2 }}>{m.muscles}</div>
                     )}
                   </div>
-                  <div style={{ flex: 2, fontSize: 13, color: 'var(--text2)', paddingRight: 12 }}>
-                    {m.muscles || <span style={{ color: 'var(--border2)' }}>—</span>}
-                  </div>
-                  <div style={{ flex: 1, fontSize: 13, color: 'var(--text2)', paddingRight: 12 }}>
-                    {m.torque || <span style={{ color: 'var(--border2)' }}>—</span>}
+                  <div style={{ flex: 1, paddingRight: 12 }}>
+                    {m.torque && (
+                      <span style={{ fontSize: 12, fontWeight: 600, color: '#6D5F4D', background: 'var(--ostryk-border)', borderRadius: 20, padding: '3px 10px', display: 'inline-block' }}>
+                        {m.torque}
+                      </span>
+                    )}
                   </div>
                   <div style={{ flex: 1 }}>
                     {m.youtube_url

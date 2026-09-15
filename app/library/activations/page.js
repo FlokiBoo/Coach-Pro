@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { VideoCamera, Lightning, PencilSimple, Eye, EyeSlash, TextB, TextItalic, LinkSimple, ListBullets, TextTSlash } from '@phosphor-icons/react'
+import { VideoCamera, Lightning, PencilSimple, Eye, EyeSlash, TextB, TextItalic, LinkSimple, ListBullets, TextTSlash, XCircle } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 
@@ -392,18 +392,18 @@ export default function ActivationsLibraryPage() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: item.text ? 4 : 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontFamily: 'var(--font-title)', fontWeight: 700, fontSize: 15, marginBottom: item.text ? 4 : 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                         {item.name}
                         {item.coach_id === userId && (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', background: 'var(--green-light)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Perso</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', background: 'var(--green-light)', borderRadius: 20, padding: '2px 8px', flexShrink: 0, fontFamily: 'var(--font-ui)' }}>Perso</span>
                         )}
                         {item.coach_id === null && hiddenIds.has(item.id) && (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Masqué</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0, fontFamily: 'var(--font-ui)' }}>Masqué</span>
                         )}
                       </div>
-                      {item.text && <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{item.text}</div>}
+                      {item.text && <div style={{ fontSize: 13, color: '#5A5348', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{item.text}</div>}
                       {item.videos?.length > 0 && (
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
                           {item.videos.map((v, vi) => (
@@ -420,8 +420,8 @@ export default function ActivationsLibraryPage() {
                         style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', fontSize: 12, color: 'var(--green)', cursor: 'pointer' }}>⧉</button>
                       {(isAdmin || item.coach_id === userId) ? (
                         <>
-                          <button onClick={() => startEdit(item)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--green)', cursor: 'pointer' }}><PencilSimple size={12} /></button>
-                          <button onClick={() => remove(item.id)} style={{ background: 'none', border: 'none', color: 'var(--bordeaux)', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                          <button onClick={() => startEdit(item)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--green)', cursor: 'pointer' }}><PencilSimple size={12} weight="light" /></button>
+                          <button onClick={() => remove(item.id)} style={{ background: 'none', border: 'none', color: 'var(--bordeaux)', display: 'flex', cursor: 'pointer', padding: '0 4px' }}><XCircle size={16} /></button>
                         </>
                       ) : (
                         <button onClick={() => toggleHidden(item.id, hiddenIds.has(item.id))}

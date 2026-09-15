@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Lightbulb, PencilSimple, Eye, EyeSlash } from '@phosphor-icons/react'
+import { Lightbulb, PencilSimple, Eye, EyeSlash, CaretUp, CaretDown, XCircle } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 import MuscleAnatomyDiagram from '@/app/components/MuscleAnatomyDiagram'
@@ -217,32 +217,32 @@ export default function TipsPage() {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', gap: 10 }}>
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-                      <DragHandle dragProps={dragProps} color="var(--green)" />
+                      <DragHandle dragProps={dragProps} color="var(--green)" icon />
                       <button onClick={() => move(t.id, -1)} disabled={idx === 0}
-                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: idx === 0 ? 'var(--border2)' : 'var(--green)', cursor: idx === 0 ? 'default' : 'pointer' }}>▲</button>
+                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', display: 'flex', color: idx === 0 ? 'var(--border2)' : 'var(--green)', cursor: idx === 0 ? 'default' : 'pointer' }}><CaretUp size={11} weight="light" /></button>
                       <button onClick={() => move(t.id, 1)} disabled={idx === tips.length - 1}
-                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', fontSize: 11, color: idx === tips.length - 1 ? 'var(--border2)' : 'var(--green)', cursor: idx === tips.length - 1 ? 'default' : 'pointer' }}>▼</button>
+                        style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 4, padding: '2px 6px', display: 'flex', color: idx === tips.length - 1 ? 'var(--border2)' : 'var(--green)', cursor: idx === tips.length - 1 ? 'default' : 'pointer' }}><CaretDown size={11} weight="light" /></button>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 700, fontSize: 14, marginBottom: (t.content || t.diagram) ? 4 : 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <div style={{ fontFamily: 'var(--font-title)', fontWeight: 700, fontSize: 15, marginBottom: (t.content || t.diagram) ? 4 : 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                         {t.title}
                         {t.coach_id === userId && (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', background: 'var(--green-light)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Perso</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--green)', background: 'var(--green-light)', borderRadius: 20, padding: '2px 8px', flexShrink: 0, fontFamily: 'var(--font-ui)' }}>Perso</span>
                         )}
                         {t.coach_id === null && hiddenIds.has(t.id) && (
-                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0 }}>Masqué</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text3)', background: 'var(--bg2)', borderRadius: 20, padding: '2px 8px', flexShrink: 0, fontFamily: 'var(--font-ui)' }}>Masqué</span>
                         )}
                       </div>
-                      {t.content && <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.5, whiteSpace: 'pre-wrap', marginBottom: t.diagram ? 10 : 0 }}>{t.content}</div>}
+                      {t.content && <div style={{ fontSize: 13, color: '#5A5348', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginBottom: t.diagram ? 10 : 0 }}>{t.content}</div>}
                       {t.diagram === 'muscle_anatomy' && <MuscleAnatomyDiagram />}
                     </div>
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                       {(isAdmin || t.coach_id === userId) ? (
                         <>
-                          <button onClick={() => startEdit(t)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--green)', cursor: 'pointer' }}><PencilSimple size={12} /></button>
-                          <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', color: 'var(--bordeaux)', fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                          <button onClick={() => startEdit(t)} style={{ background: 'none', border: '1px solid var(--border2)', borderRadius: 'var(--r)', padding: '6px 10px', display: 'flex', color: 'var(--green)', cursor: 'pointer' }}><PencilSimple size={12} weight="light" /></button>
+                          <button onClick={() => remove(t.id)} style={{ background: 'none', border: 'none', color: 'var(--bordeaux)', display: 'flex', cursor: 'pointer', padding: '0 4px' }}><XCircle size={16} /></button>
                         </>
                       ) : (
                         <button onClick={() => toggleHidden(t.id, hiddenIds.has(t.id))}
