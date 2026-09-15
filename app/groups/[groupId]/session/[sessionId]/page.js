@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { UsersThree, Lightning, FlagCheckered, FloppyDisk } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import { getCoachId } from '@/lib/coach'
-import { notifyGroupSessionReminder } from '@/lib/notify'
+import { notifyGroupSessionReminder, notifyGroupSessionAttendance } from '@/lib/notify'
 import { unlockAudio } from '@/lib/audioBeep'
 import { unlockSpeech } from '@/lib/speak'
 import SplitTimerSession from '@/app/components/SplitTimerSession'
@@ -163,6 +163,9 @@ function GroupCoachingSessionPage({ params }) {
         title: 'Séance de groupe à compléter',
         body: session?.title || null,
       })))
+      // Push téléphone (app native) en plus de la notif in-app ci-dessus — automatique, pas
+      // besoin de confirmation comme pour le rappel email plus bas.
+      notifyGroupSessionAttendance({ athleteIds: toAdd, sessionTitle: session?.title })
     }
     if (toRemove.length) await supabase.from('group_session_attendance').delete().eq('run_id', run.id).in('athlete_id', toRemove)
 

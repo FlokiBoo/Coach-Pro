@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { sendPushToAthlete } from '@/lib/push'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,6 +99,15 @@ export async function POST(request, { params }) {
       title: 'Séance de groupe à compléter',
       body: session?.title || null,
     })))
+    // Push téléphone (app native) en plus de la notif in-app ci-dessus — même geste que le coach
+    // depuis /groups/[groupId]/session/[sessionId] (voir notifyGroupSessionAttendance), mais on
+    // est déjà côté serveur ici donc pas besoin de repasser par une route /api/notify dédiée.
+    const { data: toAddAthletes } = await supabaseAdmin.from('athletes').select('id, token').in('id', toAdd)
+    ;(toAddAthletes || []).forEach(a => sendPushToAthlete(a.id, {
+      title: 'Séance de groupe à compléter',
+      body: session?.title || 'Une séance de groupe',
+      link: '/s/' + a.token,
+    }).catch(() => {}))
   }
   if (toRemove.length) await supabaseAdmin.from('group_session_attendance').delete().eq('run_id', run.id).in('athlete_id', toRemove)
 
