@@ -10,6 +10,7 @@ import { unlockAudio } from '@/lib/audioBeep'
 import { unlockSpeech } from '@/lib/speak'
 import SplitTimerSession from '@/app/components/SplitTimerSession'
 import TimerModal from '@/app/components/TimerModal'
+import { CompactStepper } from '@/app/components/GroupPerfStepper'
 
 function today() {
   const n = new Date()
@@ -46,6 +47,8 @@ function GroupCoachingSessionPage({ params }) {
   const [coachDifficulty, setCoachDifficulty] = useState(null)
   const [coachNote, setCoachNote] = useState('')
   const [runId, setRunId] = useState(null)
+  const [athleteSets, setAthleteSets] = useState({}) // { athleteId: { programExerciseId: [series...] } }
+  const [prefilledSetIds, setPrefilledSetIds] = useState(new Set()) // séries créées via "+ Ajouter" pas encore retouchées par le coach
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -63,9 +66,22 @@ function GroupCoachingSessionPage({ params }) {
       supabase.from('program_exercises').select('*').eq('program_session_id', sessionId).order('order_index'),
     ])
     setGroup(g)
-    setMembers((gm || []).map(m => m.athletes).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name)))
+    const mem = (gm || []).map(m => m.athletes).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name))
+    setMembers(mem)
     setSession(sess)
     setExercises(exos || [])
+
+    if (mem.length && (exos || []).length) {
+      const { data: sets } = await supabase.from('program_exercise_sets').select('*')
+        .in('athlete_id', mem.map(m => m.id)).in('program_exercise_id', (exos || []).map(e => e.id))
+        .order('set_index')
+      const grouped = {}
+      ;(sets || []).forEach(s => {
+        (grouped[s.athlete_id] ||= {})
+        ;(grouped[s.athlete_id][s.program_exercise_id] ||= []).push(s)
+      })
+      setAthleteSets(grouped)
+    }
 
     const { data: existingRun } = await supabase.from('group_session_runs')
       .select('*').eq('group_id', groupId).eq('source_session_id', sessionId).eq('date', runDate).maybeSingle()
@@ -78,6 +94,38 @@ function GroupCoachingSessionPage({ params }) {
       setPresentIds(new Set((att || []).map(a => a.athlete_id)))
     }
     setLoading(false)
+  }
+
+  // Crée une nouvelle série pré-remplie avec la précédente de cet athlète sur cet exercice (reps +
+  // charge identiques) — ou, à défaut de série précédente, avec le plan du coach (exo.reps/exo.kg).
+  // Marquée "pré-rempli" tant que le coach ne l'a pas retouchée (voir updateSet).
+  const addSet = async (athleteId, exerciseId) => {
+    const existing = athleteSets[athleteId]?.[exerciseId] || []
+    const prevSet = existing[existing.length - 1]
+    const exo = exercises.find(e => e.id === exerciseId)
+    const reps_done = prevSet ? prevSet.reps_done : (parseInt(exo?.reps, 10) || null)
+    const kg_done = prevSet ? prevSet.kg_done : (parseFloat(exo?.kg) || null)
+    const { data, error } = await supabase.from('program_exercise_sets')
+      .insert({ athlete_id: athleteId, program_exercise_id: exerciseId, set_index: existing.length, reps_done, kg_done })
+      .select().single()
+    if (error || !data) return
+    setAthleteSets(prev => ({
+      ...prev,
+      [athleteId]: { ...prev[athleteId], [exerciseId]: [...(prev[athleteId]?.[exerciseId] || []), data] },
+    }))
+    setPrefilledSetIds(prev => new Set(prev).add(data.id))
+  }
+
+  const updateSet = async (athleteId, exerciseId, setId, field, value) => {
+    setAthleteSets(prev => ({
+      ...prev,
+      [athleteId]: {
+        ...prev[athleteId],
+        [exerciseId]: (prev[athleteId]?.[exerciseId] || []).map(s => s.id === setId ? { ...s, [field]: value } : s),
+      },
+    }))
+    setPrefilledSetIds(prev => { if (!prev.has(setId)) return prev; const next = new Set(prev); next.delete(setId); return next })
+    await supabase.from('program_exercise_sets').update({ [field]: value }).eq('id', setId)
   }
 
   const togglePresent = (athleteId) => {
@@ -190,6 +238,37 @@ function GroupCoachingSessionPage({ params }) {
             <textarea placeholder="Note perso (visible uniquement par toi)…" value={exerciseNotes[`exercise:${exo.id}`] || ''}
               onChange={e => setExerciseNotes(prev => ({ ...prev, [`exercise:${exo.id}`]: e.target.value }))}
               rows={2} style={{ ...inp, resize: 'vertical' }} />
+
+            {presentIds.size > 0 && (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {members.filter(m => presentIds.has(m.id)).map(m => {
+                  const sets = athleteSets[m.id]?.[exo.id] || []
+                  return (
+                    <div key={m.id}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text2)', marginBottom: 4 }}>{m.name}</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {sets.map((s, i) => (
+                          <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 8px', background: 'var(--bg2)', borderRadius: 'var(--r)' }}>
+                            <span style={{ fontSize: 10, color: 'var(--text3)', width: 14, flexShrink: 0 }}>{i + 1}</span>
+                            <CompactStepper value={s.reps_done} suffix=" reps" step={1}
+                              onChange={v => updateSet(m.id, exo.id, s.id, 'reps_done', Math.max(0, Math.round(v)))} />
+                            <CompactStepper value={s.kg_done} suffix=" kg" step={2.5} decimal
+                              onChange={v => updateSet(m.id, exo.id, s.id, 'kg_done', Math.max(0, v))} />
+                            {prefilledSetIds.has(s.id) && <span style={{ fontSize: 10, color: 'var(--text3)', fontStyle: 'italic' }}>· pré-rempli</span>}
+                          </div>
+                        ))}
+                        <button type="button" onClick={() => addSet(m.id, exo.id)} style={{
+                          alignSelf: 'flex-start', border: '1px dashed var(--green)', color: 'var(--green)', background: 'none',
+                          borderRadius: 'var(--r)', padding: '4px 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                        }}>
+                          + Ajouter une série
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         ))}
 
