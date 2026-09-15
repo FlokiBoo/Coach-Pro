@@ -515,7 +515,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
     let cancelled = false
     async function loadPresets() {
       const [{ data: presets }, { data: hidden }] = await Promise.all([
-        supabase.from('activation_presets').select('id, name, text, videos, coach_id').order('name'),
+        supabase.from('activation_presets').select('id, name, text, note, videos, coach_id').order('name'),
         supabase.from('coach_hidden_content').select('content_id').eq('content_type', 'activation_preset'),
       ])
       if (cancelled) return
@@ -750,6 +750,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
   const applyPreset = (preset) => {
     setDraftName(prev => prev || preset.name)
     setDraftDescription(prev => (prev ? `${prev}\n\n${preset.text || ''}` : (preset.text || '')))
+    if (preset.note) setDraftNote(prev => (prev ? `${prev}\n\n${preset.note}` : preset.note))
     setPresetsMenuOpen(false)
     setUnsavedChanges(true)
     requestAnimationFrame(resizeDescriptionTextarea)
@@ -805,6 +806,7 @@ export default function SessionBlockEditor({ sessionId, backHref, canManageCatal
         ...b,
         name: b.name || preset.name,
         description: b.description ? `${b.description}\n\n${preset.text || ''}` : (preset.text || ''),
+        note: preset.note ? (b.note ? `${b.note}\n\n${preset.note}` : preset.note) : b.note,
         exercises: [...(b.exercises || []), ...newExercises],
         sets, restSeconds,
       }

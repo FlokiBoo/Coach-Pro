@@ -1,17 +1,42 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { VideoCamera, Lightning, PencilSimple, Eye, EyeSlash } from '@phosphor-icons/react'
+import { VideoCamera, Lightning, PencilSimple, Eye, EyeSlash, TextB, TextItalic, LinkSimple, ListBullets, TextTSlash } from '@phosphor-icons/react'
 import { supabase } from '@/lib/supabase'
 import AthletesSidebar from '@/app/components/AthletesSidebar'
 
 function emptyForm() {
-  return { name: '', text: '', videos: [] }
+  return { name: '', text: '', note: '', videos: [] }
 }
 
 const inp = {
   width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1px solid var(--border2)',
   borderRadius: 'var(--r)', fontSize: 14, outline: 'none', background: 'var(--bg2)', color: 'var(--text)',
+}
+
+const fieldLabel = { fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 6, display: 'block' }
+
+// Champ "Note" calqué sur celui du bloc WARMUP/COOLDOWN de l'éditeur de séance
+// (app/components/SessionBlockEditor.js) — même barre d'icônes décorative (pas de mise en forme
+// réelle là-bas non plus), pour que la carte d'activation ressemble à ce dans quoi elle finit
+// une fois piochée via "Create from library".
+function NoteEditor({ value, onChange }) {
+  return (
+    <div>
+      <label style={fieldLabel}>Note (optionnel)</label>
+      <div style={{ border: '1px solid var(--border2)', borderRadius: 'var(--r)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '8px 10px', borderBottom: '1px solid var(--border2)', background: 'var(--bg2)' }}>
+          {[TextB, TextItalic, LinkSimple, ListBullets, TextTSlash].map((Icon, i) => (
+            <span key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 4, color: 'var(--text3)' }}>
+              <Icon size={14} />
+            </span>
+          ))}
+        </div>
+        <textarea value={value} onChange={e => onChange(e.target.value)} placeholder="Ajouter une note…" rows={2}
+          style={{ width: '100%', boxSizing: 'border-box', border: 'none', padding: '10px 12px', fontSize: 14, outline: 'none', resize: 'vertical', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'inherit' }} />
+      </div>
+    </div>
+  )
 }
 
 // Détecte un "#recherche" en cours de frappe juste avant le curseur (le # doit démarrer un mot).
@@ -231,7 +256,7 @@ export default function ActivationsLibraryPage() {
     if (!newForm.name.trim()) return
     setSaving(true)
     const { data, error } = await supabase.from('activation_presets').insert({
-      name: newForm.name.trim(), text: newForm.text.trim() || null, videos: newForm.videos,
+      name: newForm.name.trim(), text: newForm.text.trim() || null, note: newForm.note.trim() || null, videos: newForm.videos,
       coach_id: isAdmin ? null : userId,
     }).select().single()
     if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
@@ -243,17 +268,17 @@ export default function ActivationsLibraryPage() {
 
   function startEdit(item) {
     setEditingId(item.id)
-    setEditForm({ name: item.name, text: item.text || '', videos: item.videos || [] })
+    setEditForm({ name: item.name, text: item.text || '', note: item.note || '', videos: item.videos || [] })
   }
 
   async function saveEdit() {
     if (!editForm.name.trim()) return
     setSaving(true)
     const { error } = await supabase.from('activation_presets').update({
-      name: editForm.name.trim(), text: editForm.text.trim() || null, videos: editForm.videos,
+      name: editForm.name.trim(), text: editForm.text.trim() || null, note: editForm.note.trim() || null, videos: editForm.videos,
     }).eq('id', editingId)
     if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
-    setItems(prev => prev.map(i => i.id === editingId ? { ...i, name: editForm.name.trim(), text: editForm.text.trim() || null, videos: editForm.videos } : i).sort((a, b) => a.name.localeCompare(b.name)))
+    setItems(prev => prev.map(i => i.id === editingId ? { ...i, name: editForm.name.trim(), text: editForm.text.trim() || null, note: editForm.note.trim() || null, videos: editForm.videos } : i).sort((a, b) => a.name.localeCompare(b.name)))
     setEditingId(null)
     setSaving(false)
   }
@@ -267,7 +292,7 @@ export default function ActivationsLibraryPage() {
   async function duplicate(item) {
     setSaving(true)
     const { data, error } = await supabase.from('activation_presets').insert({
-      name: `${item.name} (copie)`, text: item.text, videos: item.videos || [],
+      name: `${item.name} (copie)`, text: item.text, note: item.note || null, videos: item.videos || [],
       coach_id: isAdmin ? null : userId,
     }).select().single()
     if (error) { alert('Erreur : ' + error.message); setSaving(false); return }
@@ -300,20 +325,26 @@ export default function ActivationsLibraryPage() {
 
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 640 }}>
           {showCreate && (
-            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <input ref={nameRef} placeholder="Nom (ex: Activation 1, Hyrox Ski…)"
                 value={newForm.name} onChange={e => setNewForm(f => ({ ...f, name: e.target.value }))}
                 style={inp} />
-              <MentionTextarea placeholder="Texte de l'activation… (tape # pour lier un mouvement)"
-                value={newForm.text} onChange={text => setNewForm(f => ({ ...f, text }))}
-                videos={newForm.videos} onAddVideo={v => setNewForm(f => ({ ...f, videos: [...f.videos, v] }))}
-                rows={4} />
-              <VideoListEditor
-                videos={newForm.videos}
-                onAdd={v => setNewForm(f => ({ ...f, videos: [...f.videos, v] }))}
-                onRemove={idx => setNewForm(f => ({ ...f, videos: f.videos.filter((_, i) => i !== idx) }))}
-                onUpdateUrl={(idx, url) => setNewForm(f => ({ ...f, videos: f.videos.map((v, i) => i === idx ? { ...v, video_url: url } : v) }))}
-              />
+              <div>
+                <label style={fieldLabel}>Description</label>
+                <MentionTextarea placeholder="Texte de l'activation… (tape # pour lier un mouvement)"
+                  value={newForm.text} onChange={text => setNewForm(f => ({ ...f, text }))}
+                  videos={newForm.videos} onAddVideo={v => setNewForm(f => ({ ...f, videos: [...f.videos, v] }))}
+                  rows={4} />
+                <div style={{ marginTop: 8 }}>
+                  <VideoListEditor
+                    videos={newForm.videos}
+                    onAdd={v => setNewForm(f => ({ ...f, videos: [...f.videos, v] }))}
+                    onRemove={idx => setNewForm(f => ({ ...f, videos: f.videos.filter((_, i) => i !== idx) }))}
+                    onUpdateUrl={(idx, url) => setNewForm(f => ({ ...f, videos: f.videos.map((v, i) => i === idx ? { ...v, video_url: url } : v) }))}
+                  />
+                </div>
+              </div>
+              <NoteEditor value={newForm.note} onChange={note => setNewForm(f => ({ ...f, note }))} />
               <button onClick={create} disabled={saving} style={{
                 background: 'var(--green)', color: '#fff', border: 'none',
                 borderRadius: 'var(--r)', padding: '10px 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer'
@@ -331,18 +362,24 @@ export default function ActivationsLibraryPage() {
             items.map(item => (
               <div key={item.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--rl)', padding: 14 }}>
                 {editingId === item.id ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                     <input value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))} style={inp} />
-                    <MentionTextarea placeholder="Texte de l'activation… (tape # pour lier un mouvement)"
-                      value={editForm.text} onChange={text => setEditForm(f => ({ ...f, text }))}
-                      videos={editForm.videos} onAddVideo={v => setEditForm(f => ({ ...f, videos: [...f.videos, v] }))}
-                      rows={4} />
-                    <VideoListEditor
-                      videos={editForm.videos}
-                      onAdd={v => setEditForm(f => ({ ...f, videos: [...f.videos, v] }))}
-                      onRemove={idx => setEditForm(f => ({ ...f, videos: f.videos.filter((_, i) => i !== idx) }))}
-                      onUpdateUrl={(idx, url) => setEditForm(f => ({ ...f, videos: f.videos.map((v, i) => i === idx ? { ...v, video_url: url } : v) }))}
-                    />
+                    <div>
+                      <label style={fieldLabel}>Description</label>
+                      <MentionTextarea placeholder="Texte de l'activation… (tape # pour lier un mouvement)"
+                        value={editForm.text} onChange={text => setEditForm(f => ({ ...f, text }))}
+                        videos={editForm.videos} onAddVideo={v => setEditForm(f => ({ ...f, videos: [...f.videos, v] }))}
+                        rows={4} />
+                      <div style={{ marginTop: 8 }}>
+                        <VideoListEditor
+                          videos={editForm.videos}
+                          onAdd={v => setEditForm(f => ({ ...f, videos: [...f.videos, v] }))}
+                          onRemove={idx => setEditForm(f => ({ ...f, videos: f.videos.filter((_, i) => i !== idx) }))}
+                          onUpdateUrl={(idx, url) => setEditForm(f => ({ ...f, videos: f.videos.map((v, i) => i === idx ? { ...v, video_url: url } : v) }))}
+                        />
+                      </div>
+                    </div>
+                    <NoteEditor value={editForm.note} onChange={note => setEditForm(f => ({ ...f, note }))} />
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={saveEdit} disabled={saving} style={{
                         background: 'var(--green)', color: '#fff', border: 'none',
@@ -373,6 +410,9 @@ export default function ActivationsLibraryPage() {
                             <span key={vi} style={{ fontSize: 11, background: 'var(--bg)', border: '1px solid var(--ostryk-chip-border)', color: 'var(--text2)', borderRadius: 20, padding: '2px 8px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><VideoCamera size={11} /> {v.name}</span>
                           ))}
                         </div>
+                      )}
+                      {item.note && (
+                        <div style={{ fontSize: 12, color: 'var(--text3)', fontStyle: 'italic', marginTop: 6, whiteSpace: 'pre-wrap' }}>{item.note}</div>
                       )}
                     </div>
                     <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
