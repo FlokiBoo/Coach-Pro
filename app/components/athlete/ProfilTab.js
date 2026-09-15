@@ -112,7 +112,7 @@ export default function ProfilTab({ athlete, token, setActiveTab, onWeightUpdate
             padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left',
           }}>
             <span style={{ display: 'flex', color: 'var(--vert-foret)' }}><ClipboardText size={20} weight="light" /></span>
-            <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Changer de programme</span>
+            <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>Choisir un programme</span>
             <span style={{ color: 'var(--ostryk-text3)', fontSize: 18 }}>›</span>
           </button>
 
