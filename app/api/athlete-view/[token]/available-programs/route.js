@@ -91,6 +91,7 @@ export async function POST(request, { params }) {
       coach_id: athlete.coach_id, type: 'client_selected_program',
       title: `${athlete.name} a choisi un programme`,
       body: template.title,
+      link: `/programs/${athlete.id}`,
     })
   }
 
