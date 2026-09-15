@@ -131,21 +131,24 @@ export default function EmbeddedTimer({ config, label }) {
 
   const accent = (config.type === 'TABATA' || config.type === 'CUSTOM') && state.isWork === false ? '#1D4ED8' : 'var(--green)'
 
+  // cqmin (le plus petit des deux côtés du panneau qui contient ce timer, voir SplitTimerSession)
+  // plutôt que du vh/vw : grossit avec le panneau lui-même — plein écran, ou téléphone tourné en
+  // paysage où le panneau devient beaucoup plus large — sans dépendre de l'orientation en soi.
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16, gap: 8, background: 'var(--bg2)' }}>
-      {label && <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text3)' }}>{label}</div>}
-      <div style={{ fontSize: 13, color: accent, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{config.type === 'CUSTOM' ? 'PERSO' : config.type}</div>
-      <div style={{ fontSize: 15, color: 'var(--text3)', fontWeight: 600 }}>{state.phaseLabel}</div>
-      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 56, fontWeight: 700, color: accent, margin: '4px 0' }}>
+      {label && <div style={{ fontSize: 'clamp(12px, 2.4cqmin, 20px)', fontWeight: 700, color: 'var(--text3)' }}>{label}</div>}
+      <div style={{ fontSize: 'clamp(13px, 2.6cqmin, 22px)', color: accent, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase' }}>{config.type === 'CUSTOM' ? 'PERSO' : config.type}</div>
+      <div style={{ fontSize: 'clamp(15px, 3.2cqmin, 30px)', color: 'var(--text3)', fontWeight: 600 }}>{state.phaseLabel}</div>
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 'clamp(48px, 22cqmin, 240px)', fontWeight: 700, color: accent, margin: '4px 0', lineHeight: 1 }}>
         {fmt(state.remaining)}
       </div>
-      <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 320 }}>
+      <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 'min(90cqw, 480px)' }}>
         {!state.finished && (
-          <button onClick={toggle} style={{ flex: 1, padding: '12px 10px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 14, fontWeight: 700, fontFamily: 'inherit', background: 'var(--green)', color: '#fff' }}>
+          <button onClick={toggle} style={{ flex: 1, padding: '12px 10px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 'clamp(14px, 2.6cqmin, 20px)', fontWeight: 700, fontFamily: 'inherit', background: 'var(--green)', color: '#fff' }}>
             {running ? '⏸ Pause' : '▶ Reprendre'}
           </button>
         )}
-        <button onClick={reset} style={{ flex: 1, padding: '12px 10px', borderRadius: 10, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text)', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+        <button onClick={reset} style={{ flex: 1, padding: '12px 10px', borderRadius: 10, border: '1px solid var(--border2)', background: 'transparent', color: 'var(--text)', fontSize: 'clamp(14px, 2.6cqmin, 20px)', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
           Reset
         </button>
       </div>

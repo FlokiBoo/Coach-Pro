@@ -31,7 +31,13 @@ export default function SplitTimerSession({ config, timerLabel, onClose, childre
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 950, display: 'flex', flexDirection: 'column', background: 'var(--bg2)' }}>
-      <div style={{ height: timerHeight, overflow: layout === 'workout' ? 'hidden' : 'visible', position: 'relative', flexShrink: 0, transition: 'height .2s ease', borderBottom: layout === 'workout' ? 'none' : '1px solid var(--border)' }}>
+      {/* containerType: 'size' donne à EmbeddedTimer des unités cqw/cqh/cqmin basées sur la
+          taille RÉELLE de ce panneau plutôt que sur le viewport entier — les chiffres du timer
+          grossissent donc automatiquement quand ce panneau s'agrandit (plein écran, ou téléphone
+          tourné en paysage où le panneau devient beaucoup plus large), sans media query séparée
+          à maintenir pour chaque cas. EmbeddedTimer n'est monté que dans ce panneau (jamais seul
+          ailleurs dans l'app), donc pas besoin de repli si le contexte de conteneur manquait. */}
+      <div style={{ height: timerHeight, overflow: layout === 'workout' ? 'hidden' : 'visible', position: 'relative', flexShrink: 0, transition: 'height .2s ease', borderBottom: layout === 'workout' ? 'none' : '1px solid var(--border)', containerType: 'size' }}>
         <div style={{ position: 'absolute', top: 8, left: 8, right: 8, display: 'flex', justifyContent: 'space-between', zIndex: 2 }}>
           <button onClick={onClose} style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, width: 32, height: 32, fontSize: 15, color: 'var(--text2)', cursor: 'pointer' }} title="Arrêter et fermer">✕</button>
           <button onClick={() => setLayout(l => l === 'timer' ? 'split' : 'timer')} style={{ background: 'var(--bg)', border: '1px solid var(--border2)', borderRadius: 20, width: 32, height: 32, fontSize: 15, color: 'var(--text2)', cursor: 'pointer' }} title={layout === 'timer' ? 'Revenir au 50/50' : 'Timer plein écran'}>
